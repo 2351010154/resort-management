@@ -2,7 +2,10 @@
 
 .section {
   position: relative;
-  background: var(--ivory);
+  /* Same wall Act 2 settles on, so the two acts read as one surface. Plain
+     ivory here cut a hard line across the frame at the seam, and this act has
+     no reason to go back to it — its foot dissolves into Act 4's dark. */
+  background: var(--ivory-warm);
 }
 
 .stage {

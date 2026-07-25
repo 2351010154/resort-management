@@ -1,17 +1,19 @@
 import type { Metadata } from "next";
-import { Cormorant_Garamond, Jost } from "next/font/google";
+import { DM_Mono, Literata } from "next/font/google";
 import { LenisScrollProvider } from "@/lib/lenis-scroll-provider";
 import { ConciergeNav } from "@/components/navigation/concierge-nav";
 import { ActiveActTracker } from "@/components/navigation/active-act-tracker";
 import "./globals.css";
 
-const display = Cormorant_Garamond({
+// The oryzo.ai pairing: Literata carries the display line, DM Mono every label
+// and caps run. Both are variable-free swaps for the CSS custom properties, so
+// the whole family is these two declarations.
+const display = Literata({
   subsets: ["latin"],
-  weight: "300",
   variable: "--font-display",
 });
 
-const ui = Jost({
+const ui = DM_Mono({
   subsets: ["latin"],
   weight: ["300", "400"],
   variable: "--font-ui",

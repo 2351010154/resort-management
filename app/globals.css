@@ -5,6 +5,8 @@
 :root {
   /* palette */
   --ivory: #f4efe6;
+  /* Wall tone in the slide-2 comp — a shade warmer/greyer than plain ivory. */
+  --ivory-warm: #eee7de;
   --sand: #cfc0ab;
   --stone: #8a7b6e;
   --stone-deep: #645c51;

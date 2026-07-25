@@ -16,6 +16,13 @@
 //      units. Because those units magnify with the plane, an edge that is a
 //      few pixels at rest is tens of pixels by the end. The melt is free; it
 //      is the same smoothstep the whole way.
+//
+// The sheet's colour also spills back in across the outline, which is what
+// gives the mark its shine. Two things about that spill matter: it is measured
+// off the outline, never off the screen — keyed to screen position it reads as
+// a wash laid over the frame rather than as light on the shape — and it starts
+// outside the mark, so only its tail is visible and the light plainly comes
+// from the page.
 
 /** Fullscreen by construction — no camera involved. */
 export const lensVertex = /* glsl */ `
@@ -38,57 +45,88 @@ export const lensFragment = /* glsl */ `
   uniform float uMagnify;
   /** Pincushion strength; 0 at rest, negative through the push. */
   uniform float uBarrel;
-  /** 0 draws the opening dot, 1 the monogram. */
+  /** 0 holds the mark shut, 1 opens it fully. */
   uniform float uReveal;
-  /** How far the sheet leaks back over the opening. */
-  uniform float uTint;
+  /** Retires the sheet as the plane arrives at the camera. */
+  uniform float uOpacity;
   uniform vec3 uSheet;
 
   varying vec2 vUv;
 
-  /** Podium's warp: displace radially by a factor quadratic in the radius. */
-  vec2 barrelPincushion(vec2 st, float strength) {
-    return st * (1.0 + strength * dot(st, st));
+  /** Displace radially by a factor quadratic in the radius. */
+  vec2 barrelPincushion(vec2 p, vec2 st, float strength) {
+    return p * (1.0 + strength * dot(st, st));
   }
 
-  /** Extent the barrel is normalised against, as a multiple of the viewport. */
-  const float PLANE_SPAN = 1.4;
-  /** Edge band width, in field units. */
+  /** Edge band width, in field units. A few pixels at rest. */
   const float EDGE = 0.0035;
-  /** Radius of the dot the mark opens out of, in field units. */
-  const float DOT = 0.006;
-  /** How quickly the tint's distance term saturates away from the outline. */
-  const float TINT_SPREAD = 6.0;
-  /** Tint floor — the sheet's reach even hard against the outline. */
-  const float TINT_BASE = 0.3;
-  /** Falloff of the tint. High, so the leak stays a whisper until it is not. */
-  const float TINT_FALLOFF = 4.0;
+  /** Erosion that holds the mark shut, in field units. Past its half-thickness. */
+  const float CLOSED = 0.075;
+  /**
+   * Where the spill starts, in field units *outside* the outline. Kept under
+   * EDGE so its brightest part always falls on already-opaque sheet.
+   */
+  const float GLOW_ORIGIN = 0.003;
+  /** Bright rim hard against the outline, and the distance it decays over. */
+  const float GLOW_RIM = 0.42;
+  const float GLOW_RIM_REACH = 0.008;
+  /** Faint haze carrying on across the stroke, and its far longer decay. */
+  const float GLOW_HAZE = 0.22;
+  const float GLOW_HAZE_REACH = 0.055;
 
   void main() {
-    vec2 px = (vUv - 0.5) * uResolution;
-    // the same screen point, expressed on the glyph plane in rest pixels
-    vec2 plane = px / uMagnify;
+    vec2 st = vUv - 0.5;
+    // the screen point, expressed on the glyph plane in rest pixels
+    vec2 plane = st * uResolution / uMagnify;
 
-    vec2 warped = barrelPincushion(plane / uResolution * PLANE_SPAN, uBarrel)
-      * uResolution / PLANE_SPAN;
+    // The pinch is measured against the screen rather than against the plane,
+    // so it holds its strength as the plane swallows the viewport instead of
+    // thinning out with the square of the magnification.
+    vec2 warped = barrelPincushion(plane, st, uBarrel);
 
+    // A pure scale about the middle of the field, which is also the middle of the
+    // frame and the point every other plane in the scene projects from. Anchoring
+    // the mark's zoom anywhere else gives it an origin the cards do not share, and
+    // the one shared projection is the whole reason these read as one space.
     float shape = texture2D(uField, warped / uFieldPx + 0.5).r;
-    float dot_ = length(warped) / uFieldPx - DOT;
-    // linear blend of two distance fields is a morph between their outlines
-    float d = mix(dot_, shape, uReveal);
+    // The mark opens by un-eroding, which on a distance field is one offset.
+    // Held shut it is eaten back past its own half-thickness and nothing shows;
+    // as the offset relaxes the strokes surface as rounded islands at their
+    // widest points and close up into the letter. Morphing out of a circle
+    // instead makes the thin strokes arrive as spikes.
+    float d = shape + (1.0 - uReveal) * CLOSED;
 
-    float mask = smoothstep(0.0, EDGE, d);
+    // The outline itself. Nothing softens it beyond this band, so the silhouette
+    // stays a drawn edge; the band is in field units, so it is the plane
+    // magnifying it that melts it late in the push, not a blur.
+    float sheet = smoothstep(0.0, EDGE, d);
 
-    // The sheet bleeds back through the opening with distance from the screen
-    // centre, so the mark reads solid where you are looking and dissolves into
-    // the page toward the edges — and haloes faintly on the outside of its own
-    // outline. Scaling the distance term by the magnification keeps that halo a
-    // constant width on screen rather than swelling with the plane.
-    float bleed = length(vUv - 0.5)
-      + smoothstep(-1.0, 1.0, d * uMagnify * TINT_SPREAD)
-      + TINT_BASE;
-    mask = pow(clamp(mix(mask, bleed, uTint), 0.0, 1.0), TINT_FALLOFF);
+    // Spill: page light crossing the outline and dying away inside the mark.
+    //
+    // Its origin sits *outside* the outline, so the bright end of the ramp
+    // falls on sheet that is already opaque and only the tail lands on the
+    // mark. That is what makes it read as the page lighting the shape rather
+    // than the shape lighting itself — a spill that starts at the outline
+    // reads as the mark's own emission.
+    //
+    // Exponential, not a smoothstep. A smoothstep is flat at both ends, which
+    // parks a plateau against the outline and then stops dead where it runs
+    // out; both ends read as the edges of a band rather than as a gradient.
+    // Exponential decay has its steepest point at the origin and no end at all.
+    //
+    // Two of them, because one cannot do both jobs. Measured off the reference,
+    // the spill drops steeply for the first few pixels and then carries on
+    // almost flat for ten times that distance. A single decay tuned bright
+    // enough at the rim has died by the middle of a stroke; tuned long enough
+    // to cross one, it floods the mark and drowns the imagery inside it.
+    // Its reach belongs to the screen, not to the plane. Left in field units it
+    // magnifies along with everything else, and by the end of the push what was
+    // a shine along the outline is a flat wash across the whole frame — which
+    // over the darkened interior reads as grey fog rather than as light.
+    float t = max(0.0, -d + GLOW_ORIGIN) * max(uMagnify, 1.0);
+    float glow = GLOW_RIM * exp(-t / GLOW_RIM_REACH)
+      + GLOW_HAZE * exp(-t / GLOW_HAZE_REACH);
 
-    gl_FragColor = vec4(uSheet, mask);
+    gl_FragColor = vec4(uSheet, (sheet + (1.0 - sheet) * glow) * uOpacity);
   }
 `;

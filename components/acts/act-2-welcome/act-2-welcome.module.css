@@ -1,4 +1,5 @@
-/* Act 2 — floema centered welcome line with orbiting detail images. */
+/* Act 2 — the welcome line on a bare wall, foliage shadow cast in from the
+   top right (slide-2 comp, frame 02). */
 
 .section {
   position: relative;
@@ -6,8 +7,57 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--ivory);
-  overflow: hidden;
+  /* Warms into the comp's wall tone below the seam with Act 1's ivory. */
+  background: linear-gradient(
+    180deg,
+    var(--ivory) 0%,
+    var(--ivory-warm) 18%,
+    var(--ivory-warm) 100%
+  );
+  /* No overflow clip here: it would become the gobo's scroll container and the
+     sticky wall would scroll away with the section. The one layer that overruns
+     the act clips itself instead. */
+  /* Keeps the gobo's multiply off the acts either side of this one. */
+  isolation: isolate;
+}
+
+/* The shadow multiplies onto the wall, so the blend has to live on this wrapper
+   and not on the canvas: anything that makes its own stacking context — a
+   z-index, a transform — isolates the blend, and an isolated multiply has no
+   backdrop to darken and paints its own white instead. */
+.goboWrap {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+}
+
+/* Pinned to the viewport for the length of the act: the window throwing the
+   light doesn't move because the page did. Has to be its own element — R3F sets
+   position/height inline on the canvas container, which a class can't win. */
+.gobo {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+
+/* No WebGL: the corner still darkens, it just doesn't have leaves in it. */
+.goboFallback {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  background:
+    radial-gradient(
+      68% 52% at 96% 4%,
+      rgba(120, 106, 88, 0.16) 0%,
+      rgba(120, 106, 88, 0.06) 46%,
+      rgba(120, 106, 88, 0) 74%
+    ),
+    radial-gradient(
+      40% 46% at 2% 42%,
+      rgba(120, 106, 88, 0.07) 0%,
+      rgba(120, 106, 88, 0) 72%
+    );
 }
 
 .copy {
@@ -24,19 +74,37 @@
 
 .kicker {
   color: var(--stone-deep);
+  /* Comp measures ~11px on a 1440 frame, a touch tighter than the global caps. */
+  font-size: 0.6875rem;
+  letter-spacing: 0.2em;
 }
 
 .display {
-  font-size: var(--text-display);
-  line-height: 1.15;
-  margin-top: var(--space-2);
+  /* Sized so the line takes the same share of the frame as the comp (~45%),
+     which lands smaller than the global display step — that one is cut for act
+     openers, and Literata sets wider than the comp's face. */
+  font-size: clamp(2rem, 4.1vw, 3.75rem);
+  line-height: 1.12;
+  margin-top: 1.75rem;
   color: var(--ink);
+  font-weight: 300;
+  letter-spacing: -0.005em;
+}
+
+/* The caps run fills a phone's width at the desktop size; step it down rather
+   than let it wrap, which would break the comp's single-line kicker. */
+@media (max-width: 480px) {
+  .kicker {
+    font-size: 0.625rem;
+    letter-spacing: 0.16em;
+  }
 }
 
 .orbit {
   position: absolute;
   inset: 0;
   pointer-events: none;
+  overflow: hidden;
 }
 
 .orbitImage {

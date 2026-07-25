@@ -1,6 +1,6 @@
 "use client";
 
-// Act 7 — "The Turndown": the dark stone panel the arrival settles into.
+// Act 6 — "The Turndown": the dark stone panel the arrival settles into.
 // Embossed monogram (Act 1's coalesced mark, now pressed into stone) tilts with
 // scroll; quiet columns and the decorative "Letters from Mariva" line sit under
 // it; a giant wordmark band is clipped by the page edge (wolverine footer cue —
@@ -8,22 +8,23 @@
 
 import { useRef } from "react";
 import { useLenis } from "@/lib/lenis-scroll-provider";
-import { scrollToAct } from "@/components/navigation/nav-hover-link";
+import { scrollToAct, scrollToRoom } from "@/components/navigation/nav-hover-link";
 import { EmbossedMonogram, type EmbossIntensity } from "./embossed-monogram";
 import { LettersFromMariva } from "./letters-from-mariva-form";
-import styles from "./act-7-turndown.module.css";
+import styles from "./act-6-turndown.module.css";
 
-// Entries with an `act` ride the same lenis scroll as the nav; the rest are
-// decorative (concept piece, no destinations) and render as plain text — no
-// dead href, no focus stop.
+// Entries with an `act` or a `room` ride the same lenis scroll as the nav; the
+// rest are decorative (concept piece, no destinations) and render as plain text
+// — no dead href, no focus stop. Dine and Restore are rooms inside Act 4, not
+// acts of their own.
 const COLUMNS = [
   {
     title: "The resort",
     links: [
-      { label: "Stay", act: 4 },
-      { label: "Dine", act: 5 },
-      { label: "Restore", act: 5 },
-      { label: "Begin your stay", act: 6 },
+      { label: "Stay", room: 0 },
+      { label: "Dine", room: 7 },
+      { label: "Restore", room: 6 },
+      { label: "Begin your stay", act: 5 },
     ],
   },
   {
@@ -46,7 +47,7 @@ export function TurndownFooter({
   const lenis = useLenis();
 
   return (
-    <footer ref={sectionRef} data-act={7} className={styles.section}>
+    <footer ref={sectionRef} data-act={6} className={styles.section}>
       <div className={styles.inner}>
         <EmbossedMonogram intensity={embossIntensity} triggerRef={sectionRef} />
 
@@ -63,6 +64,17 @@ export function TurndownFooter({
                       onClick={(e) => {
                         e.preventDefault();
                         scrollToAct(lenis, link.act);
+                      }}
+                    >
+                      {link.label}
+                    </a>
+                  ) : "room" in link ? (
+                    <a
+                      key={link.label}
+                      href="#act-4"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        scrollToRoom(lenis, link.room);
                       }}
                     >
                       {link.label}

@@ -11,7 +11,9 @@ import { arrivalImages } from "@/lib/arrival-image-manifest";
 import { prefersReducedMotion } from "@/lib/webgl-support";
 import styles from "./act-2-welcome.module.css";
 
-export const ORBIT_ENABLED = true;
+// Off since the act took the slide-2 comp: the comp's wall carries the foliage
+// shadow and nothing else, and floating photographs read as clutter against it.
+export const ORBIT_ENABLED = false;
 
 const ORBIT = arrivalImages["act-2-orbit"];
 

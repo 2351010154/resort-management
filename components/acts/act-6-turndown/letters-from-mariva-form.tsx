@@ -5,7 +5,7 @@
 // the same voice as Act 2's "You have been expected."
 
 import { useState } from "react";
-import styles from "./act-7-turndown.module.css";
+import styles from "./act-6-turndown.module.css";
 
 export function LettersFromMariva() {
   const [sent, setSent] = useState(false);
