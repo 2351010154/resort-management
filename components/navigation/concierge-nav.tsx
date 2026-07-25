@@ -22,7 +22,7 @@ export function ConciergeNav() {
   const menuOpen = useArrivalActStore((s) => s.menuOpen);
   const setMenuOpen = useArrivalActStore((s) => s.setMenuOpen);
   const activeAct = useArrivalActStore((s) => s.activeAct);
-  const navDark = useArrivalActStore((s) => s.navDark);
+  const navDark = useArrivalActStore((s) => s.navDarkActs.length > 0);
 
   // Scroll phase with hysteresis (enter 80vh / exit 60vh) so the
   // wordmark<->monogram crossfade never flickers at the boundary.

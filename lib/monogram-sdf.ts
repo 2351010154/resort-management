@@ -10,16 +10,26 @@
 // visibly once magnified this far, and the whole field costs one rasterisation
 // plus two linear-time passes — cheap enough to run behind the intro curtain.
 
-import { loadMonogramGlyph, traceDilatedMonogram } from "./monogram-glyph";
+import { FOCUS_Y, loadMonogramGlyph, traceMonogram } from "./monogram-glyph";
 
 /** Field resolution. Leaves a ~4-texel edge band at full magnification. */
 const SIZE = 1024;
 
 /**
- * Fraction of the field's height taken by the dilated mark. The rest is
- * headroom for the outside distances the tint samples.
+ * Fraction of the field's height taken by the mark. The rest is headroom for
+ * the outside distances the tint samples.
  */
 export const GLYPH_FRACTION = 0.42;
+
+/**
+ * v of the mark's baseline in field UV — the line the water reflects about.
+ *
+ * The mark is placed by its focus point, which sits at the field's midpoint, so
+ * the baseline is whatever is left of the mark's height below that. Subtracted,
+ * not added: the field is handed to the GPU bottom row first (see
+ * fieldTexture), so v climbs the screen while the glyph's own units fall.
+ */
+export const GLYPH_BASE_V = 0.5 - (1 - FOCUS_Y) * GLYPH_FRACTION;
 
 export interface MonogramField {
   /** Signed distance per texel in field-UV units; positive outside the mark. */
@@ -87,16 +97,11 @@ function edt2d(grid: Float64Array, size: number): void {
 }
 
 /**
- * Rasterise the dilated mark centred in a square field, returning coverage.
+ * Rasterise the mark centred in a square field, returning coverage.
  *
- * Centred on the mark's ink box, which for this M puts the field's midpoint
- * inside the middle apex joint — measured at 0.019 field units deep, against a
- * stroke half-thickness of about 0.02. The lens leans on that: it zooms about the
- * field's midpoint, so once magnification passes ~48x every pixel on screen
- * resolves to a point inside that joint and the sheet clears itself. A glyph
- * whose ink-box centre falls *outside* the strokes would instead fill the frame
- * with sheet at the moment it should be opening, so that distance is worth
- * re-measuring if the mark is ever redrawn.
+ * Centred on the mark's focus point, not its box — the lens zooms about the
+ * field's midpoint, so whatever lands there is what the frame ends up inside.
+ * See FOCUS_X/FOCUS_Y for why that is not the middle of this letterform.
  */
 async function rasteriseCoverage(size: number): Promise<Float32Array> {
   const glyph = await loadMonogramGlyph();
@@ -104,9 +109,8 @@ async function rasteriseCoverage(size: number): Promise<Float32Array> {
   canvas.width = canvas.height = size;
   const ctx = canvas.getContext("2d", { willReadFrequently: true })!;
   ctx.fillStyle = "#fff";
-  ctx.strokeStyle = "#fff";
   ctx.translate(size / 2, size / 2);
-  traceDilatedMonogram(ctx, glyph, size * GLYPH_FRACTION);
+  traceMonogram(ctx, glyph, size * GLYPH_FRACTION);
 
   const { data } = ctx.getImageData(0, 0, size, size);
   const coverage = new Float32Array(size * size);

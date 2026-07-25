@@ -1,21 +1,37 @@
-// The Mariva monogram as a drawable Path2D, plus the ink bounds the intro needs
-// to place it.
+// The Mariva monogram as the intro draws it: a drawable Path2D, the ink bounds
+// that place it, and the point the camera flies into.
 //
-// The mark is a hairline M. Anything that shows the world through it — the
-// canvas cut-out sheet, the WebGL lens — has to widen the strokes first, or the
-// opening carries almost no image. Widening is an outward stroke with round
-// joins and caps, which is exactly morphological dilation by a disc: `fill()`
-// plus `stroke()` at twice the offset. That is where the rounded stroke ends
-// come from.
+// This is the heavy intro cut of the mark (scripts/build-intro-monogram.mjs),
+// not the hairline one the concierge bar carries. It is drawn at its own
+// weight — the strokes are already wide enough to hold a photograph, so unlike
+// the hairline mark it needs no dilation pass before the world can show
+// through it.
 
-/** Outward offset, as a fraction of the mark's own height. */
-export const MONOGRAM_DILATE = 0.047;
-
+/** Where in the mark the lens converges — see FOCUS_X/FOCUS_Y. */
 export interface MonogramGlyph {
   path: Path2D;
-  /** Ink bounds of the undilated mark, in viewBox units. */
+  /** Ink bounds of the mark, in viewBox units. */
   box: { x: number; y: number; width: number; height: number };
 }
+
+/**
+ * The point the mark is centred on, as a fraction of its ink box.
+ *
+ * Not the box's middle. The lens is a pure scale about this point, so past a
+ * certain magnification every pixel on screen resolves to somewhere within a
+ * few units of it — and if that neighbourhood is background, the frame fills
+ * with backdrop at the exact moment it should be opening into the letter. The
+ * middle of this M's box sits four units under the tip of the central counter,
+ * which is far too close to that notch.
+ *
+ * This point instead sits in the belly of the V, ~35 units clear of the nearest
+ * stroke edge in every direction — enough that the frame is inside solid mark
+ * by the time the sheet starts retiring. Its side effect is compositional and
+ * wanted: centring here lifts the mark to sit a little high in the frame, which
+ * is where it sits in the artwork, with the water carrying the space beneath.
+ */
+export const FOCUS_X = 0.504;
+export const FOCUS_Y = 0.613;
 
 /** Ink bounds of a path, by rasterising once and scanning the alpha channel. */
 function measureInk(path: Path2D, viewW: number, viewH: number): MonogramGlyph["box"] {
@@ -49,10 +65,10 @@ let pending: Promise<MonogramGlyph> | null = null;
 
 /** Loads and measures the mark once per document. */
 export function loadMonogramGlyph(): Promise<MonogramGlyph> {
-  pending ??= fetch("/brand/mariva-monogram.svg")
+  pending ??= fetch("/brand/mariva-monogram-intro.svg")
     .then((r) => r.text())
     .then((source) => {
-      const viewBox = (/viewBox="([-\d.\s]+)"/.exec(source)?.[1] ?? "0 0 340 260")
+      const viewBox = (/viewBox="([-\d.\s]+)"/.exec(source)?.[1] ?? "0 0 486 465")
         .trim()
         .split(/\s+/)
         .map(Number);
@@ -64,31 +80,19 @@ export function loadMonogramGlyph(): Promise<MonogramGlyph> {
 }
 
 /**
- * Draws the dilated mark into the current context, centred on the origin and
- * scaled so the *dilated* height is `height`. Targeting the dilated height
- * keeps the opening the same size on screen however the offset is tuned.
+ * Draws the mark into the current context, scaled so its height is `height` and
+ * positioned so its focus point — not its centre — lands on the origin.
  */
-export function traceDilatedMonogram(
+export function traceMonogram(
   ctx: CanvasRenderingContext2D,
   glyph: MonogramGlyph,
   height: number,
 ): void {
   const { box } = glyph;
-  const offset = MONOGRAM_DILATE * box.height;
-  const scale = height / (box.height + offset * 2);
+  const scale = height / box.height;
   ctx.save();
   ctx.scale(scale, scale);
-  ctx.translate(-(box.x + box.width / 2), -(box.y + box.height / 2));
-  ctx.lineWidth = offset * 2;
-  ctx.lineJoin = "round";
-  ctx.lineCap = "round";
-  ctx.stroke(glyph.path);
+  ctx.translate(-(box.x + box.width * FOCUS_X), -(box.y + box.height * FOCUS_Y));
   ctx.fill(glyph.path, "evenodd");
   ctx.restore();
-}
-
-/** Aspect ratio (w/h) of the dilated mark. */
-export function dilatedAspect({ box }: MonogramGlyph): number {
-  const offset = MONOGRAM_DILATE * box.height;
-  return (box.width + offset * 2) / (box.height + offset * 2);
 }
