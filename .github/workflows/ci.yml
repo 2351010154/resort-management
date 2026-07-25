@@ -21,9 +21,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # .nvmrc is the single source of truth for the Node version. npm majors
+      # disagree on which optional dependencies belong in the lock file, so a
+      # runner on a different major would reject a lock generated locally.
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: .nvmrc
           cache: npm
 
       - run: npm ci
