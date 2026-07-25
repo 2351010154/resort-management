@@ -3,15 +3,14 @@
 
 .section {
   position: relative;
-  min-height: 130vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  /* Warms into the comp's wall tone below the seam with Act 1's ivory. */
+  /* Warms into the comp's wall tone below the seam with Act 1's ivory. The
+     stops are in vh, not %: the act runs several viewports now that the
+     chapters hang below the line, and a percentage stop would stretch the
+     seam across the whole of it. */
   background: linear-gradient(
     180deg,
-    var(--ivory) 0%,
-    var(--ivory-warm) 18%,
+    var(--ivory) 0,
+    var(--ivory-warm) 24vh,
     var(--ivory-warm) 100%
   );
   /* No overflow clip here: it would become the gobo's scroll container and the
@@ -30,6 +29,12 @@
   inset: 0;
   pointer-events: none;
   mix-blend-mode: multiply;
+  /* Sits between the two content layers rather than under both: the shadow
+     falls across the chapter photographs (z-index 0) the way it falls across
+     the wall, and stops short of the type (z-index 2), which has to stay
+     crisp. Only works because nothing between here and .section makes its own
+     stacking context. */
+  z-index: 1;
 }
 
 /* Pinned to the viewport for the length of the act: the window throwing the
@@ -58,6 +63,15 @@
       rgba(120, 106, 88, 0.07) 0%,
       rgba(120, 106, 88, 0) 72%
     );
+}
+
+/* The welcome beat: the line alone on the wall, one viewport-and-a-bit of it,
+   before the chapters begin. Was the section's own job until the act grew. */
+.stage {
+  min-height: 130vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .copy {
@@ -97,6 +111,234 @@
   .kicker {
     font-size: 0.625rem;
     letter-spacing: 0.16em;
+  }
+}
+
+/* ── Chapters ────────────────────────────────────────────────────────────────
+   Three ruled panels hanging off the welcome line, izanami "Philosophy"
+   composition: a vertical rail label, a ragged display line, and a stack of
+   three overlapping photographs on the far side. Alternate panels mirror the
+   whole arrangement so the rhythm never repeats twice running.
+
+   No stacking context on .chapters or .chapter — the gobo's multiply reaches
+   the photographs through them (see .goboWrap). */
+.chapters {
+  position: relative;
+  max-width: 1560px;
+  margin-inline: auto;
+  /* Shared with the outward-hanging tile below, which bleeds exactly this far
+     so its outer edge lands flush with the page edge instead of near it. */
+  --gutter: clamp(1.25rem, 4vw, 4.5rem);
+  padding-inline: var(--gutter);
+}
+
+.chapter {
+  position: relative;
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr) minmax(0, 1.05fr);
+  column-gap: clamp(1.5rem, 4vw, 4.5rem);
+  align-items: center;
+  min-height: 92vh;
+  padding-block: clamp(5rem, 12vh, 9rem);
+  border-top: 1px solid rgba(100, 92, 81, 0.18);
+}
+
+.chapter[data-side="left"] {
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr) 3rem;
+}
+
+/* Every child is pinned to row 1. Without it the mirrored panel breaks into
+   three rows: auto-placement will not walk back to an earlier column, and the
+   mirror puts the rail (first in the DOM) in the last one. */
+.chapter > * {
+  grid-row: 1;
+}
+
+/* Vertical caps label, always on the outer edge beside the type. */
+.chapterRail {
+  grid-column: 1;
+  align-self: start;
+  writing-mode: vertical-rl;
+  color: var(--stone);
+  font-size: 0.625rem;
+  letter-spacing: 0.24em;
+  white-space: nowrap;
+}
+
+.chapter[data-side="left"] .chapterRail {
+  grid-column: 3;
+}
+
+.chapterText {
+  grid-column: 2;
+  position: relative;
+  /* Above the gobo: the shadow crosses the wall and the photographs, never
+     the reading. */
+  z-index: 2;
+}
+
+.chapterIndex {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--stone);
+  margin-bottom: 1.75rem;
+}
+
+.chapterIndex::after {
+  content: "";
+  width: 3.5rem;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.5;
+}
+
+.chapterHead {
+  font-size: clamp(1.75rem, 3.3vw, 3.05rem);
+  line-height: 1.16;
+  color: var(--ink);
+  font-weight: 300;
+  letter-spacing: -0.008em;
+}
+
+/* Ragged setting: each line carries its own indent from the data, so the
+   block steps rather than stacking flush. */
+.chapterLine {
+  padding-inline-start: var(--indent, 0);
+}
+
+.chapterBody {
+  max-width: 34ch;
+  margin-top: 2rem;
+  color: var(--stone-deep);
+  font-size: 0.9375rem;
+  line-height: 1.85;
+}
+
+.chapterCaption {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 2.5rem;
+  color: var(--stone-deep);
+}
+
+.chapterCaption::before {
+  content: "";
+  width: 3.5rem;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.55;
+}
+
+/* The stack. Sized off the primary frame; the other two hang off its corners,
+   one breaking inward over the type side, one dropping outward past the edge.
+   Positions are written with logical insets so the mirrored panel needs one
+   direction flip rather than a second set of coordinates. */
+.stack {
+  grid-column: 3;
+  position: relative;
+  z-index: 0;
+  aspect-ratio: 3 / 4;
+  width: min(100%, 28rem);
+  margin-inline-start: auto;
+}
+
+.chapter[data-side="left"] .stack {
+  grid-column: 1;
+  direction: rtl;
+}
+
+.tile {
+  position: absolute;
+  overflow: hidden;
+  box-shadow: 0 18px 46px rgba(28, 25, 21, 0.16);
+  will-change: transform;
+}
+
+.tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Settles out of a slight over-scale as the panel arrives; the tile clips
+     it, so there is no layout move and nothing to hide before JS runs. */
+  will-change: transform;
+}
+
+.tilePrimary {
+  inset: 0;
+}
+
+.tileOver {
+  top: var(--over-y, -8%);
+  inset-inline-start: -20%;
+  width: var(--over-w, 54%);
+  aspect-ratio: 1;
+  z-index: 2;
+}
+
+.tileUnder {
+  bottom: -7%;
+  inset-inline-end: calc(-1 * var(--gutter));
+  width: var(--under-w, 42%);
+  aspect-ratio: 4 / 3;
+  z-index: 1;
+}
+
+/* Phones and small tablets: one column, stack under the type, rail inline.
+   The mirror has nothing left to mirror at this width, so it stands down. */
+@media (max-width: 900px) {
+  .chapter,
+  .chapter[data-side="left"] {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: clamp(3rem, 9vh, 5rem);
+    min-height: 0;
+    padding-block: clamp(4rem, 10vh, 7rem);
+  }
+
+  .chapter > * {
+    grid-row: auto;
+  }
+
+  .chapter .chapterRail,
+  .chapter .chapterText,
+  .chapter .stack {
+    grid-column: 1;
+  }
+
+  .chapterRail {
+    writing-mode: horizontal-tb;
+  }
+
+  .chapter[data-side="left"] .stack {
+    direction: ltr;
+  }
+
+  /* Held off the end of the column so the tile breaking inward has somewhere
+     to go; the outward one still runs flush to the page edge. */
+  .stack {
+    width: min(84%, 20rem);
+    margin-inline: auto 0;
+  }
+
+  .tileOver {
+    inset-inline-start: -16%;
+  }
+}
+
+/* Below this the third tile has nowhere to go without crowding the frame. */
+@media (max-width: 520px) {
+  .tileUnder {
+    display: none;
+  }
+
+  .stack {
+    width: min(86%, 18rem);
+  }
+
+  .tileOver {
+    inset-inline-start: -14%;
+    width: 46%;
   }
 }
 
