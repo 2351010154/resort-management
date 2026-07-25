@@ -1,7 +1,7 @@
 "use client";
 
 // The midground: photographs and short loops suspended at different depths in
-// front of the coast plate and behind the monogram. They are projected from the
+// front of the interior plate and behind the monogram. They are projected from the
 // same camera the monogram uses, so pushing in grows the near ones fast and the
 // far ones slowly — that spread is the depth cue the intro is built on.
 //

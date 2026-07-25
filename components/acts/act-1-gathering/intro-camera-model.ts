@@ -1,4 +1,4 @@
-// One camera for the whole intro. The monogram, the cards and the coast plate
+// One camera for the whole intro. The monogram, the cards and the interior plate
 // are planes at different world depths in front of a single camera that pushes
 // forward as you scroll — that shared projection is what makes them read as one
 // space instead of stacked effects. The monogram is the nearest of them, so it
@@ -8,7 +8,7 @@ import { arrivalImages } from "@/lib/arrival-image-manifest";
 import { INTRO_VIDEO_BASE, introVideoBySlug } from "@/lib/intro-video-manifest";
 
 /**
- * Depth of the coast plate — far enough that it only drifts. Read against
+ * Depth of the interior plate — far enough that it only drifts. Read against
  * TRAVEL: it has to sit several travels back, or a camera crossing three depth
  * units takes the backdrop to 4x, which is both a visible upscale of a 1920px
  * photograph and far more motion than something behind everything should have.
@@ -37,7 +37,7 @@ export interface IntroCamera {
   progress: number;
   /** Camera advance into the scene, 0 → TRAVEL. */
   z: number;
-  /** 0-1 mount fade — the scene lifts out of flat ivory once the SDF is ready. */
+  /** 0-1 mount fade — the scene lifts out of the flat sea once the SDF is ready. */
   entry: number;
   /** 0-1 opening of the mark itself: a dot at 0, the full monogram at 1. */
   reveal: number;
@@ -79,9 +79,9 @@ export function apertureMagnify(z: number): number {
  * this. Around 46x the mark's thickest stroke covers the frame corners, and
  * since the lens converges its sample on the middle of that stroke, every pixel
  * resolves to "inside the mark" and the quad goes transparent on its own. What
- * is on screen just before that is bright ivory rushing outward — the walls of
+ * is on screen just before that is bright sky rushing outward — the walls of
  * the letter going past. Fading the sheet out any earlier than that instead
- * leaves a half-opaque ivory veil over the darkened interior, which greys the
+ * leaves a half-opaque wash of sea over the darkened interior, which greys the
  * whole frame at the exact moment it should be opening.
  *
  * Unlike the reference's mask — a real plane, which simply ends up behind the
@@ -92,7 +92,7 @@ const SHEET_OUT_FROM = 34;
 const SHEET_OUT_TO = 70;
 
 /**
- * Opacity of the ivory sheet as the mark blows past. Expressed against apparent
+ * Opacity of the sea sheet as the mark blows past. Expressed against apparent
  * depth rather than magnification so it is linear in scroll: magnification is
  * already hyperbolic here, and fading linearly in it drops the sheet in the last
  * half percent of the window.
@@ -104,7 +104,7 @@ export function sheetOpacity(z: number): number {
   return clamp01((apparent - to) / (from - to));
 }
 
-/** Apparent scale of the coast plate; 1 at rest. */
+/** Apparent scale of the interior plate; 1 at rest. */
 export function plateDrift(z: number): number {
   return planeScale(PLATE_DEPTH, z) * PLATE_DEPTH;
 }
@@ -245,8 +245,19 @@ export const INTRO_CARDS: IntroCard[] = [...STILL_CARDS, ...VIDEO_CARDS].sort(
   (a, b) => b.depth - a.depth,
 );
 
-/** The coast plate the whole scene sits in front of. */
-export const PLATE_IMAGE = bySlug.get("coast-aerial") ?? FIELD[0];
+/**
+ * The plate the whole scene sits in front of — what fills the mark before the
+ * first cards arrive.
+ *
+ * An interior, and specifically one with no sky in it. The act used to open on
+ * ivory, so a coastal aerial read as a window; against the sea backdrop the
+ * same photograph puts its own sky inside the letter, a few shades off the sky
+ * outside it, and the strokes stop reading as an opening at all — worst in the
+ * caps, which are narrow enough to sit entirely inside the outline's spill.
+ * Warm columns at dusk give the opening something to be a window onto, and go
+ * on doing it as the interior sinks toward black.
+ */
+export const PLATE_IMAGE = bySlug.get("lounge-columns-dusk") ?? FIELD[0];
 
 /**
  * Cards fade as they outgrow the frame, so nothing ever slams the viewport shut.

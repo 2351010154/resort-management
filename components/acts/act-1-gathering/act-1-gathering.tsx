@@ -1,7 +1,7 @@
 "use client";
 
 // Act 1 — "The Aperture". A single pinned scene rather than a run of screens:
-// the coast plate, the image field and the monogram sheet coexist for the whole
+// the interior plate, the image field and the monogram sheet coexist for the whole
 // act. The monogram is the nearest plane in that scene, so scrolling drives it
 // at the viewer far faster than anything behind it — the opening swells until
 // the frame is inside a single stroke. The act ends by surfacing the interior
@@ -11,6 +11,7 @@
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useArrivalActStore } from "@/lib/arrival-act-store";
 import { prefersReducedMotion, shouldRenderFilm } from "@/lib/webgl-support";
 import { tierSrcSet } from "@/lib/arrival-image-srcset";
 import { DUR_SCENE_SLOW, EASE_UI } from "@/lib/motion-tokens";
@@ -35,6 +36,20 @@ const ACT_HEIGHT = "260vh";
 /** The plate is oversized at rest so its slow drift never exposes an edge. */
 const PLATE_REST_SCALE = 1.05;
 
+/**
+ * Progress at which the concierge bar gives the sea back and returns to ink.
+ *
+ * The act owns the viewport centre — and so the act tracker's idea of "active"
+ * — for a good while after the bloom has taken the frame to ivory, so the flip
+ * cannot be left to the tracker: it would leave ivory lettering on an ivory
+ * page for the last stretch of the scroll. Set a little past the middle of the
+ * bloom tween (0.93 over 0.07), where the frame has committed to light.
+ */
+const NAV_HANDBACK = 0.96;
+
+/** Seconds the holding curtain takes to clear. The mark's opening waits on it. */
+const CURTAIN_LIFT = 1;
+
 export function Act1Gathering() {
   const sectionRef = useRef<HTMLElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -46,6 +61,7 @@ export function Act1Gathering() {
   // canvas cut-out.
   const [lens, setLens] = useState(false);
   const cameraRef = useRef<IntroCamera>({ progress: 0, z: 0, entry: 0, reveal: 1 });
+  const setNavDark = useArrivalActStore((s) => s.setNavDark);
 
   useEffect(() => {
     setAnimate(!prefersReducedMotion());
@@ -64,18 +80,47 @@ export function Act1Gathering() {
     // Not the scene ease: the mark opens by relaxing an erosion, so an ease
     // that front-loads as hard as expo.out spends the whole tween on the last
     // hairline of the outline and snaps the letter open.
+    //
+    // Held until the curtain below has finished lifting. The curtain is opaque
+    // and takes a second to go, and an erosion that starts under it spends more
+    // than half its travel unseen — the letter is already open past its middle
+    // by the time there is anything to watch, which is what turns a two-second
+    // opening into a flicker. Nothing is at risk in the wait: the sheet is a
+    // solid mask while the mark is shut, so it hides the scene on its own.
     if (camera.reveal < 1) {
-      gsap.to(camera, { reveal: 1, duration: DUR_SCENE_SLOW, ease: EASE_UI, delay: 0.25 });
+      gsap.to(camera, {
+        reveal: 1,
+        duration: DUR_SCENE_SLOW,
+        ease: EASE_UI,
+        delay: CURTAIN_LIFT * 0.9,
+      });
     }
     if (curtainRef.current) {
       gsap.to(curtainRef.current, {
         autoAlpha: 0,
-        duration: 1,
+        duration: CURTAIN_LIFT,
         ease: "power2.inOut",
         onComplete: () => ScrollTrigger.refresh(),
       });
     }
   }, []);
+
+  // Reduced motion: the act is one still frame of open sea, so the bar stays
+  // ivory for exactly as long as that frame owns the viewport. The scrubbed
+  // path below hands it back mid-bloom instead, which is earlier than this.
+  useEffect(() => {
+    const section = sectionRef.current;
+    if (animate !== false || !section) return;
+    const io = new IntersectionObserver(
+      ([entry]) => setNavDark(1, entry.isIntersecting),
+      { rootMargin: "-45% 0px -45% 0px" },
+    );
+    io.observe(section);
+    return () => {
+      io.disconnect();
+      setNavDark(1, false);
+    };
+  }, [animate, setNavDark]);
 
   useEffect(() => {
     if (!animate) return;
@@ -84,6 +129,8 @@ export function Act1Gathering() {
     if (!section || !stage) return;
     gsap.registerPlugin(ScrollTrigger);
     const camera = cameraRef.current;
+    let navDark = true;
+    setNavDark(1, true);
 
     const ctx = gsap.context(() => {
       const timeline = gsap.timeline({
@@ -100,6 +147,11 @@ export function Act1Gathering() {
             if (plateRef.current) {
               const drift = PLATE_REST_SCALE * plateDrift(camera.z);
               plateRef.current.style.transform = `scale(${drift.toFixed(4)})`;
+            }
+            const dark = self.progress < NAV_HANDBACK;
+            if (dark !== navDark) {
+              navDark = dark;
+              setNavDark(1, dark);
             }
           },
         },
@@ -123,8 +175,11 @@ export function Act1Gathering() {
       });
     }, section);
 
-    return () => ctx.revert();
-  }, [animate]);
+    return () => {
+      ctx.revert();
+      setNavDark(1, false);
+    };
+  }, [animate, setNavDark]);
 
   const copy = (
     <div className={styles.copy}>

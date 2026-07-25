@@ -10,22 +10,39 @@ interface ArrivalActState {
   activeAct: number;
   menuOpen: boolean;
   navPhase: NavPhase;
-  /** A light act can darken mid-scroll (Act 1); act identity alone can't tell
-   *  the nav which theme it is sitting on. */
-  navDark: boolean;
+  /**
+   * Acts sitting on a dark backdrop right now. Act identity alone cannot tell
+   * the nav which theme it is over: Acts 1 and 4 both start dark and hand the
+   * bar back part-way through their own scroll.
+   *
+   * A list of claims rather than one flag, because more than one act writes it
+   * and their lifecycles overlap — a pinned act is still mounted while the next
+   * one takes the viewport, and its teardown would otherwise clear a claim it
+   * never made.
+   */
+  navDarkActs: readonly number[];
   setActiveAct: (act: number) => void;
   setMenuOpen: (open: boolean) => void;
   setNavPhase: (phase: NavPhase) => void;
-  setNavDark: (dark: boolean) => void;
+  /** Claim or release the dark bar for one act. Idempotent. */
+  setNavDark: (act: number, dark: boolean) => void;
 }
 
 export const useArrivalActStore = create<ArrivalActState>((set) => ({
   activeAct: 1,
   menuOpen: false,
   navPhase: "top",
-  navDark: false,
+  navDarkActs: [],
   setActiveAct: (activeAct) => set({ activeAct }),
   setMenuOpen: (menuOpen) => set({ menuOpen }),
   setNavPhase: (navPhase) => set({ navPhase }),
-  setNavDark: (navDark) => set({ navDark }),
+  setNavDark: (act, dark) =>
+    set((state) => {
+      if (state.navDarkActs.includes(act) === dark) return state;
+      return {
+        navDarkActs: dark
+          ? [...state.navDarkActs, act]
+          : state.navDarkActs.filter((claim) => claim !== act),
+      };
+    }),
 }));

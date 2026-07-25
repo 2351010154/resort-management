@@ -174,8 +174,8 @@ export function CorridorTrack({ mobile }: { mobile: boolean }) {
         trigger: section,
         start: "top top+=4",
         end: "bottom bottom",
-        onEnter: () => setNavDark(true),
-        onEnterBack: () => setNavDark(true),
+        onEnter: () => setNavDark(4, true),
+        onEnterBack: () => setNavDark(4, true),
       });
 
       gsap.timeline({

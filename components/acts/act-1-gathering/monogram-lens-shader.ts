@@ -1,11 +1,11 @@
-// The monogram lens: one fullscreen quad that paints the ivory sheet
+// The monogram lens: one fullscreen quad that paints the sea backdrop
 // everywhere except through the mark.
 //
 // Three things happen to the coordinate on its way to the distance field, and
 // the whole look comes from their order:
 //
 //   1. magnify — the screen point is divided back onto the glyph plane. The
-//      plane is what moves; the sheet does not scale, so its colour stays flat
+//      plane is what moves; the sheet does not scale, so the backdrop stays put
 //      while the opening grows past the frame.
 //   2. barrel  — a lens pinch normalised against the plane's own extent, so it
 //      is strongest when the plane is still small in frame and relaxes as the
@@ -17,12 +17,13 @@
 //      few pixels at rest is tens of pixels by the end. The melt is free; it
 //      is the same smoothstep the whole way.
 //
-// The sheet's colour also spills back in across the outline, which is what
-// gives the mark its shine. Two things about that spill matter: it is measured
-// off the outline, never off the screen — keyed to screen position it reads as
-// a wash laid over the frame rather than as light on the shape — and it starts
-// outside the mark, so only its tail is visible and the light plainly comes
-// from the page.
+// The backdrop also spills back in across the outline, which is what gives the
+// mark its shine. Three things about that spill matter: it is measured off the
+// outline, never off the screen — keyed to screen position it reads as a wash
+// laid over the frame rather than as light on the shape; it starts outside the
+// mark, so only its tail is visible and the light plainly comes from the sky;
+// and it carries the backdrop's *own* colour at that pixel, so the sea leaks
+// into the strokes it touches and the sky into the ones it touches.
 
 /** Fullscreen by construction — no camera involved. */
 export const lensVertex = /* glsl */ `
@@ -37,6 +38,9 @@ export const lensFragment = /* glsl */ `
   precision highp float;
 
   uniform sampler2D uField;
+  /** The sea loop. Sampled raw: no colour-space decode, so what was encoded is
+      what reaches the frame. */
+  uniform sampler2D uBackdrop;
   /** Viewport in CSS px — the unit uFieldPx is also measured in. */
   uniform vec2 uResolution;
   /** On-screen size of the field square with the plane at rest. */
@@ -49,7 +53,15 @@ export const lensFragment = /* glsl */ `
   uniform float uReveal;
   /** Retires the sheet as the plane arrives at the camera. */
   uniform float uOpacity;
-  uniform vec3 uSheet;
+  /** Screen uv -> backdrop uv: cover fit, with the waterline placed. */
+  uniform vec2 uBackdropScale;
+  uniform vec2 uBackdropOffset;
+  /** Far-plane creep, shared with the interior plate inside the mark. */
+  uniform float uBackdropDrift;
+  /** v of the mark's baseline in field uv — where the water starts. */
+  uniform float uBaseV;
+  /** 0-1 strength of the mark's reflection in that water. */
+  uniform float uReflect;
 
   varying vec2 vUv;
 
@@ -60,8 +72,28 @@ export const lensFragment = /* glsl */ `
 
   /** Edge band width, in field units. A few pixels at rest. */
   const float EDGE = 0.0035;
-  /** Erosion that holds the mark shut, in field units. Past its half-thickness. */
-  const float CLOSED = 0.075;
+  /**
+   * Erosion that holds the mark shut, in field units, and how much further it
+   * bites with distance from the focus point.
+   *
+   * CLOSED is set just over the widest part of the letter *at the focus* — the
+   * belly of the V, half a stroke thick. Any higher and the opening spends the
+   * front of its tween with nothing on screen: this mark is four times the
+   * weight of the hairline one these numbers were first cut for, and at 0.075
+   * the whole letter surfaced inside the last fifteen percent of a 2.4s
+   * animation, which reads as a snap rather than an opening.
+   *
+   * SPREAD is what makes it open outward instead of everywhere at once, and it
+   * has to be large enough to *outrank* thickness. A uniform erosion reveals the
+   * letter in order of stroke weight, and every stroke in this mark is within a
+   * third of every other — so they all surface within a few frames of each
+   * other and a two-second opening reads as a pop. At four times CLOSED, radius
+   * decides instead: the belly of the V is through by a fifteenth of the tween,
+   * the right stem two thirds in, the far cap later still. Both terms relax to
+   * nothing at uReveal = 1, so the gate leaves no trace on the finished mark.
+   */
+  const float CLOSED = 0.036;
+  const float SPREAD = 0.6;
   /**
    * Where the spill starts, in field units *outside* the outline. Kept under
    * EDGE so its brightest part always falls on already-opaque sheet.
@@ -73,6 +105,23 @@ export const lensFragment = /* glsl */ `
   /** Faint haze carrying on across the stroke, and its far longer decay. */
   const float GLOW_HAZE = 0.22;
   const float GLOW_HAZE_REACH = 0.055;
+
+  /**
+   * The reflection. Flat water returns a near-mirror, so this is the mark's own
+   * silhouette rather than a blur of it — but it returns it as light, not as
+   * image: the strokes are full of pale stone and sand, so what the water gets
+   * back is a lift, which keeps the sea's own ripple readable through it. The
+   * edge is softened over a band far wider than the sheet's, since the one
+   * thing flat water never gives back is a hard outline.
+   */
+  const float REFLECT_FALL = 0.13;
+  const float REFLECT_SOFT = 0.02;
+  const vec3 REFLECT_LIFT = vec3(0.16, 0.145, 0.118);
+
+  /** How far the mark is still eaten back at a point of the field. */
+  float shutter(vec2 at) {
+    return (1.0 - uReveal) * (CLOSED + SPREAD * length(at - 0.5));
+  }
 
   void main() {
     vec2 st = vUv - 0.5;
@@ -88,24 +137,43 @@ export const lensFragment = /* glsl */ `
     // frame and the point every other plane in the scene projects from. Anchoring
     // the mark's zoom anywhere else gives it an origin the cards do not share, and
     // the one shared projection is the whole reason these read as one space.
-    float shape = texture2D(uField, warped / uFieldPx + 0.5).r;
+    vec2 field = warped / uFieldPx + 0.5;
+    float shape = texture2D(uField, field).r;
     // The mark opens by un-eroding, which on a distance field is one offset.
     // Held shut it is eaten back past its own half-thickness and nothing shows;
     // as the offset relaxes the strokes surface as rounded islands at their
-    // widest points and close up into the letter. Morphing out of a circle
-    // instead makes the thin strokes arrive as spikes.
-    float d = shape + (1.0 - uReveal) * CLOSED;
+    // widest points and close up into the letter, the middle of the letter
+    // first. Morphing out of a circle instead makes the thin strokes arrive as
+    // spikes.
+    float d = shape + shutter(field);
 
     // The outline itself. Nothing softens it beyond this band, so the silhouette
     // stays a drawn edge; the band is in field units, so it is the plane
     // magnifying it that melts it late in the push, not a blur.
     float sheet = smoothstep(0.0, EDGE, d);
 
-    // Spill: page light crossing the outline and dying away inside the mark.
+    // The backdrop creeps forward at the interior plate's rate. Left static it is
+    // the one plane in the scene that does not move, and a still sky behind a
+    // letter rushing at the viewer reads as a photograph the mark is pasted on.
+    vec2 drifted = (vUv - 0.5) / uBackdropDrift + 0.5;
+    vec3 sea = texture2D(uBackdrop, drifted * uBackdropScale + uBackdropOffset).rgb;
+
+    // The mark, given back by the water below its baseline. Measured in the
+    // same magnified field the sheet is cut from, so it belongs to the letter
+    // and not to the screen — and retired early, because once the mark is
+    // rushing past there is no longer a whole letter to reflect.
+    float under = uBaseV - field.y;
+    vec2 image = vec2(field.x, uBaseV + under);
+    float mirrored = texture2D(uField, image).r + shutter(image);
+    float inMark = 1.0 - smoothstep(-REFLECT_SOFT, REFLECT_SOFT, mirrored);
+    float depth = exp(-max(under, 0.0) / REFLECT_FALL) * step(0.0, under);
+    sea += REFLECT_LIFT * inMark * depth * uReflect;
+
+    // Spill: sky light crossing the outline and dying away inside the mark.
     //
     // Its origin sits *outside* the outline, so the bright end of the ramp
     // falls on sheet that is already opaque and only the tail lands on the
-    // mark. That is what makes it read as the page lighting the shape rather
+    // mark. That is what makes it read as the sky lighting the shape rather
     // than the shape lighting itself — a spill that starts at the outline
     // reads as the mark's own emission.
     //
@@ -127,6 +195,6 @@ export const lensFragment = /* glsl */ `
     float glow = GLOW_RIM * exp(-t / GLOW_RIM_REACH)
       + GLOW_HAZE * exp(-t / GLOW_HAZE_REACH);
 
-    gl_FragColor = vec4(uSheet, (sheet + (1.0 - sheet) * glow) * uOpacity);
+    gl_FragColor = vec4(sea, (sheet + (1.0 - sheet) * glow) * uOpacity);
   }
 `;

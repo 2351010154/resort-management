@@ -310,7 +310,7 @@ export function RoomDeck({ mobile }: { mobile: boolean }) {
         pin: stage,
         pinSpacing: false,
         // The ground here is the open door, which is dark the whole way.
-        onToggle: () => setNavDark(true),
+        onToggle: () => setNavDark(4, true),
       });
 
       ScrollTrigger.create({
@@ -353,7 +353,7 @@ export function RoomDeck({ mobile }: { mobile: boolean }) {
     return () => {
       ctx.revert();
       started = 0;
-      setNavDark(false);
+      setNavDark(4, false);
     };
   }, [mobile, setNavDark]);
 

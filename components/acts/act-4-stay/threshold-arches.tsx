@@ -84,7 +84,7 @@ export function ThresholdArches({ mobile }: { mobile: boolean }) {
           scrub: true,
           // The arcade is dark on both sides of the opening, and it stays the
           // ground right through the rooms, so the bar never goes light here.
-          onToggle: () => setNavDark(true),
+          onToggle: () => setNavDark(4, true),
         },
       });
 
@@ -158,7 +158,7 @@ export function ThresholdArches({ mobile }: { mobile: boolean }) {
 
     return () => {
       ctx.revert();
-      setNavDark(false);
+      setNavDark(4, false);
     };
   }, [mobile, setNavDark]);
 
