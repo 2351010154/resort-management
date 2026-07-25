@@ -1,0 +1,100 @@
+/* Mariva design tokens. Palette sampled from the curated Aman library
+   (ffmpeg 1x1 averages): taupe #8a7b6e, deep stone #645c51, sand-wood #967f61,
+   dark umber #3a332b, ocean #7fa2b7 — lightened/darkened family below. */
+
+:root {
+  /* palette */
+  --ivory: #f4efe6;
+  --sand: #cfc0ab;
+  --stone: #8a7b6e;
+  --stone-deep: #645c51;
+  --umber: #3a332b;
+  --ink: #1c1915;
+  --dusk-amber: #b48b60;
+  --ocean: #7fa2b7;
+
+  /* eases — keep in sync with lib/motion-tokens.ts */
+  --ease-scene: cubic-bezier(0.19, 1, 0.22, 1);
+  --ease-ui: cubic-bezier(0.23, 1, 0.32, 1);
+
+  /* type — families injected by next/font in layout */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.375rem;
+  --text-display-sm: clamp(1.75rem, 3.5vw, 2.75rem);
+  --text-display: clamp(2.5rem, 6vw, 4.5rem);
+  --text-display-lg: clamp(3.5rem, 9vw, 7.5rem);
+  --tracking-caps: 0.22em;
+
+  /* spacing rhythm */
+  --space-1: 0.5rem;
+  --space-2: 1rem;
+  --space-3: 2rem;
+  --space-4: 4rem;
+  --space-5: 8rem;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: auto; /* Lenis owns smoothing */
+}
+
+body {
+  background: var(--ivory);
+  color: var(--ink);
+  font-family: var(--font-ui), sans-serif;
+  font-weight: 300;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+img,
+video {
+  display: block;
+  max-width: 100%;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.font-display {
+  font-family: var(--font-display), serif;
+  font-weight: 300;
+}
+
+.caps-label {
+  font-family: var(--font-ui), sans-serif;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+  font-size: var(--text-xs);
+}
+
+/* Reduced motion: global kill-switch — scrub/scene animation must respect
+   this (Lenis provider already bails; CSS transitions collapse here). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

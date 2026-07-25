@@ -1,0 +1,139 @@
+/* Concierge nav — three phases (top / scrolled / island) + podium hover.
+   Themed by [data-theme="light"|"dark"] set from activeAct. */
+
+.bar {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  color: var(--ink);
+  transition:
+    background-color 0.5s var(--ease-ui),
+    color 0.5s var(--ease-ui),
+    padding 0.5s var(--ease-ui);
+}
+
+.bar[data-theme="dark"] {
+  color: var(--ivory);
+}
+
+.bar[data-phase="scrolled"],
+.bar[data-phase="island"] {
+  padding: calc(var(--space-1) * 1.5) var(--space-3);
+  background: rgba(244, 239, 230, 0.82);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+.bar[data-theme="dark"][data-phase="scrolled"],
+.bar[data-theme="dark"][data-phase="island"] {
+  background: rgba(28, 25, 21, 0.72);
+}
+
+/* brand: wordmark <-> monogram crossfade via CSS masks (currentColor theming) */
+.brand {
+  position: relative;
+  display: block;
+  height: 28px;
+  flex: 0 0 auto;
+}
+
+.wordmark,
+.monogram {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: currentColor;
+  transition: opacity 0.5s var(--ease-ui);
+  mask-repeat: no-repeat;
+  mask-size: contain;
+  mask-position: left center;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  -webkit-mask-position: left center;
+}
+
+.wordmark {
+  width: 165px;
+  mask-image: url("/brand/mariva-wordmark.svg");
+  -webkit-mask-image: url("/brand/mariva-wordmark.svg");
+}
+
+.monogram {
+  width: 37px;
+  mask-image: url("/brand/mariva-monogram.svg");
+  -webkit-mask-image: url("/brand/mariva-monogram.svg");
+  opacity: 0;
+}
+
+.bar[data-phase="scrolled"] .wordmark,
+.bar[data-phase="island"] .wordmark {
+  opacity: 0;
+}
+
+.bar[data-phase="scrolled"] .monogram,
+.bar[data-phase="island"] .monogram {
+  opacity: 1;
+}
+
+.links {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* podium hover: stacked label copies slide inside a clip box that hugs the
+   text line, so the duplicate never shows through the pill padding */
+.link {
+  position: relative;
+  display: block;
+  padding: 0.45em 0.9em;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  transition: border-color 0.4s var(--ease-ui);
+}
+
+.linkClip {
+  display: block;
+  position: relative;
+  overflow: hidden;
+}
+
+.linkInner {
+  position: relative;
+  display: block;
+  transition: transform 0.4s var(--ease-ui);
+}
+
+.linkInner::after {
+  content: attr(data-label);
+  position: absolute;
+  left: 0;
+  top: 100%;
+}
+
+.link:hover .linkInner,
+.link:focus-visible .linkInner {
+  transform: translateY(-100%);
+}
+
+.link[data-active="true"] {
+  border-color: currentColor;
+}
+
+.menuButton {
+  composes: link;
+  border-color: currentColor;
+}
+
+/* mobile: links collapse behind the menu button */
+@media (max-width: 767px) {
+  .links {
+    display: none;
+  }
+}

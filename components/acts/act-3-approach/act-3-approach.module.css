@@ -1,0 +1,67 @@
+/* Act 3 — floema video swell: centered card scales to fullscreen by scroll. */
+
+.section {
+  position: relative;
+  background: var(--ivory);
+}
+
+.stage {
+  position: relative;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+/* Pre-sized fullscreen; GSAP scales it DOWN initially so the scrub up is
+   pure GPU compositing (scaling a playing video up from a small layout box
+   stutters). */
+.videoShell {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  will-change: transform, border-radius;
+}
+
+.videoShell video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Seam into Act 4: the fullscreen frame's foot dissolves into the room's dark
+   instead of ending on a cut line. Lives on the stage, not the shell, so the
+   opening card keeps its clean edge. */
+.tailFade {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 34vh;
+  z-index: 3;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(to bottom, rgba(16, 14, 12, 0), #100e0c 88%);
+}
+
+.caption {
+  position: absolute;
+  left: var(--space-3);
+  bottom: var(--space-3);
+  z-index: 2;
+  color: var(--ivory);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.4);
+}
+
+.caption::after {
+  content: "";
+  width: 64px;
+  height: 1px;
+  background: currentColor;
+  opacity: 0.7;
+}

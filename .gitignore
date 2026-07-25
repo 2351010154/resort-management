@@ -1,0 +1,41 @@
+# Dependencies and build output
+/node_modules
+/.next
+/out
+/build
+/dist
+/coverage
+next-env.d.ts
+*.tsbuildinfo
+
+# Environment and local config
+.env
+.env.*
+!.env.example
+*.local
+
+# Editor and AI tooling
+.vscode/
+.idea/
+.cursor/
+.claude/
+.agentkit/
+.copilot/
+
+# Python / local runtime artifacts
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Logs and temp files
+*.log
+*.tmp
+.tmp/
+.cache/
+
+# macOS / Windows noise
+.DS_Store
+Thumbs.db
