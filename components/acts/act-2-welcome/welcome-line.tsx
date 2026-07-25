@@ -11,6 +11,7 @@ import { prefersReducedMotion } from "@/lib/webgl-support";
 import { EASE_SCENE, STAGGER_CASCADE } from "@/lib/motion-tokens";
 import { FoliageGobo } from "./foliage-gobo";
 import { OrbitingImageField } from "./orbiting-image-field";
+import { WelcomeChapters } from "./welcome-chapters";
 import styles from "./act-2-welcome.module.css";
 
 export function WelcomeLine() {
@@ -24,7 +25,9 @@ export function WelcomeLine() {
 
     const ctx = gsap.context(() => {
       gsap.fromTo(
-        section.querySelectorAll("[data-reveal-line]"),
+        // Scoped to the copy block, not the section: the chapters below carry
+        // their own reveal lines and must not fire with the welcome line.
+        copyRef.current!.querySelectorAll("[data-reveal-line]"),
         { yPercent: 115 },
         {
           yPercent: 0,
@@ -45,18 +48,22 @@ export function WelcomeLine() {
     <section ref={sectionRef} data-act={2} className={styles.section}>
       <FoliageGobo />
       <OrbitingImageField sectionRef={sectionRef} />
-      <div ref={copyRef} className={styles.copy}>
-        <span className={styles.lineClip}>
-          <span data-reveal-line className={`caps-label ${styles.kicker}`} style={{ display: "block" }}>
-            Mariva — Rest · Relax · Rejuvenate
+      <div className={styles.stage}>
+        <div ref={copyRef} className={styles.copy}>
+          <span className={styles.lineClip}>
+            <span data-reveal-line className={`caps-label ${styles.kicker}`} style={{ display: "block" }}>
+              Mariva — Rest · Relax · Rejuvenate
+            </span>
           </span>
-        </span>
-        <span className={styles.lineClip}>
-          <h1 data-reveal-line className={`font-display ${styles.display}`} style={{ display: "block" }}>
-            You have been expected.
-          </h1>
-        </span>
+          <span className={styles.lineClip}>
+            <h1 data-reveal-line className={`font-display ${styles.display}`} style={{ display: "block" }}>
+              You have been expected.
+            </h1>
+          </span>
+        </div>
       </div>
+      {/* The kicker names three words; the chapters are those three words. */}
+      <WelcomeChapters />
     </section>
   );
 }
