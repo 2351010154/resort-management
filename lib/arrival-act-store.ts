@@ -6,7 +6,7 @@ import { create } from "zustand";
 export type NavPhase = "top" | "scrolled" | "island";
 
 interface ArrivalActState {
-  /** Which of the 7 acts currently owns the viewport. */
+  /** Which of the 6 acts currently owns the viewport. */
   activeAct: number;
   menuOpen: boolean;
   navPhase: NavPhase;

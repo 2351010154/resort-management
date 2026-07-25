@@ -3,7 +3,8 @@
 
 .section {
   position: relative;
-  background: var(--ivory); /* scrubbed to dark — the smooth gradient bridge */
+  /* Act 4 hands over on this exact value, so the seam has nothing to bridge. */
+  background: #100e0c;
   color: var(--ivory);
 }
 

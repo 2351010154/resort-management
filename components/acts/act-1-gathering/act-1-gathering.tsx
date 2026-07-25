@@ -1,30 +1,37 @@
 "use client";
 
 // Act 1 — "The Aperture". A single pinned scene rather than a run of screens:
-// the coast plate, the photo field and the monogram sheet coexist for the whole
-// act. The monogram is a fixed window — it never moves or changes shape — and
-// scrolling advances the camera through the world behind it. The act ends by
-// surfacing the interior back into daylight and then blooming it to ivory, so
-// the window dissolves into the page rather than sliding off it.
+// the coast plate, the image field and the monogram sheet coexist for the whole
+// act. The monogram is the nearest plane in that scene, so scrolling drives it
+// at the viewer far faster than anything behind it — the opening swells until
+// the frame is inside a single stroke. The act ends by surfacing the interior
+// back into daylight and then blooming it to ivory, so the window dissolves
+// into the page rather than sliding off it.
 
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { prefersReducedMotion } from "@/lib/webgl-support";
+import { prefersReducedMotion, shouldRenderFilm } from "@/lib/webgl-support";
 import { tierSrcSet } from "@/lib/arrival-image-srcset";
+import { DUR_SCENE_SLOW, EASE_UI } from "@/lib/motion-tokens";
 import { ApertureSheet } from "./aperture-sheet";
 import { DepthImageField } from "./depth-image-field";
+import { MonogramLens } from "./monogram-lens";
 import {
-  PLATE_DEPTH,
   PLATE_IMAGE,
   cameraAdvance,
-  planeScale,
+  plateDrift,
   type IntroCamera,
 } from "./intro-camera-model";
 import styles from "./act-1-gathering.module.css";
 
-/** Scroll distance the push is spread over. */
-const ACT_HEIGHT = "380vh";
+/**
+ * Scroll distance the push is spread over. The mark is off frame by p≈0.38, so
+ * it gets the first ~100vh and the field keeps arriving through the remaining
+ * ~160vh — the reference's split, with the longer tail its shallower field does
+ * not need.
+ */
+const ACT_HEIGHT = "260vh";
 /** The plate is oversized at rest so its slow drift never exposes an edge. */
 const PLATE_REST_SCALE = 1.05;
 
@@ -35,14 +42,31 @@ export function Act1Gathering() {
   const curtainRef = useRef<HTMLDivElement>(null);
   // null until the client capability probe runs (avoids SSR mismatch)
   const [animate, setAnimate] = useState<boolean | null>(null);
-  const cameraRef = useRef<IntroCamera>({ progress: 0, z: 0, entry: 0 });
+  // The lens needs WebGL; without it the act still scrubs, behind the flat
+  // canvas cut-out.
+  const [lens, setLens] = useState(false);
+  const cameraRef = useRef<IntroCamera>({ progress: 0, z: 0, entry: 0, reveal: 1 });
 
-  useEffect(() => setAnimate(!prefersReducedMotion()), []);
+  useEffect(() => {
+    setAnimate(!prefersReducedMotion());
+    const film = shouldRenderFilm();
+    setLens(film);
+    // only the lens can open the mark out of a dot; the flat sheet is drawn once
+    if (film) cameraRef.current.reveal = 0;
+  }, []);
 
-  // Once the sheet has drawn, the scene behind it is safely masked: lift the
-  // holding curtain and fade the imagery up inside the window.
+  // Once the mark is drawable the scene behind it is safely masked: lift the
+  // holding curtain, open the mark out of its dot, and fade the imagery up
+  // inside it.
   const handleSheetReady = useCallback(() => {
-    gsap.to(cameraRef.current, { entry: 1, duration: 1.4, ease: "power2.out", delay: 0.15 });
+    const camera = cameraRef.current;
+    gsap.to(camera, { entry: 1, duration: 1.4, ease: "power2.out", delay: 0.15 });
+    // Not the scene ease: the mark opens by relaxing an erosion, so an ease
+    // that front-loads as hard as expo.out spends the whole tween on the last
+    // hairline of the outline and snaps the letter open.
+    if (camera.reveal < 1) {
+      gsap.to(camera, { reveal: 1, duration: DUR_SCENE_SLOW, ease: EASE_UI, delay: 0.25 });
+    }
     if (curtainRef.current) {
       gsap.to(curtainRef.current, {
         autoAlpha: 0,
@@ -74,21 +98,21 @@ export function Act1Gathering() {
             camera.z = cameraAdvance(self.progress);
             // the plate is the far plane: it only creeps forward
             if (plateRef.current) {
-              const drift = planeScale(PLATE_DEPTH, camera.z) * PLATE_DEPTH;
-              plateRef.current.style.transform = `scale(${(PLATE_REST_SCALE * drift).toFixed(4)})`;
+              const drift = PLATE_REST_SCALE * plateDrift(camera.z);
+              plateRef.current.style.transform = `scale(${drift.toFixed(4)})`;
             }
           },
         },
       });
 
       timeline
-        .to(`.${styles.copy}`, { autoAlpha: 0, y: -24, duration: 0.08 }, 0.01)
+        .to(`.${styles.copy}`, { autoAlpha: 0, y: -24, duration: 0.06 }, 0.01)
         // keep in sync with shadeRamp() in depth-image-field
-        .to(`.${styles.plateShade}`, { opacity: 1, duration: 0.45 }, 0.14)
+        .to(`.${styles.plateShade}`, { opacity: 1, duration: 0.18 }, 0.08)
         // the interior surfaces back into daylight before the ivory takes over:
         // fading a panel straight over the dark push just turns the window grey
-        .to(`.${styles.plateShade}`, { opacity: 0, duration: 0.2 }, 0.68)
-        .to(`.${styles.bloom}`, { opacity: 1, duration: 0.14 }, 0.86);
+        .to(`.${styles.plateShade}`, { opacity: 0, duration: 0.08 }, 0.9)
+        .to(`.${styles.bloom}`, { opacity: 1, duration: 0.07 }, 0.93);
 
       ScrollTrigger.create({
         trigger: section,
@@ -105,7 +129,6 @@ export function Act1Gathering() {
   const copy = (
     <div className={styles.copy}>
       <p className={`font-display ${styles.statement}`}>
-        A private retreat of calm, minimalism and elegance.
       </p>
       {animate ? <span className={`caps-label ${styles.cue}`}>Scroll</span> : null}
     </div>
@@ -133,7 +156,11 @@ export function Act1Gathering() {
             <div className={styles.plateShade} />
             <DepthImageField camera={cameraRef.current} still={!animate} />
             <div className={styles.aperture}>
-              <ApertureSheet onReady={animate ? handleSheetReady : undefined} />
+              {lens ? (
+                <MonogramLens camera={cameraRef.current} onReady={handleSheetReady} />
+              ) : (
+                <ApertureSheet onReady={animate ? handleSheetReady : undefined} />
+              )}
             </div>
             {copy}
             {animate ? (

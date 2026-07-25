@@ -9,7 +9,7 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useEffect, useRef, type RefObject } from "react";
 import { prefersReducedMotion } from "@/lib/webgl-support";
-import styles from "./act-7-turndown.module.css";
+import styles from "./act-6-turndown.module.css";
 
 export type EmbossIntensity = "soft" | "deep";
 

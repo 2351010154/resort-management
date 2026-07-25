@@ -1,12 +1,16 @@
 "use client";
 
-// The midground: photographs suspended at different depths in front of the
-// coast plate and behind the monogram aperture. They are projected from the same
-// camera the aperture uses, so pushing in grows the near ones fast and the far
-// ones slowly — that spread is the depth cue the intro is built on.
+// The midground: photographs and short loops suspended at different depths in
+// front of the coast plate and behind the monogram. They are projected from the
+// same camera the monogram uses, so pushing in grows the near ones fast and the
+// far ones slowly — that spread is the depth cue the intro is built on.
+//
+// Every card is a positioned wrapper with the media stretched inside it. The
+// ticker only ever touches the wrapper, so a card can swap its poster for a
+// video without the transform state living on the element being replaced.
 
 import gsap from "gsap";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   INTRO_CARDS,
   cardLuminance,
@@ -21,15 +25,23 @@ const DRIFT = 1.1;
 /** Bounding-box margin that covers each card's few degrees of rotation. */
 const ROTATION_SLACK = 1.15;
 
-/** Matches the plate-shade ramp in the orchestrator's scrub timeline. */
+/**
+ * Matches the plate-shade ramp in the orchestrator's scrub timeline. Full dark
+ * well before the mark blows past at p≈0.4, so the letter's last strokes leave
+ * against the deep interior rather than dragging the daylight out with them.
+ */
 const shadeRamp = (progress: number) =>
-  Math.min(1, Math.max(0, (progress - 0.14) / 0.45)) *
-  (1 - Math.min(1, Math.max(0, (progress - 0.68) / 0.2)));
+  Math.min(1, Math.max(0, (progress - 0.08) / 0.18)) *
+  (1 - Math.min(1, Math.max(0, (progress - 0.9) / 0.08)));
 
-/** Peak over-exposure at the end of the push, before the ivory settle. */
+/**
+ * Peak over-exposure at the end of the push, before the ivory settle. Held off
+ * until the last tenth: the deepest cards are still opening out until then, and
+ * blowing the field out early costs exactly the arrival the act is built toward.
+ */
 const EXPOSURE = 3.4;
 const exposureRamp = (progress: number) =>
-  1 + (EXPOSURE - 1) * Math.min(1, Math.max(0, (progress - 0.83) / 0.15));
+  1 + (EXPOSURE - 1) * Math.min(1, Math.max(0, (progress - 0.91) / 0.09));
 
 export function DepthImageField({
   camera,
@@ -40,6 +52,34 @@ export function DepthImageField({
   still?: boolean;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
+  // Posters render first and the loops swap in after mount, so the field is
+  // never waiting on video to have something inside the mark. Narrow screens
+  // keep the posters: six decoders is past what phones reliably give you.
+  const [playing, setPlaying] = useState(false);
+
+  useEffect(() => {
+    if (still) return;
+    setPlaying(window.matchMedia("(min-width: 700px)").matches);
+  }, [still]);
+
+  // Only run while the act is on screen — six loops decoding behind a page the
+  // reader has already scrolled past is pure heat.
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root || !playing) return;
+    const videos = Array.from(root.querySelectorAll("video"));
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        for (const video of videos) {
+          if (entry.isIntersecting) video.play().catch(() => {});
+          else video.pause();
+        }
+      },
+      { threshold: 0 },
+    );
+    io.observe(root);
+    return () => io.disconnect();
+  }, [playing]);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -69,18 +109,22 @@ export function DepthImageField({
         const card = INTRO_CARDS[i];
         const el = nodes[i];
         const apparent = card.depth - z;
-        const opacity = cardOpacity(apparent) * entry;
+        const scale = planeScale(card.depth, z);
+        // How many frames across the card has grown, on whichever axis it fills
+        // least: the axis that decides whether it could black the viewport out.
+        const spanX = card.width * scale * unitPx;
+        const coverage = Math.min(spanX / (halfViewW * 2), spanX / card.aspect / (halfViewH * 2));
+        const opacity = cardOpacity(coverage) * entry;
         if (opacity <= 0.002) {
           el.style.visibility = "hidden";
           continue;
         }
-        const scale = planeScale(card.depth, z);
         const x = (card.x + DRIFT * Math.sin(time * 0.32 + i * 1.7)) * scale * unitPx;
         const y = -(card.y + DRIFT * Math.cos(time * 0.27 + i * 2.3)) * scale * unitPx;
         // Cull off-frame cards. Several sweep well past the edges before they
         // finish fading, and a composited layer that large keeps costing the
         // compositor every frame even though nothing of it is on screen.
-        const reachX = (card.width * scale * unitPx * ROTATION_SLACK) / 2;
+        const reachX = (spanX * ROTATION_SLACK) / 2;
         const reachY = reachX / card.aspect;
         if (Math.abs(x) - reachX > halfViewW || Math.abs(y) - reachY > halfViewH) {
           el.style.visibility = "hidden";
@@ -104,31 +148,30 @@ export function DepthImageField({
       gsap.ticker.remove(tick);
       window.removeEventListener("resize", onResize);
     };
-  }, [camera, still]);
+    // `playing` swaps the media inside each wrapper, so the node list is re-read
+  }, [camera, still, playing]);
+
+  const media: React.CSSProperties = {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    display: "block",
+  };
 
   return (
     <div ref={rootRef} style={{ position: "absolute", inset: 0 }} aria-hidden>
-      {INTRO_CARDS.map((card, i) => {
+      {INTRO_CARDS.map((card) => {
         const scale = planeScale(card.depth, 0);
         return (
-          <img
+          <div
             key={card.src}
             data-depth-card
-            src={card.src}
-            srcSet={card.srcSet}
-            // Twice the card's size at rest: its layout box is small but the
-            // transform scales it well past that as the camera closes in.
-            sizes={`${Math.round((card.width / card.depth) * 2)}vmin`}
-            alt=""
-            decoding="async"
             style={{
               position: "absolute",
               left: "50%",
               top: "50%",
               width: `${card.width}vmin`,
-              height: "auto",
               aspectRatio: card.aspect,
-              objectFit: "cover",
               zIndex: Math.round(1000 - card.depth * 100),
               opacity: still ? 1 : 0,
               willChange: "transform, opacity, filter",
@@ -137,7 +180,35 @@ export function DepthImageField({
                 `translate3d(${(card.x * scale).toFixed(2)}vmin, ${(-card.y * scale).toFixed(2)}vmin, 0) ` +
                 `scale(${scale.toFixed(4)}) rotate(${card.rotation}deg) translate(-50%, -50%)`,
             }}
-          />
+          >
+            {card.video && playing ? (
+              <video
+                muted
+                loop
+                playsInline
+                autoPlay
+                preload="none"
+                poster={card.src}
+                style={media}
+              >
+                <source src={card.video.webm} type="video/webm" />
+                <source src={card.video.mp4} type="video/mp4" />
+              </video>
+            ) : (
+              <img
+                src={card.src}
+                srcSet={card.srcSet || undefined}
+                // Four times the card's size at rest: its layout box is small
+                // but the transform scales it well past that as the camera
+                // closes. Every card now arrives, so this is no longer the
+                // couple of near ones that used to need the headroom.
+                sizes={card.srcSet ? `${Math.round((card.width / card.depth) * 4)}vmin` : undefined}
+                alt=""
+                decoding="async"
+                style={media}
+              />
+            )}
+          </div>
         );
       })}
     </div>

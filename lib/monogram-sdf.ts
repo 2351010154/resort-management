@@ -86,7 +86,18 @@ function edt2d(grid: Float64Array, size: number): void {
   }
 }
 
-/** Rasterise the dilated mark centred in a square field, returning coverage. */
+/**
+ * Rasterise the dilated mark centred in a square field, returning coverage.
+ *
+ * Centred on the mark's ink box, which for this M puts the field's midpoint
+ * inside the middle apex joint — measured at 0.019 field units deep, against a
+ * stroke half-thickness of about 0.02. The lens leans on that: it zooms about the
+ * field's midpoint, so once magnification passes ~48x every pixel on screen
+ * resolves to a point inside that joint and the sheet clears itself. A glyph
+ * whose ink-box centre falls *outside* the strokes would instead fill the frame
+ * with sheet at the moment it should be opening, so that distance is worth
+ * re-measuring if the mark is ever redrawn.
+ */
 async function rasteriseCoverage(size: number): Promise<Float32Array> {
   const glyph = await loadMonogramGlyph();
   const canvas = document.createElement("canvas");
@@ -112,27 +123,37 @@ export async function buildMonogramField(): Promise<MonogramField> {
   const coverage = await rasteriseCoverage(size);
   const n = size * size;
 
-  // Two transforms: distance from each outside texel to the mark, and from each
-  // inside texel to the ground. Their difference is the signed field.
+  // Two transforms: distance from each texel to the mark, and from each texel to
+  // the ground. Their difference is the signed field.
+  //
+  // Seeded from the rasteriser's antialiasing, not from a threshold. A texel
+  // the outline crosses is not a whole texel away from it — it is (0.5 - a)
+  // away, and that is the only information about where inside the texel the
+  // outline actually runs. Thresholding throws it away and quantises every
+  // distance to whole texels, which magnifies into a visible scallop along
+  // every edge. Seeding keeps it, and the transform carries it outward.
   const outside = new Float64Array(n);
   const inside = new Float64Array(n);
   for (let i = 0; i < n; i++) {
-    const solid = coverage[i] >= 0.5;
-    outside[i] = solid ? 0 : INF;
-    inside[i] = solid ? INF : 0;
+    const a = coverage[i];
+    if (a <= 0) {
+      outside[i] = INF;
+      inside[i] = 0;
+    } else if (a >= 1) {
+      outside[i] = 0;
+      inside[i] = INF;
+    } else {
+      const edge = 0.5 - a;
+      outside[i] = edge > 0 ? edge * edge : 0;
+      inside[i] = edge < 0 ? edge * edge : 0;
+    }
   }
   edt2d(outside, size);
   edt2d(inside, size);
 
   const data = new Float32Array(n);
   for (let i = 0; i < n; i++) {
-    let signed = Math.sqrt(outside[i]) - Math.sqrt(inside[i]);
-    // The transforms only know whole texels. Where the rasteriser left partial
-    // coverage the true outline runs through the texel, and its antialiasing
-    // says where — worth using, because this is the band the eye lands on.
-    const cov = coverage[i];
-    if (cov > 0 && cov < 1 && Math.abs(signed) < 1.5) signed -= cov - 0.5;
-    data[i] = signed / size;
+    data[i] = (Math.sqrt(outside[i]) - Math.sqrt(inside[i])) / size;
   }
 
   return { data, size, glyphFraction: GLYPH_FRACTION };

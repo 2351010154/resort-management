@@ -11,13 +11,16 @@ import { useArrivalActStore } from "@/lib/arrival-act-store";
 import { useLenis } from "@/lib/lenis-scroll-provider";
 import { prefersReducedMotion } from "@/lib/webgl-support";
 import { DUR_UI, EASE_UI, STAGGER_CASCADE } from "@/lib/motion-tokens";
-import { NavHoverLink, scrollToAct } from "./nav-hover-link";
+import { NavHoverLink, scrollToAct, scrollToRoom } from "./nav-hover-link";
 import styles from "./dynamic-island-menu.module.css";
 
+// Dine and Restore used to share Act 5 with Stay's neighbour, so three cards
+// resolved to two places. All three now live inside Act 4, aimed at the deck
+// card each one is actually about: the first suite, The Table, the Onsen Villa.
 const CARDS = [
-  { slug: "island-stay", label: "Stay", act: 4 },
-  { slug: "island-dine", label: "Dine", act: 5 },
-  { slug: "island-restore", label: "Restore", act: 5 },
+  { slug: "island-stay", label: "Stay", room: 0 },
+  { slug: "island-dine", label: "Dine", room: 7 },
+  { slug: "island-restore", label: "Restore", room: 6 },
 ].map((card) => ({
   ...card,
   image: arrivalImages["nav-island"].find((img) => img.src.includes(card.slug))!,
@@ -27,8 +30,7 @@ export const NAV_LINKS = [
   { act: 2, label: "Welcome" },
   { act: 3, label: "The Approach" },
   { act: 4, label: "Stay" },
-  { act: 5, label: "Unwind" },
-  { act: 6, label: "Begin" },
+  { act: 5, label: "Begin" },
 ];
 
 export function DynamicIslandMenu() {
@@ -120,11 +122,11 @@ export function DynamicIslandMenu() {
           <p className="caps-label">The concierge</p>
           <p>Every arrival is prepared before you ask. Choose where to begin.</p>
           <a
-            href="#act-6"
+            href="#act-5"
             className={`${styles.viewLink} caps-label`}
             onClick={(e) => {
               e.preventDefault();
-              scrollToAct(lenis, 6, close);
+              scrollToAct(lenis, 5, close);
             }}
           >
             View →
@@ -136,15 +138,15 @@ export function DynamicIslandMenu() {
           </div>
         </div>
         <div className={styles.cards}>
-          {CARDS.map(({ slug, label, act, image }) => (
+          {CARDS.map(({ slug, label, room, image }) => (
             <a
               key={slug}
-              href={`#act-${act}`}
+              href="#act-4"
               className={styles.card}
               data-cascade
               onClick={(e) => {
                 e.preventDefault();
-                scrollToAct(lenis, act, close);
+                scrollToRoom(lenis, room, close);
               }}
             >
               <img

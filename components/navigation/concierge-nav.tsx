@@ -1,8 +1,8 @@
 "use client";
 
-// The concierge: present through all 7 acts. Three phases —
+// The concierge: present through all 6 acts. Three phases —
 // top (full wordmark, transparent) / scrolled (monogram, translucent blur) /
-// island (menu panel open). Theme flips ink<->ivory on dark acts (4, 6, 7).
+// island (menu panel open). Theme flips ink<->ivory on dark acts (5, 6).
 
 import { useEffect } from "react";
 import { useArrivalActStore } from "@/lib/arrival-act-store";
@@ -10,7 +10,11 @@ import { NavHoverLink } from "./nav-hover-link";
 import { DynamicIslandMenu, NAV_LINKS } from "./dynamic-island-menu";
 import styles from "./navigation.module.css";
 
-const DARK_ACTS = new Set([4, 6, 7]);
+// Act 4 used to open onto daylight halfway through and drove `navDark` from its
+// own scroll position. Its rooms now play on the opened door rather than on
+// ivory, so the act is dark end to end and belongs in the set — which is also
+// what gets the bar right under reduced motion, where no scroll trigger runs.
+const DARK_ACTS = new Set([4, 5, 6]);
 
 export function ConciergeNav() {
   const navPhase = useArrivalActStore((s) => s.navPhase);

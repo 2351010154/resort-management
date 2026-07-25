@@ -3,6 +3,7 @@
 // Podium-style hover link: stacked label copies glide inside a clipped pill;
 // the active act's link keeps a pill outline (wolverine cue).
 
+import { roomScrollTarget } from "@/components/acts/act-4-stay/room-deck";
 import { useArrivalActStore } from "@/lib/arrival-act-store";
 import { useLenis } from "@/lib/lenis-scroll-provider";
 import { DUR_SCENE } from "@/lib/motion-tokens";
@@ -23,6 +24,29 @@ export function scrollToAct(
   } else {
     // Reduced motion / no smoother: jump.
     target.scrollIntoView();
+  }
+  onDone?.();
+}
+
+/**
+ * Land on one room of Act 4's deck. Stay / Dine / Restore all live inside Act 4
+ * now, so they need distinct offsets within it rather than one shared anchor.
+ * The reduced-motion variant has no deck to aim at; that falls back to the act.
+ */
+export function scrollToRoom(
+  lenis: ReturnType<typeof useLenis>,
+  index: number,
+  onDone?: () => void,
+) {
+  const y = roomScrollTarget(index);
+  if (y == null) {
+    scrollToAct(lenis, 4, onDone);
+    return;
+  }
+  if (lenis) {
+    lenis.scrollTo(y, { duration: DUR_SCENE, easing: easeOutExpo });
+  } else {
+    window.scrollTo(0, y);
   }
   onDone?.();
 }

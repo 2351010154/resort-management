@@ -1,6 +1,6 @@
 "use client";
 
-// Act 6 — "The Invitation": long ivory->dark gradient bridge (no hard cut),
+// Act 5 — "The Invitation": long ivory->dark gradient bridge (no hard cut),
 // onsen steam at dusk with slow Ken Burns, centered serif chapter lines
 // cross-fading izanami-style, side collages sliding from the edges, and the
 // decorative CTA "Begin your stay" (locked wording) scrolling to the footer.
@@ -12,7 +12,7 @@ import { arrivalImages } from "@/lib/arrival-image-manifest";
 import { useLenis } from "@/lib/lenis-scroll-provider";
 import { scrollToAct } from "@/components/navigation/nav-hover-link";
 import { prefersReducedMotion } from "@/lib/webgl-support";
-import styles from "./act-6-invitation.module.css";
+import styles from "./act-5-invitation.module.css";
 
 const BG = arrivalImages["act-6-invite"].find((img) =>
   img.src.includes("onsen-steam-dusk"),
@@ -66,12 +66,18 @@ export function InvitationScreen() {
         },
       });
       tl
-        // gradient bridge: ivory -> dark across the first 28%
-        .fromTo(section, { backgroundColor: "#f4efe6" }, { backgroundColor: DARK, duration: 0.28, ease: "none" }, 0)
-        .to(`.${styles.bgImage}`, { autoAlpha: 1, duration: 0.14 }, 0.16)
-        .to(`.${styles.scrim}`, { autoAlpha: 1, duration: 0.14 }, 0.18)
+        // No colour bridge to run: Act 4 now ends on this act's own dark, held
+        // by the rooms' tail fade, so the seam is already the same value on
+        // both sides. Opening on ivory would put a bright band across it.
+        //
+        // The steam comes up at the very top of the act rather than a sixth of
+        // the way in. Act 4's deck is still full when its pin releases, so a
+        // late fade left roughly a viewport and a half of flat black between
+        // the two.
+        .to(`.${styles.bgImage}`, { autoAlpha: 1, duration: 0.06 }, 0)
+        .to(`.${styles.scrim}`, { autoAlpha: 1, duration: 0.06 }, 0.01)
         // Ken Burns across the whole dark stretch (izanami slow-media pace)
-        .fromTo(`.${styles.bgImage}`, { scale: 1 }, { scale: 1.09, duration: 0.72, ease: "none" }, 0.28)
+        .fromTo(`.${styles.bgImage}`, { scale: 1 }, { scale: 1.09, duration: 0.86, ease: "none" }, 0.08)
         // side collages slide in from the edges
         .fromTo(
           `.${styles.sideLeft}`,
@@ -99,7 +105,7 @@ export function InvitationScreen() {
   return (
     <section
       ref={sectionRef}
-      data-act={6}
+      data-act={5}
       className={styles.section}
       style={{ height: "350vh" }}
     >
@@ -130,7 +136,7 @@ export function InvitationScreen() {
         </div>
         <button
           className={`caps-label ${styles.cta}`}
-          onClick={() => scrollToAct(lenis, 7)}
+          onClick={() => scrollToAct(lenis, 6)}
         >
           Begin your stay
         </button>

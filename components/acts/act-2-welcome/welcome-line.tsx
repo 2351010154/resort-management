@@ -1,13 +1,15 @@
 "use client";
 
-// Act 2 — "The Welcome": one centered Cormorant line, per-line mask-up reveal
-// (izanami text treatment), orbit field floating behind.
+// Act 2 — "The Welcome": one centered display line, per-line mask-up reveal
+// (izanami text treatment), on a bare wall with foliage shadow cast in from the
+// top right.
 
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useEffect, useRef } from "react";
 import { prefersReducedMotion } from "@/lib/webgl-support";
 import { EASE_SCENE, STAGGER_CASCADE } from "@/lib/motion-tokens";
+import { FoliageGobo } from "./foliage-gobo";
 import { OrbitingImageField } from "./orbiting-image-field";
 import styles from "./act-2-welcome.module.css";
 
@@ -41,6 +43,7 @@ export function WelcomeLine() {
 
   return (
     <section ref={sectionRef} data-act={2} className={styles.section}>
+      <FoliageGobo />
       <OrbitingImageField sectionRef={sectionRef} />
       <div ref={copyRef} className={styles.copy}>
         <span className={styles.lineClip}>
