@@ -17,6 +17,9 @@ next-env.d.ts
 .vscode/
 .idea/
 
+# Project planning artifacts
+/plans/
+
 # Python / local runtime artifacts
 venv/
 .venv/
