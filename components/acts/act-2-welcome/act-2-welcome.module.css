@@ -1,0 +1,49 @@
+/* Act 2 — floema centered welcome line with orbiting detail images. */
+
+.section {
+  position: relative;
+  min-height: 130vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ivory);
+  overflow: hidden;
+}
+
+.copy {
+  position: relative;
+  z-index: 2;
+  text-align: center;
+  padding: var(--space-3);
+}
+
+.lineClip {
+  display: block;
+  overflow: hidden;
+}
+
+.kicker {
+  color: var(--stone-deep);
+}
+
+.display {
+  font-size: var(--text-display);
+  line-height: 1.15;
+  margin-top: var(--space-2);
+  color: var(--ink);
+}
+
+.orbit {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.orbitImage {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  height: auto;
+  will-change: transform;
+  box-shadow: 0 2px 18px rgba(28, 25, 21, 0.12);
+}

@@ -1,0 +1,103 @@
+/* Act 5 — the exhale: ivory breather, persistent warm glow, info blocks
+   alternating Right -> Left -> Middle. */
+
+.section {
+  position: relative;
+  background: var(--ivory);
+  color: var(--ink);
+}
+
+.stage {
+  position: relative;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.glow {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 90vmin;
+  height: 90vmin;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    rgba(180, 139, 96, 0.28) 0%,
+    rgba(180, 139, 96, 0.1) 42%,
+    transparent 70%
+  );
+  animation: glow-breathe 6s ease-in-out infinite;
+  pointer-events: none;
+}
+
+@keyframes glow-breathe {
+  0%,
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    transform: translate(-50%, -50%) scale(1.12);
+  }
+}
+
+.block {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: min(34rem, 82vw);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  visibility: hidden;
+  opacity: 0;
+}
+
+.blockRight {
+  right: clamp(var(--space-3), 10vw, 12rem);
+  text-align: left;
+}
+
+.blockLeft {
+  left: clamp(var(--space-3), 10vw, 12rem);
+  text-align: left;
+}
+
+.blockMiddle {
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  align-items: center;
+}
+
+.blockImage {
+  width: min(20rem, 60vw);
+  height: auto;
+  box-shadow: 0 14px 44px rgba(28, 25, 21, 0.18);
+}
+
+.blockHeading {
+  font-size: var(--text-display-sm);
+}
+
+.blockBody {
+  max-width: 34ch;
+  color: var(--stone-deep);
+  line-height: 1.7;
+}
+
+.blockKicker {
+  color: var(--dusk-amber);
+}
+
+/* mobile: all blocks stack centered — R/L/M alternation is a desktop gesture */
+@media (max-width: 767px) {
+  .blockRight,
+  .blockLeft {
+    left: 50%;
+    right: auto;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    align-items: center;
+  }
+}
