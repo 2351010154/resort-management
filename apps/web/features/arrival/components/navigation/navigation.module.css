@@ -12,26 +12,58 @@
   padding: var(--space-2) var(--space-3);
   color: var(--ink);
   transition:
-    background-color 0.5s var(--ease-ui),
     color 0.5s var(--ease-ui),
     padding 0.5s var(--ease-ui);
+}
+
+/* The tint and the blur ride their own layer so the pill can fade in and out
+   with the phase. Putting them on the bar itself made the surface pop: a filter
+   list cannot interpolate from `none`, so the blur arrived in a single frame
+   while the tint eased in over half a second. `visibility` keeps the hidden
+   state out of paint, so the blur costs nothing at the top of the page.
+   `saturate` is what stops footage behind the blur averaging out to grey. */
+.bar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  opacity: 0;
+  visibility: hidden;
+  background-color: rgba(244, 239, 230, 0.78);
+  backdrop-filter: blur(16px) saturate(1.35);
+  -webkit-backdrop-filter: blur(16px) saturate(1.35);
+  transition:
+    opacity 0.5s var(--ease-ui),
+    visibility 0.5s var(--ease-ui),
+    background-color 0.5s var(--ease-ui);
 }
 
 .bar[data-theme="dark"] {
   color: var(--ivory);
 }
 
+.bar[data-theme="dark"]::before {
+  background-color: rgba(24, 21, 18, 0.62);
+}
+
 .bar[data-phase="scrolled"],
 .bar[data-phase="island"] {
   padding: calc(var(--space-1) * 1.5) var(--space-3);
-  background: rgba(244, 239, 230, 0.82);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
 }
 
-.bar[data-theme="dark"][data-phase="scrolled"],
-.bar[data-theme="dark"][data-phase="island"] {
-  background: rgba(28, 25, 21, 0.72);
+.bar[data-phase="scrolled"]::before,
+.bar[data-phase="island"]::before {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* Island phase: the bar is the head of the open sheet, so it takes the panel's
+   own tint rather than the lighter scrolled one — two different darks stacked
+   read as a seam across the top of the panel. Only the tint is matched: the
+   blur stays put so opening the menu never re-rasterises it. Keep in sync with
+   `.panel` in dynamic-island-menu.module.css. */
+.bar[data-phase="island"]::before {
+  background-color: rgba(28, 25, 21, 0.94);
 }
 
 /* brand: wordmark <-> monogram crossfade via CSS masks (currentColor theming) */
