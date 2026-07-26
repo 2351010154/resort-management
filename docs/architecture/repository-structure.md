@@ -223,10 +223,18 @@ Miss it and the majority of the app lints clean by never being read.
 
 ## `packages/`
 
-`shared` holds contracts only: zod schemas and inferred types, no runtime
-dependencies beyond zod, no framework imports. Its name makes it the most
-attractive place in the repo to dump a helper — resist that, and the contract
-stays trustworthy.
+`shared` holds contracts only: zod schemas and the types inferred from them, no
+framework imports. Its name makes it the most attractive place in the repo to
+dump a helper — resist that, and the contract stays trustworthy.
+
+Its runtime dependencies are closed, and [`tech-stack.md`](tech-stack.md)
+§Contract is the list: zod, `@internationalized/date`, `drizzle-zod` and the
+`@orpc/*` contract packages. Each earns its place by making a wrong program
+fail to compile rather than by saving anyone typing — `CalendarDate` is here so
+a stay date and an instant are different types, and nothing else gets in on a
+weaker argument than that. This paragraph used to say *nothing beyond zod*,
+which was true before the contract layer had been chosen and is the kind of
+rule that quietly turns a decision into an accident.
 
 `api-client` wraps fetch, injects auth, and parses every response through the
 `shared` schema. Both frontends consume it, so a breaking API change surfaces as
