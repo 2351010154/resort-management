@@ -7,13 +7,16 @@
     "node": ">=24.0.0"
   },
   "scripts": {
+    "backlog:view": "node scripts/backlog-view.mjs",
     "dev": "turbo run dev",
     "build": "turbo run build",
-    "lint": "turbo run lint",
+    "lint": "biome lint .",
+    "format": "biome format --write .",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.5.5",
     "turbo": "2.10.7"
   }
 }
