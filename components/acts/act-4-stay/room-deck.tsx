@@ -391,7 +391,6 @@ export function RoomDeck({ mobile }: { mobile: boolean }) {
             className={styles.listItem}
           >
             <p className={`font-display ${styles.listItemName}`}>{room.name}</p>
-            <p className={`caps-label ${styles.listItemNote}`}>{room.note}</p>
           </div>
         ))}
       </div>
