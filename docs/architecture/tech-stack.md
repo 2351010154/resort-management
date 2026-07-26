@@ -31,7 +31,7 @@ up, monitor and upgrade.
 | Job queue | pg-boss 12.26.x | Queue inside Postgres; enqueue joins the transaction |
 | Logging | pino + nestjs-pino 4.6.x | Structured, request-scoped |
 | Config | zod schema parsed at boot | Fails at startup, not at 2am |
-| Guest auth | Better Auth 1.6.x on the Drizzle adapter | Email verification, reset and session rotation already correct; shares the one pool |
+| Guest auth | Better Auth 1.6.x on the Drizzle adapter | Email verification, reset and session rotation already correct; shares the one pool. Google Sign-In is its social provider, on the same `guest_account` table |
 | Staff auth | Passport-JWT (`@nestjs/passport` 11.0.x, `@nestjs/jwt` 11.0.x) | A bearer token the console sends, not a browser cookie — `rbac-matrix.md` §1 keeps the realms apart |
 | Staff password hashing | `@node-rs/argon2` 2.0.x, argon2id at OWASP parameters | Memory-hard; prebuilt, so Windows needs no toolchain. Better Auth hashes the guest realm's own |
 | Authorisation | `@RequiresCapability()` over `modules/identity/rbac/matrix.ts` | The RBAC matrix as data, enforced by one global fail-closed guard |

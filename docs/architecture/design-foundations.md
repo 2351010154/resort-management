@@ -59,7 +59,7 @@ had all typed the same number.
 | `--stone-deep` | `#645c51` | Body copy on light grounds; the corridor's lit tone panel | 4 |
 | `--umber` | `#3a332b` | Photographic ground — what a panel or card shows before its image decodes | 3 |
 | `--ink` | `#1c1915` | Primary type on light grounds; the corridor and threshold grounds | 8 |
-| `--dusk-amber` | `#b48b60` | The single accent. Two uses, both a list title | 2 |
+| `--dusk-amber` | `#b48b60` | The single accent. Two list titles, and the light behind act 5's pill | 3 |
 | `--ocean` | `#7fa2b7` | **Defined, never consumed.** See below | 0 |
 | `--night` | `#100e0c` | The dark the acts hand over on | 6 |
 
@@ -77,12 +77,19 @@ photographs (`.panel`, `.card` in act 4) so a frame whose image has not decoded
 is a warm dark rectangle rather than a hole. Act 4's quiet tone panel is the one
 place it is a surface in its own right.
 
-**`--dusk-amber` is the accent and it is nearly unspent.** Two uses on the whole
-page. That restraint is the point: the arrival has no buttons that need to
-shout, so the one warm colour marks the two list heads and nothing else. The
-booking funnel has real primary actions, and this is the token for them — but
-the discipline transfers with the colour. One accent, used where the eye must
-go, and nowhere else.
+**`--dusk-amber` is the accent and it is nearly unspent.** Three uses on the
+whole page. That restraint is the point: the arrival has no buttons that need to
+shout, so the one warm colour marks the two list heads and — at the end, on the
+one control the ride has — the light around act 5's pill. The booking funnel has
+real primary actions, and this is the token for them — but the discipline
+transfers with the colour. One accent, used where the eye must go, and nowhere
+else.
+
+The pill is worth separating out, because it spends the accent as **light rather
+than as ink**: the type stays `--ink` and the fill stays `--ivory`, and what is
+amber is the bloom behind them (plus a 6% wash in the fill on hover). A dark act
+lit by lamps can afford that reading where a form on ivory cannot — but it is
+still one amber thing on the screen, which is the rule holding.
 
 `/login` is the first surface to spend it that way, and it spends it once: the
 submit control is filled `--dusk-amber` and nothing else on the screen is. The
@@ -366,11 +373,20 @@ Four things it establishes:
   are pale plaster, sky and linen, within a shade or two of `--ivory` — so the
   alcove that arrives beside the password field reads as the same wall the form
   is standing on, with one niche in it. Its inner edge is masked to transparent
-  over the first 8% so there is no vertical seam where image meets pane, and an
-  undecoded plate falls back to `--ivory-warm` rather than the `--umber` §2
-  reserves for photographic under-layers. Pick funnel imagery that can do this:
-  a plate that needs a dark scrim to carry its type is a picture, and it will
-  look pasted on.
+  over the first 22% — about 190px at 1440 — so the wall's light arrives
+  gradually instead of starting at a line.
+
+  **A fade only works if it lands on the colour it is fading into.** The plates
+  fall back to `--ivory-warm` before their images decode, rather than the
+  `--umber` §2 reserves for photographic under-layers — but plate B overrides
+  that to `--ivory`, because that is what the form pane beside it is painted.
+  Fading onto `--ivory-warm` produced a warm band with a hard edge on *both*
+  sides: a seam where there had been one seam. Measured after the fix, the pane
+  and the first pixel of the plate are both `244, 239, 230`, and the largest
+  adjacent-pixel delta across the join is 3 of a possible 765.
+
+  Pick funnel imagery that can do this. A plate that needs a dark scrim to
+  carry its type is a picture, and it will look pasted on.
 
 Field focus is one drawn underline, chosen once and used by both fields, which
 is also why the UA outline can be removed — it is replaced, not deleted.
@@ -615,32 +631,72 @@ where it is stuck rather than where it belongs.
 `room-deck.tsx`, lines ~61–77.
 
 ```ts
-const HALF   = 6;     // rooms in a half
-const POOL   = 12;    // card nodes in a half
-const SPAN   = 8;     // depth, in steps, from spawn to fully off-frame
-const GROWTH = 1.24;  // size growth per step of depth
+const HALF       = 6;     // rooms in a half
+const POOL       = 12;    // card nodes in a half
+const SPAN       = 6;     // depth, in steps, from spawn to fully off-frame
+const GROWTH     = 1.33;  // size growth per step of depth
+const LANES      = 3;     // lanes the cascade weaves between
+const LANE_SHIFT = 0.22;  // lane offset, in card widths, normal to the ray
 ```
 
 A card's offset from the vanishing point and its size share one factor,
 `r = GROWTH^(depth - SPAN)`. That single factor is what makes the stack read as
 one perspective instead of a fan of separately scaled photographs, and it means
-the three numbers are not independent:
+the numbers are not independent:
 
-- **`GROWTH^SPAN` is the spawn-to-exit size ratio.** At `1.24^8` that is about
-  5.6×. Change `GROWTH` and the far cards are either specks or already
+- **`GROWTH^SPAN` is the spawn-to-exit size ratio.** At `1.33^6` that is about
+  5.5×. Change `GROWTH` and the far cards are either specks or already
   legible at spawn; change `SPAN` and the same thing happens from the other
   direction. Either edit requires re-solving the other against the frame
   geometry in `NIGHT_FRAME` — whose `ex`/`ey` must keep the exit-end card
   entirely off-frame, because that is what makes the recycle invisible.
-- **`POOL` must stay a multiple of `HALF`.** A node's slot in the recycle is
-  `ordinal mod POOL` and its room is `ordinal mod HALF`; when `POOL` is a
-  multiple of `HALF`, a node keeps one room for the life of the page and no
-  `src` ever changes under a visible card. The four nodes past `SPAN` are parked
-  at `opacity: 0` — that is the price of the guarantee, and it is worth paying.
+- **Legibility is spacing over footprint, and neither number alone.** A step of
+  depth moves a card `|d|·r·(1 - 1/GROWTH)` along the ray; its own shadow on
+  that ray is about `1.2·ew·vw·r`. The `r` cancels, so overlap is identical at
+  every depth and is set by `GROWTH` and `ew` jointly. At `1.24` with
+  `ew = 0.8` it was two thirds — no card ever wholly visible, focus slot
+  included. At `1.33` with `ew = 0.62` it is two fifths.
+- **`POOL` must stay a multiple of both `HALF` and `LANES`.** A node's slot is
+  `ordinal mod POOL`, its room `ordinal mod HALF`, its lane `ordinal mod LANES`;
+  a multiple of both and a node keeps one room *and* one lane for the life of
+  the page — no `src` changes under a visible card, nothing slides sideways at
+  the recycle. `HALF` is a multiple of `LANES` too, which keeps a room always in
+  one lane. The six nodes past `SPAN` are parked at `opacity: 0` — the price of
+  the guarantee, and worth paying.
+
+`FOCUS_D = 3` is solved, not chosen: the deepest slot whose card is still whole
+in frame, since `vpx + (ex - vpx)·r` plus half a card width must clear the edge
+the cascade recedes toward. At the old `FOCUS_D = 5` the hero hung half off the
+screen.
 
 `STEPS = 6.2` and `K0 = FOCUS_D` are solved against these in
 `roomScrollTarget()`, which the island menu uses to aim at a room rather than at
-the top of the act. Change the four above and that solve is wrong too.
+the top of the act. Change the constants above and that solve is wrong too. It
+reads the ticker's accumulated `driftK` rather than solving idle travel from a
+start time, because the hover brake makes the rate vary — resting the pointer on
+a card slows the deck to `HOVER_DRIFT` of idle, and a closed form would silently
+go out of true.
+
+### Act 4 — what makes the day/night wipe a crossing
+
+The halves once differed only in which six photographs loaded — same grade, same
+ground, a `clip-path` edge between two dark frames — so by the time you looked
+they had swapped and you never saw it happen. Three invariants carry it now:
+
+1. **Each half's light is a `filter` on `.card img` plus a wash on
+   `.cascade::before`.** The wash belongs inside the cascade so the wipe's clip
+   carries it with no second animation, and it is the layer that most tests the
+   transparency rule below — it paints over the open door and may only tint it.
+   Keep its deepening off the half's *vanishing* corner: there it lands on cards
+   that are already small, fading in and graded down, and buries them.
+2. **The registers belong to neither half.** Siblings of both cascades, above
+   both. Inside its own half a list is clipped by the wipe — an edge through a
+   column of type holds sliced glyphs for the whole sweep — *and* sits under the
+   other half's entire subtree. The ticker fades them instead, timed to the edge
+   reaching each column, not to the wipe's endpoints.
+3. **The seam is the thing you watch cross**, so it is held at full opacity
+   across the sweep and folded away only at the ends. A bell curve leaves it
+   faint for the entire crossing, which is the failure being fixed.
 
 ### Act 4 — pins that outlive their own sections
 
@@ -673,6 +729,32 @@ same screen ride up under the footer with nothing to hide.
 Its reveal lines are set to `yPercent: 115` **from JS on mount**, not from CSS.
 A CSS `translateY(115%)` is parsed into a pixel `y` that GSAP's `yPercent: 0`
 cannot undo, and the address would never arrive.
+
+### Act 5 — the pill's glow is two boxes, not one
+
+`border-glow-pill.tsx` writes two custom properties on pointer move — how far
+the cursor lies from the pill's centre, and in which direction — and the
+stylesheet draws everything from them: a resting amber bloom on the whole rim,
+and a brighter arc the pointer drags around it. Three things are load-bearing:
+
+- **The mask and the bloom cannot be the same box.** A `conic-gradient()` mask is
+  sized to the element it is set on, so a mask on the pill tiles across the
+  shadow that spills past it and lights the wrong side. The masked element is
+  therefore inset *negatively* by the glow's reach, and its `::before` is inset
+  back to the pill exactly — the mask covers the whole bloom, and the box casting
+  the bloom is still pill-shaped. Widening the shadows without widening
+  `--glow-reach` cuts the bloom off at a line.
+- **The direction is measured in half-extents, not pixels.** On a pill five times
+  wider than it is tall, a raw `atan2` aims the arc at the far cap while the
+  pointer sits two pixels under the top edge.
+- **The arc has an opacity floor.** Proximity alone reaches 0 at the pill's
+  centre, which is where a cursor reading the label actually is; a control that
+  goes dark under the pointer reads as broken, so hover starts at 0.6 and
+  proximity carries the remaining 0.4. Keyboard focus lands on the floor.
+
+Under reduced motion the arc is removed outright and the pill rests on its
+bloom — there is no pointer to chase, and the global kill-switch would otherwise
+snap the arc on and off in `0.01ms`.
 
 ### Act 6 — the reveal band is a window
 
