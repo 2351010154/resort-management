@@ -121,7 +121,7 @@ rewrite, not a refactor.
 ```
 app/
   (marketing)/     The arrival. three / gsap / lenis live only in this subtree
-  (booking)/       The guest funnel. Plain bundle. Its auth screens are the first five
+  (booking)/       Everything that is not the arrival. Plain bundle, no WebGL
 features/
   arrival/         The six acts, the concierge nav, and the WebGL machinery they need
   auth/            The guest realm's door. Talks to Better Auth in apps/api
@@ -139,6 +139,63 @@ the same session; today the callers are all here, and the rule below about
 Only `login` uses the two-plate composition. The other four share
 `auth-shell.tsx`: a guest reaches them once, usually holding an email, and a
 composition that competed for attention would be competing with the task.
+
+The group is named `(booking)` and holds five screens that are not booking
+anything. Route groups do not appear in URLs, so the name costs nothing to keep
+— but what it *means* is **plain bundle**, and a screen belongs in it because it
+must not load `three`, not because it sells a room.
+
+### The `(booking)` route map
+
+Written before the funnel exists, because two of the three decisions below are
+cheap now and are rewrites once step three is built.
+
+```
+(booking)/
+  login/ signup/ verify-email/ forgot-password/ reset-password/   built
+  booking/
+    page.tsx              /booking                     search + results
+    [hold]/
+      details/            /booking/<hold>/details
+      payment/            /booking/<hold>/payment
+      confirming/         /booking/<hold>/confirming    gateway return
+  bookings/
+    [reference]/          /bookings/<reference>         confirmation and stay detail
+  account/
+    page.tsx              /account                      profile, VIP tier, loyalty
+    stays/                /account/stays                stay history
+```
+
+**Each step is a route.** Not one route holding a step counter. Per-step
+abandonment has to be measurable — whether P3.5 gets built at all depends on
+measuring abandonment at the payment step — and a step with no URL cannot be
+measured. Back and refresh then work without being implemented, and per-route
+splitting makes the bundle budget below provable per step rather than for the
+group as a whole.
+
+**The hold id is in the path, from step three on.** `booking-state-machine.md`
+§2 says only the public funnel starts at `HELD`, and §3 says entering `HELD`
+starts a TTL. That is the line the routes fall on: `/booking` is stateless and
+its state is search params, so it is shareable and a marketing call to action
+can link straight into a date range. Everything after it names a hold that can
+expire. In the path rather than a cookie, because two tabs stay unambiguous and
+an expired hold is a `410` on a named resource instead of a form that is
+mysteriously empty.
+
+**Confirmation and stay detail are one route.** `rbac-matrix.md` §3 has one row
+— *read own booking / stay history* — and a confirmation page is that row read
+four seconds after payment. Two routes rendering one booking is two things to
+keep in step forever; the freshly-booked state is a banner, not a page. This is
+the argument `verify-email-screen.tsx` already makes for its own two states.
+
+**`confirming/` is a step the funnel's five-bullet description does not name,
+and it is not optional.** The gateway redirects the browser back, but the IPN
+webhook is the source of truth and it is asynchronous and idempotent — the
+redirect can arrive before it, after it, or instead of it. So the landing that
+receives the redirect cannot be the confirmation: it subscribes, and resolves
+either to `/bookings/<reference>` or back to `payment` with a reason. Same shape
+the e-invoice job uses at folio close, and for the same reason — one provider
+timeout must never be able to roll back a completed act.
 
 The browser reaches the API by `NEXT_PUBLIC_API_URL` — see
 [`apps/web/.env.example`](../../apps/web/.env.example). The guest session is an
