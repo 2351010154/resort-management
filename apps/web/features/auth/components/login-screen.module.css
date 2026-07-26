@@ -1,0 +1,398 @@
+/* The login screen — one filmstrip, read twice.
+ *
+ * The composition is three panels side by side, wider than the frame:
+ *
+ *     |<---------------- 160 ---------------->|
+ *     [ plate A : 60 ][ pane : 40 ][ plate B : 60 ]
+ *     |<------ frame : 100 ------>|                     reading the email
+ *                     |<------ frame : 100 ------>|     reading the password
+ *
+ * Nothing crossfades and nothing is rebuilt. Focus moves to the password and
+ * the strip pans by exactly one plate, which carries the pane from the right
+ * of the frame to the left and brings the second plate in behind it. It is one
+ * transform on one element, which is the whole reason it can be built inside
+ * the funnel's CSS-only motion budget — see design-foundations.md §5.
+ */
+
+.screen {
+  height: 100dvh;
+  overflow: hidden;
+  background: var(--ivory);
+}
+
+/* 60 + 40 + 60 = 160 units against a 100-unit frame. The two numbers below are
+   that arithmetic and must move together: `width` is 160/100 of the frame, and
+   the pan is one plate — 60 of the track's own 160 — which is 37.5% of it.
+   Percentages in `translate` resolve against the element's own box, which is
+   why the pan is not simply 60%. */
+.track {
+  display: grid;
+  grid-template-columns: 60fr 40fr 60fr;
+  width: 160%;
+  height: 100%;
+  transform: translate3d(0, 0, 0);
+  transition: transform 0.5s var(--ease-ui);
+}
+
+.track[data-pane="password"] {
+  transform: translate3d(-37.5%, 0, 0);
+}
+
+/* Reduced motion: the strip holds at the first reading rather than snapping
+   between the two. The global kill-switch in globals.css would collapse the
+   duration to nothing, and a full-frame layout jump on every focus change is a
+   worse answer than a screen that simply does not pan. Both fields are present
+   and legible either way — design-foundations.md §9, "hiding an element is not
+   a reduced-motion state". */
+@media (prefers-reduced-motion: reduce) {
+  .track,
+  .track[data-pane="password"] {
+    transform: none;
+  }
+}
+
+/* ---- the plates ------------------------------------------------------- */
+
+/* --ivory-warm, not --umber, is what a plate shows before its image decodes.
+   Both plates are pale plaster and sky; a warm wall reads as the picture
+   arriving late, where the photographic under-layer §2 reserves --umber for
+   would read as a dark hole punched in the screen. */
+.plate {
+  position: relative;
+  overflow: hidden;
+  background: var(--ivory-warm);
+}
+
+.plateImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Plate B is not a picture on the screen, it is the screen's own wall carrying
+   on past the form: same plaster, same light, one alcove in it. So its inner
+   edge dissolves rather than stopping — 8% is enough to kill the vertical seam
+   without reading as a vignette, and what shows through is the plate's own
+   --ivory-warm, which is the wall again. */
+.plate[data-plate="b"] .plateImage {
+  mask-image: linear-gradient(to right, transparent 0%, black 8%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 8%);
+}
+
+/* A light wash, not a dark one. The terrace is a pale plate — sky, stone floor,
+   bleached linen — so the statement is set in --ink and the scrim's job is to
+   lift the floor it sits on, not to darken the frame. Weighted to the foot for
+   that reason, and left open across the middle so the sea keeps its light. */
+.plateScrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgb(var(--ivory-rgb) / 0.18) 0%,
+    rgb(var(--ivory-rgb) / 0) 30%,
+    rgb(var(--ivory-rgb) / 0.34) 72%,
+    rgb(var(--ivory-rgb) / 0.72) 100%
+  );
+}
+
+.plateBody {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: clamp(var(--space-3), 4vw, var(--space-4));
+  color: var(--ink);
+}
+
+.monogram {
+  display: block;
+  width: 2.25rem;
+  height: 1.75rem;
+  /* The house pattern for both marks: a mask filled with the current colour,
+     so the mark takes the plate's ivory without a second asset. */
+  background-color: currentcolor;
+  mask-image: url("/brand/mariva-monogram.svg");
+  mask-repeat: no-repeat;
+  mask-position: left center;
+  mask-size: contain;
+  -webkit-mask-image: url("/brand/mariva-monogram.svg");
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: left center;
+  -webkit-mask-size: contain;
+}
+
+.statement {
+  /* Measured against the reference composition: the statement holds two lines
+     at every width the plate takes, and the scale's --text-display-sm tops out
+     a step below what that needs here. */
+  font-size: clamp(1.75rem, 3vw, 2.6rem);
+  line-height: 1.14;
+  /* Measured against the reference: the statement reads as two lines breaking
+     after "experience". 14ch pushed "to." onto a third, which turns a sentence
+     into a stack. */
+  max-width: 19ch;
+}
+
+.statementNote {
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+  /* --stone-deep, not --sand: §2 is explicit that --sand is a dark-ground
+     token and is illegible on a light one. This plate is light. */
+  color: var(--stone-deep);
+}
+
+/* ---- the pane --------------------------------------------------------- */
+
+/* `margin: auto` on the child rather than `align-items: center`: a centred flex
+   child whose content outgrows the pane is clipped at the top edge and cannot
+   be scrolled back to. `margin: auto` gives the same centring and yields. */
+.pane {
+  display: flex;
+  overflow-y: auto;
+  padding: var(--space-4) clamp(var(--space-3), 4vw, var(--space-4));
+  background: var(--ivory);
+}
+
+.paneBody {
+  margin: auto;
+  width: 100%;
+  max-width: 23rem;
+}
+
+.title {
+  font-size: var(--text-display-sm);
+  line-height: 1.05;
+  color: var(--ink);
+}
+
+.subtitle {
+  margin-top: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--stone-deep);
+}
+
+.form {
+  margin-top: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* ---- fields ----------------------------------------------------------- */
+
+/* One focus behaviour, used by both fields and by nothing else on the screen:
+   the rule under the field draws from the left. Picked once so the two fields
+   cannot drift into two different ideas of what focus looks like. */
+.field {
+  position: relative;
+  display: block;
+}
+
+.fieldLabel {
+  display: block;
+  font-size: var(--text-xs);
+  color: var(--stone-deep);
+}
+
+.input {
+  width: 100%;
+  padding: var(--space-1) 0;
+  font: inherit;
+  font-size: var(--text-base);
+  color: var(--ink);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid rgb(var(--ink-rgb) / 0.18);
+  border-radius: 0;
+}
+
+.input::placeholder {
+  color: var(--stone);
+}
+
+/* The drawn rule is the focus indicator. Removing the UA outline is only
+   defensible because this replaces it — it is 2px of --ink against a hairline
+   at 0.18, and it is drawn for pointer and keyboard alike. */
+.input:focus {
+  outline: none;
+}
+
+.field::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  height: 2px;
+  background: var(--ink);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.45s var(--ease-ui);
+}
+
+.field:focus-within::after {
+  transform: scaleX(1);
+}
+
+/* The reveal control sits inside the field's own box, so :focus-within draws
+   the rule for it too — tabbing to it is still "in this field". */
+.reveal {
+  position: absolute;
+  right: 0;
+  bottom: var(--space-1);
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  color: var(--stone);
+  transition: color 0.4s var(--ease-ui);
+}
+
+.reveal:hover,
+.reveal:focus-visible {
+  color: var(--ink);
+}
+
+.revealIcon {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.forgot {
+  align-self: flex-end;
+  margin-top: calc(-1 * var(--space-2));
+  font-size: var(--text-xs);
+  color: var(--stone-deep);
+  text-decoration: underline;
+  text-underline-offset: 0.25em;
+  transition: color 0.4s var(--ease-ui);
+}
+
+.forgot:hover,
+.forgot:focus-visible {
+  color: var(--ink);
+}
+
+/* ---- submit ----------------------------------------------------------- */
+
+.error {
+  font-size: var(--text-sm);
+  color: var(--umber);
+}
+
+/* --dusk-amber is the house's one accent and design-foundations.md §2 reserves
+   it for exactly this: the funnel's real primary action. There is one of them
+   on this screen. */
+.submit {
+  padding: var(--space-2) var(--space-3);
+  border-radius: 999px;
+  background: var(--dusk-amber);
+  color: var(--ivory);
+  transition:
+    background-color 0.4s var(--ease-ui),
+    opacity 0.4s var(--ease-ui);
+}
+
+.submit:hover:not(:disabled),
+.submit:focus-visible:not(:disabled) {
+  background: color-mix(in srgb, var(--dusk-amber) 86%, var(--ink));
+}
+
+.submit:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* ---- the providers row ------------------------------------------------ */
+
+.continueWith {
+  margin-top: var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--stone);
+  text-align: center;
+}
+
+.providers {
+  margin-top: var(--space-2);
+  display: flex;
+  justify-content: center;
+  gap: var(--space-2);
+  list-style: none;
+}
+
+/* Outlined rather than filled: the reference sets these as white discs, and
+   white on --ivory is a disc nobody can see without leaving the palette. */
+.provider {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid rgb(var(--ink-rgb) / 0.14);
+  border-radius: 50%;
+  color: var(--ink);
+  transition:
+    border-color 0.4s var(--ease-ui),
+    opacity 0.4s var(--ease-ui);
+}
+
+.provider:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.providerIcon {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.footnote {
+  margin-top: var(--space-3);
+  font-size: var(--text-xs);
+  color: var(--stone-deep);
+  text-align: center;
+}
+
+.footnoteLink {
+  text-decoration: underline;
+  text-underline-offset: 0.25em;
+  transition: color 0.4s var(--ease-ui);
+}
+
+.footnoteLink:hover,
+.footnoteLink:focus-visible {
+  color: var(--ink);
+}
+
+/* ---- narrow ----------------------------------------------------------- */
+
+/* Under one column the strip is not a strip: there is no room to hold a plate
+   and a form side by side, so the pan has nothing to pan and the second plate
+   has nothing to arrive into. The screen becomes a banded page and the form
+   behaves identically. */
+@media (max-width: 56.25rem) {
+  .screen {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
+  .track,
+  .track[data-pane="password"] {
+    display: block;
+    width: 100%;
+    transform: none;
+  }
+
+  .plate {
+    height: 34dvh;
+  }
+
+  .plate[data-plate="b"] {
+    display: none;
+  }
+
+  .pane {
+    padding: var(--space-4) var(--space-3);
+  }
+}

@@ -1,0 +1,214 @@
+/* The quiet half of the guest realm.
+ *
+ * `login-screen.module.css` is the door: two plates, a corridor photograph, a
+ * strip that follows focus. The four screens this file dresses are the rooms
+ * behind it — creating an account, confirming an address, asking for a reset,
+ * choosing a new password — and they are deliberately plainer. A guest reaches
+ * them once, usually holding an email in the other hand, and a composition that
+ * competed for attention would be competing with the task.
+ *
+ * Everything here reads from @mariva/tokens. There is no colour, size or curve
+ * below that is not a custom property — design-foundations.md §2. Motion is CSS
+ * only, on the five permitted properties, at 0.4s on --ease-ui: §5.
+ */
+
+.screen {
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: var(--space-3) var(--space-2);
+  background: var(--ivory);
+  color: var(--ink);
+}
+
+/* The one piece of atmosphere: a warm rise from the bottom of the frame, the
+   same tone the arrival's acts sit on. Two stops, no image, no request. */
+.screen::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    120% 80% at 50% 120%,
+    rgb(var(--dusk-amber-rgb) / 0.16),
+    transparent 60%
+  );
+}
+
+.column {
+  position: relative;
+  width: 100%;
+  max-width: 27rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.monogram {
+  width: 2.25rem;
+  height: 2.25rem;
+  margin-bottom: var(--space-1);
+  background: var(--umber);
+  mask: url("/brand/mariva-monogram.svg") center / contain no-repeat;
+  -webkit-mask: url("/brand/mariva-monogram.svg") center / contain no-repeat;
+}
+
+.title {
+  font-size: var(--text-display-sm);
+  font-weight: 300;
+  line-height: 1.1;
+}
+
+/* A headline states, a caption qualifies — design-foundations.md §6. */
+.subtitle {
+  color: var(--stone-deep);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  max-width: 24rem;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.field {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.fieldLabel {
+  font-family: var(--font-ui), sans-serif;
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--stone-deep);
+}
+
+.input {
+  width: 100%;
+  padding: 0.75rem 0;
+  font: inherit;
+  font-size: var(--text-base);
+  color: var(--ink);
+  background: none;
+  border: none;
+  /* An underline rather than a box: the arrival draws its structure with rules,
+     not with containers, and a boxed field here would be the first element on
+     the origin that does not. */
+  border-bottom: 1px solid rgb(var(--umber-rgb) / 0.25);
+  border-radius: 0;
+  transition:
+    border-color 0.4s var(--ease-ui),
+    color 0.4s var(--ease-ui);
+}
+
+.input::placeholder {
+  color: rgb(var(--umber-rgb) / 0.35);
+}
+
+.input:focus {
+  outline: none;
+  border-bottom-color: var(--umber);
+}
+
+/* Focus is visible without the outline, but only to a mouse user who just
+   clicked. A keyboard user gets the ring as well — §8's disable convention is
+   about affordances, never about focus. */
+.input:focus-visible {
+  outline: 2px solid var(--dusk-amber);
+  outline-offset: 4px;
+}
+
+.hint {
+  font-size: var(--text-xs);
+  color: var(--stone);
+}
+
+.submit {
+  margin-top: var(--space-1);
+  padding: 0.9rem var(--space-2);
+  color: var(--ivory);
+  background: var(--umber);
+  border: 1px solid var(--umber);
+  cursor: pointer;
+  transition:
+    background-color 0.4s var(--ease-ui),
+    color 0.4s var(--ease-ui),
+    border-color 0.4s var(--ease-ui);
+}
+
+.submit:hover:not(:disabled) {
+  color: var(--umber);
+  background: transparent;
+}
+
+.submit:disabled {
+  cursor: default;
+  color: rgb(var(--ivory-rgb) / 0.6);
+  background: var(--stone);
+  border-color: var(--stone);
+}
+
+.secondary {
+  align-self: flex-start;
+  padding: 0;
+  font-family: var(--font-ui), sans-serif;
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--stone-deep);
+  background: none;
+  border: none;
+  border-bottom: 1px solid transparent;
+  cursor: pointer;
+  transition:
+    color 0.4s var(--ease-ui),
+    border-color 0.4s var(--ease-ui);
+}
+
+.secondary:hover:not(:disabled) {
+  color: var(--umber);
+  border-bottom-color: var(--umber);
+}
+
+.secondary:disabled {
+  cursor: default;
+  color: var(--sand);
+}
+
+/* Announced when it arrives, and it arrives after a round trip — so it is a
+   live region rather than something the guest must go back and find. */
+.notice {
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  padding-left: var(--space-1);
+  border-left: 2px solid var(--dusk-amber);
+  color: var(--stone-deep);
+}
+
+.error {
+  composes: notice;
+  border-left-color: var(--umber);
+  color: var(--umber);
+}
+
+.footnote {
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--stone-deep);
+}
+
+.footnoteLink {
+  color: var(--umber);
+  border-bottom: 1px solid rgb(var(--umber-rgb) / 0.3);
+  transition: border-color 0.4s var(--ease-ui);
+}
+
+.footnoteLink:hover {
+  border-bottom-color: var(--umber);
+}
