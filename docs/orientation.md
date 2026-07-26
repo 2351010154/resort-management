@@ -252,6 +252,11 @@ Run `pnpm backlog:view` for the backlog as a filterable HTML page. It is
 generated from `plans/backlog.md` on every run and stores nothing, so it can
 never become a second status source.
 
+`plans/work-orders.md` is the delegation menu: the same backlog keys repackaged
+into units sized for one handoff, with file ownership, readiness, what only you
+can do, and which pairs may run in parallel. It carries no status either — pick
+from it, then take the acceptance criteria from the backlog.
+
 ## 11. Open questions this document raises
 
 1. **Should `plans/backlog.md` be version-controlled?** `.gitignore` excludes
