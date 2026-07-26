@@ -9,3 +9,14 @@ allowBuilds:
   unrs-resolver: true
   # Fetches the browser binaries the capture scripts in apps/web/scripts drive.
   playwright: true
+
+# React Three Fiber's own .d.ts files reference React's types — the JSX element
+# names on one side, CanvasProps extending React.HTMLAttributes on the other —
+# but it never declared @types/react, so pnpm's isolated layout never gives it
+# one and TypeScript's upward search for node_modules/@types finds nothing.
+# skipLibCheck hides the resulting damage inside fiber and reports it at the
+# call sites instead. Declaring the peer it is missing is the fix.
+packageExtensions:
+  "@react-three/fiber":
+    peerDependencies:
+      "@types/react": "*"
