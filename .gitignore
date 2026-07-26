@@ -1,10 +1,12 @@
-# Dependencies and build output
-/node_modules
-/.next
-/out
-/build
-/dist
-/coverage
+# Dependencies and build output. Unanchored: every workspace under apps/ and
+# packages/ produces its own.
+node_modules/
+.next/
+.turbo/
+out/
+build/
+dist/
+coverage/
 next-env.d.ts
 *.tsbuildinfo
 

@@ -6,17 +6,16 @@
 // shot is the Act 2 -> Act 3 seam instead). Mobile does not stack, so it gets
 // the type and the photographs of each chapter as they scroll past.
 //
-// Usage: node scripts/capture-welcome-chapters.mjs [baseUrl]
+// Usage: node apps/web/scripts/capture-welcome-chapters.mjs [baseUrl]
 // Output: plans/reports/screenshots/welcome-chapters/<vp>-NN-<beat>.png
 
 import { chromium } from "playwright";
 import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
+import { screenshotDir } from "./screenshot-dir.mjs";
 
 const BASE_URL = process.argv[2] ?? "http://localhost:3000";
-const OUT = path.resolve(
-  import.meta.dirname, "..", "plans", "reports", "screenshots", "welcome-chapters",
-);
+const OUT = screenshotDir("welcome-chapters");
 const VIEWPORTS = [
   { name: "desktop", width: 1440, height: 900 },
   { name: "mobile", width: 390, height: 844 },

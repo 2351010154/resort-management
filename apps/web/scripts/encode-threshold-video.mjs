@@ -12,7 +12,7 @@
 //           warming the balance lands them in the sand/umber family so the
 //           footage belongs to the same hotel as the stills.
 //
-// Usage: node scripts/encode-threshold-video.mjs [posterSeconds]
+// Usage: node apps/web/scripts/encode-threshold-video.mjs [posterSeconds]
 
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";

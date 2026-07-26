@@ -4,20 +4,19 @@
 // the leaves flutter or twitch — so this parks the act's line in the middle of
 // the viewport and shoots a burst at a fixed interval.
 //
-// Usage: node scripts/capture-welcome-wall.mjs [baseUrl] [frames] [gapMs]
+// Usage: node apps/web/scripts/capture-welcome-wall.mjs [baseUrl] [frames] [gapMs]
 //   default baseUrl http://localhost:3000, 6 frames, 900ms apart
 // Output: plans/reports/screenshots/welcome-wall/<vp>-NN.png
 
 import { chromium } from "playwright";
 import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
+import { screenshotDir } from "./screenshot-dir.mjs";
 
 const BASE_URL = process.argv[2] ?? "http://localhost:3000";
 const FRAMES = Number(process.argv[3] ?? 6);
 const GAP = Number(process.argv[4] ?? 900);
-const OUT = path.resolve(
-  import.meta.dirname, "..", "plans", "reports", "screenshots", "welcome-wall",
-);
+const OUT = screenshotDir("welcome-wall");
 const VIEWPORTS = [
   { name: "desktop", width: 1440, height: 900 },
   { name: "mobile", width: 390, height: 844 },

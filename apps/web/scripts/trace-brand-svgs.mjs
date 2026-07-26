@@ -2,7 +2,7 @@
 // single currentColor path, so CSS can theme them ivory/ink.
 // Crops are prepared in the session scratchpad by ffmpeg (see phase-01 report).
 //
-// Usage: node scripts/trace-brand-svgs.mjs <monogram-crop.png> <wordmark-crop.png>
+// Usage: node apps/web/scripts/trace-brand-svgs.mjs <monogram-crop.png> <wordmark-crop.png>
 
 import potrace from "potrace";
 import { promisify } from "node:util";

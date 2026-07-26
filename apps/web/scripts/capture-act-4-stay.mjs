@@ -5,7 +5,7 @@
 // nothing about it. This walks the act's whole scroll range in even steps and
 // writes one frame per step.
 //
-// Usage: node scripts/capture-act-4-stay.mjs [baseUrl] [steps] [movement]
+// Usage: node apps/web/scripts/capture-act-4-stay.mjs [baseUrl] [steps] [movement]
 //   default baseUrl http://localhost:3000, 20 steps (5% of the act each)
 //   movement: act (default) | corridor | threshold | rooms — the whole act at
 //   5% steps is too coarse to read one movement, so each is addressable on its
@@ -15,14 +15,14 @@
 import { chromium } from "playwright";
 import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
+import { screenshotDir } from "./screenshot-dir.mjs";
 
 const BASE_URL = process.argv[2] ?? "http://localhost:3000";
 const STEPS = Number(process.argv[3] ?? 20);
 const MOVEMENT = process.argv[4] ?? "act";
 const SELECTOR =
   MOVEMENT === "act" ? '[data-act="4"]' : `[data-movement="${MOVEMENT}"]`;
-const OUT = path.resolve(
-  import.meta.dirname, "..", "plans", "reports", "screenshots",
+const OUT = screenshotDir(
   MOVEMENT === "act" ? "act-4-stay" : `act-4-stay-${MOVEMENT}`,
 );
 const VIEWPORTS = [

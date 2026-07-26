@@ -5,17 +5,16 @@
 // are taken off the band's static top and the end of the page, which is where
 // its uncovering starts and finishes.
 //
-// Usage: node scripts/capture-finale.mjs [baseUrl]
+// Usage: node apps/web/scripts/capture-finale.mjs [baseUrl]
 // Output: plans/reports/screenshots/finale/<vp>-NN-<beat>.png
 
 import { chromium } from "playwright";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { screenshotDir } from "./screenshot-dir.mjs";
 
 const BASE_URL = process.argv[2] ?? "http://localhost:3000";
-const OUT = path.resolve(
-  import.meta.dirname, "..", "plans", "reports", "screenshots", "finale",
-);
+const OUT = screenshotDir("finale");
 const VIEWPORTS = [
   { name: "desktop", width: 1440, height: 900 },
   { name: "mobile", width: 390, height: 844 },
