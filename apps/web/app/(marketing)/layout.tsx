@@ -6,9 +6,9 @@
 // Keeping them in this route group rather than the root layout is what lets a
 // sibling group (booking) render on the same origin with a plain bundle.
 
-import { LenisScrollProvider } from "@/lib/lenis-scroll-provider";
-import { ConciergeNav } from "@/components/navigation/concierge-nav";
-import { ActiveActTracker } from "@/components/navigation/active-act-tracker";
+import { LenisScrollProvider } from "@/features/arrival/lib/lenis-scroll-provider";
+import { ConciergeNav } from "@/features/arrival/components/navigation/concierge-nav";
+import { ActiveActTracker } from "@/features/arrival/components/navigation/active-act-tracker";
 
 export default function MarketingLayout({
   children,
