@@ -10,7 +10,12 @@ import { tierSrc, tierSrcSet } from "@/features/arrival/lib/image-srcset";
 import { useArrivalActStore } from "@/features/arrival/lib/act-store";
 import { useLenis } from "@/features/arrival/lib/lenis-scroll-provider";
 import { prefersReducedMotion } from "@/features/arrival/lib/webgl-support";
-import { DUR_UI, EASE_UI, STAGGER_CASCADE } from "@/lib/motion-tokens";
+import {
+  DUR_UI,
+  EASE_UI,
+  EASE_UI_EXIT,
+  STAGGER_CASCADE,
+} from "@/lib/motion-tokens";
 import { NavHoverLink, scrollToAct, scrollToRoom } from "./nav-hover-link";
 import styles from "./dynamic-island-menu.module.css";
 
@@ -23,7 +28,9 @@ const CARDS = [
   { slug: "island-restore", label: "Restore", room: 6 },
 ].map((card) => ({
   ...card,
-  image: arrivalImages["nav-island"].find((img) => img.src.includes(card.slug))!,
+  image: arrivalImages["nav-island"].find((img) =>
+    img.src.includes(card.slug),
+  )!,
 }));
 
 export const NAV_LINKS = [
@@ -35,6 +42,7 @@ export const NAV_LINKS = [
 
 export function DynamicIslandMenu() {
   const panelRef = useRef<HTMLDivElement>(null);
+  const opened = useRef(false);
   const lenis = useLenis();
   const menuOpen = useArrivalActStore((s) => s.menuOpen);
   const setMenuOpen = useArrivalActStore((s) => s.setMenuOpen);
@@ -49,26 +57,51 @@ export function DynamicIslandMenu() {
     // while aria-hidden — inert takes them out of the tab order too.
     if (menuOpen) panel.removeAttribute("inert");
     else panel.setAttribute("inert", "");
-    const ctx = gsap.context(() => {
-      if (menuOpen) {
-        gsap.to(panel, { height: "auto", duration: reduce ? 0 : DUR_UI, ease: EASE_UI });
-        gsap.fromTo(
-          cards,
-          { autoAlpha: 0, y: 16 },
-          {
-            autoAlpha: 1,
-            y: 0,
-            duration: reduce ? 0 : DUR_UI,
-            ease: EASE_UI,
-            stagger: reduce ? 0 : STAGGER_CASCADE,
-            delay: reduce ? 0 : DUR_UI * 0.4,
-          },
-        );
-      } else {
-        gsap.to(panel, { height: 0, duration: reduce ? 0 : DUR_UI * 0.8, ease: EASE_UI });
-      }
-    });
-    return () => ctx.revert();
+    if (menuOpen) opened.current = true;
+    // Nothing to fold before the first open: the closed geometry is the CSS.
+    if (!opened.current) return;
+
+    // One timeline per toggle, killed rather than reverted when the next one
+    // takes over. A gsap.context here reverted the open state during React's
+    // cleanup — before the fold could run — so the panel snapped to height 0
+    // and the closing tween then animated 0 to 0, i.e. nothing at all. Killing
+    // leaves the current geometry in place, so an interrupted unfold folds from
+    // exactly where it stopped.
+    const tl = gsap.timeline({ defaults: { ease: EASE_UI } });
+    if (menuOpen) {
+      tl.to(panel, { height: "auto", duration: reduce ? 0 : DUR_UI }, 0).fromTo(
+        cards,
+        { autoAlpha: 0, y: 16 },
+        {
+          autoAlpha: 1,
+          y: 0,
+          duration: reduce ? 0 : DUR_UI,
+          stagger: reduce ? 0 : STAGGER_CASCADE,
+        },
+        reduce ? 0 : DUR_UI * 0.4,
+      );
+    } else {
+      // Cards leave in reverse order and the fold follows right behind them, so
+      // the sheet is already emptying by the time its edge starts to move.
+      tl.to(
+        cards,
+        {
+          autoAlpha: 0,
+          y: 10,
+          duration: reduce ? 0 : DUR_UI * 0.5,
+          ease: EASE_UI_EXIT,
+          stagger: reduce ? 0 : { each: STAGGER_CASCADE * 0.5, from: "end" },
+        },
+        0,
+      ).to(
+        panel,
+        { height: 0, duration: reduce ? 0 : DUR_UI * 0.7, ease: EASE_UI_EXIT },
+        reduce ? 0 : DUR_UI * 0.2,
+      );
+    }
+    return () => {
+      tl.kill();
+    };
   }, [menuOpen]);
 
   // Escape closes; focus is trapped inside the panel while open.
@@ -120,7 +153,9 @@ export function DynamicIslandMenu() {
       <div className={styles.inner}>
         <div className={styles.intro} data-cascade>
           <p className="caps-label">The concierge</p>
-          <p>Every arrival is prepared before you ask. Choose where to begin.</p>
+          <p>
+            Every arrival is prepared before you ask. Choose where to begin.
+          </p>
           <a
             href="#act-5"
             className={`${styles.viewLink} caps-label`}
