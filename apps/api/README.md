@@ -108,6 +108,15 @@ none of them is reimplemented here, because a second door into a flow is a
 second door to keep in step. Sessions are httpOnly cookies prefixed
 `mariva_guest`. An address must be verified before it can sign in.
 
+Google is the one social provider, registered only when `GOOGLE_CLIENT_ID` and
+`GOOGLE_CLIENT_SECRET` are both set — optional in development, refused at boot
+in production, because the login screen offers the button either way. Its
+authorised redirect URI is `<API_URL>/api/auth/callback/google`. A guest who
+signed up with a password and later presses Google is linked to the account they
+already have, provided that account had confirmed the address itself; an
+unconfirmed one is left alone, so registering a stranger's address does not
+become a way to be handed it.
+
 **Staff** (`modules/auth/staff`) are Passport-JWT. `POST /auth/staff/sign-in`
 returns a thirty-minute access token in the body and a seven-day refresh token
 as an httpOnly cookie scoped to `/auth/staff`. The refresh token is stored as a
