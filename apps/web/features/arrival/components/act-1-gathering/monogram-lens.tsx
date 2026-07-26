@@ -13,7 +13,11 @@
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
-import { buildMonogramField, GLYPH_BASE_V, type MonogramField } from "@/features/arrival/lib/monogram-sdf";
+import {
+  buildMonogramField,
+  GLYPH_BASE_V,
+  type MonogramField,
+} from "@/features/arrival/lib/monogram-sdf";
 import { useInView } from "@/lib/use-in-view";
 import {
   APERTURE_PASS,
@@ -82,7 +86,11 @@ function fieldTexture({ data, size }: MonogramField): THREE.DataTexture {
     }
   }
   const texture = new THREE.DataTexture(
-    halves, size, size, THREE.RedFormat, THREE.HalfFloatType,
+    halves,
+    size,
+    size,
+    THREE.RedFormat,
+    THREE.HalfFloatType,
   );
   texture.minFilter = texture.magFilter = THREE.LinearFilter;
   // Off the edge the field reads "well outside", which is plain sheet — so the
@@ -127,41 +135,65 @@ function LensQuad({
     [texture],
   );
 
+  // A ShaderMaterial's uniforms object is its own and keeps its identity; the
+  // block passed as a prop is copied into it. So the block above seeds the
+  // material and is not what the shader reads afterwards — every later write
+  // has to go through the material, or it lands on a detached object and the
+  // mark never opens.
+  const material = useRef<THREE.ShaderMaterial>(null);
+
   useEffect(() => {
-    uniforms.uBackdrop.value = backdrop;
-  }, [uniforms, backdrop]);
+    const u = material.current?.uniforms;
+    if (u) u.uBackdrop.value = backdrop;
+  }, [backdrop]);
 
   // The mark's height at rest matches what the static sheet draws, so the
   // reduced-motion fallback and the lens frame the same opening.
   useEffect(() => {
+    const u = material.current?.uniforms;
+    if (!u) return;
     const markPx = APERTURE_UNITS * sceneUnitPx(size.width, size.height);
-    uniforms.uResolution.value.set(size.width, size.height);
-    uniforms.uFieldPx.value = markPx / field.glyphFraction;
+    u.uResolution.value.set(size.width, size.height);
+    u.uFieldPx.value = markPx / field.glyphFraction;
 
-    const image = backdrop.image as { videoWidth?: number; width?: number; videoHeight?: number; height?: number };
+    const image = backdrop.image as {
+      videoWidth?: number;
+      width?: number;
+      videoHeight?: number;
+      height?: number;
+    };
     const texW = image?.videoWidth || image?.width || 1;
     const texH = image?.videoHeight || image?.height || 1;
     const box = horizonPlacement(
-      size.width, size.height, texW, texH,
+      size.width,
+      size.height,
+      texW,
+      texH,
       horizonScreenY(size.height, markPx),
     );
     // Screen uv (v up from the bottom) to backdrop uv, as one scale and one
     // offset so the fragment stage stays two multiplies.
-    uniforms.uBackdropScale.value.set(size.width / box.width, size.height / box.height);
-    uniforms.uBackdropOffset.value.set(
+    u.uBackdropScale.value.set(
+      size.width / box.width,
+      size.height / box.height,
+    );
+    u.uBackdropOffset.value.set(
       -box.left / box.width,
       1 + box.top / box.height - size.height / box.height,
     );
-  }, [size, uniforms, field.glyphFraction, backdrop]);
+  }, [size, field.glyphFraction, backdrop]);
 
   useFrame(() => {
+    const u = material.current?.uniforms;
+    if (!u) return;
     const magnify = apertureMagnify(camera.z);
-    uniforms.uMagnify.value = magnify;
-    uniforms.uBarrel.value = -BARREL * barrelRamp(clamp01(camera.progress / APERTURE_PASS));
-    uniforms.uReveal.value = camera.reveal;
-    uniforms.uOpacity.value = sheetOpacity(camera.z);
-    uniforms.uBackdropDrift.value = plateDrift(camera.z);
-    uniforms.uReflect.value =
+    u.uMagnify.value = magnify;
+    u.uBarrel.value =
+      -BARREL * barrelRamp(clamp01(camera.progress / APERTURE_PASS));
+    u.uReveal.value = camera.reveal;
+    u.uOpacity.value = sheetOpacity(camera.z);
+    u.uBackdropDrift.value = plateDrift(camera.z);
+    u.uReflect.value =
       camera.entry * (1 - clamp01((magnify - 1) / (REFLECT_OUT - 1)));
   });
 
@@ -169,6 +201,7 @@ function LensQuad({
     <mesh frustumCulled={false}>
       <planeGeometry args={[2, 2]} />
       <shaderMaterial
+        ref={material}
         vertexShader={lensVertex}
         fragmentShader={lensFragment}
         uniforms={uniforms}
@@ -211,7 +244,10 @@ function useBackdrop(inView: boolean): THREE.Texture | null {
     video.playsInline = true;
     video.preload = "auto";
     const { webm, mp4 } = horizonSources(window.innerWidth);
-    for (const [src, type] of [[webm, "video/webm"], [mp4, "video/mp4"]]) {
+    for (const [src, type] of [
+      [webm, "video/webm"],
+      [mp4, "video/mp4"],
+    ]) {
       const source = document.createElement("source");
       source.src = src;
       source.type = type;
