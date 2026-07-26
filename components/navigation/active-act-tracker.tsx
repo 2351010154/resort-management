@@ -10,21 +10,41 @@ export function ActiveActTracker() {
   const setActiveAct = useArrivalActStore((s) => s.setActiveAct);
 
   useEffect(() => {
-    const sections = document.querySelectorAll<HTMLElement>("[data-act]");
-    if (sections.length === 0) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries) {
-          if (!entry.isIntersecting) continue;
-          const act = Number((entry.target as HTMLElement).dataset.act);
+    // Measured on every settled frame rather than driven by IntersectionObserver
+    // entries. Two sections cross the centre band together at every seam, and an
+    // observer hands them over in one batch with no guaranteed order — take the
+    // last entry and the act *behind* the seam can win, which then sticks for the
+    // whole next act because no further crossing is ever reported. Measuring the
+    // centre answers the question directly, and re-answers it after a pin
+    // refresh, a resize, or a reload that restores scroll mid-act.
+    let raf = 0;
+
+    const resolve = () => {
+      raf = 0;
+      const centre = window.innerHeight / 2;
+      const sections = document.querySelectorAll<HTMLElement>("[data-act]");
+      for (const section of sections) {
+        const { top, bottom } = section.getBoundingClientRect();
+        if (top <= centre && bottom > centre) {
+          const act = Number(section.dataset.act);
           if (act) setActiveAct(act);
+          return;
         }
-      },
-      // A section is "active" while it crosses the viewport's center band.
-      { rootMargin: "-45% 0px -45% 0px" },
-    );
-    sections.forEach((s) => observer.observe(s));
-    return () => observer.disconnect();
+      }
+    };
+
+    const schedule = () => {
+      if (!raf) raf = requestAnimationFrame(resolve);
+    };
+
+    window.addEventListener("scroll", schedule, { passive: true });
+    window.addEventListener("resize", schedule);
+    resolve();
+    return () => {
+      window.removeEventListener("scroll", schedule);
+      window.removeEventListener("resize", schedule);
+      if (raf) cancelAnimationFrame(raf);
+    };
   }, [setActiveAct]);
 
   return null;
