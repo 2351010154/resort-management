@@ -207,6 +207,7 @@ export function CorridorTrack({ mobile }: { mobile: boolean }) {
           {PANELS.map((panel, i) =>
             panel.kind === "tone" ? (
               <div
+                // biome-ignore lint/suspicious/noArrayIndexKey: PANELS is a module constant of fixed length and order — the index is the panel's identity, and there is no other field that distinguishes two quiet tone panels.
                 key={`tone-${i}`}
                 className={`${styles.panel} ${styles.tonePanel} ${
                   panel.quiet ? styles.toneQuiet : ""

@@ -86,7 +86,11 @@ async function mapLimit(items, limit, fn) {
 // Union-find clustering over pairs within hamming threshold.
 function cluster(entries) {
   const parent = entries.map((_, i) => i);
-  const find = (i) => (parent[i] === i ? i : (parent[i] = find(parent[i])));
+  const find = (i) => {
+    if (parent[i] === i) return i;
+    parent[i] = find(parent[i]);
+    return parent[i];
+  };
   for (let i = 0; i < entries.length; i++)
     for (let j = i + 1; j < entries.length; j++)
       if (hamming(entries[i].hash, entries[j].hash) <= HAMMING_SAME)

@@ -1,0 +1,109 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.5/schema.json",
+
+  "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": true },
+
+  "files": {
+    "includes": [
+      "**",
+      "!**/node_modules",
+      "!**/.next",
+      "!**/.turbo",
+      "!**/dist",
+      "!pnpm-lock.yaml",
+
+      // Not the product: local agent tooling and planning artifacts, all of
+      // them gitignored. Listed rather than left to useIgnoreFile, which only
+      // reaches what the VCS root's own ignore file covers.
+      "!**/.agentkit",
+      "!**/.claude",
+      "!plans",
+
+      // Prose and the exported diagrams that illustrate it. Biome reads an
+      // .svg as a document with anchors and images in it and reports on the
+      // drawing, which is not a thing anyone can act on.
+      "!docs",
+
+      // Committed PNG fixtures, and the drizzle-generated migration ledger:
+      // reformatting a snapshot drizzle-kit writes and reads back would
+      // desync the two without anything reporting it.
+      "!apps/web/tests/visual-baseline",
+      "!apps/api/src/database/migrations",
+
+      // apps/api is not in yet. This config replaces the ESLint setup that
+      // only ever covered apps/web, so bringing the API under it here would
+      // be a second change wearing the same commit, and its findings are all
+      // in code still being written. It opts in on its own.
+      "!apps/api"
+    ]
+  },
+
+  // Enabled, but not enforced in CI: `pnpm lint` runs `biome lint`, not
+  // `biome check`. The tree predates any formatter, so gating on it would
+  // mean one commit that reformats every file in the app — including the
+  // hand-set stylesheets, whose comment alignment is doing work. The commit
+  // hook formats what is staged instead, so the repo converges file by file
+  // as they are touched, and each reformat lands in the diff that changed
+  // the file anyway.
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 80
+  },
+
+  "javascript": {
+    "formatter": { "quoteStyle": "double", "trailingCommas": "all" }
+  },
+
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+
+      // Biome brings an accessibility family the ESLint setup it replaces
+      // never had. The findings are real — six placeholder hrefs, two
+      // buttons with no type, one untitled glyph — but fixing them is a
+      // change to the arrival's markup, not to its lint config, and half of
+      // them sit in components being rewritten right now. Warnings so they
+      // are visible and counted; the story that fixes them turns these back
+      // up to errors.
+      "a11y": {
+        "noSvgWithoutTitle": "warn",
+        "useButtonType": "warn",
+        "useValidAnchor": "warn"
+      },
+
+      "correctness": {
+        // The React Compiler rules eslint-config-next carried were warnings
+        // here for a reason that has not changed: the arrival's acts drive
+        // GLSL uniforms and read refs during render, and every fix moves
+        // render timing on code pinned to committed reference images.
+        "useExhaustiveDependencies": "warn"
+      },
+
+      "performance": {
+        // The arrival serves plain <img> on purpose — every photograph is a
+        // fixed-size art-directed plate, and next/image's wrapper element
+        // breaks the clip-path and transform layers the acts animate.
+        "noImgElement": "off"
+      },
+
+      "style": {
+        // Every site is one of two shapes: `canvas.getContext("2d")!`, which
+        // is only null for a context the canvas already has under another
+        // type, and `.find(...)!` over the committed image manifest, where a
+        // miss is a build-time typo rather than a runtime state. Guarding
+        // them would add branches no test can reach.
+        "noNonNullAssertion": "off"
+      },
+
+      "complexity": {
+        // globals.css needs `!important` for the reduced-motion kill switch:
+        // it has to beat the inline styles GSAP writes onto elements it is
+        // mid-tween on, which nothing else can.
+        "noImportantStyles": "off"
+      }
+    }
+  }
+}

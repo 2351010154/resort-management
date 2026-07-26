@@ -368,6 +368,7 @@ export function RoomDeck({ mobile }: { mobile: boolean }) {
         {Array.from({ length: POOL }, (_, node) => {
           const room = rooms[node % HALF];
           return (
+            // biome-ignore lint/suspicious/noArrayIndexKey: the deck is a fixed pool of DOM slots the animation addresses by position — `node` is the slot, not the room in it, which is why it is also the data-card the tweens select on.
             <article key={node} data-card={node} className={styles.card} style={{ opacity: 0 }}>
               <img
                 src={tierSrc(pick(room.slug).src, 1280)}
