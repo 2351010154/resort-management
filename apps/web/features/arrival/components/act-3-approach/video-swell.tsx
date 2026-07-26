@@ -8,8 +8,16 @@
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useEffect, useRef, useState } from "react";
+import { useArrivalActStore } from "@/features/arrival/lib/act-store";
 import { prefersReducedMotion } from "@/features/arrival/lib/webgl-support";
 import styles from "./act-3-approach.module.css";
+
+// Where the swelling frame reaches the bar. The shell is a full viewport scaled
+// from 0.42 to 1 across the first 75% of the pin, so its top edge sits
+// (1 - scale) / 2 of the viewport down; the bar clears at roughly scale 0.88,
+// which is progress 0.6. Handing over slightly early lets the 0.5s tone fade
+// settle before the video is actually behind the bar.
+const NAV_HANDOVER = 0.56;
 
 export function VideoSwell() {
   const sectionRef = useRef<HTMLElement>(null);
@@ -18,8 +26,17 @@ export function VideoSwell() {
   const captionRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [reduced, setReduced] = useState<boolean | null>(null);
+  const setNavDark = useArrivalActStore((s) => s.setNavDark);
 
   useEffect(() => setReduced(prefersReducedMotion()), []);
+
+  // Reduced motion holds the frame fullscreen for the whole act, so the bar is
+  // over video the entire time it owns the viewport.
+  useEffect(() => {
+    if (reduced !== true) return;
+    setNavDark(3, true);
+    return () => setNavDark(3, false);
+  }, [reduced, setNavDark]);
 
   // Play only while on screen (autoplay muted+playsInline for Safari).
   useEffect(() => {
@@ -42,6 +59,7 @@ export function VideoSwell() {
     const shell = shellRef.current;
     if (!section || !shell) return;
     gsap.registerPlugin(ScrollTrigger);
+    let dark = false;
 
     const ctx = gsap.context(() => {
       ScrollTrigger.create({
@@ -51,15 +69,22 @@ export function VideoSwell() {
         pin: stageRef.current,
         pinSpacing: false,
       });
-      gsap.timeline({
-        defaults: { ease: "none" },
-        scrollTrigger: {
-          trigger: section,
-          start: "top top",
-          end: "bottom bottom",
-          scrub: true,
-        },
-      })
+      gsap
+        .timeline({
+          defaults: { ease: "none" },
+          scrollTrigger: {
+            trigger: section,
+            start: "top top",
+            end: "bottom bottom",
+            scrub: true,
+            onUpdate: (self) => {
+              const next = self.progress > NAV_HANDOVER;
+              if (next === dark) return;
+              dark = next;
+              setNavDark(3, next);
+            },
+          },
+        })
         // card -> fullscreen across the first 75%; hold beat 75-100%
         .fromTo(
           shell,
@@ -74,8 +99,11 @@ export function VideoSwell() {
         // 75% of the pin and the last quarter rides fullscreen into Act 4
         .to({}, { duration: 0.25 }, 0.75);
     }, section);
-    return () => ctx.revert();
-  }, [reduced]);
+    return () => {
+      ctx.revert();
+      setNavDark(3, false);
+    };
+  }, [reduced, setNavDark]);
 
   return (
     <section
