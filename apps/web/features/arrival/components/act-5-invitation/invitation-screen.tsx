@@ -19,12 +19,18 @@
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useEffect, useRef } from "react";
+import { BorderGlowPill } from "@/features/arrival/components/act-5-invitation/border-glow-pill";
 import { arrivalImages } from "@/features/arrival/lib/image-manifest";
 import { tierSrc, tierSrcSet } from "@/features/arrival/lib/image-srcset";
 import { useLenis } from "@/features/arrival/lib/lenis-scroll-provider";
 import { scrollToAct } from "@/features/arrival/components/navigation/nav-hover-link";
 import { prefersReducedMotion } from "@/features/arrival/lib/webgl-support";
-import { DUR_SCENE, EASE_SCENE, EASE_UI, STAGGER_CASCADE } from "@/lib/motion-tokens";
+import {
+  DUR_SCENE,
+  EASE_SCENE,
+  EASE_UI,
+  STAGGER_CASCADE,
+} from "@/lib/motion-tokens";
 import styles from "./act-5-invitation.module.css";
 
 // The lit pavilion rather than the onsen: this screen is the door being held
@@ -67,7 +73,9 @@ export function InvitationScreen() {
       // act's top and its tail fade then wipes up over the first screen — see
       // room-deck). Anything revealed before that plays behind the wipe.
       gsap
-        .timeline({ scrollTrigger: { trigger: section, start: "top -100%", once: true } })
+        .timeline({
+          scrollTrigger: { trigger: section, start: "top -100%", once: true },
+        })
         .to(lines, {
           yPercent: 0,
           duration: DUR_SCENE,
@@ -77,7 +85,13 @@ export function InvitationScreen() {
         .fromTo(
           section.querySelectorAll("[data-invite-fade]"),
           { autoAlpha: 0, y: 18 },
-          { autoAlpha: 1, y: 0, duration: 0.9, ease: EASE_UI, stagger: STAGGER_CASCADE },
+          {
+            autoAlpha: 1,
+            y: 0,
+            duration: 0.9,
+            ease: EASE_UI,
+            stagger: STAGGER_CASCADE,
+          },
           0.35,
         );
 
@@ -99,7 +113,11 @@ export function InvitationScreen() {
           { scale: PLATE_SCALE[1], duration: 0.62 },
           0,
         )
-        .to(`.${styles.plateImage}`, { scale: PLATE_SCALE[2], duration: 0.38 }, 0.62)
+        .to(
+          `.${styles.plateImage}`,
+          { scale: PLATE_SCALE[2], duration: 0.38 },
+          0.62,
+        )
         // The frame comes up with the veil, not after it: the wipe's edge would
         // otherwise cut a lit photograph in half for a whole screen of scroll.
         // Half the range is exactly the veil's travel (one viewport of the
@@ -150,22 +168,10 @@ export function InvitationScreen() {
             <span className={styles.rule} data-invite-fade aria-hidden />
           </div>
 
-          <div className={styles.foot}>
-            <button
-              className={`caps-label ${styles.cta}`}
-              data-invite-fade
-              onClick={() => scrollToAct(lenis, 6)}
-            >
+          <div className={styles.foot} data-invite-fade>
+            <BorderGlowPill onClick={() => scrollToAct(lenis, 6)}>
               Begin your stay
-              <svg className={styles.ctaGlyph} viewBox="0 0 12 12" aria-hidden>
-                <path
-                  d="M6 1v9M2.4 6.6 6 10.4l3.6-3.8"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.1"
-                />
-              </svg>
-            </button>
+            </BorderGlowPill>
           </div>
         </div>
       </div>
