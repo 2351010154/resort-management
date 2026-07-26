@@ -90,7 +90,7 @@
 }
 
 .cue {
-  color: rgba(244, 239, 230, 0.72);
+  color: rgb(var(--ivory-rgb) / 0.72);
   white-space: nowrap;
   padding-bottom: 0.35em;
 }

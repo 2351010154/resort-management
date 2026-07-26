@@ -4,7 +4,7 @@
 .section {
   position: relative;
   /* Act 4 hands over on this exact value, so the seam has nothing to bridge. */
-  background: #100e0c;
+  background: var(--night);
   color: var(--ivory);
   /* One screen for Act 4's veil to wipe off the frame, one for the reading to be
      held, one for the hand-over into the footer. */
@@ -44,12 +44,16 @@
   background:
     linear-gradient(
       to bottom,
-      rgba(16, 14, 12, 0.72) 0%,
-      rgba(16, 14, 12, 0.34) 34%,
-      rgba(16, 14, 12, 0.28) 52%,
-      rgba(16, 14, 12, 0.78) 100%
+      rgb(var(--night-rgb) / 0.72) 0%,
+      rgb(var(--night-rgb) / 0.34) 34%,
+      rgb(var(--night-rgb) / 0.28) 52%,
+      rgb(var(--night-rgb) / 0.78) 100%
     ),
-    radial-gradient(120% 80% at 50% 40%, transparent 40%, rgba(16, 14, 12, 0.45) 100%);
+    radial-gradient(
+      120% 80% at 50% 40%,
+      transparent 40%,
+      rgb(var(--night-rgb) / 0.45) 100%
+    );
 }
 
 .copy {

@@ -6,7 +6,7 @@
   z-index: 90;
   overflow: hidden;
   height: 0; /* GSAP animates open */
-  background: rgba(28, 25, 21, 0.94);
+  background: rgb(var(--ink-rgb) / 0.94);
   color: var(--ivory);
   border-radius: 0 0 24px 24px;
   backdrop-filter: blur(18px);

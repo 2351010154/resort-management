@@ -1,6 +1,6 @@
 /* Act 7 — the turndown: dark stone panel, embossed monogram with scroll tilt,
    quiet columns, giant clipped wordmark band. Top edge starts at Act 6's dark
-   (#100e0c) so the seam out of the invitation is invisible, then warms one
+   (--night) so the seam out of the invitation is invisible, then warms one
    step into stone. */
 
 .section {
@@ -8,9 +8,15 @@
   min-height: 78vh;
   background:
     /* warm stone bloom kept clear of the top edge — anything there reads as a
-       step against Act 6's #100e0c and the seam reappears */
-    radial-gradient(95% 55% at 50% 46%, rgba(180, 139, 96, 0.1) 0%, transparent 60%),
-    linear-gradient(#100e0c 0%, #141210 40vh);
+       step against Act 6's --night and the seam reappears */
+    radial-gradient(
+      95% 55% at 50% 46%,
+      rgb(var(--dusk-amber-rgb) / 0.1) 0%,
+      transparent 60%
+    ),
+    /* #141210 is the one step warmer the panel settles on — not a token, it
+       exists only as the far end of this gradient */
+    linear-gradient(var(--night) 0%, #141210 40vh);
   color: var(--ivory);
   overflow: hidden;
   padding: var(--space-5) var(--space-3) 0;
@@ -62,7 +68,7 @@
 }
 
 .embossLight {
-  background: rgba(244, 239, 230, 0.22);
+  background: rgb(var(--ivory-rgb) / 0.22);
   transform: translate(1px, 1.5px);
   filter: blur(1px);
 }
@@ -78,7 +84,7 @@
 }
 
 .emboss[data-intensity="deep"] .embossLight {
-  background: rgba(244, 239, 230, 0.5);
+  background: rgb(var(--ivory-rgb) / 0.5);
   transform: translate(1.5px, 2.5px);
   filter: blur(1.5px);
 }
@@ -158,12 +164,12 @@
   align-items: center;
   width: 100%;
   margin-top: var(--space-1);
-  border-bottom: 1px solid rgba(244, 239, 230, 0.3);
+  border-bottom: 1px solid rgb(var(--ivory-rgb) / 0.3);
   transition: border-color 0.5s var(--ease-ui);
 }
 
 .lettersRow:focus-within {
-  border-color: rgba(244, 239, 230, 0.8);
+  border-color: rgb(var(--ivory-rgb) / 0.8);
 }
 
 .lettersRow[data-sent="true"] {
@@ -216,7 +222,7 @@
 .smallPrint {
   width: 100%;
   padding-top: var(--space-3);
-  border-top: 1px solid rgba(244, 239, 230, 0.1);
+  border-top: 1px solid rgb(var(--ivory-rgb) / 0.1);
   color: var(--stone);
   font-size: var(--text-xs);
   letter-spacing: 0.1em;
@@ -258,7 +264,12 @@
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(to bottom, rgba(16, 14, 12, 0.5) 0%, rgba(16, 14, 12, 0.28) 55%, rgba(16, 14, 12, 0.62) 100%);
+    linear-gradient(
+      to bottom,
+      rgb(var(--night-rgb) / 0.5) 0%,
+      rgb(var(--night-rgb) / 0.28) 55%,
+      rgb(var(--night-rgb) / 0.62) 100%
+    );
 }
 
 /* Sits low in the layer — where the band's own top edge has already passed it,
