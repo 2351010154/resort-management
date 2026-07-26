@@ -15,6 +15,7 @@ import {
   INTRO_CARDS,
   cardLuminance,
   cardOpacity,
+  nearShade,
   planeScale,
   sceneUnitPx,
   type IntroCamera,
@@ -84,7 +85,9 @@ export function DepthImageField({
   useEffect(() => {
     const root = rootRef.current;
     if (!root || still) return;
-    const nodes = Array.from(root.querySelectorAll<HTMLElement>("[data-depth-card]"));
+    const nodes = Array.from(
+      root.querySelectorAll<HTMLElement>("[data-depth-card]"),
+    );
 
     let unitPx = 0;
     // cards are laid out in vmin, so their transform scale carries the
@@ -113,27 +116,38 @@ export function DepthImageField({
         // How many frames across the card has grown, on whichever axis it fills
         // least: the axis that decides whether it could black the viewport out.
         const spanX = card.width * scale * unitPx;
-        const coverage = Math.min(spanX / (halfViewW * 2), spanX / card.aspect / (halfViewH * 2));
+        const coverage = Math.min(
+          spanX / (halfViewW * 2),
+          spanX / card.aspect / (halfViewH * 2),
+        );
         const opacity = cardOpacity(coverage) * entry;
         if (opacity <= 0.002) {
           el.style.visibility = "hidden";
           continue;
         }
-        const x = (card.x + DRIFT * Math.sin(time * 0.32 + i * 1.7)) * scale * unitPx;
-        const y = -(card.y + DRIFT * Math.cos(time * 0.27 + i * 2.3)) * scale * unitPx;
+        const x =
+          (card.x + DRIFT * Math.sin(time * 0.32 + i * 1.7)) * scale * unitPx;
+        const y =
+          -(card.y + DRIFT * Math.cos(time * 0.27 + i * 2.3)) * scale * unitPx;
         // Cull off-frame cards. Several sweep well past the edges before they
         // finish fading, and a composited layer that large keeps costing the
         // compositor every frame even though nothing of it is on screen.
         const reachX = (spanX * ROTATION_SLACK) / 2;
         const reachY = reachX / card.aspect;
-        if (Math.abs(x) - reachX > halfViewW || Math.abs(y) - reachY > halfViewH) {
+        if (
+          Math.abs(x) - reachX > halfViewW ||
+          Math.abs(y) - reachY > halfViewH
+        ) {
           el.style.visibility = "hidden";
           continue;
         }
         el.style.visibility = "visible";
         el.style.opacity = opacity.toFixed(3);
-        // Aerial perspective, then a blow-out as the frame arrives into light.
-        const shade = 1 - (1 - cardLuminance(apparent)) * shadeRamp(camera.progress);
+        // Aerial perspective at the far end, shadow at the near one — the field
+        // is lit in its middle distance and falls away in both directions — then
+        // a blow-out as the frame arrives into light.
+        const tone = cardLuminance(apparent) * nearShade(coverage);
+        const shade = 1 - (1 - tone) * shadeRamp(camera.progress);
         el.style.filter = `brightness(${(shade * exposureRamp(camera.progress)).toFixed(3)})`;
         el.style.transform =
           `translate3d(${x.toFixed(2)}px, ${y.toFixed(2)}px, 0) ` +
@@ -202,7 +216,11 @@ export function DepthImageField({
                 // but the transform scales it well past that as the camera
                 // closes. Every card now arrives, so this is no longer the
                 // couple of near ones that used to need the headroom.
-                sizes={card.srcSet ? `${Math.round((card.width / card.depth) * 4)}vmin` : undefined}
+                sizes={
+                  card.srcSet
+                    ? `${Math.round((card.width / card.depth) * 4)}vmin`
+                    : undefined
+                }
                 alt=""
                 decoding="async"
                 style={media}
