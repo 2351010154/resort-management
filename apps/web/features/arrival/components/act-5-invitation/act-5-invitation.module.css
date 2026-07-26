@@ -195,6 +195,9 @@
   border-radius: inherit;
   pointer-events: none;
   /* Lit core about ±18° either side of the cursor, feathered out by ±60°. */
+  /* stylelint-disable color-named -- `black` in a mask is not a colour, it is
+     the opaque end of the alpha channel. Nothing here paints black, and a token
+     would say the wrong thing about what these stops do. */
   mask-image: conic-gradient(
     from var(--cursor-angle) at center,
     black 5%,
@@ -210,6 +213,7 @@
     transparent 83%,
     black 95%
   );
+  /* stylelint-enable color-named */
   -webkit-mask-repeat: no-repeat;
   opacity: 0;
   /* Adds to the resting bloom instead of stacking over it. A browser without
