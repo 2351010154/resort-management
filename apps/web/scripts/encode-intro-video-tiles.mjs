@@ -17,7 +17,7 @@
 // small; the whole set costs about as much as one full-width hero video.
 //
 // Writes public/video/intro/<slug>.{webm,mp4,webp} and regenerates
-// lib/intro-video-manifest.ts.
+// features/arrival/lib/intro-video-manifest.ts.
 //
 // Usage: node apps/web/scripts/encode-intro-video-tiles.mjs
 
@@ -30,7 +30,7 @@ const run = promisify(execFile);
 
 const SRC = "C:/Users/tamla/Downloads/design-materials/landing-page.mp4";
 const OUT = path.resolve(import.meta.dirname, "..", "public", "video", "intro");
-const MANIFEST = path.resolve(import.meta.dirname, "..", "lib", "intro-video-manifest.ts");
+const MANIFEST = path.resolve(import.meta.dirname, "..", "features", "arrival", "lib", "intro-video-manifest.ts");
 
 /** Source is 1920x1080 at 25fps; crops are centred windows of it. */
 const SRC_W = 1920;

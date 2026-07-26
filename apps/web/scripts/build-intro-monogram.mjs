@@ -9,7 +9,7 @@
 // visible kink in a stroke.
 //
 // The mark is used at its drawn weight — unlike the hairline nav monogram, it
-// gets no dilation pass (see INTRO_MONOGRAM in lib/monogram-glyph.ts).
+// gets no dilation pass (see INTRO_MONOGRAM in features/arrival/lib/monogram-glyph.ts).
 //
 // Usage: node apps/web/scripts/build-intro-monogram.mjs
 
