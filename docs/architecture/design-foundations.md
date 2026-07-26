@@ -630,10 +630,17 @@ Two rules learned the hard way:
 
 | Gate | Command | Catches |
 |---|---|---|
-| ESLint | `pnpm lint` | React, hooks, Next |
-| Stylelint | `pnpm lint` (same script) | Raw hex, named colours, literal easing curves, undescribed disables |
-| TypeScript | `pnpm build` (Next runs it) | — |
+| Biome | `pnpm lint` | Correctness, React hooks, accessibility (as warnings) |
+| Biome | commit hook | Formatting — applied to staged files, not reported |
+| TypeScript | commit hook, and `pnpm build` (Next runs it) | — |
 | Visual regression | `apps/web/scripts/compare-visual-baseline.mjs` | Everything above the pixel tolerance |
+
+`apps/web/stylelint.config.mjs` is **not** one of these yet. It is written and
+it is the only thing that can enforce the two rules this document leans on
+hardest — no raw hex, no hand-written easing curve — because Biome's CSS linter
+cannot express either. But its dependency is not installed and no script calls
+it, so today those two rules are enforced by review alone. Installing it or
+deleting it is an open decision, not a documented state.
 
 ### Visual baselines
 
