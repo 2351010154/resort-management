@@ -37,7 +37,7 @@ function orbitSlot(i: number) {
 export function OrbitingImageField({
   sectionRef,
 }: {
-  sectionRef: RefObject<HTMLElement>;
+  sectionRef: RefObject<HTMLElement | null>;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
 

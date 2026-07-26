@@ -359,7 +359,7 @@ export function RoomDeck({ mobile }: { mobile: boolean }) {
 
   const cascade = (
     rooms: Room[],
-    ref: React.RefObject<HTMLDivElement>,
+    ref: React.RefObject<HTMLDivElement | null>,
     title: string,
     side: string,
   ) => (
