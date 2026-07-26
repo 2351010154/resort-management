@@ -264,13 +264,13 @@
   overflow: hidden;
 }
 
-/* One half of the movement — its cascade and its list travel together, so the
-   wipe carries both. `--card-w` is the card's size at the exit end of the
-   cascade, written from JS because the frame it belongs to is measured there;
-   depth is applied on top of it as a scale.
+/* One half of the movement: its cards and the ground under them, and nothing
+   else. The registers are not in here — see `.roomsList`. `--card-w` is the
+   card's size at the exit end of the cascade, written from JS because the frame
+   it belongs to is measured there; depth is applied on top of it as a scale.
    The z-index is what makes it a stacking context, which keeps the deck's
-   per-card z-indices inside the half instead of competing with the head and
-   the lists for the top of the stage. */
+   per-card z-indices inside the half instead of competing with the registers
+   for the top of the stage. */
 .cascade {
   position: absolute;
   inset: 0;
@@ -289,11 +289,65 @@
   clip-path: inset(0 100% 0 0);
 }
 
+/* The ground each half plays on. Day and night used to differ only in which six
+   photographs loaded — same grade, same ground — so the wipe crossed between
+   two frames that looked alike and the "other half" never arrived. This is the
+   half's own light, and it lives inside the cascade so the wipe's clip carries
+   it for free.
+
+   Semi-transparent by necessity: the open door from movement II is still
+   running underneath, and an opaque layer here paints straight over it. */
+.cascade::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* Warm and lifted, thrown from the side the day list stands on. */
+.cascadeDay::before {
+  background:
+    radial-gradient(
+      120% 80% at 12% 45%,
+      rgb(var(--dusk-amber-rgb) / 0.2),
+      transparent 62%
+    ),
+    linear-gradient(
+      105deg,
+      rgb(var(--dusk-amber-rgb) / 0.12),
+      rgb(var(--umber-rgb) / 0.1) 60%,
+      transparent
+    );
+}
+
+/* Cool and dropped. The deepening sits over the exit corner, away from the
+   upper-right vanishing point: put on that corner it lands exactly where the
+   far cards spawn, and a card that is small, still fading in and graded down
+   has nothing left to give a fourth multiplication. */
+.cascadeNight::before {
+  background:
+    radial-gradient(
+      110% 75% at 22% 78%,
+      rgb(var(--night-rgb) / 0.42),
+      transparent 68%
+    ),
+    linear-gradient(
+      255deg,
+      color-mix(in srgb, var(--ocean) 14%, transparent),
+      rgb(var(--night-rgb) / 0.22) 60%,
+      transparent
+    );
+}
+
 /* The rotateY the cursor field applies is only visible with a perspective on
-   the deck; without one the cards just skew. */
+   the deck; without one the cards just skew. The z-index only has to beat the
+   wash above — `perspective` already makes this a stacking context, so the
+   per-card z-indices stay contained either way. */
 .deck {
   position: absolute;
   inset: 0;
+  z-index: 2;
   perspective: 1400px;
 }
 
@@ -308,7 +362,19 @@
   aspect-ratio: 3 / 2;
   overflow: hidden;
   background: var(--umber);
-  box-shadow: 0 1.5rem 5rem rgb(var(--night-rgb) / 0.5);
+  /* Overlapping plates on a dark ground merged into one mass — you could not
+     tell where one photograph ended. The tight contact shadow draws the near
+     plate against the one behind it; the hairline catches the light the room
+     throws. Both are specified at exit size and scale down with the card, which
+     is what a real plate's shadow does as it recedes. */
+  box-shadow:
+    0 0.4rem 1.2rem rgb(var(--night-rgb) / 0.85),
+    0 1.5rem 5rem rgb(var(--night-rgb) / 0.5),
+    inset 0 0 0 1.5px rgb(var(--ivory-rgb) / 0.11);
+  /* The deck is hit-tested in the ticker against the boxes it just drew: the
+     nodes parked past SPAN keep their last transform and would otherwise take
+     the pointer from the cards that are actually on screen. */
+  pointer-events: none;
   will-change: transform, opacity;
   transform-origin: center center;
 }
@@ -319,6 +385,20 @@
   object-fit: cover;
 }
 
+/* The grade that makes a half its own time of day. Static per element — a
+   filter that never changes is one paint, unlike the transform beside it.
+   Night is drained rather than dimmed: these photographs are already dark, and
+   the brightness it took to separate the halves on paper turned them to mud on
+   screen. The wash above supplies the cool; the grade takes out the warmth that
+   would fight it. */
+.cascadeDay .card img {
+  filter: brightness(1.14) saturate(1.08) contrast(1.02);
+}
+
+.cascadeNight .card img {
+  filter: brightness(0.88) saturate(0.72) contrast(1.08);
+}
+
 /* Day on the left, night on the right, on the side its cascade recedes toward —
    the cards spawn behind the list and grow away from it. Each entry dims to a
    whisper except the one currently in the focus slot. */
@@ -326,9 +406,12 @@
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  /* Above the deck, which spawns its far cards right beside this column: the
-     list is the fixed register of the movement and has to stay readable while
-     the photographs pass. */
+  /* Above *both* cascades, and a sibling of them rather than a child of one.
+     Inside its own half it was clipped by the wipe — an edge through a column
+     of type holds sliced glyphs for the length of the sweep — and it was also
+     under the other half's whole subtree, so day's names went dark beneath
+     night's cards long before night's names came up. The ticker fades these
+     two instead, one out and one in, as the edge crosses each column. */
   z-index: 400;
   display: flex;
   flex-direction: column;
@@ -337,14 +420,18 @@
   text-shadow: 0 1px 22px rgb(var(--night-rgb) / 0.9);
 }
 
-.cascadeDay .roomsList {
+.listDay {
   left: 5vw;
   text-align: left;
 }
 
-.cascadeNight .roomsList {
+/* Starts down, like its cascade's clip does — the ticker brings it up as the
+   edge reaches the column. Without this the two share the frame until the first
+   tick, which at phone width is one strip and both of them on it. */
+.listNight {
   right: 5vw;
   text-align: right;
+  opacity: 0;
 }
 
 .listTitle {
@@ -356,7 +443,9 @@
 }
 
 .listItem {
-  transition: opacity 0.45s var(--ease-ui), color 0.45s var(--ease-ui);
+  transition:
+    opacity 0.45s var(--ease-ui),
+    color 0.45s var(--ease-ui);
   opacity: 0.3;
   color: var(--sand);
 }
@@ -369,6 +458,35 @@
 .listItemName {
   font-size: var(--text-lg);
   line-height: 1.15;
+}
+
+/* The wipe itself. Between two clips of near-identical dark there was nothing
+   to watch crossing — the halves simply had swapped by the time you looked. So
+   the edge is drawn: night deepening just behind it, a lit line on it, warm
+   falloff onto the day side ahead. It sits above the lists as well as the
+   cards, because a curtain that stops at the type is a mask, not a curtain.
+
+   Centred on the edge by its own negative margin, so JS only translates it to
+   `edge * vw`, and it is at nothing before the wipe starts and after it ends. */
+.wipeSeam {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 22vw;
+  margin-left: -11vw;
+  z-index: 450;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgb(var(--night-rgb) / 0.62) 40%,
+    rgb(var(--ivory-rgb) / 0.55) 50%,
+    rgb(var(--dusk-amber-rgb) / 0.2) 58%,
+    transparent
+  );
+  will-change: transform, opacity;
 }
 
 /* Seam into Act 5 (Invitation). The whole frame, not a bottom gradient: this
@@ -465,9 +583,7 @@
 
   /* The lists would collide with the cascade at phone width; they stack under
      the head instead and only the focused entry is shown. */
-  .roomsList,
-  .cascadeDay .roomsList,
-  .cascadeNight .roomsList {
+  .roomsList {
     top: auto;
     bottom: clamp(var(--space-3), 8vh, 5rem);
     left: var(--space-2);
@@ -481,16 +597,10 @@
     display: none;
   }
 
-  /* Both halves are mid-wipe for a stretch, and at this width their lists sit
-     on the same strip — without this they print on top of each other. */
-  .roomsStage[data-half="night"] .cascadeDay .roomsList,
-  .roomsStage[data-half="day"] .cascadeNight .roomsList {
-    opacity: 0;
-  }
-
-  .roomsList {
-    transition: opacity 0.4s var(--ease-ui);
-  }
+  /* Both lists sit on the same strip at this width, so mid-sweep they would
+     print on top of each other. Nothing is needed for it any more: the ticker
+     fades day out by the time night comes up, and the two windows do not
+     overlap. */
 
   /* Both lists sit on the same strip at this width, so their titles would stack
      on each other — and only one half is ever uncovered under it. */
