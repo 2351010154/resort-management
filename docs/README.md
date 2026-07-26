@@ -42,7 +42,7 @@ contracts and the regulations. Everything else, in a canonical file, is English.
 | Repository structure, dependency rules, module map | [`architecture/repository-structure.md`](architecture/repository-structure.md) | decided |
 | Palette, type, spacing, motion, copy voice, alt-text rule | [`architecture/design-foundations.md`](architecture/design-foundations.md) | decided |
 | Property facts, rate structure, cancellation grid, charge model, service catalog | [`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) | decided — provisional in whole; §1–§6 all ⚑, §7 is config and never ⚑ |
-| Roles and permissions | [`architecture/rbac-matrix.md`](architecture/rbac-matrix.md) | decided — **six** ⚑ decisions await owner sign-off, counted in its §5 |
+| Roles and permissions | [`architecture/rbac-matrix.md`](architecture/rbac-matrix.md) | decided — **six** ⚑ decisions await owner sign-off, counted in its §5; §3 now has a code mirror in `apps/api/src/modules/identity/rbac/matrix.ts`, and the document stays the authority |
 | Booking states and transitions | [`architecture/booking-state-machine.md`](architecture/booking-state-machine.md) | decided — **two** ⚑ decisions await owner sign-off, counted in its §7 |
 | Technology stack, versions, rejected options | [`architecture/tech-stack.md`](architecture/tech-stack.md) | decided — contract layer gated on `G1` |
 | Hosting, database, storage, backups, payments, e-invoice | [`architecture/infrastructure.md`](architecture/infrastructure.md) | decided — production flip gated on `G2` |

@@ -31,6 +31,10 @@ up, monitor and upgrade.
 | Job queue | pg-boss 12.26.x | Queue inside Postgres; enqueue joins the transaction |
 | Logging | pino + nestjs-pino 4.6.x | Structured, request-scoped |
 | Config | zod schema parsed at boot | Fails at startup, not at 2am |
+| Guest auth | Better Auth 1.6.x on the Drizzle adapter | Email verification, reset and session rotation already correct; shares the one pool |
+| Staff auth | Passport-JWT (`@nestjs/passport` 11.0.x, `@nestjs/jwt` 11.0.x) | A bearer token the console sends, not a browser cookie — `rbac-matrix.md` §1 keeps the realms apart |
+| Staff password hashing | `@node-rs/argon2` 2.0.x, argon2id at OWASP parameters | Memory-hard; prebuilt, so Windows needs no toolchain. Better Auth hashes the guest realm's own |
+| Authorisation | `@RequiresCapability()` over `modules/identity/rbac/matrix.ts` | The RBAC matrix as data, enforced by one global fail-closed guard |
 
 ## Contract — `packages/shared`
 
@@ -59,7 +63,8 @@ up, monitor and upgrade.
 | Concern | Choice | Why |
 |---|---|---|
 | Test runner | Vitest 4.1.x | One runner, whole repo |
-| Real Postgres in test | `@testcontainers/postgresql` 12.0.x | Local equals CI; needs Docker Desktop on Windows |
+| Nest under Vitest | `unplugin-swc` 1.5.x + `@swc/core` 1.15.x | Vitest transforms with Oxc/esbuild, neither of which emits `emitDecoratorMetadata`; without it every Nest injection in a test is `undefined` |
+| Real Postgres in test | `@testcontainers/postgresql` 12.0.x — **not yet wired**; `apps/api` currently reads `.env.test` and applies the committed migrations to a local database | Local equals CI; needs Docker Desktop on Windows, which the development machine does not have today. `P0-CI-02` |
 | Property tests | fast-check 4.9.x | "No assignment map ever overlaps" |
 | E2E | Playwright 1.61.x | Keyboard-only check-in; visual baseline of the acts |
 | Seed data | `@faker-js/faker` 10.5.x, `vi` locale | Realistic Vietnamese guest data |
