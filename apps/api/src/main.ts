@@ -35,6 +35,21 @@ async function bootstrap(): Promise<void> {
   app.enableShutdownHooks();
 
   const env = app.get<Env>(ENV);
+
+  // One origin, credentials on. A guest session is a cookie and a staff session
+  // sends a bearer token, and neither crosses an origin the browser has not
+  // been told to trust — `credentials: true` with a wildcard origin is rejected
+  // by every browser anyway, which is the specification agreeing with the RBAC
+  // matrix.
+  app.enableCors({
+    origin: env.WEB_ORIGIN,
+    credentials: true,
+    methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+    // Echoed back so the browser exposes the correlation id to page code; a
+    // guest quoting an id from a failed booking is worth the header.
+    exposedHeaders: ["x-request-id"],
+  });
+
   await app.listen(env.PORT);
 }
 

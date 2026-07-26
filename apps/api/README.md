@@ -6,8 +6,9 @@ database.
 Built through `P0-API-01` … `P0-API-06`: Nest 11.1.28 on Express 5.2.1, an
 environment schema parsed at boot, one `pg` pool with Drizzle over it, JSON
 request logging, and a health check that asks the database rather than the
-process. No domain modules, no contracts and no auth yet — those are `P0-C` and
-`P0-AUTH`.
+process. Then `P0-AUTH-01` … `P0-AUTH-04`: two authentication realms and the
+capability guard between them. Contracts (`P0-C`) are still to come, so the
+routes below are plain Nest controllers rather than `@orpc/nest` bindings.
 
 Module layout, schema ownership and the dependency rules are in
 [`docs/architecture/repository-structure.md`](../../docs/architecture/repository-structure.md).
@@ -33,7 +34,10 @@ Three consequences when writing code here:
 - **esbuild-based runners cannot host this app.** Nest's DI reads constructor
   parameter types from `emitDecoratorMetadata`, which esbuild does not emit, so
   `tsx` and friends produce an app whose every injection fails at runtime. The
-  dev loop goes through the Nest CLI, which compiles with `tsc`.
+  dev loop goes through the Nest CLI, which compiles with `tsc`. Vitest is one
+  of those runners, which is why `vitest.config.ts` hands the transform to SWC
+  and switches Vitest's own off — the symptom otherwise is every injected
+  dependency arriving as `undefined`.
 
 ## Configuration
 
@@ -91,6 +95,59 @@ Verified against a real cluster: 200 while Postgres was up, 503 within the pool
 timeout after it was stopped, and 200 again once it came back — the pool
 recovers rather than staying poisoned.
 
+## Authentication — two realms
+
+[`rbac-matrix.md`](../../docs/architecture/rbac-matrix.md) §1 is the authority.
+No token opens both realms, and they share nothing but the database and the
+guard.
+
+**Guests** (`modules/auth/guest`) are Better Auth, mounted at `/api/auth/*` by
+one controller that hands the request to the library's own handler. Sign-up,
+sign-in, email verification, password reset and sign-out are all its routes;
+none of them is reimplemented here, because a second door into a flow is a
+second door to keep in step. Sessions are httpOnly cookies prefixed
+`mariva_guest`. An address must be verified before it can sign in.
+
+**Staff** (`modules/auth/staff`) are Passport-JWT. `POST /auth/staff/sign-in`
+returns a thirty-minute access token in the body and a seven-day refresh token
+as an httpOnly cookie scoped to `/auth/staff`. The refresh token is stored as a
+SHA-256 digest and rotated on every use, so a replayed one fails; the access
+token carries one role, and the strategy re-reads the account on every request,
+so deactivating somebody ends their access at the next call rather than at the
+token's expiry.
+
+**Authorisation** is one global guard over the capability table in
+`modules/identity/rbac/matrix.ts`, which mirrors §3 of the matrix row for row.
+A route says which row governs it:
+
+```ts
+@RequiresCapability("booking.check-in")
+@Post(":id/check-in")
+```
+
+A route that says nothing is unreachable by everyone — that is the point. The
+only exception is `@Unguarded("<reason>")`, which takes a written reason and is
+used by the routes that issue sessions and by `/health`.
+
+The first `ADMIN` cannot be created through the API, because creating staff
+accounts requires a capability only an `ADMIN` holds. It is created from a shell
+instead; every account after it comes from `POST /identity/staff-accounts`.
+
+## Tests
+
+Vitest, and a real Postgres — not testcontainers yet (`P0-CI-02` and a Docker
+daemon the development machine does not have). Copy `.env.example` to
+`.env.test` and point `DATABASE_URL` at a database you are willing to lose: the
+suite applies the committed migrations and truncates every table it uses. It
+refuses to start if that file is missing rather than falling back to `.env`,
+which is how a test run empties somebody's development database.
+
+- `src/common/auth/access.guard.spec.ts` — every row of the RBAC matrix, every
+  role, both cross-realm directions. Driven off the table, so a row added
+  without a test is not possible.
+- `src/modules/identity/rbac/matrix.spec.ts` — the structural rules of §2.
+- `test/auth.e2e-spec.ts` — both realms over HTTP against the real database.
+
 ## Commands
 
 ```bash
@@ -99,6 +156,14 @@ pnpm --filter @mariva/api dev         # nest start --watch
 pnpm --filter @mariva/api start       # node dist/main.js
 pnpm --filter @mariva/api db:generate # diff the schema into a new migration
 pnpm --filter @mariva/api db:migrate  # apply pending migrations
+pnpm --filter @mariva/api test        # vitest, against .env.test
+pnpm --filter @mariva/api typecheck   # the app, then the tests and configs
+
+# The first staff account. Prompts for the password rather than taking it as an
+# argument, which would put it in the shell history and in `ps`.
+pnpm --filter @mariva/api staff:create -- \
+  --email owner@mariva.vn --name "Trần Minh" --role ADMIN
 ```
 
-Both `db:` commands read `DATABASE_URL` the same way the app does.
+Both `db:` commands read `DATABASE_URL` the same way the app does, and
+`staff:create` boots the container to get the same hasher the API uses.

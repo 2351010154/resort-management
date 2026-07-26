@@ -5,6 +5,9 @@ import { ConfigModule } from "./config/config.module.js";
 import { ENV, type Env } from "./config/env.js";
 import { DatabaseModule } from "./database/database.module.js";
 import { HealthModule } from "./health/health.module.js";
+import { AuthModule } from "./modules/auth/auth.module.js";
+import { IdentityModule } from "./modules/identity/identity.module.js";
+import { NotificationModule } from "./modules/notification/notification.module.js";
 
 // The header a load balancer or an upstream service may already have stamped.
 // Reusing it is what makes a correlation id correlate across two processes
@@ -77,6 +80,15 @@ const CORRELATION_HEADER = "x-request-id";
 
     DatabaseModule,
     HealthModule,
+
+    // `AuthModule` registers the global `AccessGuard`, so importing it changes
+    // every route in the application: one without a `@RequiresCapability()` or
+    // an `@Unguarded()` stops answering. That is the intended effect —
+    // docs/architecture/rbac-matrix.md §2 — and it is why the two modules it
+    // depends on are listed above it rather than pulled in implicitly.
+    NotificationModule,
+    IdentityModule,
+    AuthModule,
   ],
 })
 export class AppModule {}
