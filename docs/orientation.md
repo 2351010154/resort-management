@@ -128,35 +128,45 @@ deferred without breaking anything downstream.
 
 ## 6. You are here
 
-*Snapshot, 2026-07-26. Derived from `git log`, the working tree and a test run;
-per-story status lives in `plans/backlog.md` and wins over this section.*
+*Snapshot, 2026-07-26 evening. Derived from `git log`, the working tree and a
+test run; per-story status lives in `plans/backlog.md` and wins over this
+section.*
 
-- **M1 is eight of ten done.** Committed: the visual baseline, drei removal,
-  React 19, R3F 9, Next 15, Next 16, Node 24, and the `@mariva/tokens`
-  extraction. Biome is half-landed — `biome.json` and the dependency exist,
-  `apps/web/eslint.config.mjs` is still there and CI still calls it, so the repo
-  currently has two linters. lefthook does not exist.
-- **M2 is much further along than the backlog records.** `apps/api` boots
-  against a real Postgres — validated env, structured logging, `/health`
-  returning 503 when the database is down, `btree_gist` enabled by migration
-  `0000`. On top of that, **both auth realms are implemented end to end**: staff
-  on Passport-JWT with argon2 hashing, guests on Better Auth, a **fail-closed**
-  global access guard (a route without a capability decorator stops answering),
-  the six-role matrix as 669 lines of code, a Resend mailer, and a staff-account
-  creation script. Vitest is configured and **411 of 412 tests pass** — the one
-  red test is the guest password-reset flow, where `/api/auth/forget-password`
-  answers 404.
+- **M1 is done.** All ten rows, Biome as the one workspace linter (`86163f1`,
+  which deleted `apps/web/eslint.config.mjs`) and lefthook running format and
+  typecheck on commit (`4cccf53`). Two loose ends belong to no row and are
+  therefore easy to lose: `apps/web/stylelint.config.mjs` is **orphaned** — the
+  config is committed, the dependency and the lint script are not — and
+  `stash@{0}` still carries reduced-motion and alt-text fixes for four act files
+  that never landed.
+- **M2's auth epic is closed.** `P0-AUTH-01` through `04` are `done` at
+  `eb05243`: staff on Passport-JWT with argon2, guests on Better Auth, a
+  **fail-closed** global access guard (a route without a capability decorator
+  stops answering), and the six-role matrix in code. **414 tests pass, none
+  skipped** — the password-reset red test was Better Auth 1.6 renaming the
+  endpoint, not a fault in the flow. Google Sign-In followed (`5a9bb36`,
+  `c7619c8`) as the guest realm's one social provider.
+- **`P0-API` is done** but for `P0-API-07`, which is blocked on there being no
+  Fly.io app, no Dockerfile and no `flyctl` here — not on the API, which boots.
+- **There is no Postgres on this machine.** No service, no container, no WSL
+  distro but Docker's own. The e2e suite needs one on `:5433` with `mariva_dev`
+  and `mariva_test`, and until `P0-INF-02` lands a compose file, bringing it up
+  is a hand-typed `docker run` that is not written down anywhere. That is the
+  friction `P0-CI-02`'s Testcontainers removes.
 - **Not yet in M2:** the oRPC contract layer, Testcontainers, fast-check, every
   `P0-INF` provisioning row, the payment port, and the docs/ERD generators.
 - **Nothing is built past M2.** No inventory, no booking, no folio, no payment.
   Most of `apps/api/src/modules/*` is still reserved empty directories.
 - **The design record is complete and ahead of the code** — seven architecture
-  documents, eleven coursework chapters, eight figures — and it is committed and
-  pushed as of `2af3152` and `2d001c0`.
-- **The branch is `chore/web-react19-next16`**, now on `origin`. `main` is far
-  behind it and there is no pull request yet.
-- **Uncommitted:** the API auth work, some arrival refinements in `apps/web`, the
-  Biome config, the backlog viewer script, and a `(booking)/login` prototype.
+  documents, eleven coursework chapters, eight figures — plus `screens.md`, the
+  screen inventory.
+- **The branch is `chore/web-react19-next16` and it is 17 commits ahead of
+  `origin`.** `main` is far behind it and there is no pull request yet. By §7
+  check 1 that is the largest single piece of exposure on the board.
+- **Two writers are in this tree at once.** Act 2 and act 4 refinements were
+  being written while the commits above were being made. Nothing collided —
+  the second writer was building on top — but §11's fourth question is no
+  longer hypothetical.
 
 ## 7. How to answer "what should I do next?"
 
@@ -181,25 +191,22 @@ Two things run **outside** this loop and should be done whenever you notice them
 
 ## 8. What to do next — today
 
-*Ordered. Dated 2026-07-26; re-derive with §7 rather than trusting this list in
-two weeks.*
+*Ordered. Dated 2026-07-26 evening; re-derive with §7 rather than trusting this
+list in two weeks.*
 
-1. **Fix the one red test, then commit the API auth work.** The guest
-   password-reset e2e expects `200` from `/api/auth/forget-password` and gets
-   `404`, so that route is not mounted. It is the last thing standing between a
-   finished `P0-AUTH` and a commit — and a whole epic is currently unversioned.
-2. **Finish M1** — a day of work, and it is 80% done:
-   - `P-1-09` Biome — the config and the dependency landed, so what is left is
-     deleting `apps/web/eslint.config.mjs` and pointing CI at Biome. Two linters
-     is worse than either one.
-   - `P-1-10` lefthook — format and typecheck on commit. **Land this before the
-     API grows further**, or you will retrofit a formatter across a Nest app
-     later, and that is a diff nobody reads.
-   - `stash@{0}` carries reduced-motion and alt-text fixes for four act files
-     that never landed. Everything else in it is already in the tree, so rebase
-     those four files out and drop the rest. `apps/web/stylelint.config.mjs`
-     belongs to the same piece of work and is currently orphaned — the config is
-     there, the dependency and the lint script are not.
+1. **Push.** Seventeen commits exist only here. Everything below is worth less
+   than getting them onto `origin`, and §7 check 1 says so for a reason: work in
+   one working tree is not work, it is exposure. Opening the pull request against
+   `main` is the same ten minutes.
+2. **Clear M1's two loose ends** — neither has a backlog row, which is exactly
+   why they have survived this long:
+   - `apps/web/stylelint.config.mjs` is orphaned. Either add the dependency and
+     the lint script, or delete the config. A config nothing runs is a rule
+     nobody is following and everybody assumes is enforced.
+   - `stash@{0}` carries reduced-motion and alt-text fixes for four act files.
+     Everything else in it is already in the tree, so rebase those four out and
+     drop the rest — but check them against the act 4 and act 5 work that landed
+     since, because those files have moved underneath the stash.
 3. **Send the four questions you have been sitting on.** Ten minutes total:
    the professor (`D8`, strict UML or generated Mermaid — it decides which
    generator you build), the accountant (`M0-01`, existing e-invoice provider),
@@ -207,10 +214,11 @@ two weeks.*
    offshore), the tax agent (`M0-06`, whether Nghị định 70/2025 binds this
    entity). Then start VNPay onboarding (`M0-04`) — free, and the one place lead
    time genuinely bites.
-4. **Reconcile M2's status rows against reality** — `P0-AUTH` is built and the
-   backlog still calls it `todo`, which is how you end up rebuilding it. Then
-   continue M2 in table order: `P0-C` contracts (unblocked — the `@orpc/nest`
-   spike passed), `P0-CI`'s Testcontainers and fast-check, `P0-INF`
+4. **Continue M2 in table order.** The status rows are reconciled — `P0-AUTH` is
+   `done` at `eb05243` — so the next one is `P0-C` contracts, unblocked because
+   the `@orpc/nest` spike passed. Everything after it consumes those types, so
+   the longer it waits the more code is written against a shape that has not
+   been agreed. Then `P0-CI`'s Testcontainers and fast-check, `P0-INF`
    provisioning, `P0-PAY`'s sandbox port.
 5. **Then M3, and write the concurrency test first.** Not the schema, not the
    UI — the test that proves 50 simultaneous bookings on the last room produce
