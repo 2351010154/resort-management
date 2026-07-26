@@ -5,7 +5,10 @@
 // grows fastest and passes the camera first, opening onto the field behind.
 
 import { arrivalImages } from "@/features/arrival/lib/image-manifest";
-import { INTRO_VIDEO_BASE, introVideoBySlug } from "@/features/arrival/lib/intro-video-manifest";
+import {
+  INTRO_VIDEO_BASE,
+  introVideoBySlug,
+} from "@/features/arrival/lib/intro-video-manifest";
 
 /**
  * Depth of the interior plate — far enough that it only drifts. Read against
@@ -161,7 +164,14 @@ export interface IntroCard {
 //     close to the middle. Depth, not distance, is what holds them in reserve.
 //   - The deepest three never reach the camera, so they are still opening out
 //     when the bloom lands. Nothing in the field is ever parked.
-type Placement = [slug: string, x: number, y: number, depth: number, width: number, rotation: number];
+type Placement = [
+  slug: string,
+  x: number,
+  y: number,
+  depth: number,
+  width: number,
+  rotation: number,
+];
 
 const LAYOUT: Placement[] = [
   ["temple-gate", 24.6, -18.1, 1.53, 15.6, -4],
@@ -200,11 +210,14 @@ const VIDEO_LAYOUT: Placement[] = [
 ];
 
 const FIELD = arrivalImages["act-1-converge"];
-const bySlug = new Map(FIELD.map((image) => [image.src.replace(/^.*\/|-\d+\.webp$/g, ""), image]));
+const bySlug = new Map(
+  FIELD.map((image) => [image.src.replace(/^.*\/|-\d+\.webp$/g, ""), image]),
+);
 
 function tierFor(image: (typeof FIELD)[number]) {
   const tiers = [...image.tiers].sort((a, b) => a - b);
-  const swap = (width: number) => image.src.replace(/-\d+\.webp$/, `-${width}.webp`);
+  const swap = (width: number) =>
+    image.src.replace(/-\d+\.webp$/, `-${width}.webp`);
   return {
     src: swap(tiers[Math.min(1, tiers.length - 1)]),
     srcSet: tiers.map((w) => `${swap(w)} ${w}w`).join(", "),
@@ -215,11 +228,17 @@ const STILL_CARDS: IntroCard[] = LAYOUT.flatMap(
   ([slug, x, y, depth, width, rotation]) => {
     const image = bySlug.get(slug);
     if (!image) return [];
-    return [{
-      ...tierFor(image),
-      aspect: image.width / image.height,
-      x, y, depth, width, rotation,
-    }];
+    return [
+      {
+        ...tierFor(image),
+        aspect: image.width / image.height,
+        x,
+        y,
+        depth,
+        width,
+        rotation,
+      },
+    ];
   },
 );
 
@@ -227,16 +246,22 @@ const VIDEO_CARDS: IntroCard[] = VIDEO_LAYOUT.flatMap(
   ([slug, x, y, depth, width, rotation]) => {
     const tile = introVideoBySlug.get(slug);
     if (!tile) return [];
-    return [{
-      src: `${INTRO_VIDEO_BASE}/${slug}.webp`,
-      srcSet: "",
-      video: {
-        webm: `${INTRO_VIDEO_BASE}/${slug}.webm`,
-        mp4: `${INTRO_VIDEO_BASE}/${slug}.mp4`,
+    return [
+      {
+        src: `${INTRO_VIDEO_BASE}/${slug}.webp`,
+        srcSet: "",
+        video: {
+          webm: `${INTRO_VIDEO_BASE}/${slug}.webm`,
+          mp4: `${INTRO_VIDEO_BASE}/${slug}.mp4`,
+        },
+        aspect: tile.width / tile.height,
+        x,
+        y,
+        depth,
+        width,
+        rotation,
       },
-      aspect: tile.width / tile.height,
-      x, y, depth, width, rotation,
-    }];
+    ];
   },
 );
 
@@ -298,4 +323,45 @@ const FOG_FLOOR = 0.27;
 export function cardLuminance(apparent: number): number {
   const lift = 1 - clamp01((apparent - FOG_NEAR) / (FOG_FAR - FOG_NEAR));
   return FOG_FLOOR + (1 - FOG_FLOOR) * lift;
+}
+
+/**
+ * The near half of the depth cue: a card sinks back into shadow once it is
+ * close enough to be sweeping past, as if it had outrun the light the middle
+ * distance sits in.
+ *
+ * Without it the brightest thing in the frame is always whatever is nearest,
+ * and the field flattens exactly when the camera is moving fastest — every
+ * card peaks at full white a moment before it retires, so the eye reads a
+ * stack of bright plates rather than a space being crossed. Ramping down over
+ * the last stretch of the approach puts the peak in the middle distance
+ * instead, and near and far both fall away from it.
+ *
+ * Keyed to `coverage`, the same fraction-of-frame the retire fade uses, rather
+ * than to apparent depth: cards arrive at very different world widths, so one
+ * depth threshold would shadow a narrow card while it is still small and let a
+ * wide one fill the frame at full brightness.
+ *
+ * The window ends well short of COVER_FULL, which looks wrong next to the fade
+ * but is what the field actually does. A card only reaches full coverage if it
+ * stays near the middle of the frame, and the push moves everything radially
+ * outward, so through the body of the act the off-frame cull retires cards at
+ * around 0.65-0.7 of the frame — measured, not assumed. Bottoming out at
+ * COVER_FULL therefore spends the whole ramp on coverage the cards never live
+ * to reach: the nearest plate lands about 0.85 and the shadow may as well not
+ * be there. Ending at 0.7 puts the floor where the cards genuinely leave.
+ *
+ * Because coverage grows hyperbolically as a plane closes, a linear ramp in it
+ * darkens slowly at first and then quickly, which is the acceleration of the
+ * push itself.
+ */
+const NEAR_SHADE_FROM = 0.3;
+const NEAR_SHADE_TO = 0.7;
+const NEAR_FLOOR = 0.65;
+
+export function nearShade(coverage: number): number {
+  const fall = clamp01(
+    (coverage - NEAR_SHADE_FROM) / (NEAR_SHADE_TO - NEAR_SHADE_FROM),
+  );
+  return 1 - (1 - NEAR_FLOOR) * fall;
 }
