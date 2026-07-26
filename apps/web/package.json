@@ -13,7 +13,7 @@
     "@react-three/fiber": "9.6.1",
     "gsap": "3.13.0",
     "lenis": "1.1.17",
-    "next": "^14.2.35",
+    "next": "^15.5.22",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "three": "0.169.0",
@@ -25,7 +25,7 @@
     "@types/react-dom": "19.2.3",
     "@types/three": "0.169.0",
     "eslint": "^8.57.1",
-    "eslint-config-next": "^14.2.35",
+    "eslint-config-next": "^15.5.22",
     "playwright": "^1.61.1",
     "potrace": "^2.1.8",
     "typescript": "5.6.3"
