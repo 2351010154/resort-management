@@ -57,6 +57,7 @@ src/
   database/
     schema/        One file per domain, re-exported from index.ts
     migrations/    SQL. Constraints, extensions, and indexes live here
+  health/          Liveness. Operational, so not under modules/
   modules/<domain>/
   jobs/            Scheduled work: night audit, ID-scan retention sweep
 test/              e2e and the concurrency suite
@@ -69,6 +70,11 @@ modular monolith becomes a tangle that needs microservices to explain itself.
 
 Schema files are centralised under `database/schema/` because migrations need a
 single entry point, but each file is owned by the module that names it.
+
+`health/` sits beside `modules/` rather than inside it: the table below is the
+domain list, and liveness has no domain behind it. The rule that keeps the
+directory from becoming a second junk drawer is that everything in it must be
+answerable without reading a single business rule.
 
 ### Domain modules
 
@@ -156,3 +162,9 @@ marketing arrival, the booking funnel, and the admin console have genuinely
 different visual languages; a `packages/ui` serving all three would be a
 lowest-common-denominator abstraction with no real second consumer. Revisit when
 one appears.
+
+What the three surfaces *do* share — the palette, the type scale, the spacing
+rhythm, the two easing curves, and the copy voice — is written down in
+[`design-foundations.md`](design-foundations.md) instead of packaged. That file
+is the standard a `(booking)` screen is built against, including the
+`three`/`gsap`/`lenis` budget above and what may be imported from `lib/`.
