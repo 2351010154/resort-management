@@ -16,13 +16,22 @@ import styles from "./navigation.module.css";
 // what gets the bar right under reduced motion, where no scroll trigger runs.
 const DARK_ACTS = new Set([4, 5, 6]);
 
+// A claim only speaks for its own act. Reading "any act claims dark" made the
+// bar inherit claims from acts that are nowhere near the viewport: Act 4 takes
+// the dark bar on enter and holds it for as long as it is mounted, which left
+// the bar ink over ivory on every scroll back up through Acts 2 and 3.
+const navIsDark = (state: {
+  activeAct: number;
+  navDarkActs: readonly number[];
+}) =>
+  DARK_ACTS.has(state.activeAct) || state.navDarkActs.includes(state.activeAct);
+
 export function ConciergeNav() {
   const navPhase = useArrivalActStore((s) => s.navPhase);
   const setNavPhase = useArrivalActStore((s) => s.setNavPhase);
   const menuOpen = useArrivalActStore((s) => s.menuOpen);
   const setMenuOpen = useArrivalActStore((s) => s.setMenuOpen);
-  const activeAct = useArrivalActStore((s) => s.activeAct);
-  const navDark = useArrivalActStore((s) => s.navDarkActs.length > 0);
+  const navDark = useArrivalActStore(navIsDark);
 
   // Scroll phase with hysteresis (enter 80vh / exit 60vh) so the
   // wordmark<->monogram crossfade never flickers at the boundary.
@@ -30,8 +39,11 @@ export function ConciergeNav() {
     let raf = 0;
     const update = () => {
       raf = 0;
-      const { navPhase: phase, menuOpen: open, setNavPhase: set } =
-        useArrivalActStore.getState();
+      const {
+        navPhase: phase,
+        menuOpen: open,
+        setNavPhase: set,
+      } = useArrivalActStore.getState();
       if (open) return; // island phase owns the bar while the menu is open
       const y = window.scrollY;
       const vh = window.innerHeight;
@@ -54,7 +66,9 @@ export function ConciergeNav() {
     if (menuOpen) {
       setNavPhase("island");
     } else {
-      setNavPhase(window.scrollY > window.innerHeight * 0.6 ? "scrolled" : "top");
+      setNavPhase(
+        window.scrollY > window.innerHeight * 0.6 ? "scrolled" : "top",
+      );
     }
   }, [menuOpen, setNavPhase]);
 
@@ -63,9 +77,7 @@ export function ConciergeNav() {
       <header
         className={styles.bar}
         data-phase={navPhase}
-        data-theme={
-          DARK_ACTS.has(activeAct) || navDark || menuOpen ? "dark" : "light"
-        }
+        data-theme={navDark || menuOpen ? "dark" : "light"}
       >
         <a href="#act-1" className={styles.brand} aria-label="Mariva — home">
           <span className={styles.wordmark} />
@@ -84,7 +96,10 @@ export function ConciergeNav() {
           onClick={() => setMenuOpen(!menuOpen)}
         >
           <span className={styles.linkClip}>
-            <span className={styles.linkInner} data-label={menuOpen ? "Close" : "Menu"}>
+            <span
+              className={styles.linkInner}
+              data-label={menuOpen ? "Close" : "Menu"}
+            >
               {menuOpen ? "Close" : "Menu"}
             </span>
           </span>
