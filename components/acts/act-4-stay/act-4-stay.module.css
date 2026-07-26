@@ -371,12 +371,6 @@
   line-height: 1.15;
 }
 
-.listItemNote {
-  font-size: var(--text-xs);
-  letter-spacing: 0.08em;
-  opacity: 0.72;
-}
-
 /* Seam into Act 5 (Invitation). The whole frame, not a bottom gradient: this
    closes over a deck that is still full and lands on exactly the value Act 5
    opens on, so the handover is one continuous dark rather than a cut. */
