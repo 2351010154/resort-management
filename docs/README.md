@@ -9,6 +9,11 @@ the human entry point — what Mariva is, the invariant everything else protects
 the milestone road, and a procedure for answering *what should I do next*. It
 owns no facts and cites the files below for all of them.
 
+[`screens.md`](screens.md) is the same kind of file for a narrower question:
+every screen, what it is for, and how far along it is. Also a view, also owns
+nothing — the tick marks in it are a dated snapshot and `plans/backlog.md` wins
+over them.
+
 ## Precedence — stated once, here
 
 1. **`plans/backlog.md` wins for tickets, phases, gates and status.** What is
