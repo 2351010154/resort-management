@@ -4,11 +4,13 @@ packages:
 
 # pnpm blocks dependency install scripts by default; each one has to be named.
 allowBuilds:
-  # napi-postinstall wiring for the native resolver eslint-config-next's import
-  # plugin loads. Without it `next lint` cannot resolve a single import.
-  unrs-resolver: true
   # Fetches the browser binaries the capture scripts in apps/web/scripts drive.
   playwright: true
+  # Vitest transpiles with esbuild, which cannot emit `emitDecoratorMetadata` —
+  # the metadata Nest's DI reads constructor parameter types out of. So the API's
+  # tests are transformed by SWC instead, and its install script is what links
+  # the platform-native binary that does the transforming.
+  "@swc/core": true
   # drizzle-kit bundles esbuild to compile drizzle.config.ts and the schema on
   # the fly. Its install script links the platform binary; unlinked, every
   # drizzle-kit command fails before it reads the config.
@@ -18,6 +20,10 @@ allowBuilds:
   # that leaves a build script unanswered, and sharp's only unpacks a prebuilt
   # binary. Saying no here would fail CI rather than save anything.
   sharp: true
+  # The npm package is a shim; its install script is what puts the platform
+  # binary on disk. Unlinked, `lefthook install` has nothing to run and the
+  # commit hook silently never exists.
+  lefthook: true
 
 # React Three Fiber's own .d.ts files reference React's types — the JSX element
 # names on one side, CanvasProps extending React.HTMLAttributes on the other —
