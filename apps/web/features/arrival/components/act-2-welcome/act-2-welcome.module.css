@@ -187,7 +187,7 @@
   background: var(--ivory-warm);
   /* The rule between chapters, now also the panel's leading edge: the same
      hairline, sweeping up over the panel it covers. */
-  border-top: 1px solid rgba(100, 92, 81, 0.18);
+  border-top: 1px solid rgb(var(--stone-deep-rgb) / 0.18);
 }
 
 .panelType {
@@ -315,7 +315,7 @@
 .tile {
   position: absolute;
   overflow: hidden;
-  box-shadow: 0 18px 46px rgba(28, 25, 21, 0.16);
+  box-shadow: 0 18px 46px rgb(var(--ink-rgb) / 0.16);
   will-change: transform;
 }
 
@@ -386,7 +386,7 @@
   .chapter {
     display: block;
     padding-block: clamp(4rem, 10vh, 7rem);
-    border-top: 1px solid rgba(100, 92, 81, 0.18);
+    border-top: 1px solid rgb(var(--stone-deep-rgb) / 0.18);
   }
 
   .panel {
@@ -481,5 +481,5 @@
   top: 50%;
   height: auto;
   will-change: transform;
-  box-shadow: 0 2px 18px rgba(28, 25, 21, 0.12);
+  box-shadow: 0 2px 18px rgb(var(--ink-rgb) / 0.12);
 }

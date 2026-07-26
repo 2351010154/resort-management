@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@mariva/shared": "workspace:*",
+    "@mariva/tokens": "workspace:*",
     "@react-three/fiber": "9.6.1",
     "gsap": "3.13.0",
     "lenis": "1.1.17",

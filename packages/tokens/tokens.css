@@ -1,0 +1,73 @@
+/* Mariva design tokens — the one file that defines the brand.
+ *
+ * Every app imports this; nothing re-declares a value from it. Before this
+ * package existed the palette lived in apps/web/app/globals.css, and the acts
+ * that needed a colour at partial opacity re-typed it as a decimal rgba()
+ * triplet — rgba(244, 239, 230, 0.8) is --ivory, but grep does not know that,
+ * and neither does the next person changing the brand. Nine stylesheets each
+ * held their own copy of the numbers.
+ *
+ * The fix is the -rgb channel triplets below. A colour is written once as hex
+ * for opaque use and once as bare channels for alpha use, and the two sit on
+ * adjacent lines where they cannot drift apart.
+ */
+
+:root {
+  /* palette */
+  --ivory: #f4efe6;
+  /* Wall tone in the slide-2 comp — a shade warmer/greyer than plain ivory. */
+  --ivory-warm: #eee7de;
+  --sand: #cfc0ab;
+  --stone: #8a7b6e;
+  --stone-deep: #645c51;
+  --umber: #3a332b;
+  --ink: #1c1915;
+  --dusk-amber: #b48b60;
+  --ocean: #7fa2b7;
+  /* The value the dark acts hand over on. Not a ninth colour so much as the
+     one seam in the ride: Act 3's tail fade closes on it, Act 4 stands on it,
+     Act 5 opens on it and Act 6 warms out of it, and the handover only reads as
+     one continuous dark because all four are the same number. It was that
+     number typed out in four stylesheets until it was named here. */
+  --night: #100e0c;
+
+  /* Channel triplets, for `rgb(var(--x-rgb) / α)`.
+   *
+   * Only the colours that are actually used at partial opacity carry one —
+   * giving the other four a triplet each would be four more pairs to keep
+   * level for no current reader. The seam colours (night, ink, ivory) earn
+   * theirs many times over; every scrim in acts 3–6 is one of them.
+   *
+   * Each triplet must equal the hex above it. Changing one without the other
+   * is the exact bug this package exists to prevent, so they are paired here
+   * rather than grouped by kind. */
+  --ivory-rgb: 244 239 230;
+  --stone-deep-rgb: 100 92 81;
+  --umber-rgb: 58 51 43;
+  --ink-rgb: 28 25 21;
+  --dusk-amber-rgb: 180 139 96;
+  --night-rgb: 16 14 12;
+
+  /* --ease-scene and --ease-ui are NOT here. They are emitted from
+     apps/web/lib/motion-tokens.ts by the root layout, because the same two
+     curves also have to exist as GSAP strings and one of the two copies would
+     eventually be edited alone. They move into this package the day a second
+     app needs them; today that would be a re-export with no reader. */
+
+  /* type — families injected by next/font in the consuming app's layout */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.375rem;
+  --text-display-sm: clamp(1.75rem, 3.5vw, 2.75rem);
+  --text-display: clamp(2.5rem, 6vw, 4.5rem);
+  --text-display-lg: clamp(3.5rem, 9vw, 7.5rem);
+  --tracking-caps: 0.22em;
+
+  /* spacing rhythm */
+  --space-1: 0.5rem;
+  --space-2: 1rem;
+  --space-3: 2rem;
+  --space-4: 4rem;
+  --space-5: 8rem;
+}

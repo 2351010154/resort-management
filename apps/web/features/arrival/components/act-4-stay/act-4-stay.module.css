@@ -7,7 +7,7 @@
    case that pin is not there to cover it. */
 .act {
   position: relative;
-  background: #100e0c;
+  background: var(--night);
 }
 
 /* ============================ I. Corridor ============================ */
@@ -75,10 +75,10 @@
   inset: 0;
   background: linear-gradient(
     to bottom,
-    rgba(16, 14, 12, 0.32) 0%,
-    rgba(16, 14, 12, 0) 34%,
-    rgba(16, 14, 12, 0) 52%,
-    rgba(16, 14, 12, 0.72) 100%
+    rgb(var(--night-rgb) / 0.32) 0%,
+    rgb(var(--night-rgb) / 0) 34%,
+    rgb(var(--night-rgb) / 0) 52%,
+    rgb(var(--night-rgb) / 0.72) 100%
   );
 }
 
@@ -213,9 +213,9 @@
   inset: 0;
   background: linear-gradient(
     to bottom,
-    rgba(58, 51, 43, 0.28),
-    rgba(28, 25, 21, 0.12) 45%,
-    rgba(28, 25, 21, 0.55)
+    rgb(var(--umber-rgb) / 0.28),
+    rgb(var(--ink-rgb) / 0.12) 45%,
+    rgb(var(--ink-rgb) / 0.55)
   );
   mix-blend-mode: multiply;
 }
@@ -233,14 +233,14 @@
   background:
     radial-gradient(
       ellipse at 50% 40%,
-      rgba(16, 14, 12, 0.3) 0%,
-      rgba(16, 14, 12, 0.72) 100%
+      rgb(var(--night-rgb) / 0.3) 0%,
+      rgb(var(--night-rgb) / 0.72) 100%
     ),
     linear-gradient(
       to bottom,
-      rgba(28, 25, 21, 0.6),
-      rgba(16, 14, 12, 0.48) 46%,
-      rgba(16, 14, 12, 0.78)
+      rgb(var(--ink-rgb) / 0.6),
+      rgb(var(--night-rgb) / 0.48) 46%,
+      rgb(var(--night-rgb) / 0.78)
     );
 }
 
@@ -308,7 +308,7 @@
   aspect-ratio: 3 / 2;
   overflow: hidden;
   background: var(--umber);
-  box-shadow: 0 1.5rem 5rem rgba(16, 14, 12, 0.5);
+  box-shadow: 0 1.5rem 5rem rgb(var(--night-rgb) / 0.5);
   will-change: transform, opacity;
   transform-origin: center center;
 }
@@ -334,7 +334,7 @@
   flex-direction: column;
   gap: 1.15rem;
   pointer-events: none;
-  text-shadow: 0 1px 22px rgba(16, 14, 12, 0.9);
+  text-shadow: 0 1px 22px rgb(var(--night-rgb) / 0.9);
 }
 
 .cascadeDay .roomsList {
@@ -380,7 +380,7 @@
   z-index: 500;
   pointer-events: none;
   opacity: 0;
-  background: #100e0c;
+  background: var(--night);
 }
 
 /* Only the reduced-motion grid still pairs a caption with an image. */
@@ -407,7 +407,7 @@
 /* Nothing is pinned here, so the rooms grid has to carry the dark ground the
    open door would otherwise be holding. */
 .staticRooms {
-  background: #100e0c;
+  background: var(--night);
   color: var(--ivory);
 }
 
