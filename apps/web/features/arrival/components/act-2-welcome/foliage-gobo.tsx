@@ -17,8 +17,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { SecondOrderSpring2 } from "@/features/arrival/lib/second-order-spring";
 import { useInView } from "@/lib/use-in-view";
-import { isWebglAvailable, prefersReducedMotion } from "@/features/arrival/lib/webgl-support";
-import { compositeFragment, maskFragment, quadVertex } from "./foliage-gobo-shader";
+import {
+  isWebglAvailable,
+  prefersReducedMotion,
+} from "@/features/arrival/lib/webgl-support";
+import {
+  compositeFragment,
+  maskFragment,
+  quadVertex,
+} from "./foliage-gobo-shader";
 import styles from "./act-2-welcome.module.css";
 
 /** Mask resolution. oryzo runs its gobo target at the same size. */
@@ -73,7 +80,10 @@ function GoboPasses({ still }: { still: boolean }) {
   useEffect(() => () => target.dispose(), [target]);
 
   const [maskScene] = useState(() => new THREE.Scene());
-  const maskCamera = useMemo(() => new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1), []);
+  const maskCamera = useMemo(
+    () => new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1),
+    [],
+  );
 
   const maskUniforms = useMemo(
     () => ({
@@ -101,9 +111,19 @@ function GoboPasses({ still }: { still: boolean }) {
     [target],
   );
 
+  // Both blocks above seed their material and stop being what the shader reads:
+  // a ShaderMaterial keeps its own uniforms object and copies the prop into it.
+  // Later writes go through the material.
+  const maskMaterial = useRef<THREE.ShaderMaterial>(null);
+  const compositeMaterial = useRef<THREE.ShaderMaterial>(null);
+
   const aspect = size.height > 0 ? size.width / size.height : 1;
-  maskUniforms.uAspect.value = aspect;
-  compositeUniforms.uAspect.value = aspect;
+  useEffect(() => {
+    if (maskMaterial.current)
+      maskMaterial.current.uniforms.uAspect.value = aspect;
+    if (compositeMaterial.current)
+      compositeMaterial.current.uniforms.uAspect.value = aspect;
+  }, [aspect]);
 
   // Pointer lives on the window: the canvas takes no events, and the wall should
   // answer the pointer wherever it is over the act. Measured against the canvas
@@ -114,23 +134,26 @@ function GoboPasses({ still }: { still: boolean }) {
   const canvas = useThree((state) => state.gl.domElement);
 
   useFrame((state, delta) => {
-    if (!still) {
+    const mask = maskMaterial.current?.uniforms;
+    const composite = compositeMaterial.current?.uniforms;
+    if (!still && mask && composite) {
       const dt = Math.min(delta, 1 / 30);
       spring.setTarget(pointer.current.x, pointer.current.y);
       spring.update(dt);
 
       const speed = Math.abs(spring.velocity.x) + Math.abs(spring.velocity.y);
-      maskUniforms.uGust.value = Math.min(speed * GUST, 2);
-      maskUniforms.uTime.value += dt * BREEZE;
+      mask.uGust.value = Math.min(speed * GUST, 2);
+      mask.uTime.value += dt * BREEZE;
       // Gobo space: x runs 0..aspect, y 0..1 bottom to top.
-      maskUniforms.uPointer.value.set(
+      mask.uPointer.value.set(
         (spring.value.x * 0.5 + 0.5) * aspect,
         spring.value.y * 0.5 + 0.5,
       );
 
-      const reach = maskUniforms.uPointerReach;
-      reach.value += (pointer.current.over - reach.value) * Math.min(dt * REACH_RATE, 1);
-      compositeUniforms.uTilt.value.set(spring.value.x * TILT, spring.value.y * TILT);
+      const reach = mask.uPointerReach;
+      reach.value +=
+        (pointer.current.over - reach.value) * Math.min(dt * REACH_RATE, 1);
+      composite.uTilt.value.set(spring.value.x * TILT, spring.value.y * TILT);
     }
 
     const { gl } = state;
@@ -149,7 +172,8 @@ function GoboPasses({ still }: { still: boolean }) {
       pointer.current.y = 1 - y * 2;
       // A margin of one influence radius: the leaves at the edge should already
       // be answering by the time the cursor crosses onto the wall.
-      pointer.current.over = x > -0.35 && x < 1.35 && y > -0.35 && y < 1.35 ? 1 : 0;
+      pointer.current.over =
+        x > -0.35 && x < 1.35 && y > -0.35 && y < 1.35 ? 1 : 0;
     };
     window.addEventListener("pointermove", onMove, { passive: true });
     return () => window.removeEventListener("pointermove", onMove);
@@ -161,6 +185,7 @@ function GoboPasses({ still }: { still: boolean }) {
         <mesh frustumCulled={false}>
           <planeGeometry args={[2, 2]} />
           <shaderMaterial
+            ref={maskMaterial}
             vertexShader={quadVertex}
             fragmentShader={maskFragment}
             uniforms={maskUniforms}
@@ -173,6 +198,7 @@ function GoboPasses({ still }: { still: boolean }) {
       <mesh frustumCulled={false}>
         <planeGeometry args={[2, 2]} />
         <shaderMaterial
+          ref={compositeMaterial}
           vertexShader={quadVertex}
           fragmentShader={compositeFragment}
           uniforms={compositeUniforms}
