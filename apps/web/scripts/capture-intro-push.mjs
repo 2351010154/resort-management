@@ -3,19 +3,18 @@
 // Act 1 is a pinned scrub, so a single screenshot says nothing about it. This
 // walks the act's scroll range in even steps and writes one frame per step.
 //
-// Usage: node scripts/capture-intro-push.mjs [baseUrl] [steps]
+// Usage: node apps/web/scripts/capture-intro-push.mjs [baseUrl] [steps]
 //   default baseUrl http://localhost:3000, 10 steps
 // Output: plans/reports/screenshots/intro-push/<vp>-NN-pPP.png
 
 import { chromium } from "playwright";
 import { mkdir, rm } from "node:fs/promises";
 import path from "node:path";
+import { screenshotDir } from "./screenshot-dir.mjs";
 
 const BASE_URL = process.argv[2] ?? "http://localhost:3000";
 const STEPS = Number(process.argv[3] ?? 10);
-const OUT = path.resolve(
-  import.meta.dirname, "..", "plans", "reports", "screenshots", "intro-push",
-);
+const OUT = screenshotDir("intro-push");
 const VIEWPORTS = [
   { name: "desktop", width: 1440, height: 900 },
   { name: "mobile", width: 390, height: 844 },

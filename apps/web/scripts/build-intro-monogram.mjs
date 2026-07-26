@@ -11,7 +11,7 @@
 // The mark is used at its drawn weight — unlike the hairline nav monogram, it
 // gets no dilation pass (see INTRO_MONOGRAM in lib/monogram-glyph.ts).
 //
-// Usage: node scripts/build-intro-monogram.mjs
+// Usage: node apps/web/scripts/build-intro-monogram.mjs
 
 import { writeFile } from "node:fs/promises";
 import path from "node:path";

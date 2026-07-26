@@ -1,0 +1,11 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# pnpm blocks dependency install scripts by default; each one has to be named.
+allowBuilds:
+  # napi-postinstall wiring for the native resolver eslint-config-next's import
+  # plugin loads. Without it `next lint` cannot resolve a single import.
+  unrs-resolver: true
+  # Fetches the browser binaries the capture scripts in apps/web/scripts drive.
+  playwright: true

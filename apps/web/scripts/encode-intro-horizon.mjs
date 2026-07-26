@@ -10,7 +10,7 @@
 // seam invisible. See the filter graph below for why the weights run the way
 // they do.
 //
-// Usage: node scripts/encode-intro-horizon.mjs [posterSeconds]
+// Usage: node apps/web/scripts/encode-intro-horizon.mjs [posterSeconds]
 
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";

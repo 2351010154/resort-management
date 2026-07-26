@@ -1,16 +1,17 @@
 // Playwright self-verification harness — captures every [data-act] section at
 // desktop + mobile viewports against a running dev server.
 //
-// Usage: node scripts/capture-section-screenshots.mjs [baseUrl]
+// Usage: node apps/web/scripts/capture-section-screenshots.mjs [baseUrl]
 //   default baseUrl http://localhost:3000
 // Output: plans/reports/screenshots/act-<n>-<viewport>.png
 
 import { chromium } from "playwright";
 import { mkdir } from "node:fs/promises";
 import path from "node:path";
+import { screenshotDir } from "./screenshot-dir.mjs";
 
 const BASE_URL = process.argv[2] ?? "http://localhost:3000";
-const OUT = path.resolve(import.meta.dirname, "..", "plans", "reports", "screenshots");
+const OUT = screenshotDir();
 const VIEWPORTS = [
   { name: "desktop", width: 1440, height: 900 },
   { name: "mobile", width: 390, height: 844 },

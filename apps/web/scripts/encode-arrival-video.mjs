@@ -4,7 +4,7 @@
 //   public/video/arrival-loop-poster.webp
 // Combined video target 3-6MB. Source stays untouched.
 //
-// Usage: node scripts/encode-arrival-video.mjs [posterSeconds]
+// Usage: node apps/web/scripts/encode-arrival-video.mjs [posterSeconds]
 
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
