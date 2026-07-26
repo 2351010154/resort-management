@@ -1,10 +1,10 @@
 # Design foundations
 
-The landing page is the design standard. There is no `packages/ui` and no
-tokens package, and none is planned — see
-[`repository-structure.md`](repository-structure.md) for why. What the three
-surfaces share is written down here instead: a palette, a type scale, a spacing
-rhythm, two easing curves, and a way of writing sentences.
+The landing page is the design standard. There is no `packages/ui` and none is
+planned — see [`repository-structure.md`](repository-structure.md) for why. The
+*values* do live in a package, `packages/tokens`; what does not is components.
+So what the three surfaces share is written down here instead: a palette, a type
+scale, a spacing rhythm, two easing curves, and a way of writing sentences.
 
 This file is written for whoever builds `app/(booking)` — human or agent —
 with no prior exposure to the arrival. Read it before the first component.
@@ -23,12 +23,21 @@ to the same house, not that it looks like the same page.
 
 | Fact | File |
 |---|---|
-| Palette, type scale, spacing, base element styles, two global classes | [`apps/web/app/globals.css`](../../apps/web/app/globals.css) |
+| Palette, type scale, spacing rhythm | [`packages/tokens/tokens.css`](../../packages/tokens/tokens.css) |
+| Base element styles, the two global classes, the reduced-motion kill switch | [`apps/web/app/globals.css`](../../apps/web/app/globals.css) |
 | Every ease, duration, stagger; the `--ease-*` custom properties | [`apps/web/lib/motion-tokens.ts`](../../apps/web/lib/motion-tokens.ts) |
 | Type families (`--font-display`, `--font-ui`), the `:root` block for the eases | [`apps/web/app/layout.tsx`](../../apps/web/app/layout.tsx) |
-| Colour and easing enforcement | [`apps/web/stylelint.config.mjs`](../../apps/web/stylelint.config.mjs) |
+| Colour and easing enforcement | Review. See §10 — the stylelint config exists but is not wired |
 | Image alt text | [`apps/web/features/arrival/lib/image-manifest.ts`](../../apps/web/features/arrival/lib/image-manifest.ts) (generated) |
 | Per-act composition | `apps/web/features/arrival/components/act-{1..6}-*/` |
+| The first booking surface, as a worked example | `apps/web/features/auth/components/login-screen.*` |
+
+The palette used to live in `globals.css`, and the acts that wanted a colour at
+partial opacity re-typed it as a decimal `rgba()` triplet — nine stylesheets
+each holding their own copy of the numbers. `packages/tokens/tokens.css` fixes
+that by pairing each hex with a bare-channel `--*-rgb` on the adjacent line, for
+`rgb(var(--x-rgb) / α)`. The **root layout** imports it, immediately ahead of
+`globals.css`; neither file re-declares a value from the other.
 
 Styling is CSS Modules throughout. No Tailwind, no CSS-in-JS, no utility
 classes beyond the two in `globals.css`.
@@ -71,9 +80,16 @@ place it is a surface in its own right.
 **`--dusk-amber` is the accent and it is nearly unspent.** Two uses on the whole
 page. That restraint is the point: the arrival has no buttons that need to
 shout, so the one warm colour marks the two list heads and nothing else. The
-booking funnel will have real primary actions, and this is the token for them —
-but the discipline transfers with the colour. One accent, used where the eye
-must go, and nowhere else.
+booking funnel has real primary actions, and this is the token for them — but
+the discipline transfers with the colour. One accent, used where the eye must
+go, and nowhere else.
+
+`/login` is the first surface to spend it that way, and it spends it once: the
+submit control is filled `--dusk-amber` and nothing else on the screen is. The
+reveal toggle rests at `--stone`, the forgot link at `--stone-deep`, the
+provider discs at an `--ink` hairline — each resolving to `--ink` on focus. If a
+booking screen ever wants a second amber thing, that is a question about which
+of the two is actually the primary action.
 
 **`--ocean` is reserved, not dead.** It is the only cool token in the family and
 the arrival never found a job for it — act 1's sea is sampled film stock, not
@@ -317,6 +333,48 @@ keeping: the reader's scroll is the only input.
 No scroll-driven anything. No pinning. No canvas. A funnel that animates like
 the arrival is a funnel that gets in the way of booking a room.
 
+### What the login screen settled
+
+`/login` is the first surface built to the rules above, and it is worth reading
+before the second one — `features/auth/components/login-screen.module.css`.
+
+Its one move looks expensive and is not. The screen is a filmstrip three panels
+wide against a frame one panel wide — `[plate 60][pane 40][plate 60]` — and
+focus moving to the password field pans it by exactly one plate, which carries
+the form across the frame and brings the second plate in behind it. Measured at
+1440×900: `translateX(0)` to `translateX(-864px)`, form from x=968 to x=104.
+
+Four things it establishes:
+
+- **A scene-scale move is allowed if it is one transform on one element.** The
+  budget's list above is not a size limit, it is a mechanism limit. Panning a
+  full frame in `0.5s` on `var(--ease-ui)` is inside it; the same move assembled
+  from a crossfade plus two position changes is not, and would need GSAP `Flip`
+  to stay coherent — which the bundle budget below forbids outright.
+- **A layout move holds under reduced motion; it does not collapse.** The global
+  kill-switch in `globals.css` cuts every duration to `0.01ms`, which turns a
+  pan into a full-frame jump on every focus change — worse than the motion it
+  was protecting against. The screen locks the strip to its first reading
+  instead, and both fields stay present and legible. This is §9's rule about
+  reduced-motion paths being compositions in their own right, in the funnel.
+- **The ground moves and the pane stays still.** The form does not animate: it
+  keeps its size, its type and its focus behaviour throughout, and only what is
+  behind and beside it changes. A funnel screen that re-lays-out its own inputs
+  is a screen that loses a password manager mid-fill.
+
+- **A plate is the ground carrying on, not a picture hung on it.** Both plates
+  are pale plaster, sky and linen, within a shade or two of `--ivory` — so the
+  alcove that arrives beside the password field reads as the same wall the form
+  is standing on, with one niche in it. Its inner edge is masked to transparent
+  over the first 8% so there is no vertical seam where image meets pane, and an
+  undecoded plate falls back to `--ivory-warm` rather than the `--umber` §2
+  reserves for photographic under-layers. Pick funnel imagery that can do this:
+  a plate that needs a dark scrim to carry its type is a picture, and it will
+  look pasted on.
+
+Field focus is one drawn underline, chosen once and used by both fields, which
+is also why the UA outline can be removed — it is replaced, not deleted.
+
 ### The budget
 
 **`app/(booking)` must ship zero bytes of `three`, `gsap` or `lenis`.** This is
@@ -414,6 +472,22 @@ has been audited against this; there are no undecided cases.
 | Act 5 invitation plate | manifest `alt` | The act's single frame |
 | Act 6 wordmark band | `alt=""` | Inside an `aria-hidden` band behind the mark |
 | Nav island cards | manifest `alt` | Links to rooms |
+| `/login` plates | `alt=""` | Atmosphere beside a form. See below |
+
+**The login plates are the funnel's first images, and they are not in the
+manifest.** They live under `public/images/auth/` and are referenced by hand,
+because `scripts/prepare-arrival-images.mjs` curates the *arrival's* library and
+writes the *arrival's* manifest — sweeping a booking image into it would put a
+`features/arrival/` import in the funnel's path, which §5's budget forbids. So
+their `alt` is written inline, and the rule that decides it is the one above:
+they are atmosphere a sign-in form does not depend on, inside `aria-hidden`
+asides, so both are `alt=""`.
+
+Decide from the image's job on the surface it is on, not from the file. The
+same photograph can be content on one surface and decoration on another — act
+4's corridor panels each make a claim about the hotel and carry real alt text;
+the same frame behind a password field would claim nothing, and reading it to
+someone trying to type is noise.
 
 The manifest is **generated** by `scripts/prepare-arrival-images.mjs`. To change
 an alt for an image under `public/images/`, change it at the source and
@@ -452,9 +526,9 @@ optional.
 
 **Don't**
 
-- Don't write a raw hex or a named colour in a CSS Module — stylelint fails the
-  build. If you genuinely need a one-off, see §9.
-- Don't write a literal easing curve anywhere — stylelint fails that too.
+- Don't write a raw hex or a named colour in a CSS Module. If you genuinely
+  need a one-off, see the disable convention below.
+- Don't write a literal easing curve anywhere.
 - Don't invent an off-scale spacing value in `(booking)`.
 - Don't set a caps run's tracking by hand.
 - Don't import `three`, `gsap`, `lenis`, or anything from `features/arrival/`
@@ -463,6 +537,11 @@ optional.
 - Don't put a decorative image in the accessibility tree, and don't hide a
   content image from it.
 - Don't add exclamation marks, urgency, or scarcity to any copy.
+
+The first two are the rules this document leans on hardest, and they are the two
+nothing currently checks: the stylelint config that would is written but not
+wired (§10). Until it is, they are enforced in review — writing one costs a
+reviewer's attention rather than a red build.
 
 ### The disable convention
 
@@ -671,4 +750,4 @@ pixel diff, and it is not subject to either problem above.
 ### Adding to the standard
 
 The order is: change this document, then change the code. A token that appears
-in `globals.css` without a row in §2 is a token nobody agreed to.
+in `packages/tokens/tokens.css` without a row in §2 is a token nobody agreed to.

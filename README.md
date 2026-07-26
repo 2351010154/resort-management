@@ -50,7 +50,16 @@ pnpm dev            # every app that defines a dev task
 pnpm lint
 pnpm typecheck
 pnpm build
+pnpm test
 ```
+
+The API needs a Postgres and two secrets before it will boot: copy
+`apps/api/.env.example` to `.env`, then `pnpm --filter @mariva/api db:migrate`.
+Its tests need a second database and their own `.env.test` — they truncate what
+they find, so they refuse to run off `.env`. Signing into the admin side needs a
+first `ADMIN` account, which is created from a shell because the API route that
+creates staff accounts requires one:
+[`apps/api/README.md`](apps/api/README.md#commands).
 
 Turborepo fans each task out across the workspaces. To drive a single one:
 

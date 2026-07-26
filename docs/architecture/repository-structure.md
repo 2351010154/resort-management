@@ -52,7 +52,7 @@ Application code may not be the last line of defence for money or inventory.
 ```
 src/
   main.ts, app.module.ts
-  common/          Guards (@Roles), the audit interceptor, exception filters, pipes
+  common/          The capability guard, the audit interceptor, exception filters, pipes
   config/          Env parsing and validation, one schema, fails fast at boot
   database/
     schema/        One file per domain, re-exported from index.ts
@@ -121,12 +121,30 @@ rewrite, not a refactor.
 ```
 app/
   (marketing)/     The arrival. three / gsap / lenis live only in this subtree
-  (booking)/       The guest funnel. Plain bundle
+  (booking)/       The guest funnel. Plain bundle. Its auth screens are the first five
 features/
   arrival/         The six acts, the concierge nav, and the WebGL machinery they need
+  auth/            The guest realm's door. Talks to Better Auth in apps/api
 components/ui/     Primitives shared across route groups
 lib/               Domain-blind and genuinely shared. Currently two files
 ```
+
+`features/auth/` holds five screens — log in, sign up, confirm an address, ask
+for a reset, choose a new password — and the two `lib/` files they post with:
+`sign-in.ts` and `guest-auth.ts`, both aimed at the API's Better Auth mount. They
+belong in `packages/api-client` the day something other than these screens needs
+the same session; today the callers are all here, and the rule below about
+`shared` applies just as well to `api-client`.
+
+Only `login` uses the two-plate composition. The other four share
+`auth-shell.tsx`: a guest reaches them once, usually holding an email, and a
+composition that competed for attention would be competing with the task.
+
+The browser reaches the API by `NEXT_PUBLIC_API_URL` — see
+[`apps/web/.env.example`](../../apps/web/.env.example). The guest session is an
+httpOnly cookie the API sets on its own origin, so that value and the API's
+`WEB_ORIGIN` are two halves of one CORS pair: a mismatch fails sign-in as a
+CORS error rather than as a wrong password.
 
 The root layout carries the document shell, fonts, and tokens — nothing else. A
 provider mounted there sits in every route's tree, which is exactly how `three`

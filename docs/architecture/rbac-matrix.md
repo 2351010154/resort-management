@@ -1,7 +1,28 @@
 # RBAC matrix
 
-Authority for the `@Roles()` guard, the role test in P0.03, and the use-case
+Authority for the capability guard, the role test in P0.03, and the use-case
 diagram. Change this file first, then the code.
+
+**The code mirror.** §3 is mirrored, row for row and in the same order, by
+`apps/api/src/modules/identity/rbac/matrix.ts`. A route declares which row
+governs it — `@RequiresCapability("booking.check-in")` — and
+`common/auth/access.guard.ts` is the only thing that reads a grant. The mirror
+is not generated: it is typed by hand and checked by
+`rbac/matrix.spec.ts` (unique keys, the `ADMIN ⊇ MANAGER` rule of §2, exactly
+one public row) and exercised row by row by `common/auth/access.guard.spec.ts`,
+which is §4's obligation.
+
+Two things the implementation had to settle that this document did not say:
+
+- **A guest session on a staff row is 403, an anonymous request is 401.** §1
+  already required the first; the second is what "sign in" means when nobody
+  has. A route with no declaration at all is 403 for everyone, including an
+  administrator, because the refusal is about the route rather than the caller.
+- **The public row is public.** Row 1 of §3 is marked *Public, unauthenticated*,
+  and the guard lets anyone reach it — including a signed-in housekeeper, whose
+  column says `—`. The role columns on that row describe what a screen should
+  offer, not a wall; enforcing them would refuse a member of staff a page any
+  stranger can load.
 
 **Status:** proposed defaults. Derived from the advisory reports plus ordinary
 hotel practice. **Six** decisions are the owner's call, not an engineering one.
@@ -25,8 +46,11 @@ token on a guest route is 403. Not 401 — the token is valid, the realm is wron
 
 ## 2. Rules
 
-- **Deny by default.** A route with no `@Roles()` is unreachable, not public.
-  Public routes are marked explicitly.
+- **Deny by default.** A route with no `@RequiresCapability()` is unreachable,
+  not public. The one escape hatch is `@Unguarded("<reason>")`, which takes a
+  written reason and is used by exactly two kinds of route: the ones that issue
+  a session (staff sign-in, refresh, sign-out, and everything Better Auth
+  mounts) and the liveness probe, which has no subject.
 - **`ADMIN` ⊇ `MANAGER`.** ⚑ §5 decision 6. Admin adds user management, system config and
   operational plumbing on top of every manager permission. At one property with
   one owner, forcing an account switch to void an invoice is friction that gets
@@ -147,6 +171,15 @@ they cannot drift.
 
 Cross-realm assertions are separate and non-negotiable: guest token → staff
 route → 403; staff token → guest route → 403.
+
+**Discharged**, and more strictly than written: `access.guard.spec.ts` asserts
+*every* denied role on every row, not one of them, because the table names them
+all and checking one of six is a choice with nothing to recommend it. Both
+cross-realm directions are asserted over the full set of rows that admit only
+one realm. The subject of that suite is the guard with the two realms stubbed at
+the point where they produce a principal; `test/auth.e2e-spec.ts` covers the
+other half — real passwords, real tokens, real cookies, real Postgres — over
+the routes that exist so far.
 
 ## 5. Decisions still the owner's
 
