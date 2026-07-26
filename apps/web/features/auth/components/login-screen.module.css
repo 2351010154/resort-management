@@ -74,9 +74,21 @@
    edge dissolves rather than stopping — 8% is enough to kill the vertical seam
    without reading as a vignette, and what shows through is the plate's own
    --ivory-warm, which is the wall again. */
+/* The fade has to land on the pane's own colour or it is not a fade, it is a
+   band with an edge on both sides. --ivory-warm is a shade darker than
+   --ivory, so plate B alone overrides the fallback above: what the mask
+   reveals here is the same value the form is standing on, and the seam has
+   nothing to be a seam between. */
+.plate[data-plate="b"] {
+  background: var(--ivory);
+}
+
+/* 22%, not 8%. Over 60vw that is ~190px at 1440 — long enough for the wall's
+   own light to arrive gradually. The short version resolved before the eye
+   stopped reading it as an edge. */
 .plate[data-plate="b"] .plateImage {
-  mask-image: linear-gradient(to right, transparent 0%, black 8%);
-  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 8%);
+  mask-image: linear-gradient(to right, transparent 0%, black 22%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 22%);
 }
 
 /* A light wash, not a dark one. The terrace is a pale plate — sky, stone floor,
