@@ -128,24 +128,35 @@ deferred without breaking anything downstream.
 
 ## 6. You are here
 
-*Snapshot, 2026-07-26. Derived from `git log` and the working tree; per-story
-status lives in `plans/backlog.md` and wins over this section.*
+*Snapshot, 2026-07-26. Derived from `git log`, the working tree and a test run;
+per-story status lives in `plans/backlog.md` and wins over this section.*
 
-- **M1 is nearly finished.** Seven of ten stories are committed: the visual
-  baseline, drei removal, React 19, R3F 9, Next 15, Next 16, Node 24. The token
-  package exists; Biome and lefthook do not.
-- **M2 is further along than it looks.** `apps/api` boots against a real
-  Postgres — validated env, structured logging, a `/health` that returns 503 when
-  the database is down, and migration `0000` enabling `btree_gist`. On top of
-  that, the six-role matrix, the access guard, the two auth realm tables and the
-  guest-auth mail templates are all written.
+- **M1 is eight of ten done.** Committed: the visual baseline, drei removal,
+  React 19, R3F 9, Next 15, Next 16, Node 24, and the `@mariva/tokens`
+  extraction. Biome is half-landed — `biome.json` and the dependency exist,
+  `apps/web/eslint.config.mjs` is still there and CI still calls it, so the repo
+  currently has two linters. lefthook does not exist.
+- **M2 is much further along than the backlog records.** `apps/api` boots
+  against a real Postgres — validated env, structured logging, `/health`
+  returning 503 when the database is down, `btree_gist` enabled by migration
+  `0000`. On top of that, **both auth realms are implemented end to end**: staff
+  on Passport-JWT with argon2 hashing, guests on Better Auth, a **fail-closed**
+  global access guard (a route without a capability decorator stops answering),
+  the six-role matrix as 669 lines of code, a Resend mailer, and a staff-account
+  creation script. Vitest is configured and **411 of 412 tests pass** — the one
+  red test is the guest password-reset flow, where `/api/auth/forget-password`
+  answers 404.
+- **Not yet in M2:** the oRPC contract layer, Testcontainers, fast-check, every
+  `P0-INF` provisioning row, the payment port, and the docs/ERD generators.
 - **Nothing is built past M2.** No inventory, no booking, no folio, no payment.
-  `apps/api/src/modules/*` is mostly reserved empty directories.
-- **The design record is complete and ahead of the code**: seven architecture
-  documents plus eleven coursework chapters and eight figures. That is
-  deliberate — the document changes first, then the implementation.
-- **The branch is `chore/web-react19-next16`**, which has never been pushed.
-  `main` is far behind it.
+  Most of `apps/api/src/modules/*` is still reserved empty directories.
+- **The design record is complete and ahead of the code** — seven architecture
+  documents, eleven coursework chapters, eight figures — and it is committed and
+  pushed as of `2af3152` and `2d001c0`.
+- **The branch is `chore/web-react19-next16`**, now on `origin`. `main` is far
+  behind it and there is no pull request yet.
+- **Uncommitted:** the API auth work, some arrival refinements in `apps/web`, the
+  Biome config, the backlog viewer script, and a `(booking)/login` prototype.
 
 ## 7. How to answer "what should I do next?"
 
@@ -173,14 +184,22 @@ Two things run **outside** this loop and should be done whenever you notice them
 *Ordered. Dated 2026-07-26; re-derive with §7 rather than trusting this list in
 two weeks.*
 
-1. ~~**Commit and push the working tree.**~~ Done in this session.
-2. **Finish M1** — it is one day of work and it is 70% done:
-   - `stash@{0}` carries reduced-motion and alt-text fixes for four act files
-     that never landed. Everything else in that stash is already in the tree, so
-     rebase those four files out of it and drop the rest.
-   - `P-1-09` Biome replaces ESLint — one lint config, not two.
+1. **Fix the one red test, then commit the API auth work.** The guest
+   password-reset e2e expects `200` from `/api/auth/forget-password` and gets
+   `404`, so that route is not mounted. It is the last thing standing between a
+   finished `P0-AUTH` and a commit — and a whole epic is currently unversioned.
+2. **Finish M1** — a day of work, and it is 80% done:
+   - `P-1-09` Biome — the config and the dependency landed, so what is left is
+     deleting `apps/web/eslint.config.mjs` and pointing CI at Biome. Two linters
+     is worse than either one.
    - `P-1-10` lefthook — format and typecheck on commit. **Land this before the
-     API grows**, or you will retrofit a formatter across a new Nest app later.
+     API grows further**, or you will retrofit a formatter across a Nest app
+     later, and that is a diff nobody reads.
+   - `stash@{0}` carries reduced-motion and alt-text fixes for four act files
+     that never landed. Everything else in it is already in the tree, so rebase
+     those four files out and drop the rest. `apps/web/stylelint.config.mjs`
+     belongs to the same piece of work and is currently orphaned — the config is
+     there, the dependency and the lint script are not.
 3. **Send the four questions you have been sitting on.** Ten minutes total:
    the professor (`D8`, strict UML or generated Mermaid — it decides which
    generator you build), the accountant (`M0-01`, existing e-invoice provider),
@@ -188,9 +207,11 @@ two weeks.*
    offshore), the tax agent (`M0-06`, whether Nghị định 70/2025 binds this
    entity). Then start VNPay onboarding (`M0-04`) — free, and the one place lead
    time genuinely bites.
-4. **Reconcile M2's status rows**, then continue M2 in table order: `P0-C`
-   contracts (unblocked — the `@orpc/nest` spike passed), the remaining `P0-AUTH`
-   work, `P0-CI` tests, `P0-INF` provisioning.
+4. **Reconcile M2's status rows against reality** — `P0-AUTH` is built and the
+   backlog still calls it `todo`, which is how you end up rebuilding it. Then
+   continue M2 in table order: `P0-C` contracts (unblocked — the `@orpc/nest`
+   spike passed), `P0-CI`'s Testcontainers and fast-check, `P0-INF`
+   provisioning, `P0-PAY`'s sandbox port.
 5. **Then M3, and write the concurrency test first.** Not the schema, not the
    UI — the test that proves 50 simultaneous bookings on the last room produce
    exactly one success. It is the only test in this project that cannot be
@@ -241,6 +262,11 @@ never become a second status source.
 2. **Should the committed visual baselines move to CI?** They currently fail on
    an unchanged tree on this machine, which means M1's safety net does not
    actually gate anything locally.
-3. **Do the six architecture documents' ⚑ defaults get a sign-off pass?** They
-   are your own assumptions, written down so they stop being blockers. Nothing
-   forces you to revisit them, and nothing reminds you either.
+3. **Do the architecture documents' ⚑ defaults get a sign-off pass?** They are
+   your own assumptions, written down so they stop being blockers. Nothing forces
+   you to revisit them, and nothing reminds you either.
+4. **Four git worktrees exist** — this one, `khach-san-base`, `khach-san-n15`,
+   and one under `.worktrees/`. The two migration-bisect trees have done
+   their job. Two writers in one working tree have already collided once over who
+   owns the token package, which cost a day of parked work; decide which trees
+   survive and whether more than one agent may write to a tree at a time.
