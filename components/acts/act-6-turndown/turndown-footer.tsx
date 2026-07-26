@@ -3,14 +3,15 @@
 // Act 6 — "The Turndown": the dark stone panel the arrival settles into.
 // Embossed monogram (Act 1's coalesced mark, now pressed into stone) tilts with
 // scroll; quiet columns and the decorative "Letters from Mariva" line sit under
-// it; a giant wordmark band is clipped by the page edge (wolverine footer cue —
-// at this size logotype 04's hairlines are safe).
+// it; the panel then rides up off the house name, which was behind it the whole
+// time — see wordmark-reveal.
 
 import { useRef } from "react";
 import { useLenis } from "@/lib/lenis-scroll-provider";
 import { scrollToAct, scrollToRoom } from "@/components/navigation/nav-hover-link";
 import { EmbossedMonogram, type EmbossIntensity } from "./embossed-monogram";
 import { LettersFromMariva } from "./letters-from-mariva-form";
+import { WordmarkReveal } from "./wordmark-reveal";
 import styles from "./act-6-turndown.module.css";
 
 // Entries with an `act` or a `room` ride the same lenis scroll as the nav; the
@@ -95,9 +96,7 @@ export function TurndownFooter({
         </p>
       </div>
 
-      <div className={styles.wordmarkBand} aria-hidden>
-        <span />
-      </div>
+      <WordmarkReveal />
     </footer>
   );
 }

@@ -4,8 +4,6 @@
    step into stone. */
 
 .section {
-  --wordmark-width: min(94vw, 1500px);
-
   position: relative;
   min-height: 78vh;
   background:
@@ -225,31 +223,69 @@
   text-align: center;
 }
 
-/* giant wordmark band (wolverine cue) — clipped by the page edge; the mark is
-   large here, so logotype 04's hairlines survive. */
-.wordmarkBand {
+/* The reveal band (wolverine finale cue). The band is a window: `clip-path`
+   clips its subtree but is not a containing block for it, so the layer inside
+   stays fixed to the viewport while the window grows over it — the frame never
+   moves, the page just stops covering it.
+
+   Full-bleed, so it breaks out of the section's own gutters. */
+.reveal {
   position: relative;
-  width: 100%;
-  margin-top: var(--space-4);
-  /* wordmark aspect 800:136 (0.17); show the top 76% — cut at the baseline */
-  height: calc(var(--wordmark-width) * 0.17 * 0.76);
-  overflow: hidden;
+  width: 100vw;
+  margin: var(--space-4) 0 0 calc(50% - 50vw);
+  /* Tall enough that the name is clear of the window's own top edge well before
+     the page runs out of scroll — at half this the mark is still cut in two. */
+  height: 70vh;
+  clip-path: inset(0);
 }
 
-.wordmarkBand span {
+.revealLayer {
+  position: fixed;
+  inset: 0;
+}
+
+.revealImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.16);
+  will-change: transform;
+}
+
+/* Enough weight for the mark to hold at any crop of the frame, without closing
+   the photograph down to a texture. */
+.revealScrim {
   position: absolute;
-  left: 50%;
-  top: 0;
-  transform: translateX(-50%);
-  width: var(--wordmark-width);
+  inset: 0;
+  background:
+    linear-gradient(to bottom, rgba(16, 14, 12, 0.5) 0%, rgba(16, 14, 12, 0.28) 55%, rgba(16, 14, 12, 0.62) 100%);
+}
+
+/* Sits low in the layer — where the band's own top edge has already passed it,
+   so the name is lit from the first frames of the reveal and holds that spot on
+   the screen to the end of the page. Centring lives on the rail, not on the
+   mark: the mark's own transform is the scrub's to write. */
+.revealMark {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 62%;
+  transform: translateY(-50%);
+  display: flex;
+  justify-content: center;
+}
+
+.revealWordmark {
+  width: min(88vw, 1400px);
   aspect-ratio: 800 / 136;
-  background: rgba(244, 239, 230, 0.15);
+  background: var(--ivory);
   mask-image: url("/brand/mariva-wordmark.svg");
   mask-repeat: no-repeat;
   mask-size: contain;
   -webkit-mask-image: url("/brand/mariva-wordmark.svg");
   -webkit-mask-repeat: no-repeat;
   -webkit-mask-size: contain;
+  will-change: transform, opacity;
 }
 
 /* Below ~900px the two-up row leaves the letters block stranded, so the footer
@@ -282,6 +318,12 @@
     padding-top: var(--space-4);
   }
 
+  /* The mark is a fifth of the width it has on a desktop, so the same window
+     leaves it floating in photograph. */
+  .reveal {
+    height: 56vh;
+  }
+
   .inner {
     gap: var(--space-3);
   }
@@ -292,5 +334,12 @@
 
   .lettersNote {
     max-width: 26ch;
+  }
+}
+
+/* No scrub to settle the frame out of its over-scale, so it starts settled. */
+@media (prefers-reduced-motion: reduce) {
+  .revealImage {
+    transform: none;
   }
 }
