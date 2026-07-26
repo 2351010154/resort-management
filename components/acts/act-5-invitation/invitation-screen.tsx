@@ -1,145 +1,173 @@
 "use client";
 
-// Act 5 — "The Invitation": long ivory->dark gradient bridge (no hard cut),
-// onsen steam at dusk with slow Ken Burns, centered serif chapter lines
-// cross-fading izanami-style, side collages sliding from the edges, and the
-// decorative CTA "Begin your stay" (locked wording) scrolling to the footer.
+// Act 5 — "The Invitation": the last full screen before the house's own pages.
+// One held photograph at dusk, a three-line address set small against the right
+// edge, and nothing else but the filled pill that hands over to the footer
+// (wolverine finale composition). The middle of the frame is left deliberately
+// empty so the last beat reads as calm rather than as more copy.
+//
+// The frame breathes rather than drifts one way: its scale is scrubbed off the
+// act's own progress, so scrolling down relaxes it and scrolling back up swells
+// it again. A one-way Ken Burns reads as a video playing; this reads as the
+// photograph answering the reader.
+//
+// The stage is CSS-sticky rather than pinned. A pin with `pinSpacing: false`
+// releases the moment the footer's top edge arrives, and the stage snaps out of
+// the viewport in one frame; sticky lets the same screen ride up under the
+// footer with nothing to hide.
 
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useEffect, useRef } from "react";
 import { arrivalImages } from "@/lib/arrival-image-manifest";
+import { tierSrc, tierSrcSet } from "@/lib/arrival-image-srcset";
 import { useLenis } from "@/lib/lenis-scroll-provider";
 import { scrollToAct } from "@/components/navigation/nav-hover-link";
 import { prefersReducedMotion } from "@/lib/webgl-support";
+import { DUR_SCENE, EASE_SCENE, EASE_UI, STAGGER_CASCADE } from "@/lib/motion-tokens";
 import styles from "./act-5-invitation.module.css";
 
-const BG = arrivalImages["act-6-invite"].find((img) =>
-  img.src.includes("onsen-steam-dusk"),
+// The lit pavilion rather than the onsen: this screen is the door being held
+// open, and it is the only frame in the act, so it carries a horizon.
+const PLATE = arrivalImages["act-6-invite"].find((img) =>
+  img.src.includes("welcome-pavilion"),
 )!;
 
-const CHAPTER_LINES = ["The world can wait.", "Your room cannot wait to meet you."];
+// Three lines, not four, and read at a fraction of the old display size: the
+// address is a spoken aside in the corner of the frame rather than a poster over
+// it. The turn ("until you return.") carries the italic, so the sentence lands
+// on its own change of voice instead of on scale.
+const HEADLINE = [
+  { text: "The world", italic: false },
+  { text: "can wait", italic: false },
+  { text: "until you return.", italic: true },
+];
 
-const SIDE_IMAGES = {
-  left: ["/images/act-6-invite/welcome-pavilion-640.webp", "/images/act-2-orbit/massage-stones-640.webp"],
-  right: ["/images/act-2-orbit/forest-champagne-640.webp", "/images/act-2-orbit/water-ladle-640.webp"],
-};
-
-const DARK = "#100e0c";
+/** Scale the frame is held at through the act: entering, settled, leaving. */
+const PLATE_SCALE = [1.14, 1.02, 1.1] as const;
 
 export function InvitationScreen() {
   const sectionRef = useRef<HTMLElement>(null);
-  const stageRef = useRef<HTMLDivElement>(null);
   const lenis = useLenis();
 
   useEffect(() => {
     const section = sectionRef.current;
-    if (!section) return;
-    if (prefersReducedMotion()) {
-      gsap.set(section, { backgroundColor: DARK });
-      gsap.set(
-        section.querySelectorAll(
-          `.${styles.bgImage}, .${styles.scrim}, .${styles.cta}, [data-chapter]:last-of-type`,
-        ),
-        { autoAlpha: 1 },
-      );
-      return;
-    }
+    if (!section || prefersReducedMotion()) return;
     gsap.registerPlugin(ScrollTrigger);
 
     const ctx = gsap.context(() => {
-      ScrollTrigger.create({
-        trigger: section,
-        start: "top top",
-        end: "bottom bottom",
-        pin: stageRef.current,
-        pinSpacing: false,
-      });
-      const lines = gsap.utils.toArray<HTMLElement>("[data-chapter]", section);
-      const tl = gsap.timeline({
-        defaults: { ease: "power2.inOut" },
-        scrollTrigger: {
-          trigger: section,
-          start: "top top",
-          end: "bottom bottom",
-          scrub: true,
-        },
-      });
-      tl
-        // No colour bridge to run: Act 4 now ends on this act's own dark, held
-        // by the rooms' tail fade, so the seam is already the same value on
-        // both sides. Opening on ivory would put a bright band across it.
-        //
-        // The steam comes up at the very top of the act rather than a sixth of
-        // the way in. Act 4's deck is still full when its pin releases, so a
-        // late fade left roughly a viewport and a half of flat black between
-        // the two.
-        .to(`.${styles.bgImage}`, { autoAlpha: 1, duration: 0.06 }, 0)
-        .to(`.${styles.scrim}`, { autoAlpha: 1, duration: 0.06 }, 0.01)
-        // Ken Burns across the whole dark stretch (izanami slow-media pace)
-        .fromTo(`.${styles.bgImage}`, { scale: 1 }, { scale: 1.09, duration: 0.86, ease: "none" }, 0.08)
-        // side collages slide in from the edges
+      const lines = section.querySelectorAll("[data-invite-line]");
+      // The hidden state is set here rather than in the stylesheet: a CSS
+      // `translateY(115%)` is parsed into a *pixel* y that `yPercent: 0` cannot
+      // undo, and the address would never arrive. Written on mount, with the act
+      // several screens below the fold, so there is nothing to flash.
+      gsap.set(lines, { yPercent: 115 });
+
+      // The address, once the veil is off it (Act 4's deck holds its pin to this
+      // act's top and its tail fade then wipes up over the first screen — see
+      // room-deck). Anything revealed before that plays behind the wipe.
+      gsap
+        .timeline({ scrollTrigger: { trigger: section, start: "top -100%", once: true } })
+        .to(lines, {
+          yPercent: 0,
+          duration: DUR_SCENE,
+          ease: EASE_SCENE,
+          stagger: STAGGER_CASCADE,
+        })
         .fromTo(
-          `.${styles.sideLeft}`,
-          { x: -80, autoAlpha: 0 },
-          { x: 0, autoAlpha: 0.85, duration: 0.14 },
-          0.3,
-        )
+          section.querySelectorAll("[data-invite-fade]"),
+          { autoAlpha: 0, y: 18 },
+          { autoAlpha: 1, y: 0, duration: 0.9, ease: EASE_UI, stagger: STAGGER_CASCADE },
+          0.35,
+        );
+
+      // The breath, across the held screen — relaxing out of the wipe, settled
+      // while the reading is on it, swelling again as the footer takes over.
+      gsap
+        .timeline({
+          defaults: { ease: "none" },
+          scrollTrigger: {
+            trigger: section,
+            start: "top top",
+            end: "bottom bottom",
+            scrub: true,
+          },
+        })
         .fromTo(
-          `.${styles.sideRight}`,
-          { x: 80, autoAlpha: 0 },
-          { x: 0, autoAlpha: 0.85, duration: 0.14 },
-          0.3,
+          `.${styles.plateImage}`,
+          { scale: PLATE_SCALE[0] },
+          { scale: PLATE_SCALE[1], duration: 0.62 },
+          0,
         )
-        // chapter cross-fades
-        .fromTo(lines[0], { autoAlpha: 0, yPercent: 20 }, { autoAlpha: 1, yPercent: 0, duration: 0.1 }, 0.32)
-        .to(lines[0], { autoAlpha: 0, yPercent: -16, duration: 0.08 }, 0.52)
-        .fromTo(lines[1], { autoAlpha: 0, yPercent: 20 }, { autoAlpha: 1, yPercent: 0, duration: 0.1 }, 0.58)
-        // CTA arrives on the held final chapter
-        .fromTo(`.${styles.cta}`, { autoAlpha: 0, y: 18 }, { autoAlpha: 1, y: 0, duration: 0.1 }, 0.74)
-        .to({}, { duration: 0.16 }, 0.84); // quiet hold
+        .to(`.${styles.plateImage}`, { scale: PLATE_SCALE[2], duration: 0.38 }, 0.62)
+        // The frame comes up with the veil, not after it: the wipe's edge would
+        // otherwise cut a lit photograph in half for a whole screen of scroll.
+        // Half the range is exactly the veil's travel (one viewport of the
+        // three this act is long).
+        .fromTo(
+          `.${styles.plate}`,
+          { opacity: 0.18 },
+          { opacity: 1, duration: 0.5, ease: "power2.in" },
+          0,
+        );
     }, section);
     return () => ctx.revert();
   }, []);
 
   return (
-    <section
-      ref={sectionRef}
-      data-act={5}
-      className={styles.section}
-      style={{ height: "350vh" }}
-    >
-      <div ref={stageRef} className={styles.stage}>
-        <img
-          className={styles.bgImage}
-          src={BG.src}
-          alt={BG.alt}
-          loading="lazy"
-        />
+    <section ref={sectionRef} data-act={5} className={styles.section}>
+      <div className={styles.stage}>
+        <div className={styles.plate}>
+          <img
+            className={styles.plateImage}
+            src={tierSrc(PLATE.src, 1920)}
+            srcSet={tierSrcSet(PLATE)}
+            sizes="100vw"
+            width={PLATE.width}
+            height={PLATE.height}
+            alt={PLATE.alt}
+            loading="lazy"
+            decoding="async"
+          />
+        </div>
         <div className={styles.scrim} aria-hidden />
-        <div className={`${styles.sideCollage} ${styles.sideLeft}`} aria-hidden>
-          {SIDE_IMAGES.left.map((src) => (
-            <img key={src} src={src} alt="" loading="lazy" />
-          ))}
+
+        <div className={styles.copy}>
+          <div className={styles.address}>
+            <h2 className={`font-display ${styles.headline}`}>
+              {HEADLINE.map((line) => (
+                <span key={line.text} className={styles.lineClip}>
+                  <span
+                    data-invite-line
+                    className={styles.line}
+                    data-italic={line.italic}
+                  >
+                    {line.text}
+                  </span>
+                </span>
+              ))}
+            </h2>
+            <span className={styles.rule} data-invite-fade aria-hidden />
+          </div>
+
+          <div className={styles.foot}>
+            <button
+              className={`caps-label ${styles.cta}`}
+              data-invite-fade
+              onClick={() => scrollToAct(lenis, 6)}
+            >
+              Begin your stay
+              <svg className={styles.ctaGlyph} viewBox="0 0 12 12" aria-hidden>
+                <path
+                  d="M6 1v9M2.4 6.6 6 10.4l3.6-3.8"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.1"
+                />
+              </svg>
+            </button>
+          </div>
         </div>
-        <div className={`${styles.sideCollage} ${styles.sideRight}`} aria-hidden>
-          {SIDE_IMAGES.right.map((src) => (
-            <img key={src} src={src} alt="" loading="lazy" />
-          ))}
-        </div>
-        <div className={styles.chapters}>
-          {CHAPTER_LINES.map((line) => (
-            <p key={line} data-chapter className={`font-display ${styles.chapterLine}`}>
-              {line}
-            </p>
-          ))}
-        </div>
-        <button
-          className={`caps-label ${styles.cta}`}
-          onClick={() => scrollToAct(lenis, 6)}
-        >
-          Begin your stay
-        </button>
       </div>
     </section>
   );

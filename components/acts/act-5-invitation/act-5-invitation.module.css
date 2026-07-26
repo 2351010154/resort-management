@@ -1,77 +1,133 @@
-/* Act 6 — the invitation: izanami dark screen, steam imagery, centered serif
-   chapters, quiet CTA. */
+/* Act 5 — the invitation: one held dusk frame, a small three-line address held
+   against the right edge, and the filled pill at the foot of the screen. */
 
 .section {
   position: relative;
   /* Act 4 hands over on this exact value, so the seam has nothing to bridge. */
   background: #100e0c;
   color: var(--ivory);
+  /* One screen for Act 4's veil to wipe off the frame, one for the reading to be
+     held, one for the hand-over into the footer. */
+  height: 300vh;
 }
 
 .stage {
-  position: relative;
+  position: sticky;
+  top: 0;
   height: 100vh;
   overflow: hidden;
 }
 
-.bgImage {
+/* The frame lives in its own clip so the breath never shows an edge. */
+.plate {
   position: absolute;
   inset: 0;
+  overflow: hidden;
+}
+
+.plateImage {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  opacity: 0;
-  will-change: transform, opacity;
-  /* the frame dissolves into the section's dark at its foot, so the handoff
-     into Act 7's stone panel has no cut line */
-  /* zero before 96%: Ken Burns scales the frame past the stage edge, so a fade
-     that only finishes at 100% would still be clipped mid-fade = a hard line */
-  mask-image: linear-gradient(to bottom, #000 62%, rgba(0, 0, 0, 0.32) 84%, transparent 94%);
-  -webkit-mask-image: linear-gradient(to bottom, #000 62%, rgba(0, 0, 0, 0.32) 84%, transparent 94%);
+  /* Matches the settled beat in the component, so the first paint is the frame
+     as it will be read rather than a jump at the first scroll event. */
+  transform: scale(1.14);
+  will-change: transform;
 }
 
-/* scrim instead of text-shadow: keeps the serif hairlines clean */
+/* Scrim instead of text-shadow: keeps the serif hairlines clean. Weighted to
+   the top for the address and to the foot for the reading, with the middle left
+   open so the pavilion still reads as lit. */
 .scrim {
   position: absolute;
   inset: 0;
-  background: radial-gradient(
-    ellipse at center,
-    rgba(16, 14, 12, 0.55) 0%,
-    rgba(16, 14, 12, 0.25) 55%,
-    rgba(16, 14, 12, 0.6) 100%
-  );
-  opacity: 0;
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(16, 14, 12, 0.72) 0%,
+      rgba(16, 14, 12, 0.34) 34%,
+      rgba(16, 14, 12, 0.28) 52%,
+      rgba(16, 14, 12, 0.78) 100%
+    ),
+    radial-gradient(120% 80% at 50% 40%, transparent 40%, rgba(16, 14, 12, 0.45) 100%);
 }
 
-.chapters {
+.copy {
   position: absolute;
   inset: 0;
-  display: grid;
-  place-items: center;
-  text-align: center;
-  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  /* The address is right-aligned; the pill keeps the centre of the foot, which
+     `.foot`'s own full width re-centres. */
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 13vh clamp(var(--space-3), 7vw, 7rem) 7vh;
+  text-align: right;
 }
 
-.chapterLine {
-  grid-area: 1 / 1;
-  font-size: var(--text-display);
-  line-height: 1.2;
-  max-width: 18ch;
+/* Held a little below the top edge: high enough to stay clear of the pill, low
+   enough that the roofline and the lit doorway are read before the words. */
+.address {
+  margin-top: 12vh;
+}
+
+.headline {
+  font-size: clamp(1.5rem, 2.6vw, 2.35rem);
+  line-height: 1.28;
+  letter-spacing: 0.005em;
+}
+
+.line[data-italic="true"] {
+  font-style: italic;
+}
+
+/* One hairline under the address — the only mark tying the words to the frame,
+   in place of the paragraph that used to fill the screen. */
+.rule {
+  display: block;
+  width: 3.25rem;
+  height: 1px;
+  margin-top: var(--space-2);
+  margin-left: auto;
+  background: rgba(240, 235, 226, 0.42);
   visibility: hidden;
   opacity: 0;
 }
 
+/* Each line rises out of its own clip — same reveal as Act 2's chapters. The
+   hidden state is written from JS (see the component), so reduced motion is left
+   with the address exactly as it reads once revealed. */
+.lineClip {
+  display: block;
+  overflow: hidden;
+  /* Literata's descenders are cropped by a clip drawn to the line box. */
+  padding-bottom: 0.06em;
+}
+
+.line {
+  display: block;
+}
+
+.foot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+/* Filled pill (wolverine finale cue): the one solid mark on the screen, so it
+   is unmistakably the way out of the ride. */
 .cta {
-  position: absolute;
-  left: 50%;
-  bottom: 16vh;
-  transform: translateX(-50%);
-  padding: 1em 2.4em;
-  border: 1px solid rgba(244, 239, 230, 0.45);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.9em;
+  padding: 1.15em 2.2em;
   border-radius: 999px;
-  color: var(--ivory);
+  background: var(--ivory);
+  color: var(--ink);
   transition:
-    border-color 0.5s var(--ease-ui),
+    background-color 0.5s var(--ease-ui),
     letter-spacing 0.5s var(--ease-ui);
   visibility: hidden;
   opacity: 0;
@@ -79,41 +135,58 @@
 
 .cta:hover,
 .cta:focus-visible {
-  border-color: rgba(244, 239, 230, 0.95);
-  letter-spacing: 0.3em;
+  background: #fff;
+  letter-spacing: 0.26em;
 }
 
 .cta:focus-visible {
   outline: 1px solid var(--ivory);
-  outline-offset: 4px;
+  outline-offset: 5px;
 }
 
-.sideCollage {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  width: 11vmin;
-  opacity: 0.85;
+.ctaGlyph {
+  width: 0.85em;
+  height: 0.85em;
+  transition: transform 0.5s var(--ease-ui);
 }
 
-.sideCollage img {
-  width: 100%;
-  height: auto;
-}
-
-.sideLeft {
-  left: var(--space-3);
-}
-
-.sideRight {
-  right: var(--space-3);
+.cta:hover .ctaGlyph,
+.cta:focus-visible .ctaGlyph {
+  transform: translateY(2px);
 }
 
 @media (max-width: 767px) {
-  .sideCollage {
-    display: none;
+  .copy {
+    padding: 15vh var(--space-2) 8vh;
+  }
+
+  .address {
+    margin-top: 8vh;
+  }
+
+  .headline {
+    font-size: clamp(1.35rem, 5.6vw, 1.75rem);
+  }
+}
+
+/* Nothing animates, so the act is one screen and the copy starts where the
+   reveal would have left it. */
+@media (prefers-reduced-motion: reduce) {
+  .section {
+    height: auto;
+  }
+
+  .stage {
+    position: relative;
+  }
+
+  .plateImage {
+    transform: none;
+  }
+
+  .rule,
+  .cta {
+    visibility: visible;
+    opacity: 1;
   }
 }
