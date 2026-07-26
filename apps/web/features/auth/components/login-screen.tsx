@@ -11,32 +11,38 @@
 
 import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { signInWithEmail } from "@/features/auth/lib/sign-in";
+import {
+  AFTER_SIGN_IN,
+  googleErrorMessage,
+  signInWithEmail,
+  signInWithGoogle,
+} from "@/features/auth/lib/sign-in";
 import styles from "./login-screen.module.css";
 
 /** Which field the strip is framed on. */
 type Pane = "email" | "password";
 
-// No authenticated surface exists yet, so a signed-in guest lands back on the
-// arrival. This becomes the funnel's first screen when there is one.
-const AFTER_SIGN_IN = "/";
-
-// Designed, not wired. The composition is settled here so the row cannot be
-// bolted on later at whatever width happens to be free, but neither provider
-// has an OAuth client yet and a button that silently does nothing is worse than
-// one that says it is not ready. Wiring one is `enabled: true` plus a call to
-// Better Auth's /sign-in/social — the API already keeps a guest_account row per
-// provider for exactly this.
+// Google is wired; Apple is not, and says so rather than doing nothing when
+// pressed. The row's composition was settled before either had an OAuth client
+// so it could not be bolted on later at whatever width happened to be free.
 const PROVIDERS = [
-  { id: "google", label: "Google", enabled: false },
+  { id: "google", label: "Google", enabled: true },
   { id: "apple", label: "Apple", enabled: false },
 ] as const;
 
-export function LoginScreen() {
+export function LoginScreen({
+  /** The `?error=…` Better Auth redirects here with when a Google sign-in did
+   *  not complete. Read on the server and handed down — see the page. */
+  googleError = null,
+}: {
+  readonly googleError?: string | null;
+}) {
   const router = useRouter();
   const [pane, setPane] = useState<Pane>("email");
   const [revealed, setRevealed] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(
+    googleError ? googleErrorMessage(googleError) : null,
+  );
   const [pending, setPending] = useState(false);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -56,6 +62,24 @@ export function LoginScreen() {
       router.push(AFTER_SIGN_IN);
       // Left pending: the navigation is in flight and the button should not
       // offer itself again in the meantime.
+      return;
+    }
+
+    setError(result.message);
+    setPending(false);
+  }
+
+  async function onGoogle() {
+    if (pending) return;
+
+    setPending(true);
+    setError(null);
+
+    const result = await signInWithGoogle();
+
+    if (result.ok) {
+      // The browser is on its way to Google. Left pending for the same reason
+      // as above: the button should not offer itself again mid-navigation.
       return;
     }
 
@@ -176,8 +200,13 @@ export function LoginScreen() {
                   <button
                     className={styles.provider}
                     type="button"
-                    disabled={!provider.enabled}
-                    aria-label={`Continue with ${provider.label} — not available yet`}
+                    disabled={!provider.enabled || pending}
+                    aria-label={
+                      provider.enabled
+                        ? `Continue with ${provider.label}`
+                        : `Continue with ${provider.label} — not available yet`
+                    }
+                    onClick={provider.id === "google" ? onGoogle : undefined}
                   >
                     <ProviderIcon
                       className={styles.providerIcon}
@@ -232,11 +261,11 @@ function EyeIcon({ className, open }: { className: string; open: boolean }) {
   );
 }
 
-// Monochrome marks rather than the providers' own brand lockups: the reference
-// composition sets these as plain dark glyphs, and a correct Google wordmark
-// carries four brand colours that answer to Google's guidelines rather than to
-// this palette. They are swapped for the official marks when the buttons are
-// wired, which is when those guidelines start applying.
+// Google's mark is the official four-colour G, because the button now actually
+// offers Google sign-in and their brand guidelines apply from that moment — a
+// recoloured G on a live button is a term of use, not a palette decision. Apple
+// stays a monochrome glyph, which is what the reference composition sets and
+// what an unwired button is entitled to; it changes when that button does.
 function ProviderIcon({
   className,
   provider,
@@ -258,13 +287,29 @@ function ProviderIcon({
   }
 
   return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      aria-hidden="true"
-    >
-      <path d="M12 10.2v3.9h5.5c-.2 1.4-1.7 4.2-5.5 4.2-3.3 0-6-2.7-6-6.1s2.7-6.1 6-6.1c1.9 0 3.2.8 3.9 1.5l2.7-2.6C16.9 3.4 14.7 2.4 12 2.4 6.7 2.4 2.4 6.7 2.4 12S6.7 21.6 12 21.6c5.5 0 9.2-3.9 9.2-9.4 0-.6-.1-1.1-.2-1.6H12Z" />
+    <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
+      {/* The official G fills its own box edge to edge, where the Apple glyph
+          beside it is drawn with margins. Scaled about its centre so the two
+          discs read as one row — uniform, so the mark's proportions and
+          colours are still Google's own. */}
+      <g transform="translate(12 12) scale(0.82) translate(-12 -12)">
+        <path
+          fill="#4285F4"
+          d="M23.52 12.27c0-.79-.07-1.54-.2-2.27H12v4.51h6.47a5.54 5.54 0 0 1-2.4 3.63v3.02h3.88c2.27-2.09 3.57-5.17 3.57-8.89Z"
+        />
+        <path
+          fill="#34A853"
+          d="M12 24c3.24 0 5.95-1.08 7.94-2.91l-3.87-3.02c-1.08.72-2.45 1.15-4.07 1.15-3.13 0-5.78-2.11-6.73-4.95H1.28v3.11A11.995 11.995 0 0 0 12 24Z"
+        />
+        <path
+          fill="#FBBC05"
+          d="M5.27 14.27a7.19 7.19 0 0 1 0-4.55V6.61H1.28a12 12 0 0 0 0 10.77l3.99-3.11Z"
+        />
+        <path
+          fill="#EA4335"
+          d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.44-3.44C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.69 1.28 6.61l3.99 3.11C6.22 6.88 8.87 4.75 12 4.75Z"
+        />
+      </g>
     </svg>
   );
 }

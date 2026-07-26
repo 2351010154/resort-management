@@ -348,6 +348,13 @@
     opacity 0.4s var(--ease-ui);
 }
 
+/* Only the wired one answers, so only the wired one lights up. Border alone,
+   because the mark inside it is Google's and is not ours to dim or tint. */
+.provider:hover:not(:disabled),
+.provider:focus-visible:not(:disabled) {
+  border-color: rgb(var(--ink-rgb) / 0.38);
+}
+
 .provider:disabled {
   opacity: 0.4;
   cursor: default;

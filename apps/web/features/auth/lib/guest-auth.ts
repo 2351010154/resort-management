@@ -34,17 +34,18 @@ const MESSAGES = {
 export const MIN_PASSWORD_LENGTH = 12;
 
 /**
- * Where the API sends a guest after it has acted on an emailed link.
+ * Where the API sends a guest after it has acted on an emailed link, or on a
+ * round trip to Google.
  *
  * Absolute and on this origin, both deliberately. A relative path would resolve
  * against the API's own origin and land the guest on a JSON endpoint, and an
  * origin the API does not trust is refused outright — `trustedOrigins` in
  * guest-auth.factory.ts is the list, and this is the site on it.
  */
-function origin(): string {
-  // Every caller below runs in a submit handler, so there is always a window.
-  // A server-side fallback here would be a second source for this value and a
-  // branch no test could reach.
+export function origin(): string {
+  // Every caller runs in a submit or click handler, so there is always a
+  // window. A server-side fallback here would be a second source for this
+  // value and a branch no test could reach.
   return window.location.origin;
 }
 
