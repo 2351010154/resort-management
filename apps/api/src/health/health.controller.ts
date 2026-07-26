@@ -6,6 +6,7 @@ import {
 } from "@nestjs/common";
 import { InjectPinoLogger, type PinoLogger } from "nestjs-pino";
 import type pg from "pg";
+import { Unguarded } from "../common/auth/access.decorators.js";
 import { PG_POOL } from "../database/database.module.js";
 
 type HealthReport = {
@@ -24,6 +25,11 @@ export class HealthController {
     @InjectPinoLogger("HealthController") private readonly logger: PinoLogger,
   ) {}
 
+  // The probe holds no credential and could not be given one: Fly restarts this
+  // process on the answer, and Better Stack polls it from outside the network.
+  // What it discloses is whether the process can reach its database, which is
+  // what an unanswered TCP connection would disclose anyway.
+  @Unguarded("liveness probe — reveals only up or down, and holds no session")
   @Get()
   async check(): Promise<HealthReport> {
     try {

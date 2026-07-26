@@ -24,5 +24,10 @@
     "sourceMap": true
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["dist", "node_modules"]
+
+  // Specs sit beside what they test — repository-structure.md §apps/api — but
+  // they are not part of the deployed artifact. Excluded here and picked up by
+  // tsconfig.test.json instead, so `dist/` holds the application and nothing
+  // else while the tests still get typechecked.
+  "exclude": ["dist", "node_modules", "src/**/*.spec.ts"]
 }

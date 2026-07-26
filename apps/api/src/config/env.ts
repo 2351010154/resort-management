@@ -20,7 +20,45 @@ export const envSchema = z.object({
   LOG_LEVEL: z
     .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
     .default("info"),
-});
+
+  // Where this API answers from, as the browser sees it. Better Auth builds
+  // callback URLs and cookie domains from it, so a wrong value here produces a
+  // sign-in that succeeds and a session that never arrives.
+  API_URL: z.url().default("http://localhost:3001"),
+
+  // The public site. It is the only origin allowed to send credentialed
+  // requests, and the base of every link in a verification or reset email.
+  WEB_ORIGIN: z.url().default("http://localhost:3000"),
+
+  // Better Auth signs guest session cookies with this. Thirty-two characters is
+  // the library's own floor; below it the signature is not worth computing.
+  BETTER_AUTH_SECRET: z
+    .string()
+    .min(32, "must be at least 32 characters — `openssl rand -base64 32`"),
+
+  // A **different** secret signs staff access tokens. Sharing one key across
+  // the realms would mean a single leak forges both, which is the failure the
+  // two-realm split in docs/architecture/rbac-matrix.md §1 exists to bound.
+  STAFF_JWT_SECRET: z
+    .string()
+    .min(32, "must be at least 32 characters, and not BETTER_AUTH_SECRET"),
+
+  // Transactional email. Absent, the mailer writes the message to the log
+  // instead of sending it — usable in development, and refused at boot in
+  // production by the check below.
+  RESEND_API_KEY: z.string().min(1).optional(),
+
+  MAIL_FROM: z.string().min(1).default("Mariva <no-reply@mariva.local>"),
+})
+  .refine((env) => env.BETTER_AUTH_SECRET !== env.STAFF_JWT_SECRET, {
+    path: ["STAFF_JWT_SECRET"],
+    message: "must differ from BETTER_AUTH_SECRET — one leak must not forge both realms",
+  })
+  .refine((env) => env.NODE_ENV !== "production" || Boolean(env.RESEND_API_KEY), {
+    path: ["RESEND_API_KEY"],
+    message:
+      "is required in production — without it, verification and reset emails are only logged",
+  });
 
 export type Env = Readonly<z.infer<typeof envSchema>>;
 

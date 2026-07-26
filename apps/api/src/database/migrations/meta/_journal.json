@@ -8,6 +8,13 @@
       "when": 1785064202194,
       "tag": "0000_enable_btree_gist",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1785065220215,
+      "tag": "0001_auth_realms",
+      "breakpoints": true
     }
   ]
 }

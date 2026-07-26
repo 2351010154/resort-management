@@ -10,7 +10,10 @@
     "db:migrate": "drizzle-kit migrate",
     "dev": "nest start --watch",
     "start": "node dist/main.js",
-    "typecheck": "tsc --noEmit"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "staff:create": "node dist/modules/identity/create-staff-account.script.js",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json"
   },
   "dependencies": {
     "@nestjs/common": "11.1.28",
@@ -21,6 +24,7 @@
     "@node-rs/argon2": "2.0.2",
     "better-auth": "1.6.25",
     "drizzle-orm": "0.45.2",
+    "express": "5.2.1",
     "nestjs-pino": "4.6.1",
     "passport": "0.7.0",
     "passport-jwt": "4.0.1",
@@ -34,6 +38,8 @@
   "devDependencies": {
     "@nestjs/cli": "11.0.24",
     "@nestjs/testing": "11.1.28",
+    "@swc/core": "1.15.4",
+    "@types/express": "5.0.6",
     "@types/node": "24.13.3",
     "@types/passport-jwt": "4.0.1",
     "@types/pg": "8.20.0",
@@ -41,6 +47,7 @@
     "drizzle-kit": "0.31.10",
     "supertest": "7.2.2",
     "typescript": "5.6.3",
+    "unplugin-swc": "1.5.7",
     "vitest": "4.1.10"
   }
 }
