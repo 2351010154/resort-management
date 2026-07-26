@@ -9,6 +9,10 @@ allowBuilds:
   unrs-resolver: true
   # Fetches the browser binaries the capture scripts in apps/web/scripts drive.
   playwright: true
+  # drizzle-kit bundles esbuild to compile drizzle.config.ts and the schema on
+  # the fly. Its install script links the platform binary; unlinked, every
+  # drizzle-kit command fails before it reads the config.
+  esbuild: true
   # Next 15 brings sharp in for image optimisation. The arrival serves plain
   # <img>, so nothing reaches it today, but pnpm refuses to finish an install
   # that leaves a build script unanswered, and sharp's only unpacks a prebuilt
