@@ -134,11 +134,12 @@ section.*
 
 - **M1 is done.** All ten rows, Biome as the one workspace linter (`86163f1`,
   which deleted `apps/web/eslint.config.mjs`) and lefthook running format and
-  typecheck on commit (`4cccf53`). Two loose ends belong to no row and are
-  therefore easy to lose: `apps/web/stylelint.config.mjs` is **orphaned** — the
-  config is committed, the dependency and the lint script are not — and
-  `stash@{0}` still carries reduced-motion and alt-text fixes for four act files
-  that never landed.
+  typecheck on commit (`4cccf53`). One of its two loose ends is closed:
+  stylelint is installed and chained into the root `lint` CI runs (`e771d26`).
+  The other is `stash@{0}`, and it is smaller than it looks — its `--night`
+  token and its motion-token wiring have both landed since by other routes.
+  What is still only in the stash: act 1's reduced-motion `Scroll` cue and the
+  `arcade-poster` alt text.
 - **M2's auth epic is closed.** `P0-AUTH-01` through `04` are `done` at
   `eb05243`: staff on Passport-JWT with argon2, guests on Better Auth, a
   **fail-closed** global access guard (a route without a capability decorator
@@ -160,13 +161,13 @@ section.*
 - **The design record is complete and ahead of the code** — seven architecture
   documents, eleven coursework chapters, eight figures — plus `screens.md`, the
   screen inventory.
-- **The branch is `chore/web-react19-next16` and it is 17 commits ahead of
-  `origin`.** `main` is far behind it and there is no pull request yet. By §7
-  check 1 that is the largest single piece of exposure on the board.
-- **Two writers are in this tree at once.** Act 2 and act 4 refinements were
-  being written while the commits above were being made. Nothing collided —
-  the second writer was building on top — but §11's fourth question is no
-  longer hypothetical.
+- **The branch is pushed and `#2` is open against `main`** — 46 commits. §7
+  check 1 is satisfied for the first time; keep it that way.
+- **More than one writer is in this tree at once, right now.** Act 2 and act 4
+  refinements, and separately a booking feature directory in `apps/web` and a
+  rate calendar in `packages/shared`, are all uncommitted while the commits
+  above were being made. Nothing has collided — each writer has been building on
+  top — but §11's fourth question stopped being hypothetical two writers ago.
 
 ## 7. How to answer "what should I do next?"
 
@@ -194,19 +195,16 @@ Two things run **outside** this loop and should be done whenever you notice them
 *Ordered. Dated 2026-07-26 evening; re-derive with §7 rather than trusting this
 list in two weeks.*
 
-1. **Push.** Seventeen commits exist only here. Everything below is worth less
-   than getting them onto `origin`, and §7 check 1 says so for a reason: work in
-   one working tree is not work, it is exposure. Opening the pull request against
-   `main` is the same ten minutes.
-2. **Clear M1's two loose ends** — neither has a backlog row, which is exactly
-   why they have survived this long:
-   - `apps/web/stylelint.config.mjs` is orphaned. Either add the dependency and
-     the lint script, or delete the config. A config nothing runs is a rule
-     nobody is following and everybody assumes is enforced.
-   - `stash@{0}` carries reduced-motion and alt-text fixes for four act files.
-     Everything else in it is already in the tree, so rebase those four out and
-     drop the rest — but check them against the act 4 and act 5 work that landed
-     since, because those files have moved underneath the stash.
+1. ~~**Push.**~~ Done — `#2`, 46 commits. The rule it came from stands: land
+   work the day you write it.
+2. **Clear what is left of M1's loose ends** — neither has a backlog row, which
+   is exactly why they have survived this long:
+   - ~~`apps/web/stylelint.config.mjs` is orphaned.~~ Installed at `e771d26`.
+   - `stash@{0}` is down to two fixes: act 1's reduced-motion `Scroll` cue
+     (`act-1-gathering.tsx:188` still holds the old `animate ?`) and the
+     `arcade-poster` alt text in `threshold-arches.tsx`. Its `--night` token and
+     its stylelint suppressions have both landed by other routes, so take those
+     two hunks and drop the stash rather than trying to apply it.
 3. **Send the four questions you have been sitting on.** Ten minutes total:
    the professor (`D8`, strict UML or generated Mermaid — it decides which
    generator you build), the accountant (`M0-01`, existing e-invoice provider),
