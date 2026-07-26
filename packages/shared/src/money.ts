@@ -1,9 +1,13 @@
 // Money is an integer count of đồng. VND has no minor unit, so there is nothing
 // to round and no reason for a decimal type — and the moment an amount becomes
-// a float the ledger stops balancing. The database column is bigint, but every
-// amount this property can produce (a night, a folio, a year of revenue) sits
-// orders of magnitude below Number.MAX_SAFE_INTEGER, so amounts cross the wire
-// as JSON numbers rather than strings.
+// a float the ledger stops balancing.
+//
+// The type is `bigint`, matching the bigint column the folio is stored in. Not
+// because a room rate needs the range: it is because `bigint` and `number` do
+// not mix in TypeScript, so an amount cannot be added to a count, a percentage
+// or a night — arithmetic that compiles silently when both sides are `number`
+// and is wrong every time. The contract carries it natively; the one place it
+// has to become JSON is `formatVnd`, which produces text nobody parses back.
 
 import { z } from "zod";
 
@@ -15,7 +19,7 @@ export const PROPERTY_CURRENCY = "VND" as const;
  * magnitudes instead, which is how a ledger loses the trail that makes it
  * auditable.
  */
-export const vndAmountSchema = z.number().int();
+export const vndAmountSchema = z.bigint();
 
 export type VndAmount = z.infer<typeof vndAmountSchema>;
 
