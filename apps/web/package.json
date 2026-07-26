@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@mariva/shared": "workspace:*",
-    "@react-three/fiber": "8.17.10",
+    "@react-three/fiber": "9.6.1",
     "gsap": "3.13.0",
     "lenis": "1.1.17",
     "next": "^14.2.35",
