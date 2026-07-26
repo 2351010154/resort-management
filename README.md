@@ -11,15 +11,25 @@ apps/admin           Next.js — front desk and management, keyboard-first
 apps/web             Next.js — the public origin: the marketing arrival and the booking funnel
 packages/shared      zod schemas and the types inferred from them; the contract every app reads
 packages/api-client  typed fetch wrapper over the API, validating with the shared schemas
+packages/tokens      tokens.css — the one definition of the brand, imported by every app
 docs/                architecture, generated diagrams, traceability
 ```
 
-Only `apps/web` and `packages/shared` have code. The rest are reserved
-boundaries: the directory tree exists, the work that fills it has not started.
+`apps/web`, `apps/api`, `packages/shared` and `packages/tokens` have code.
+`apps/admin` and `packages/api-client` are reserved boundaries: the directory
+tree exists, the work that fills it has not started.
 [`docs/architecture/repository-structure.md`](docs/architecture/repository-structure.md)
-is the authority on what goes where and why, and
-`plans/reports/advise-260726-0939-resort-pms.md` on the architecture being built
-toward.
+is the authority on what goes where and why.
+
+## Documentation
+
+New here, or back after a break? [`docs/orientation.md`](docs/orientation.md) —
+what the system is, the one invariant that must never break, the road, and how to
+work out what to do next.
+
+[`docs/README.md`](docs/README.md) is the authority map: it points every fact
+domain — structure, roles, booking states, stack, infrastructure, backlog — to
+the one document that owns it.
 
 ### Route groups in `apps/web`
 
@@ -31,7 +41,7 @@ WebGL bundle in its tree. Route groups do not appear in URLs:
 
 ## Getting started
 
-Requires Node 20 (see `.nvmrc`) and pnpm — the version is pinned in the root
+Requires Node 24 (see `.nvmrc`) and pnpm — the version is pinned in the root
 `package.json` `packageManager` field, so `corepack enable` will fetch it.
 
 ```bash
