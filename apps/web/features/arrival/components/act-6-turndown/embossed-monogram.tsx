@@ -18,7 +18,7 @@ export function EmbossedMonogram({
   triggerRef,
 }: {
   intensity: EmbossIntensity;
-  triggerRef: RefObject<HTMLElement>;
+  triggerRef: RefObject<HTMLElement | null>;
 }) {
   const embossRef = useRef<HTMLDivElement>(null);
 
