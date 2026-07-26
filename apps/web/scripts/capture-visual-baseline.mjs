@@ -96,14 +96,17 @@ async function freezeMedia(page, at) {
 
     await Promise.all(
       [...document.querySelectorAll("video")].map(async (video) => {
+        // HAVE_CURRENT_DATA. Seeking before the decoder has a frame leaves the
+        // element showing whatever it had — which for a video the page has not
+        // played yet is nothing at all, and a video texture with nothing in it
+        // renders black over whatever it was supposed to be tinting.
+        if (video.readyState < 2) {
+          video.load();
+          await Promise.race([once(video, "loadeddata", 3000), deadline(3000)]);
+        }
         video.pause();
         video.autoplay = false;
         video.loop = false;
-
-        // HAVE_CURRENT_DATA. Seeking before the decoder has a frame leaves the
-        // element showing whatever it had — which is what made act 4 differ
-        // between runs.
-        if (video.readyState < 2) await once(video, "loadeddata", 3000);
         if (video.readyState < 2) return;
 
         if (Math.abs(video.currentTime - time) < 0.001) return;

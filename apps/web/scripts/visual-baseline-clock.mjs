@@ -47,15 +47,12 @@ export const VIRTUAL_CLOCK = `(() => {
   performance.now = () => now;
   Date.now = () => ORIGIN + now;
 
-  // Media playback advances on its own clock, which no amount of frame
-  // stepping controls. The capture seeks each element to a fixed time instead,
-  // so play() has to stop being able to move it.
-  const media = window.HTMLMediaElement;
-  if (media) {
-    media.prototype.play = function play() {
-      return Promise.resolve();
-    };
-  }
+  // Media is deliberately left alone here. Playback does advance on a clock
+  // this cannot reach, but stubbing play() out is worse than the problem: an
+  // element that is never played is, for several of these videos, never
+  // decoded either, and an undecoded video is a black texture. The capture
+  // pauses and seeks each one to a fixed frame instead, which pins it just as
+  // firmly and leaves it with something to show.
 
   window.__baselineClock = {
     /** Run the queued frame callbacks \`frames\` times, advancing 1/60s each. */
