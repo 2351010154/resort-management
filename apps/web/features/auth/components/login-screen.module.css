@@ -87,8 +87,11 @@
    own light to arrive gradually. The short version resolved before the eye
    stopped reading it as an edge. */
 .plate[data-plate="b"] .plateImage {
+  /* stylelint-disable color-named -- `black` in a mask is not a colour, it is
+     the opaque end of the alpha channel. The plate underneath is --ivory. */
   mask-image: linear-gradient(to right, transparent 0%, black 22%);
   -webkit-mask-image: linear-gradient(to right, transparent 0%, black 22%);
+  /* stylelint-enable color-named */
 }
 
 /* A light wash, not a dark one. The terrace is a pale plate — sky, stone floor,

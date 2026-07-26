@@ -7,15 +7,16 @@
   position: relative;
   min-height: 78vh;
   background:
-    /* warm stone bloom kept clear of the top edge — anything there reads as a
+/* warm stone bloom kept clear of the top edge — anything there reads as a
        step against Act 6's --night and the seam reappears */
     radial-gradient(
       95% 55% at 50% 46%,
       rgb(var(--dusk-amber-rgb) / 0.1) 0%,
       transparent 60%
     ),
-    /* #141210 is the one step warmer the panel settles on — not a token, it
-       exists only as the far end of this gradient */
+    /* stylelint-disable-next-line color-no-hex -- The far stop is the one step
+       of warming this panel does, measured against --night rather than chosen
+       from the palette. It exists only as the other end of this gradient. */
     linear-gradient(var(--night) 0%, #141210 40vh);
   color: var(--ivory);
   overflow: hidden;
@@ -74,11 +75,17 @@
 }
 
 .embossFace {
+  /* stylelint-disable-next-line color-no-hex -- The face is stone under raking
+     light, not a surface in the palette: the two stops are the lit and shaded
+     sides of one bevel and only mean anything as a pair. Tokens for them would
+     exist for this one glyph. */
   background: linear-gradient(160deg, #211d18 0%, #17130f 100%);
 }
 
 .emboss[data-intensity="deep"] .embossShadow {
-  background: #000;
+  /* The same shadow as above at full strength — written the same way so the
+     pair reads as one value turned up, which is what "deep" means here. */
+  background: rgba(0, 0, 0, 1);
   transform: translate(-2px, -3px);
   filter: blur(2.5px);
 }
@@ -90,6 +97,8 @@
 }
 
 .emboss[data-intensity="deep"] .embossFace {
+  /* stylelint-disable-next-line color-no-hex -- Same bevel, lit harder: only
+     the near stop moves. See .embossFace. */
   background: linear-gradient(160deg, #2b241c 0%, #17130f 100%);
 }
 
@@ -263,13 +272,12 @@
 .revealScrim {
   position: absolute;
   inset: 0;
-  background:
-    linear-gradient(
-      to bottom,
-      rgb(var(--night-rgb) / 0.5) 0%,
-      rgb(var(--night-rgb) / 0.28) 55%,
-      rgb(var(--night-rgb) / 0.62) 100%
-    );
+  background: linear-gradient(
+    to bottom,
+    rgb(var(--night-rgb) / 0.5) 0%,
+    rgb(var(--night-rgb) / 0.28) 55%,
+    rgb(var(--night-rgb) / 0.62) 100%
+  );
 }
 
 /* Sits low in the layer — where the band's own top edge has already passed it,

@@ -9,6 +9,11 @@
    eye has to re-adapt to — that is the whole reason it no longer opens on the
    ivory the page ends on. */
 .section {
+  /* stylelint-disable color-no-hex -- These five are not design colours and
+     must not become tokens: they are pixels read off the backdrop encode. Their
+     job is to match footage, so they change when the footage is re-cut and
+     never for a palette reason. In the token package they would invite exactly
+     the wrong edit. */
   --sea-standin: linear-gradient(
     to bottom,
     #3d86ad 0%,
@@ -17,6 +22,7 @@
     #7cb0be 74%,
     #0f6e80 100%
   );
+  /* stylelint-enable color-no-hex */
   background: var(--ivory);
 }
 
