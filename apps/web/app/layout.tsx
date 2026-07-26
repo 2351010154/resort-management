@@ -1,9 +1,12 @@
 import type { Metadata } from "next";
 import { DM_Mono, Literata } from "next/font/google";
-import { LenisScrollProvider } from "@/lib/lenis-scroll-provider";
-import { ConciergeNav } from "@/components/navigation/concierge-nav";
-import { ActiveActTracker } from "@/components/navigation/active-act-tracker";
 import "./globals.css";
+
+// The root layout carries only what every route on this domain needs: the
+// document shell, the type family, and the design tokens. Nothing that pulls
+// three / gsap / lenis belongs here — a provider mounted at the root is in the
+// tree of every route, so it would drag the whole WebGL bundle into the booking
+// funnel. The arrival's scroll machinery lives in app/(marketing)/layout.tsx.
 
 // The oryzo.ai pairing: Literata carries the display line, DM Mono every label
 // and caps run. Both are variable-free swaps for the CSS custom properties, so
@@ -33,13 +36,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={`${display.variable} ${ui.variable}`}>
-      <body>
-        <LenisScrollProvider>
-          <ConciergeNav />
-          <ActiveActTracker />
-          {children}
-        </LenisScrollProvider>
-      </body>
+      <body>{children}</body>
     </html>
   );
 }
