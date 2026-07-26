@@ -60,6 +60,14 @@ class RecordingMailer {
   }
 }
 
+// The guest realm registers Google from the environment, and an OAuth client
+// belongs in neither this repository nor a file every developer has to be told
+// to edit — so the suite supplies its own before the app boots. Nothing below
+// contacts Google: what is asserted is the authorize URL this API builds, and
+// the client id is the part of it Google would only echo back.
+process.env.GOOGLE_CLIENT_ID = "mariva-test.apps.googleusercontent.com";
+process.env.GOOGLE_CLIENT_SECRET = "mariva-test-client-secret";
+
 const ADMIN = {
   email: "owner@mariva.test",
   fullName: "Trần Minh",
@@ -388,6 +396,39 @@ describe("the guest realm", () => {
       .post("/api/auth/sign-out")
       .set("origin", "http://localhost:3000")
       .expect(200);
+  });
+
+  it("sends a guest choosing Google to an authorize URL Google will honour", async () => {
+    const response = await http()
+      .post("/api/auth/sign-in/social")
+      .send({
+        provider: "google",
+        callbackURL: "http://localhost:3000/",
+        errorCallbackURL: "http://localhost:3000/login",
+      })
+      .expect(200);
+
+    const url = new URL(response.body.url as string);
+
+    expect(`${url.origin}${url.pathname}`).toBe(
+      "https://accounts.google.com/o/oauth2/v2/auth",
+    );
+
+    // The one parameter Google matches character for character against what is
+    // registered in its console, and the one this API decides: the guest
+    // realm's base path plus Better Auth's own callback route. A change to
+    // either end of that string is a sign-in that stops working in production
+    // and nowhere else.
+    expect(url.searchParams.get("redirect_uri")).toBe(
+      "http://localhost:3001/api/auth/callback/google",
+    );
+
+    // Configured, not defaulted — Google omits the chooser without it and
+    // signs the browser's current account in silently.
+    expect(url.searchParams.get("prompt")).toBe("select_account");
+
+    // Without the address there is nothing to match a returning guest on.
+    expect(url.searchParams.get("scope")).toContain("email");
   });
 
   it("resets a password, and the old one stops working", async () => {

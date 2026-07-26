@@ -91,6 +91,46 @@ export function createGuestAuth(deps: {
       revokeSessionsOnPasswordReset: true,
     },
 
+    // Registered only when both halves of the credential are present. Better
+    // Auth would otherwise publish /sign-in/social and send the guest to an
+    // authorize URL Google rejects — a boot that looks healthy until somebody
+    // clicks. env.ts refuses production without them, so the absent branch is
+    // development only.
+    socialProviders:
+      env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET
+        ? {
+            google: {
+              clientId: env.GOOGLE_CLIENT_ID,
+              clientSecret: env.GOOGLE_CLIENT_SECRET,
+
+              // Without this Google signs the guest straight back in as
+              // whichever account the browser already holds, which on a shared
+              // machine books a room under someone else's name. The chooser
+              // costs one click and makes whose account this is a decision.
+              prompt: "select_account",
+            },
+          }
+        : {},
+
+    account: {
+      accountLinking: {
+        // A guest who signed up with a password and later presses Google is one
+        // guest, not two rows. Better Auth links them when Google says the
+        // address is verified **and** the Mariva account already proved the
+        // same address itself — the second half is what stops a stranger
+        // registering someone's address, never confirming it, and being handed
+        // the account the day its owner arrives by Google. That gate is the
+        // library's, and it is on its way to being unconditional; this is here
+        // to say the linking it guards is wanted.
+        enabled: true,
+
+        // Empty on purpose. A trusted provider skips the `email_verified`
+        // check above, and there is no provider here worth trusting further
+        // than what it puts in the token.
+        trustedProviders: [],
+      },
+    },
+
     emailVerification: {
       sendOnSignUp: true,
       autoSignInAfterVerification: true,
