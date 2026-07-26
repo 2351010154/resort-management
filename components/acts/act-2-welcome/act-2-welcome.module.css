@@ -30,11 +30,12 @@
   pointer-events: none;
   mix-blend-mode: multiply;
   /* Sits between the two content layers rather than under both: the shadow
-     falls across the chapter photographs (z-index 0) the way it falls across
-     the wall, and stops short of the type (z-index 2), which has to stay
-     crisp. Only works because nothing between here and .section makes its own
+     falls across the chapter photographs the way it falls across the wall, and
+     stops short of the reading, which has to stay crisp. The act's whole
+     z-scale is written to hold that sandwich open — see the chapters block.
+     Only works because nothing between here and .section makes its own
      stacking context. */
-  z-index: 1;
+  z-index: 5;
 }
 
 /* Pinned to the viewport for the length of the act: the window throwing the
@@ -76,7 +77,8 @@
 
 .copy {
   position: relative;
-  z-index: 2;
+  /* Reading level: above the gobo, like every chapter's type. */
+  z-index: 6;
   text-align: center;
   padding: var(--space-3);
 }
@@ -120,37 +122,100 @@
    three overlapping photographs on the far side. Alternate panels mirror the
    whole arrangement so the rhythm never repeats twice running.
 
-   No stacking context on .chapters or .chapter — the gobo's multiply reaches
-   the photographs through them (see .goboWrap). */
+   The panels stack: each one pins to the top of the viewport and the next
+   slides up over it. Each panel is therefore two overlaid sticky layers rather
+   than one — the plate (wall, ruled edge, photographs) and the type — because
+   sticky makes a stacking context, and one sticky panel would flatten both
+   sides of the gobo's sandwich into a single layer. The act paints in this
+   order:
+
+     1 + i   panel plates
+     5       .goboWrap — the leaf shadow, multiplied
+     6 + i   panel type, and the welcome line alongside it
+
+   so the shadow still crosses the wall and the photographs and still stops
+   short of the reading. Nothing between .section and a layer may make a
+   stacking context: keep .chapters and .chapter free of z-index, transform,
+   filter, and sticky or fixed positioning.
+
+   What the split costs: a plate cannot occlude the type of the panel it is
+   covering, since every type sits above every plate. That type is clipped to
+   the incoming plate's top edge instead (welcome-chapters.tsx) — the same
+   straight edge, arrived at the other way round. */
 .chapters {
   position: relative;
-  max-width: 1560px;
-  margin-inline: auto;
   /* Shared with the outward-hanging tile below, which bleeds exactly this far
      so its outer edge lands flush with the page edge instead of near it. */
   --gutter: clamp(1.25rem, 4vw, 4.5rem);
-  padding-inline: var(--gutter);
+  /* Scroll a panel holds still for after it lands and before the next one
+     covers it. The reveal finishes here and the tile flip runs inside it. */
+  --dwell: 45vh;
 }
 
+/* No box of its own: the layers take their sticky containing block from
+   .chapters, or each panel would unpin at the end of its own article instead
+   of holding until the next panel has covered it. */
 .chapter {
-  position: relative;
+  display: contents;
+}
+
+/* Zero height, in flow, at the panel's static top. The layers are sticky, so
+   their rects report where they are stuck rather than where the panel belongs;
+   every ScrollTrigger in the act measures this instead. */
+.chapterMark {
+  height: 0;
+}
+
+/* The dwell, held open as flow rather than as a margin on a layer. A sticky box
+   is kept off the foot of its containing block by its own bottom margin, so a
+   margin on the plate alone would release it a dwell before its type and tear
+   the panel in half on the way into Act 3. */
+.chapterDwell {
+  height: var(--dwell);
+}
+
+.panel {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+
+.panelPlate {
+  z-index: calc(1 + var(--i));
+  /* Lifted onto the type layer it follows in the flow — the two are one panel. */
+  margin-top: -100vh;
+  background: var(--ivory-warm);
+  /* The rule between chapters, now also the panel's leading edge: the same
+     hairline, sweeping up over the panel it covers. */
+  border-top: 1px solid rgba(100, 92, 81, 0.18);
+}
+
+.panelType {
+  z-index: calc(6 + var(--i));
+}
+
+/* The composition itself, held to the act's measure inside a full-bleed layer
+   so the plate's wall covers the previous panel edge to edge. */
+.panelInner {
+  height: 100%;
+  max-width: 1560px;
+  margin-inline: auto;
+  padding-inline: var(--gutter);
   display: grid;
   grid-template-columns: 3rem minmax(0, 1fr) minmax(0, 1.05fr);
   column-gap: clamp(1.5rem, 4vw, 4.5rem);
   align-items: center;
-  min-height: 92vh;
-  padding-block: clamp(5rem, 12vh, 9rem);
-  border-top: 1px solid rgba(100, 92, 81, 0.18);
+  padding-block: clamp(3rem, 8vh, 6rem);
 }
 
-.chapter[data-side="left"] {
+.chapter[data-side="left"] .panelInner {
   grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr) 3rem;
 }
 
 /* Every child is pinned to row 1. Without it the mirrored panel breaks into
    three rows: auto-placement will not walk back to an earlier column, and the
    mirror puts the rail (first in the DOM) in the last one. */
-.chapter > * {
+.panelInner > * {
   grid-row: 1;
 }
 
@@ -171,10 +236,6 @@
 
 .chapterText {
   grid-column: 2;
-  position: relative;
-  /* Above the gobo: the shadow crosses the wall and the photographs, never
-     the reading. */
-  z-index: 2;
 }
 
 .chapterIndex {
@@ -238,9 +299,11 @@
 .stack {
   grid-column: 3;
   position: relative;
-  z-index: 0;
   aspect-ratio: 3 / 4;
-  width: min(100%, 28rem);
+  /* The 60vh term is the panel's doing: a stacked panel is exactly one
+     viewport, so on a short screen the frame has to give way rather than
+     overrun the panel and be cut off by the next one. */
+  width: min(100%, 28rem, 60vh);
   margin-inline-start: auto;
 }
 
@@ -265,6 +328,32 @@
   will-change: transform;
 }
 
+/* A flipping tile holds two photographs, one over the other; the seam sweeps
+   down the tile and the layers travel at different rates behind it
+   (welcome-chapters.tsx). */
+/* The seam is cut on the layer and the travel runs on the photograph inside
+   it: an inset() is measured against the box it sits on, so clipping and
+   moving the same element would drag the seam along with the picture. */
+.tileLayer {
+  position: absolute;
+  inset: 0;
+}
+
+/* Overscanned by more than the drift it makes: the outgoing photograph pushes
+   up behind the seam, and without the overrun it would uncover the foot of the
+   tile on its way. The tile clips the surplus. */
+.tileCurrent {
+  bottom: -14%;
+}
+
+/* Pre-flip state, and the whole of it under reduced motion: the second
+   photograph is clipped away, so the tile reads as a plain one and nothing
+   has to move — or be hidden — before JS runs. */
+.tileNext {
+  clip-path: inset(0 0 100% 0);
+  will-change: clip-path;
+}
+
 .tilePrimary {
   inset: 0;
 }
@@ -286,23 +375,47 @@
 }
 
 /* Phones and small tablets: one column, stack under the type, rail inline.
-   The mirror has nothing left to mirror at this width, so it stands down. */
+   The mirror has nothing left to mirror at this width, so it stands down —
+   and neither does the stacking: a panel is taller than the viewport here, so
+   the chapters go back to being plain blocks that scroll past one another. */
 @media (max-width: 900px) {
-  .chapter,
-  .chapter[data-side="left"] {
-    grid-template-columns: minmax(0, 1fr);
-    row-gap: clamp(3rem, 9vh, 5rem);
-    min-height: 0;
-    padding-block: clamp(4rem, 10vh, 7rem);
+  .chapters {
+    --dwell: 0px;
   }
 
-  .chapter > * {
+  .chapter {
+    display: block;
+    padding-block: clamp(4rem, 10vh, 7rem);
+    border-top: 1px solid rgba(100, 92, 81, 0.18);
+  }
+
+  .panel {
+    position: relative;
+    height: auto;
+  }
+
+  .panelPlate {
+    margin-top: clamp(3rem, 9vh, 5rem);
+    background: none;
+    border-top: 0;
+  }
+
+  .panelInner,
+  .chapter[data-side="left"] .panelInner {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: clamp(3rem, 9vh, 5rem);
+    padding-block: 0;
+  }
+
+  .panelInner > * {
     grid-row: auto;
   }
 
-  .chapter .chapterRail,
-  .chapter .chapterText,
-  .chapter .stack {
+  .chapterRail,
+  .chapter[data-side="left"] .chapterRail,
+  .chapterText,
+  .stack,
+  .chapter[data-side="left"] .stack {
     grid-column: 1;
   }
 
@@ -323,6 +436,19 @@
 
   .tileOver {
     inset-inline-start: -16%;
+  }
+}
+
+/* Reduced motion: a plain static stack. Nothing pins, so the panels simply sit
+   one under another — handled here rather than in JS so there is no first
+   paint where they are still sticky. */
+@media (prefers-reduced-motion: reduce) {
+  .chapters {
+    --dwell: 0px;
+  }
+
+  .panel {
+    position: relative;
   }
 }
 
