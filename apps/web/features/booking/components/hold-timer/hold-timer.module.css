@@ -1,0 +1,47 @@
+/* The hold countdown.
+ *
+ * The styling *is* the argument, and every value here was measured off
+ * Eventbrite's checkout timer rather than designed: 12px, muted, transparent,
+ * static, one weight. No red, no growth, no threshold colour change.
+ *
+ * A hold timer that shouts is a dark pattern, and design-foundations.md §6 rules
+ * out urgency and scarcity outright. This one reads as a receipt line.
+ */
+
+.hold {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.line {
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--stone);
+}
+
+/* Tabular figures, so the width does not change as the digits do. A clock whose
+   colon shifts left and right every second is its own small distraction, and it is
+   the one thing here that is a design decision rather than a measurement. */
+.digits {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Visually hidden, not display:none — the announcement has to reach a screen
+   reader, and `display: none` removes it from the accessibility tree entirely. */
+.announced {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.note {
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--stone);
+}

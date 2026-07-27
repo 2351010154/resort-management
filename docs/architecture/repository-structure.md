@@ -125,6 +125,7 @@ app/
 features/
   arrival/         The six acts, the concierge nav, and the WebGL machinery they need
   auth/            The guest realm's door. Talks to Better Auth in apps/api
+  booking/         The funnel. The stay calendar, the room list, the search band
 components/ui/     Primitives shared across route groups
 lib/               Domain-blind and genuinely shared. Currently two files
 ```
@@ -196,6 +197,24 @@ receives the redirect cannot be the confirmation: it subscribes, and resolves
 either to `/bookings/<reference>` or back to `payment` with a reason. Same shape
 the e-invoice job uses at folio close, and for the same reason — one provider
 timeout must never be able to roll back a completed act.
+
+**What the budget forbids is those three packages, and `motion` is not one of
+them.** `/booking` uses it, `tech-stack.md` §Frontend already listed it as this
+repo's motion budget, and
+[`design-foundations.md`](design-foundations.md) §5 records why the funnel could
+not stay CSS-only: CSS has no exit, so a bottom sheet could enter on the house
+curve and never leave on one. The `three` / `gsap` / `lenis` line is unchanged and
+is verified against the built route — `/booking`'s chunks contain none of the
+five markers those packages leave, while `/`'s contain all five.
+
+**`/booking` is built ahead of its API, and says so.** The three reads it needs —
+per-date lowest price for a month, per-date restriction flags, per-type
+availability for a range — belong to the `pricing` and `inventory` modules and do
+not exist. The **contract** for them is real and permanent, in
+`packages/shared/rate-calendar.ts`; the transport is a single stub,
+`features/booking/lib/rate-calendar-fixture.ts`, which satisfies those schemas and
+is deleted when the endpoints land. No component knows which of the two it is
+reading, which is the whole point of putting the schema in `shared` first.
 
 The browser reaches the API by `NEXT_PUBLIC_API_URL` — see
 [`apps/web/.env.example`](../../apps/web/.env.example). The guest session is an

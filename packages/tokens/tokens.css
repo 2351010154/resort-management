@@ -46,6 +46,11 @@
   --umber-rgb: 58 51 43;
   --ink-rgb: 28 25 21;
   --dusk-amber-rgb: 180 139 96;
+  /* The booking funnel's selected-date wash. --ocean waited for a job through
+     the whole arrival; design-foundations.md §2 reserved it for exactly this —
+     "an informational state, a selected date" — and a selected night is drawn as
+     a tint of it rather than a solid, so it earned a triplet on arrival. */
+  --ocean-rgb: 127 162 183;
   --night-rgb: 16 14 12;
 
   /* --ease-scene and --ease-ui are NOT here. They are emitted from

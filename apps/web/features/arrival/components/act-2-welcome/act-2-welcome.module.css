@@ -118,9 +118,10 @@
 
 /* ── Chapters ────────────────────────────────────────────────────────────────
    Three ruled panels hanging off the welcome line, izanami "Philosophy"
-   composition: a vertical rail label, a ragged display line, and a stack of
-   three overlapping photographs on the far side. Alternate panels mirror the
-   whole arrangement so the rhythm never repeats twice running.
+   composition: a vertical rail label, a ragged display line, and overlapping
+   photographs on the far side. Alternate panels mirror the whole arrangement,
+   and each one takes a different archetype for the photographs — see the
+   archetype blocks below.
 
    The panels stack: each one pins to the top of the viewport and the next
    slides up over it. Each panel is therefore two overlaid sticky layers rather
@@ -148,7 +149,8 @@
      so its outer edge lands flush with the page edge instead of near it. */
   --gutter: clamp(1.25rem, 4vw, 4.5rem);
   /* Scroll a panel holds still for after it lands and before the next one
-     covers it. The reveal finishes here and the tile flip runs inside it. */
+     covers it. The reveal finishes here, and the tile flips are fired by the
+     landing and play out inside it. */
   --dwell: 45vh;
 }
 
@@ -157,6 +159,22 @@
    of holding until the next panel has covered it. */
 .chapter {
   display: contents;
+}
+
+/* Every panel turns its photographs over, so the dwell is sized on how many
+   seams it has to fit. The flip run plays on its own clock rather than against
+   scroll, so this is not space for the seams to cross in but time — a dwell
+   too short for the run lets a reader at any normal pace scroll the panel away
+   mid-sequence. Two seams end around a second and a half after the panel
+   lands, three around two: 01 descends and is done a little sooner than 03,
+   which climbs, but they share a figure rather than splitting hairs over the
+   half-second between them. */
+.chapter[data-flips="2"] {
+  --dwell: 58vh;
+}
+
+.chapter[data-flips="3"] {
+  --dwell: 70vh;
 }
 
 /* Zero height, in flow, at the panel's static top. The layers are sticky, so
@@ -292,18 +310,21 @@
   opacity: 0.55;
 }
 
-/* The stack. Sized off the primary frame; the other two hang off its corners,
-   one breaking inward over the type side, one dropping outward past the edge.
-   Positions are written with logical insets so the mirrored panel needs one
-   direction flip rather than a second set of coordinates. */
+/* The stack: the frame the tiles are positioned inside, never a box that shows.
+   Each archetype below sets its own proportions, and its tiles hang off those
+   edges with logical insets, so a mirrored panel needs one direction flip
+   rather than a second set of coordinates.
+
+   The vh term in each width is the panel's doing: a stacked panel is exactly
+   one viewport, so on a short screen the frame has to give way rather than
+   overrun the panel and be cut off by the next one. Held as variables because
+   the narrow layouts at the foot of this file reset them, and an archetype
+   selector outranks a plain `.stack` rule whatever the media query. */
 .stack {
   grid-column: 3;
   position: relative;
-  aspect-ratio: 3 / 4;
-  /* The 60vh term is the panel's doing: a stacked panel is exactly one
-     viewport, so on a short screen the frame has to give way rather than
-     overrun the panel and be cut off by the next one. */
-  width: min(100%, 28rem, 60vh);
+  aspect-ratio: var(--stack-ar, 3 / 4);
+  width: var(--stack-w, min(100%, 28rem, 60vh));
   margin-inline-start: auto;
 }
 
@@ -339,11 +360,28 @@
   inset: 0;
 }
 
-/* Overscanned by more than the drift it makes: the outgoing photograph pushes
-   up behind the seam, and without the overrun it would uncover the foot of the
-   tile on its way. The tile clips the surplus. */
+/* Overscanned by more than the drift it makes, on the side the outgoing
+   photograph drifts away from: it pushes back against the seam, and without the
+   overrun it would uncover that edge of the tile on its way. The tile clips the
+   surplus. Physical sides, like the travel itself — a transform is not mirrored
+   by the `direction: rtl` that flips a left-side panel. */
 .tileCurrent {
   bottom: -14%;
+}
+
+.tile[data-seam="up"] .tileCurrent {
+  top: -14%;
+  bottom: 0;
+}
+
+.tile[data-seam="rightward"] .tileCurrent {
+  right: -14%;
+  bottom: 0;
+}
+
+.tile[data-seam="leftward"] .tileCurrent {
+  left: -14%;
+  bottom: 0;
 }
 
 /* Pre-flip state, and the whole of it under reduced motion: the second
@@ -354,24 +392,72 @@
   will-change: clip-path;
 }
 
-.tilePrimary {
+/* The archetypes, selected on `data-arch`. Three panels of one composition at
+   slightly different percentages read as a template — a panel pins for a whole
+   viewport, which is long enough for the eye to find the frame, the satellite,
+   and the corner exactly where they were — so what differs between archetypes
+   is the silhouette: tile count, tile shapes, and where they overlap.
+
+   01 and 03 do share one. There the flip run is what separates them: both turn
+   all three photographs over, but 01 descends from the tall frame outwards and
+   03 climbs back to it (see CHAPTERS in welcome-chapters.tsx).
+
+   Widths are shares of the stack; `top`/`bottom` are shares of its height, so a
+   tile's own aspect-ratio and the stack's are what set the vertical figures.
+   Every tile ratio is matched to its photograph's native one (the manifest runs
+   0.76, 1.00, and 1.62), since the tiles cover rather than contain. */
+
+/* A — corner stamps (01). One tall mass with two small satellites hanging off
+   opposite corners, one breaking inward over the type side, one dropping
+   outward past the page edge. The act's establishing composition. */
+.chapter[data-arch="stamps"] .stack {
+  --stack-ar: 3 / 4;
+  --stack-w: min(100%, 28rem, 60vh);
+}
+
+.slotFrame {
   inset: 0;
 }
 
-.tileOver {
-  top: var(--over-y, -8%);
+.slotStampIn {
+  top: -9%;
   inset-inline-start: -20%;
-  width: var(--over-w, 54%);
+  width: 52%;
   aspect-ratio: 1;
   z-index: 2;
 }
 
-.tileUnder {
+.slotStampOut {
   bottom: -7%;
   inset-inline-end: calc(-1 * var(--gutter));
-  width: var(--under-w, 42%);
+  width: 42%;
   aspect-ratio: 4 / 3;
   z-index: 1;
+}
+
+/* B — shingled pair (02). Two photographs of comparable area but opposite
+   orientation, crossing in a shallow band at the portrait's foot. Nothing hangs
+   off a corner and there is no third tile — that absence is what keeps it from
+   reading as A mirrored. */
+.chapter[data-arch="shingle"] .stack {
+  --stack-ar: 4 / 5;
+  --stack-w: min(100%, 30rem, 62vh);
+}
+
+.slotPairFar {
+  top: 0;
+  inset-inline-start: 0;
+  width: 62%;
+  aspect-ratio: 3 / 4;
+  z-index: 1;
+}
+
+.slotPairNear {
+  bottom: 4%;
+  inset-inline-end: calc(-1 * var(--gutter));
+  width: 74%;
+  aspect-ratio: 8 / 5;
+  z-index: 2;
 }
 
 /* Phones and small tablets: one column, stack under the type, rail inline.
@@ -379,7 +465,10 @@
    and neither does the stacking: a panel is taller than the viewport here, so
    the chapters go back to being plain blocks that scroll past one another. */
 @media (max-width: 900px) {
-  .chapters {
+  .chapters,
+  /* Also at the archetype selectors' specificity: nothing pins here, so the
+     dwell a three-seam panel asks for would be an empty screen of scroll. */
+  .chapter[data-flips] {
     --dwell: 0px;
   }
 
@@ -427,15 +516,29 @@
     direction: ltr;
   }
 
-  /* Held off the end of the column so the tile breaking inward has somewhere
-     to go; the outward one still runs flush to the page edge. */
+  /* Held off the end of the column so a tile breaking inward has somewhere to
+     go; the outward ones still run flush to the page edge. Written at the
+     archetype selectors' specificity, or they would keep their wide widths. */
+  .chapter[data-arch] .stack {
+    --stack-w: min(84%, 20rem);
+  }
+
   .stack {
-    width: min(84%, 20rem);
     margin-inline: auto 0;
   }
 
-  .tileOver {
+  /* Each archetype gives back what the narrower stack costs it, so the overlaps
+     stay the ones drawn above rather than tightening at every width. */
+  .slotStampIn {
     inset-inline-start: -16%;
+  }
+
+  .slotPairFar {
+    width: 68%;
+  }
+
+  .slotPairNear {
+    width: 82%;
   }
 }
 
@@ -443,7 +546,8 @@
    one under another — handled here rather than in JS so there is no first
    paint where they are still sticky. */
 @media (prefers-reduced-motion: reduce) {
-  .chapters {
+  .chapters,
+  .chapter[data-flips] {
     --dwell: 0px;
   }
 
@@ -452,17 +556,18 @@
   }
 }
 
-/* Below this the third tile has nowhere to go without crowding the frame. */
+/* Below this the outward tile of a three-part stack has nowhere to go without
+   crowding the frame. The shingled pair only has two, so it keeps both. */
 @media (max-width: 520px) {
-  .tileUnder {
+  .slotStampOut {
     display: none;
   }
 
-  .stack {
-    width: min(86%, 18rem);
+  .chapter[data-arch] .stack {
+    --stack-w: min(86%, 18rem);
   }
 
-  .tileOver {
+  .slotStampIn {
     inset-inline-start: -14%;
     width: 46%;
   }

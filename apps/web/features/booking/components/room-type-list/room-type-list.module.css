@@ -1,0 +1,228 @@
+/* The room list.
+ *
+ * One column, five cards, ruled rather than boxed — the arrival draws its
+ * structure with rules and login-screen.module.css carried that into the funnel
+ * with an underlined field rather than a bordered one. A grid of shadowed cards
+ * would be the first thing on this origin that does not.
+ */
+
+.list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+.card {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
+  border-top: 1px solid rgb(var(--umber-rgb) / 0.15);
+  transition: background-color 0.4s var(--ease-ui);
+}
+
+.card:last-child {
+  border-bottom: 1px solid rgb(var(--umber-rgb) / 0.15);
+}
+
+/* The chosen room. A wash, not a border: a border on one card of five shifts the
+   whole column by a pixel and the list looks like it twitched. */
+.cardChosen {
+  background: rgb(var(--ocean-rgb) / 0.1);
+}
+
+/* The price column sits beside the facts once there is room for both. cal.com's
+   two-pane argument, one level down: the coarse choice on the left, the fine one
+   on the right. */
+@media (min-width: 45rem) {
+  .card {
+    grid-template-columns: 1fr minmax(14rem, 18rem);
+    align-items: start;
+  }
+}
+
+.cardBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.name {
+  font-family: var(--font-display), serif;
+  font-size: var(--text-lg);
+  font-weight: 300;
+  line-height: 1.2;
+}
+
+.facts {
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--stone-deep);
+}
+
+.disclosure {
+  align-self: flex-start;
+  margin-top: var(--space-1);
+  color: var(--stone-deep);
+  border-bottom: 1px solid transparent;
+  transition:
+    color 0.4s var(--ease-ui),
+    border-color 0.4s var(--ease-ui);
+}
+
+.disclosure:hover {
+  color: var(--umber);
+  border-bottom-color: var(--umber);
+}
+
+.disclosure:focus-visible {
+  outline: 2px solid var(--dusk-amber);
+  outline-offset: 4px;
+}
+
+/* 0fr -> 1fr, so the row collapses to nothing without either element being
+   measured. `height: auto` cannot be transitioned and a measured pixel height goes
+   stale the moment the type reflows. */
+.amenitiesWrap {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.5s var(--ease-ui);
+}
+
+.amenitiesOpen {
+  grid-template-rows: 1fr;
+}
+
+.amenities {
+  overflow: hidden;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--stone-deep);
+}
+
+.priceColumn {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  align-items: flex-start;
+}
+
+@media (min-width: 45rem) {
+  .priceColumn {
+    align-items: flex-end;
+    text-align: right;
+  }
+}
+
+.priceBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem; /* One block of related lines, not four separate facts. */
+  align-items: inherit;
+}
+
+.perNight {
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--stone-deep);
+}
+
+.multiplier,
+.grossNote {
+  font-size: var(--text-xs);
+  color: var(--stone);
+}
+
+/* The authoritative figure, and the one the card leads with — the stay total is
+   what the guest is agreeing to, and the per-night line under it qualifies it. */
+.total {
+  font-family: var(--font-display), serif;
+  font-size: var(--text-lg);
+  line-height: 1.2;
+}
+
+.priceAbsent {
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--stone);
+}
+
+.extraBed {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--stone-deep);
+  text-align: left;
+  cursor: pointer;
+}
+
+.extraBed input {
+  margin-top: 0.15rem; /* Optical: aligns the box to the cap height beside it. */
+  flex: none;
+  accent-color: var(--umber);
+}
+
+.extraBed:has(input:disabled) {
+  cursor: default;
+  color: var(--stone);
+}
+
+/* The one primary action on the screen, and the one place --dusk-amber is spent
+   as ink — design-foundations.md §2. If a second amber thing ever appears here,
+   that is a question about which of the two is actually primary. */
+.choose {
+  margin-top: var(--space-1);
+  width: 100%;
+  min-height: 3rem; /* 48px. Limehome's measured 40px is under target; 44 is the
+                       floor, and this is the control the guest actually taps. */
+  padding: 0 var(--space-3);
+  color: var(--ivory);
+  background: var(--dusk-amber);
+  border: 1px solid var(--dusk-amber);
+  transition:
+    background-color 0.4s var(--ease-ui),
+    color 0.4s var(--ease-ui),
+    border-color 0.4s var(--ease-ui);
+}
+
+@media (min-width: 45rem) {
+  .choose {
+    width: auto;
+    min-width: 9rem;
+  }
+}
+
+.choose:hover:not(:disabled) {
+  color: var(--umber);
+  background: transparent;
+}
+
+.choose:focus-visible {
+  outline: 2px solid var(--umber);
+  outline-offset: 2px;
+}
+
+.choose:disabled {
+  cursor: default;
+  color: var(--stone);
+  background: transparent;
+  border-color: rgb(var(--umber-rgb) / 0.2);
+}
+
+.chooseNote {
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--stone);
+  max-width: 18rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .amenitiesWrap {
+    transition: none;
+  }
+}

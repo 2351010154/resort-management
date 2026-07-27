@@ -31,18 +31,36 @@ and `D7`.
 
 ### Type mix
 
-| Type | Rooms | Max occupancy | Extra bed |
-|---|:-:|:-:|---|
-| Superior | 12 | 2 | no |
-| Deluxe | 10 | 2 | one |
-| Premier | 8 | 3 | no |
-| Junior Suite | 6 | 3 | one |
-| Panorama Suite | 4 | 4 | one |
+| Type | Rooms | Max occupancy | Beds sleep | Extra bed | Size | Bedding | Aspect |
+|---|:-:|:-:|:-:|---|:-:|---|---|
+| Superior | 12 | 2 | 2 | no | 28 m² | one queen bed (1.60 m) | courtyard |
+| Deluxe | 10 | 2 | 2 | one | 34 m² | one king bed (1.80 m) | garden |
+| Premier | 8 | 3 | 3 | no | 42 m² | one king bed (1.80 m) · one single bed (1.00 m) | city |
+| Junior Suite | 6 | 3 | 2 | one | 52 m² | one king bed (1.80 m) | corner · two aspects |
+| Panorama Suite | 4 | 4 | 4 | one | 68 m² | two queen beds (1.60 m) | sea |
 
 40 rooms, and the mix sums to it — a seed that does not sum is a seed bug.
 
+**Occupancy included in the rate is 2, for every type.** Double occupancy, stated
+once rather than per type: §3 charges an extra person per night above it and up to
+the maximum, and a per-type value would imply the property varies what "the rate"
+covers when it does not.
+
+**"Beds sleep" is not "max occupancy", and the gap is what the extra bed is for.**
+A Junior Suite's maximum is three and its bed sleeps two, so a party of three needs
+the extra bed; a Panorama Suite sleeps four in its own beds, so its extra bed is an
+option rather than a requirement. `/booking` reads exactly this distinction to
+decide whether the extra-bed control is live or merely present.
+
 An extra bed posts to the folio as a **service item**, never as a rate modifier.
 It is a thing the guest bought, not a different price for the room.
+
+The last four columns were added when `/booking` was built: a room card that says
+nothing concrete is five near-identical blocks, and
+[`design-foundations.md`](design-foundations.md) §6 forbids a component inventing a
+hotel fact. They are ⚑ like the rest of §1–§6 — the developer's call until the
+database holds them — and `apps/web/features/booking/lib/room-types.ts` is the one
+place the code reads them from.
 
 ## 2. The operating clock
 
@@ -102,6 +120,20 @@ Friday evening and departs Sunday, so Sunday night is not premium.
 Extra person is charged per night, and only up to the type's max occupancy in
 §1. Occupancy above the maximum is not a price, it is a rejection.
 
+**Extra person: 600,000 ₫ per night, gross.** ⚑ Proposed. The rate the bands above
+are percentages *of*; without it none of them resolve to a number.
+
+**The bands apply to whoever is beyond the included occupancy, cheapest heads
+first.** Two adults and a nine-year-old pay one half-rate extra person, not one
+full one — the child is the third head, not one of the two the rate covers.
+Charging the adults would make a family with a small child more expensive than the
+same family without them, which is not what the table says.
+
+**Breakfast under `BB` follows the same under-6 line.** §3 says `BB` is breakfast
+"for the booked occupancy" and does not say what a small child eats; a child too
+young to be charged for a bed is not charged for breakfast either. This is an
+assumption rather than a quotation, and it is the one the funnel implements.
+
 ## 4. Cancellation, no-show, early departure
 
 Deadline is **18:00 ICT** on the cutoff date. All charges are computed by
@@ -156,6 +188,17 @@ price is ⚑.
 Breakfast · Laundry · Minibar · Airport transfer · Late checkout · Extra bed ·
 Spa treatment · Local tour
 
+Two of the eight now have a price, because `/booking` cannot render a card without
+them. Both ⚑ proposed, both gross:
+
+| Item | Price | Why the funnel needs it |
+|---|---|---|
+| Breakfast | 250,000 ₫ per person per night | `BB` is `STANDARD` + breakfast, so the plan cannot be quoted without it |
+| Extra bed | 350,000 ₫ per night | The card offers it as its own line on the three types that take one |
+
+The other six are still unset and block nothing — nothing on the guest funnel
+quotes them.
+
 Thin on purpose: `P3-SVC` needs the posting path proven, not a real menu. Items
 are data, so the catalog grows without a migration.
 
@@ -186,6 +229,9 @@ is empty.
 | Question | Whose | Tracked as |
 |---|---|---|
 | Season date ranges | mine, ⚑ unset — data, blocks nothing | §3 |
-| Service prices | mine, ⚑ unset — data | §6 |
+| Service prices | mine, six of eight still ⚑ unset — data | §6 |
+| Room sizes, bedding and aspects | mine, ⚑ proposed for `/booking` — data | §1 |
+| Extra-person and breakfast rates | mine, ⚑ proposed for `/booking` — data | §3, §6 |
+| Whether minimum-stay and closed-to-arrival are a **public** contract | mine — §3 lists them under admin **Rates** only, and the guest calendar's restricted-cell state depends on reading them from `/booking` | §3 |
 | The three §7 values | accountant, lawyer | `D2`, `M0-05` |
 | Diagram notation | professor | `D8` |

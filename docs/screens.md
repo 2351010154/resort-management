@@ -7,7 +7,9 @@ reads, and it wins on status wherever the two disagree.
 *Status snapshot: 2026-07-26.* Re-check against the backlog rather than trusting
 the ticks in two weeks.
 
-**6 of 29 built.**
+**6 of 29 built, and one more standing on a stub** — ✅ built and wired to the API,
+🟡 built against a local fixture because the API it needs is not there yet,
+⬜ not started.
 
 | | Built | Planned | Total |
 |---|:-:|:-:|:-:|
@@ -41,7 +43,7 @@ everything else is transactional and loads no 3D.
 
 | | Screen | What the guest does here | Lands |
 |:-:|---|---|---|
-| ⬜ | `/booking` | Picks dates and guests, sees what is free, chooses a room type | M7 |
+| 🟡 | `/booking` | Picks dates and guests, sees what is free, chooses a room type. **Screen built; reads a local fixture because the `pricing` and `inventory` reads it needs do not exist yet** | M7 |
 | ⬜ | `/booking/…/details` | Says who is staying. The room is now held on a timer | M7 |
 | ⬜ | `/booking/…/payment` | Pays. **This is where the system starts handling real money** | M7 |
 | ⬜ | `/booking/…/confirming` | Waits a few seconds while the bank confirms. Not a page anyone lingers on, but it has to exist — the bank's answer arrives separately from the browser | M7 |

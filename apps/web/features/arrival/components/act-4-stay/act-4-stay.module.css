@@ -352,12 +352,13 @@
 }
 
 /* The card is the frame — no caption rides with it. Per-card copy would scale
-   with the depth and be unreadable at the far end; the side list carries the
-   names instead, which is also what the reference does. */
+   with the depth and be unreadable at the far end; `.hoverCaption` is parked
+   under the card in stage coordinates instead, at one size. */
 .card {
   position: absolute;
   top: 0;
   left: 0;
+  --dim: 0.26;
   width: var(--card-w);
   aspect-ratio: 3 / 2;
   overflow: hidden;
@@ -385,6 +386,19 @@
   object-fit: cover;
 }
 
+/* Every card sits under a scrim; the hovered one loses it as it slides out, and
+   that is the whole of "and then it gets brighter". A scrim rather than an
+   animated `filter` because this is one paint over a rectangle — a filter on a
+   transformed element re-rasterises the layer every frame the scale changes,
+   and the scale changes on every frame here. `--dim` is written by the ticker
+   and only when it has actually moved. */
+.card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgb(var(--night-rgb) / var(--dim));
+}
+
 /* The grade that makes a half its own time of day. Static per element — a
    filter that never changes is one paint, unlike the transform beside it.
    Night is drained rather than dimmed: these photographs are already dark, and
@@ -401,17 +415,18 @@
 
 /* Day on the left, night on the right, on the side its cascade recedes toward —
    the cards spawn behind the list and grow away from it. Each entry dims to a
-   whisper except the one currently in the focus slot. */
+   whisper except the one currently in the focus slot.
+
+   Above *both* cascades and a sibling of them rather than a child of one:
+   inside its own half it was clipped by the wipe, and it also sat under the
+   other half's whole subtree, so day's names went dark beneath night's cards
+   long before night's names came up. The ticker owns its opacity — the wipe
+   takes it away as the edge crosses its column, and the pointer takes it away
+   while a card is pulled out over the ground it stands on. */
 .roomsList {
   position: absolute;
   top: 50%;
   transform: translateY(-50%);
-  /* Above *both* cascades, and a sibling of them rather than a child of one.
-     Inside its own half it was clipped by the wipe — an edge through a column
-     of type holds sliced glyphs for the length of the sweep — and it was also
-     under the other half's whole subtree, so day's names went dark beneath
-     night's cards long before night's names came up. The ticker fades these
-     two instead, one out and one in, as the edge crosses each column. */
   z-index: 400;
   display: flex;
   flex-direction: column;
@@ -460,34 +475,29 @@
   line-height: 1.15;
 }
 
-/* The wipe itself. Between two clips of near-identical dark there was nothing
-   to watch crossing — the halves simply had swapped by the time you looked. So
-   the edge is drawn: night deepening just behind it, a lit line on it, warm
-   falloff onto the day side ahead. It sits above the lists as well as the
-   cards, because a curtain that stops at the type is a mask, not a curtain.
-
-   Centred on the edge by its own negative margin, so JS only translates it to
-   `edge * vw`, and it is at nothing before the wipe starts and after it ends. */
-.wipeSeam {
+/* One size, in stage coordinates, parked under whichever card the pointer is
+   on. Never inside the deck: there the depth scale would size the type, which
+   is the reason the old design put the names off to the side in the first
+   place. */
+.hoverCaption {
   position: absolute;
   top: 0;
-  bottom: 0;
   left: 0;
-  width: 22vw;
-  margin-left: -11vw;
-  z-index: 450;
+  z-index: 420;
   pointer-events: none;
   opacity: 0;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgb(var(--night-rgb) / 0.62) 40%,
-    rgb(var(--ivory-rgb) / 0.55) 50%,
-    rgb(var(--dusk-amber-rgb) / 0.2) 58%,
-    transparent
-  );
+  transition: opacity 0.28s var(--ease-ui);
+  white-space: nowrap;
+  color: var(--ivory);
+  text-shadow: 0 1px 18px rgb(var(--night-rgb) / 0.95);
   will-change: transform, opacity;
 }
+
+/* There is deliberately no element drawn on the wipe's edge. A soft band
+   travelling with it was tried and read as a blurred vertical smear across the
+   frame; what carries the crossing instead is the two halves' own light, which
+   is now different enough that the hard clip boundary is legible on its own.
+   The edge stays exactly what it is — one sharp cut between two clips. */
 
 /* Seam into Act 5 (Invitation). The whole frame, not a bottom gradient: this
    closes over a deck that is still full and lands on exactly the value Act 5
@@ -597,13 +607,10 @@
     display: none;
   }
 
-  /* Both lists sit on the same strip at this width, so mid-sweep they would
-     print on top of each other. Nothing is needed for it any more: the ticker
-     fades day out by the time night comes up, and the two windows do not
-     overlap. */
-
   /* Both lists sit on the same strip at this width, so their titles would stack
-     on each other — and only one half is ever uncovered under it. */
+     on each other — and only one half is ever uncovered under it. Nothing is
+     needed for the lists themselves: the ticker fades day out before night
+     comes up, and the two windows do not overlap. */
   .listTitle {
     display: none;
   }
