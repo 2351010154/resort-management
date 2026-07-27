@@ -5,6 +5,8 @@
   position: fixed;
   inset: 0 0 auto 0;
   z-index: 100;
+  /* How far the tint below overhangs the bar and fades out over. */
+  --scrim-feather: 1.75rem;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -21,17 +23,35 @@
    list cannot interpolate from `none`, so the blur arrived in a single frame
    while the tint eased in over half a second. `visibility` keeps the hidden
    state out of paint, so the blur costs nothing at the top of the page.
-   `saturate` is what stops footage behind the blur averaging out to grey. */
+   `saturate` is what stops footage behind the blur averaging out to grey.
+
+   It overhangs the bar by `--scrim-feather` and is masked away across that
+   overhang. Ending square, both the tint and the blur stopped on one hard line
+   the full width of the frame — a rectangle laid over the footage rather than
+   light falling on it, and most obvious against Act 4, where the ground behind
+   it is moving. The mask fades the backdrop filter with the tint, so the blur
+   does not outlive the colour. The bar's own height stays fully tinted, so no
+   contrast is taken off the links. */
 .bar::before {
   content: "";
   position: absolute;
-  inset: 0;
+  inset: 0 0 calc(var(--scrim-feather) * -1) 0;
   z-index: -1;
   opacity: 0;
   visibility: hidden;
   background-color: rgba(244, 239, 230, 0.78);
   backdrop-filter: blur(16px) saturate(1.35);
   -webkit-backdrop-filter: blur(16px) saturate(1.35);
+  mask-image: linear-gradient(
+    to bottom,
+    rgb(0 0 0 / 1) calc(100% - var(--scrim-feather)),
+    rgb(0 0 0 / 0) 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    rgb(0 0 0 / 1) calc(100% - var(--scrim-feather)),
+    rgb(0 0 0 / 0) 100%
+  );
   transition:
     opacity 0.5s var(--ease-ui),
     visibility 0.5s var(--ease-ui),
@@ -61,7 +81,9 @@
    own tint rather than the lighter scrolled one — two different darks stacked
    read as a seam across the top of the panel. Only the tint is matched: the
    blur stays put so opening the menu never re-rasterises it. Keep in sync with
-   `.panel` in dynamic-island-menu.module.css. */
+   `.panel` in dynamic-island-menu.module.css. That match is also what lets the
+   feather above stay on in this phase: it fades into the identical tint of the
+   panel behind it, so there is nothing there to soften and nothing to see. */
 .bar[data-phase="island"]::before {
   background-color: rgba(28, 25, 21, 0.94);
 }

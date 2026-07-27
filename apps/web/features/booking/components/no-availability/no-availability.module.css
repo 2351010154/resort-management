@@ -1,0 +1,98 @@
+/* Nothing free. The register drops toward plain and stays blameless — no apology
+ * theatre, no exclamation mark, and nothing that reads as an upsell.
+ */
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
+  border-top: 1px solid rgb(var(--umber-rgb) / 0.15);
+  border-bottom: 1px solid rgb(var(--umber-rgb) / 0.15);
+}
+
+.headline {
+  font-family: var(--font-display), serif;
+  font-size: var(--text-display-sm);
+  font-weight: 300;
+  line-height: 1.15;
+}
+
+.forParty {
+  font-size: var(--text-sm);
+  color: var(--stone-deep);
+}
+
+.options {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.option {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding-left: var(--space-1);
+  border-left: 2px solid var(--ocean);
+}
+
+@media (min-width: 45rem) {
+  .option {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+}
+
+.optionText {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.optionLabel {
+  font-size: var(--text-base);
+  line-height: 1.4;
+}
+
+.optionDates {
+  font-size: var(--text-sm);
+  color: var(--stone-deep);
+}
+
+/* A secondary action: the primary one on this screen is still Choose, on a card,
+   once the guest has dates that work. */
+.show {
+  align-self: flex-start;
+  min-height: 3rem; /* 48px — the same tap floor as Choose. */
+  padding: 0 var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--umber);
+  border: 1px solid rgb(var(--umber-rgb) / 0.3);
+  white-space: nowrap;
+  transition:
+    color 0.4s var(--ease-ui),
+    background-color 0.4s var(--ease-ui),
+    border-color 0.4s var(--ease-ui);
+}
+
+.show:hover {
+  color: var(--ivory);
+  background: var(--umber);
+  border-color: var(--umber);
+}
+
+.show:focus-visible {
+  outline: 2px solid var(--dusk-amber);
+  outline-offset: 2px;
+}
+
+.nothingNear {
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--stone-deep);
+}

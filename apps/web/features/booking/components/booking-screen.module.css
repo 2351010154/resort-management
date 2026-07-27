@@ -1,0 +1,57 @@
+/* The screen. One column, one measure, ivory ground.
+ *
+ * No composition measured against film here — design-foundations.md §4 is explicit
+ * that the funnel stays on the spacing scale, and an off-scale value in (booking)
+ * should be rare enough to need a sentence. The two below have one each.
+ */
+
+.screen {
+  min-height: 100dvh;
+  background: var(--ivory);
+  color: var(--ink);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  /* The measure, shared with .results and .head, so the band's rules run the full
+     width while the type inside stays readable. 64rem is about 90 characters at
+     --text-base, which is the top of the comfortable range. */
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-2) var(--space-3);
+}
+
+.title {
+  font-size: var(--text-display-sm);
+  line-height: 1.1;
+}
+
+.subtitle {
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--stone-deep);
+  max-width: 34rem;
+}
+
+.results {
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: 0 var(--space-2) var(--space-4);
+}
+
+.nextStep {
+  max-width: 64rem;
+  margin: 0 auto;
+  padding: 0 var(--space-2) var(--space-3);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--stone-deep);
+}
+
+/* Clears the fixed summary bar, so the last card is not half under it. Matches the
+   bar's own 5rem plus a --space-2 breath. */
+.barSpacer {
+  height: calc(5rem + var(--space-2));
+}

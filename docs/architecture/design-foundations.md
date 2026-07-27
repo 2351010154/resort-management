@@ -60,7 +60,7 @@ had all typed the same number.
 | `--umber` | `#3a332b` | Photographic ground — what a panel or card shows before its image decodes | 3 |
 | `--ink` | `#1c1915` | Primary type on light grounds; the corridor and threshold grounds | 8 |
 | `--dusk-amber` | `#b48b60` | The single accent. Two list titles, and the light behind act 5's pill | 3 |
-| `--ocean` | `#7fa2b7` | **Defined, never consumed.** See below | 0 |
+| `--ocean` | `#7fa2b7` | The funnel's selected-date wash; a 14% cool cast in act 4. See below | 9 |
 | `--night` | `#100e0c` | The dark the acts hand over on | 6 |
 
 ### Reading the roles
@@ -98,11 +98,32 @@ provider discs at an `--ink` hairline — each resolving to `--ink` on focus. If
 booking screen ever wants a second amber thing, that is a question about which
 of the two is actually the primary action.
 
-**`--ocean` is reserved, not dead.** It is the only cool token in the family and
-the arrival never found a job for it — act 1's sea is sampled film stock, not
-this. Do not delete it and do not scatter it around to justify it. If the
-booking funnel needs a second signal colour (an informational state, a
-selected date), `--ocean` is the one already agreed on.
+**`--ocean` was reserved, and `/booking` is what it was reserved for.** It is the
+only cool token in the family, and this table said it had zero uses for as long as
+the arrival was the only surface — act 1's sea is sampled film stock, not this. Two
+things have since spent it, and they are spending it for different reasons.
+
+Act 4 uses it once, as a **cast rather than a signal**:
+`color-mix(in srgb, var(--ocean) 14%, transparent)` in the night half's wash. At 14%
+over `--night` it is not read as a colour at all, only as the cool edge of a dark
+frame, which is the one job the arrival ever found for it.
+
+The funnel uses it as a **signal**, which is what this paragraph reserved it for:
+if the booking screens needed a second signal colour for "an informational state, a
+selected date", `--ocean` was the one already agreed on. The stay calendar needed
+exactly that, and took it: the nights of the stay are washed
+`rgb(var(--ocean-rgb) / 0.22)`, the
+arrival and departure cells are solid `--ocean` with `--ink` type, and the chosen
+room's card carries the same wash at 0.1.
+
+That division is what keeps §2's discipline intact with two colours instead of one:
+**`--ocean` is what the guest has chosen, `--dusk-amber` is what they can do next.**
+The `Choose` button is the only amber thing on the screen. A focus ring is amber
+too, following `/login`'s precedent — a ring is an affordance, not a second accent.
+
+Its `--ocean-rgb` triplet was added to `packages/tokens/tokens.css` in the same
+change, because a wash is the colour at an alpha and §2's rule is that an `rgba()`
+is a palette colour with an alpha.
 
 **`--night` is a seam, not a shade.** Act 3's tail fade closes on it, act 4
 stands on it, act 5 opens on it, act 6 warms out of it. The handover between
@@ -329,7 +350,7 @@ keeping: the reader's scroll is the only input.
 
 ### Booking motion
 
-**Calm, CSS-only, and the same curve.** A booking screen gets:
+**Calm, the same curve, and CSS wherever CSS can do it.** A booking screen gets:
 
 - `transition` on `opacity`, `transform`, `color`, `border-color`,
   `background-color`;
@@ -339,6 +360,46 @@ keeping: the reader's scroll is the only input.
 
 No scroll-driven anything. No pinning. No canvas. A funnel that animates like
 the arrival is a funnel that gets in the way of booking a room.
+
+**`motion` is permitted in `(booking)`, for exits only.** This section said
+*CSS-only* until `/booking` was built, and that rule could not be kept: **CSS
+has no exit.** A dismissed element either stays mounted or is gone on the frame
+it unmounts, so a bottom sheet under a CSS transition can enter on
+`var(--ease-ui)` and cannot leave on anything. `motion-tokens.ts` had already
+named the curve for this — `EASE_UI_EXIT`, `power2.in`, "the same
+micro-interaction leaving" — and then had to admit it was GSAP-only and that
+"nothing exits under CSS yet". Nothing could.
+
+[`tech-stack.md`](tech-stack.md) §Frontend already listed `motion` 12.42 as this
+repo's motion budget, and the two documents disagreed for as long as the funnel
+had nothing that left the screen. They agree now, on these terms:
+
+- **The `three` / `gsap` / `lenis` budget is unchanged.** `motion` is not on
+  that list and does not pull any of them. Verified against the built route:
+  `/booking`'s chunks contain no `gsap`, `ScrollTrigger`, `lenis`,
+  `WebGLRenderer` or `react-three`, while `/`'s contain all five.
+- **`LazyMotion` with `domAnimation`, and the `m` component — never `motion.*`.**
+  `motion.div` bundles layout projection, drag, scroll and SVG morphing because
+  the component cannot know what a page will use. The funnel uses `opacity` and
+  `transform`. `<LazyMotion strict>` makes that enforceable: a `motion.*`
+  component inside it throws rather than quietly restoring the full bundle.
+- **Durations and curves still come from `motion-tokens.ts`.**
+  `features/booking/lib/booking-motion.ts` is the only place that converts them
+  into Motion's four-number ease form, and it *parses* `EASE_UI_CSS` rather than
+  re-typing the digits — so there is still exactly one hand-written
+  `cubic-bezier` in the repository.
+- **Entrances stay in CSS where CSS suffices.** The disclosure's
+  `grid-template-rows: 0fr → 1fr`, every cell hover, the range paint and the
+  segment states are all stylesheet transitions. Motion is used for four things,
+  and three of them are exits: the sheet, its scrim, the summary bar, and the
+  card cascade's stagger.
+
+**Reduced motion is still a composition, not a frozen frame** — and Motion makes
+that a rule you have to keep by hand, because the global kill-switch in
+`globals.css` cuts *CSS* durations and does not reach a JS animation.
+`useReducedMotion` is read at every call site and swapped for a still variant, so
+the sheet is rendered in place rather than travelling a viewport height in
+`0.01ms`.
 
 ### What the login screen settled
 
@@ -411,6 +472,16 @@ Two consequences for anyone building there:
 The `--ease-*` properties are the one motion thing the root layout does emit —
 they are two strings of text, they cost nothing, and they are what keeps the
 funnel feeling related to the arrival.
+
+**The budget is about those three packages, not about weight in general.** It is
+worth being honest that the funnel is not free: `/booking` adds **~136 KB gzip**
+over `/signup`, almost all of it `@react-aria/calendar` + `@react-stately/calendar`
++ `@react-aria/i18n` and Motion's `domAnimation`. That bought a range calendar
+whose keyboard and ARIA behaviour is somebody else's tested problem — measured
+against four production pickers that each get part of it wrong — rather than four
+hundred lines of roving-tabindex code in this repo. It is the most expensive screen
+in the funnel and the only one that should be; if a later step reaches this size,
+that is a finding, not a precedent.
 
 ---
 
@@ -549,10 +620,17 @@ optional.
 - Don't set a caps run's tracking by hand.
 - Don't import `three`, `gsap`, `lenis`, or anything from `features/arrival/`
   into `(booking)`.
+- Don't use `motion.*` in `(booking)` — `m` inside `<LazyMotion strict>`, and
+  only for what CSS cannot do. See §5.
+- Don't animate in JS without reading `useReducedMotion` — the global CSS
+  kill-switch does not reach Motion.
 - Don't add a provider to the root layout.
 - Don't put a decorative image in the accessibility tree, and don't hide a
   content image from it.
 - Don't add exclamation marks, urgency, or scarcity to any copy.
+- Don't put `role="application"` on a composite widget. It turns off the screen
+  reader's browse mode, which is the mode that reads a price inside a cell —
+  React Aria's calendar sets it and `stay-calendar.tsx` strips it back off.
 
 The first two are the rules this document leans on hardest, and they are the two
 nothing currently checks: the stylelint config that would is written but not
@@ -631,12 +709,11 @@ where it is stuck rather than where it belongs.
 `room-deck.tsx`, lines ~61–77.
 
 ```ts
-const HALF       = 6;     // rooms in a half
-const POOL       = 12;    // card nodes in a half
-const SPAN       = 6;     // depth, in steps, from spawn to fully off-frame
-const GROWTH     = 1.33;  // size growth per step of depth
-const LANES      = 3;     // lanes the cascade weaves between
-const LANE_SHIFT = 0.22;  // lane offset, in card widths, normal to the ray
+const HALF   = 6;     // rooms in a half
+const POOL   = 12;    // card nodes in a half
+const SPAN   = 6;     // depth, in steps, from spawn to fully off-frame
+const GROWTH = 1.33;  // size growth per step of depth
+const FAN    = 0.05;  // offset per step of depth, in card widths, normal to the ray
 ```
 
 A card's offset from the vanishing point and its size share one factor,
@@ -656,13 +733,24 @@ the numbers are not independent:
   every depth and is set by `GROWTH` and `ew` jointly. At `1.24` with
   `ew = 0.8` it was two thirds — no card ever wholly visible, focus slot
   included. At `1.33` with `ew = 0.62` it is two fifths.
-- **`POOL` must stay a multiple of both `HALF` and `LANES`.** A node's slot is
-  `ordinal mod POOL`, its room `ordinal mod HALF`, its lane `ordinal mod LANES`;
-  a multiple of both and a node keeps one room *and* one lane for the life of
-  the page — no `src` changes under a visible card, nothing slides sideways at
-  the recycle. `HALF` is a multiple of `LANES` too, which keeps a room always in
-  one lane. The six nodes past `SPAN` are parked at `opacity: 0` — the price of
-  the guarantee, and worth paying.
+- **`POOL` must stay a multiple of `HALF`.** A node's slot is `ordinal mod POOL`
+  and its room `ordinal mod HALF`; a multiple and a node keeps one room for the
+  life of the page, so no `src` ever changes under a visible card. The six nodes
+  past `SPAN` are parked at `opacity: 0` — the price of the guarantee, and worth
+  paying.
+- **Anything else offsetting a card must be a function of where it is, not of
+  which node is drawing it.** `FAN` carries each card off the ray, one direction
+  for every card, growing with `depth` and riding `r`: tight at the vanishing
+  point, spread toward the front, and continuous through the recycle by
+  construction. A three-lane weave keyed to `ordinal` did the same job for
+  overlap but read as a zigzag rather than as one diagonal, and it bought that
+  with a divisibility rule on `POOL` that this needs no part of.
+- **The normal `FAN` rides has to be turned to a fixed sense, not just taken.**
+  `mirrored()` reflects the frame, and `(-dy, dx)` — a quarter turn — is not
+  preserved by a reflection: it comes back as the opposite normal. Untamed it
+  carried day's cards below their ray and night's above theirs, putting the two
+  halves at different heights, so neither read as the other one flipped. Turning
+  it down-frame (`turn = dx < 0 ? -1 : 1`) makes the halves exact mirrors.
 
 `FOCUS_D = 3` is solved, not chosen: the deepest slot whose card is still whole
 in frame, since `vpx + (ex - vpx)·r` plus half a card width must clear the edge
@@ -689,14 +777,53 @@ they had swapped and you never saw it happen. Three invariants carry it now:
    transparency rule below — it paints over the open door and may only tint it.
    Keep its deepening off the half's *vanishing* corner: there it lands on cards
    that are already small, fading in and graded down, and buries them.
-2. **The registers belong to neither half.** Siblings of both cascades, above
-   both. Inside its own half a list is clipped by the wipe — an edge through a
-   column of type holds sliced glyphs for the whole sweep — *and* sits under the
-   other half's entire subtree. The ticker fades them instead, timed to the edge
-   reaching each column, not to the wipe's endpoints.
-3. **The seam is the thing you watch cross**, so it is held at full opacity
-   across the sweep and folded away only at the ends. A bell curve leaves it
-   faint for the entire crossing, which is the failure being fixed.
+2. **Nothing is drawn on the edge.** A soft band travelling with it was tried
+   and read as a blurred vertical smear across the frame. Once the two halves
+   carry their own light the hard clip boundary is legible by itself, and the
+   cut is what the movement wants — sharp, not feathered.
+3. **The registers are siblings of both cascades, above both.** Inside its own
+   half a list is clipped by the wipe — an edge through a column of type holds
+   sliced glyphs for the whole sweep — *and* sits under the other half's entire
+   subtree, so day's names went dark under night's cards long before night's
+   arrived. The ticker fades them instead, timed to the edge reaching each
+   column, and moves `aria-hidden` between them as it passes half.
+
+### Act 4 — hovering a card
+
+- **Every card sits under a scrim and the hovered one loses it** — `--dim`,
+  written by the ticker only when it moves. A scrim, not an animated `filter`: a
+  filter on a transformed element re-rasterises its layer on every frame the
+  scale changes, and the scale changes every frame here.
+- **The hovered card slides `PULL` card widths sideways, and nothing else
+  changes about where it stands in the deck.** Sideways, not along the ray's
+  normal: the ray falls ~60° below horizontal, so a normal pull is mostly
+  downward, and the focus slot has under half a card height of frame beneath
+  it. It sent the card off the bottom of the screen. Held to the horizontal the
+  card keeps its height, and a near card cropped by the frame edge is pulled
+  back into it.
+- **Depth alone owns `z-index`, hover included.** The normal pull left the card
+  clipped by the neighbour one step nearer — `GROWTH`× wider, overlapping by
+  more than that travel undid — so the hovered card was lifted above its whole
+  half to compensate. The sideways pull clears that neighbour outright, and the
+  lift then only did damage: it stood a far, small card in front of the near,
+  large ones, and the perspective the cascade is built on came apart under the
+  pointer. A card part-way out is still part-way covered, which is what coming
+  out from under something looks like.
+- **The hit test uses the card's resting box, not the pulled one.** A hover that
+  displaces its own target oscillates: the card slides out from under the
+  cursor, the hover drops, the card returns, and it cycles — visibly, because
+  the register, the scrim and the idle brake all ride on that flag. The pulled
+  box counts too, but only for the card already held, so following it with the
+  cursor keeps it instead of dropping it at the edge of the rest box.
+- **The register clears while a card is out.** Its opacity is the wipe's fade
+  times the pointer's, because a card pulls back against the way its half
+  recedes — straight into the column that half's names stand in. `LIST_TAU` is
+  shorter than `PULL_TAU` so the ground is free by the time the picture arrives
+  on it.
+- **The caption is a stage-level element parked under the card**, never inside
+  it: card copy is scaled by depth and legible only at the front, which is what
+  puts the names off to one side. It flips above the card when below will not
+  fit and clamps on x, or a card at an edge hangs it off the screen.
 
 ### Act 4 — pins that outlive their own sections
 
@@ -764,6 +891,18 @@ layer inside stays fixed to the viewport while the window grows over it. The
 frame never moves; the page just stops covering it. Replacing the clip with
 `overflow: hidden` breaks this — `overflow` would scroll the layer with the
 band.
+
+### The nav's tint has no bottom edge
+
+`.bar::before` carries the scrolled nav's tint and blur. It overhangs the bar by
+`--scrim-feather` and is masked away across the overhang, because ending square
+drew one hard line the full width of the viewport — a rectangle laid over the
+footage rather than light falling on it, worst over Act 4, where the ground
+behind it moves. The mask fades the `backdrop-filter` along with the colour, so
+the blur cannot outlive the tint; the bar's own height is left fully opaque in
+the mask, so the links lose no contrast. The feather stays on in the island
+phase because that tint is matched to `.panel` exactly — it fades into an
+identical colour and there is nothing to see.
 
 ### The reduced-motion paths are not decoration
 

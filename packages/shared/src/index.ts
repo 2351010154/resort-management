@@ -2,4 +2,5 @@
 // them, so API validation and frontend types cannot drift apart.
 
 export * from "./money";
+export * from "./rate-calendar";
 export * from "./stay-date";

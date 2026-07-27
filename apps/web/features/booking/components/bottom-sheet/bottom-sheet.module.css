@@ -1,0 +1,87 @@
+/* The bottom sheet. Only ever on screen below 45rem — above that the search band
+ * has room for its three controls and there is nothing to collapse.
+ */
+
+.layer {
+  position: fixed;
+  inset: 0;
+  z-index: 20; /* Above the summary bar at 10, which it covers while open. */
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.scrim {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  background: rgb(var(--night-rgb) / 0.45);
+  cursor: default;
+}
+
+.sheet {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  /* Full height less a strip of the page, so the sheet reads as covering the
+     screen rather than as a page of its own. */
+  max-height: 92dvh;
+  background: var(--ivory);
+  color: var(--ink);
+}
+
+.sheet:focus-visible {
+  outline: none; /* The heading is announced on open; a ring on the panel is noise. */
+}
+
+/* Sticky, so the weekday header of a long calendar and the way out are both always
+   reachable — the sheet scrolls, its head does not. */
+.head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  background: var(--ivory);
+  border-bottom: 1px solid rgb(var(--umber-rgb) / 0.15);
+}
+
+.title {
+  color: var(--stone-deep);
+}
+
+.done {
+  min-height: 2.75rem; /* 44px. */
+  padding: 0 var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--umber);
+  border: 1px solid rgb(var(--umber-rgb) / 0.3);
+  transition:
+    color 0.4s var(--ease-ui),
+    background-color 0.4s var(--ease-ui);
+}
+
+.done:hover {
+  color: var(--ivory);
+  background: var(--umber);
+}
+
+.done:focus-visible {
+  outline: 2px solid var(--dusk-amber);
+  outline-offset: 2px;
+}
+
+.body {
+  overflow-y: auto;
+  overscroll-behavior: contain; /* The page behind must not scroll under it. */
+  padding: var(--space-2);
+}
+
+@media (min-width: 45rem) {
+  .layer {
+    display: none;
+  }
+}

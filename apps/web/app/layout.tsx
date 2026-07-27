@@ -20,8 +20,22 @@ import { motionTokensCss } from "@/lib/motion-tokens";
 // The oryzo.ai pairing: Literata carries the display line, DM Mono every label
 // and caps run. Both are variable-free swaps for the CSS custom properties, so
 // the whole family is these two declarations.
+// Literata carries the `vietnamese` subset, and that is not decoration: it is where
+// the đồng sign lives.
+//
+// ₫ (U+20AB) is in Google Fonts' `vietnamese` subset, not `latin` — and **DM Mono
+// has no Vietnamese subset at all**, so the mono face cannot draw the mark on a
+// price no matter how it is requested. With `latin` on both faces the browser fell
+// back per character, and every price on the booking funnel came out with its digits
+// in DM Mono and its currency mark from whatever the system offered, small and off
+// the baseline. The arrival never showed a price, so nothing caught it until
+// `/booking` existed.
+//
+// The fallback is arranged in `globals.css` instead: DM Mono, then Literata, then
+// the generic. A glyph DM Mono does not have is drawn by the house's other face
+// rather than by the operating system's.
 const display = Literata({
-  subsets: ["latin"],
+  subsets: ["latin", "vietnamese"],
   variable: "--font-display",
 });
 

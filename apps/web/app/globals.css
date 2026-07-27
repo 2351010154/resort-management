@@ -19,7 +19,12 @@ html {
 body {
   background: var(--ivory);
   color: var(--ink);
-  font-family: var(--font-ui), sans-serif;
+  /* Literata sits between DM Mono and the generic on purpose. DM Mono has no
+     Vietnamese coverage — no ₫ — so a price fell through to the system sans and
+     drew its currency mark small and off the baseline. Naming the house's other
+     face next means a glyph the mono lacks is still one of ours. See the note in
+     layout.tsx. */
+  font-family: var(--font-ui), var(--font-display), sans-serif;
   font-weight: 300;
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;

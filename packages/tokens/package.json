@@ -2,9 +2,13 @@
   "name": "@mariva/tokens",
   "version": "0.0.0",
   "private": true,
-  "sideEffects": ["./tokens.css"],
+  "sideEffects": [
+    "./tokens.css"
+  ],
   "exports": {
     "./tokens.css": "./tokens.css"
   },
-  "files": ["tokens.css"]
+  "files": [
+    "tokens.css"
+  ]
 }
