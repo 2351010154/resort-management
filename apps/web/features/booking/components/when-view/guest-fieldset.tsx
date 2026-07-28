@@ -19,7 +19,7 @@ import {
   MAX_CHILDREN,
 } from "@/features/booking/lib/booking-search";
 import type { Child, Party } from "@/features/booking/lib/stay-quote";
-import styles from "./search-band.module.css";
+import styles from "./when-view.module.css";
 
 /** Every age a child can be booked as. 12 and over is an adult — §3. */
 const CHILD_AGES = Array.from(

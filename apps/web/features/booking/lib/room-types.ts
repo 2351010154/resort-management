@@ -1,4 +1,13 @@
-// The five types, and the four facts a card leads with.
+// The five types, and what tells them apart.
+//
+// ⚑ **The aspect words want a yes before they ship to a guest.**
+// `courtyard / garden / city / corner / sea` are flagged in
+// `property-and-tariff.md` §1 like the rest of §1–§6 — the developer's call
+// until the database holds them. That was a low-stakes flag when the card
+// carried four sentences and the aspect was one of them. It is now one of the
+// **three** things the card says about a room, and the only one of the three
+// that is a claim rather than a measurement: a guest who books the sea aspect
+// and arrives to a car park has been told something untrue by this file.
 //
 // `docs/architecture/property-and-tariff.md` §1 is the authority for the type
 // mix, the maximum occupancy and which types take an extra bed. It is also the
@@ -106,20 +115,38 @@ export function roomType(code: RoomTypeCode): RoomType {
 }
 
 /**
- * What is behind the "What's in the room" disclosure.
+ * What is in the room, by subject.
  *
- * Deliberately the same list for every type. The differences between these five
- * rooms are the four facts on the face of the card; a per-type amenity list
- * would imply the Superior has no hairdryer, and inventing which amenities each
- * type lacks is exactly the fact-invention §6 rules out. When the database holds
- * per-type amenities, this constant is what it replaces.
+ * **Deliberately the same for every type**, and that is why it is one tap deeper
+ * than the card rather than on it. The differences between these five rooms are
+ * the three things the card draws; a per-type amenity list would imply the
+ * Superior has no hairdryer, and inventing which amenities each type lacks is
+ * exactly the fact-invention `design-foundations.md` §6 rules out. When the
+ * database holds per-type amenities, this constant is what it replaces.
+ *
+ * Grouped rather than listed flat. Apple's comparison page is twenty row
+ * headers and every one of them is a *subject* — "Size and Weight" — never a
+ * spec, because a reader scans for the subject they care about and reads only
+ * that row. Seven items in one run is a list to be read; three subjects is a
+ * thing to be scanned. The grouping is organisation of facts the property
+ * already states, not a new fact.
  */
-export const ROOM_AMENITIES: readonly string[] = [
-  "Air conditioning",
-  "Rain shower",
-  "Desk and reading light",
-  "Safe",
-  "Kettle, tea and coffee",
-  "Hairdryer",
-  "Wi-Fi",
+export interface AmenityGroup {
+  readonly subject: string;
+  readonly items: readonly string[];
+}
+
+export const ROOM_AMENITIES: readonly AmenityGroup[] = [
+  {
+    subject: "Comfort",
+    items: ["Air conditioning", "Desk and reading light"],
+  },
+  {
+    subject: "Bathroom",
+    items: ["Rain shower", "Hairdryer"],
+  },
+  {
+    subject: "In the room",
+    items: ["Safe", "Kettle, tea and coffee", "Wi-Fi"],
+  },
 ];

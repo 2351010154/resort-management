@@ -112,17 +112,34 @@ export const cardMotion = {
   animate: { opacity: 1, y: 0, transition: enter },
 } as const;
 
-/** A price block replaced under a plan change. Crossfade, no movement. */
-export const priceMotion = {
-  initial: { opacity: 0 },
-  animate: {
-    opacity: 1,
-    transition: { duration: DUR_UI_EXIT, ease: EASE_UI_POINTS },
-  },
-  exit: {
-    opacity: 0,
-    transition: { duration: 0.2, ease: EASE_UI_EXIT_POINTS },
-  },
+/**
+ * The room sheet's wide presentation — a centred dialog over a scrim.
+ *
+ * Opacity and a short rise, not the full-height translate the narrow sheet
+ * takes: a panel in the middle of the page has no edge to come from.
+ */
+export const dialogMotion = {
+  initial: { opacity: 0, y: 12 },
+  animate: { opacity: 1, y: 0, transition: enter },
+  exit: { opacity: 0, y: 12, transition: leave },
+} as const;
+
+/**
+ * One of the screen's two views, replacing the other.
+ *
+ * The inactive view is *unmounted*, not hidden — which is how "one open decision
+ * at a time" is guaranteed by the tree rather than by CSS discipline. Unmounting
+ * is also why this variant exists at all: the outgoing view has to be able to
+ * leave, and CSS has no exit.
+ *
+ * It leaves on opacity alone and arrives on opacity plus a short rise. A view
+ * that slid out as well as in would read as navigation, and changing a date is
+ * refining one search rather than going somewhere.
+ */
+export const viewMotion = {
+  initial: { opacity: 0, y: 8 },
+  animate: { opacity: 1, y: 0, transition: enter },
+  exit: { opacity: 0, transition: leave },
 } as const;
 
 /**

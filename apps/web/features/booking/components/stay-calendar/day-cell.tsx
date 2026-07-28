@@ -27,16 +27,16 @@
 
 import type { CalendarDate } from "@internationalized/date";
 import { formatVndThousands, type NightRate } from "@mariva/shared";
+import { useCalendarCell } from "@react-aria/calendar";
 import type { RangeCalendarState } from "@react-stately/calendar";
 import { useRef } from "react";
-import { useCalendarCell } from "@react-aria/calendar";
 import { formatStayDate } from "@/features/booking/lib/booking-search";
-import styles from "./stay-calendar.module.css";
 import {
   type AvailabilityRules,
   reasonSentence,
   unpickableReason,
 } from "./stay-availability";
+import styles from "./stay-calendar.module.css";
 
 /** Where a date sits in the range being painted. */
 type RangePosition = "none" | "start" | "inside" | "end" | "single";
@@ -145,10 +145,16 @@ export function DayCell({
 
   return (
     <td {...cellProps} className={cellClass}>
+      {/* `data-date` is the night this cell sells, in the property's own
+          calendar. It is here so a test can pick a stay the way a guest does —
+          by pressing two days — rather than by matching a locale-formatted
+          accessible name, which changes shape with the locale and would make the
+          harness the thing under test. */}
       <button
         {...buttonProps}
         aria-label={label}
         className={buttonClass}
+        data-date={date.toString()}
         ref={ref}
         type="button"
       >

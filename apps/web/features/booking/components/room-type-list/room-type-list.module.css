@@ -1,50 +1,91 @@
 /* The room list.
  *
- * One column, five cards, ruled rather than boxed — the arrival draws its
- * structure with rules and login-screen.module.css carried that into the funnel
- * with an underlined field rather than a bordered one. A grid of shadowed cards
- * would be the first thing on this origin that does not.
+ * Round 1 was one column of ruled text blocks, because the arrival draws its
+ * structure with rules and a grid of shadowed cards would have been the first
+ * thing on this origin that does not. That reasoning still holds and the rules
+ * are still gone — but for the opposite reason. A card is now a photograph, and
+ * a photograph draws its own edge. A rule between two pictures is a third line
+ * competing with the two they already have.
+ *
+ * Two up above 45rem, one up below. Five frames of the same shape in two columns
+ * is what lets the eye compare a room to the one beside it, which is the whole
+ * point of putting the picture first.
  */
 
 .list {
   list-style: none;
-  display: flex;
-  flex-direction: column;
-}
-
-.card {
   display: grid;
-  gap: var(--space-2);
-  padding: var(--space-3) 0;
-  border-top: 1px solid rgb(var(--umber-rgb) / 0.15);
-  transition: background-color 0.4s var(--ease-ui);
+  gap: var(--space-3);
 }
 
-.card:last-child {
-  border-bottom: 1px solid rgb(var(--umber-rgb) / 0.15);
-}
-
-/* The chosen room. A wash, not a border: a border on one card of five shifts the
-   whole column by a pixel and the list looks like it twitched. */
-.cardChosen {
-  background: rgb(var(--ocean-rgb) / 0.1);
-}
-
-/* The price column sits beside the facts once there is room for both. cal.com's
-   two-pane argument, one level down: the coarse choice on the left, the fine one
-   on the right. */
 @media (min-width: 45rem) {
-  .card {
-    grid-template-columns: 1fr minmax(14rem, 18rem);
-    align-items: start;
+  .list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-.cardBody {
+.card {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: var(--space-1);
-  min-width: 0;
+  padding: var(--space-1);
+  transition: background-color 0.4s var(--ease-ui);
+}
+
+.card:hover {
+  background: rgb(var(--umber-rgb) / 0.04);
+}
+
+/* The chosen room. A wash, not a border: a border on one card of five shifts the
+   column by a pixel and the list looks like it twitched. --ocean at 0.1 is what
+   the guest has already chosen; --dusk-amber below is the one thing they can do
+   next, and the two never trade jobs. */
+.cardChosen,
+.cardChosen:hover {
+  background: rgb(var(--ocean-rgb) / 0.1);
+}
+
+/* ---- The photograph ---------------------------------------------------- */
+
+/* The frame and the name are one control, so the button is the layout. */
+.look {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+  width: 100%;
+  text-align: left;
+}
+
+.look:focus-visible {
+  outline: 2px solid var(--dusk-amber);
+  outline-offset: 4px;
+}
+
+/* 3:2, and the same 3:2 at 375 as at 1440.
+ *
+ * The one ratio measured to survive a breakpoint unchanged on a real hotel
+ * site — everything else in the sample re-crops, and a room that is a different
+ * shape on a phone than on a laptop is a room the guest has to re-read.
+ *
+ * The under-layer is --umber, not the --ivory-warm §5 gives the /login plates.
+ * A plate fades into the wall beside it and has to land on that colour; a photo
+ * card is not fading into anything, and an undecoded image should be a warm dark
+ * rectangle rather than a hole in the page. */
+.frame {
+  display: block;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  overflow: hidden;
+  background: var(--umber);
+}
+
+.photo {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .name {
@@ -52,129 +93,125 @@
   font-size: var(--text-lg);
   font-weight: 300;
   line-height: 1.2;
-}
-
-.facts {
-  font-size: var(--text-sm);
-  line-height: 1.5;
-  color: var(--stone-deep);
-}
-
-.disclosure {
-  align-self: flex-start;
-  margin-top: var(--space-1);
-  color: var(--stone-deep);
+  color: var(--ink);
   border-bottom: 1px solid transparent;
-  transition:
-    color 0.4s var(--ease-ui),
-    border-color 0.4s var(--ease-ui);
+  transition: border-color 0.4s var(--ease-ui);
 }
 
-.disclosure:hover {
-  color: var(--umber);
+.look:hover .name {
   border-bottom-color: var(--umber);
 }
 
-.disclosure:focus-visible {
-  outline: 2px solid var(--dusk-amber);
-  outline-offset: 4px;
-}
+/* ---- The measure line -------------------------------------------------- */
 
-/* 0fr -> 1fr, so the row collapses to nothing without either element being
-   measured. `height: auto` cannot be transitioned and a measured pixel height goes
-   stale the moment the type reflows. */
-.amenitiesWrap {
+/* Three fixed slots, so the three facts sit at the same x on every card and the
+   column reads down.
+ *
+ * **All three widths are stated, and the third one is the load-bearing one.**
+ * The dots column is sized to the longest run this property can produce — four
+ * filled plus one open — rather than to its contents. The aspect column is sized
+ * to its longest word rather than to `auto`, because `auto` makes the aspect's
+ * width decide the bar's width: measured with `auto`, a 76% bar drew 146px and a
+ * 50% bar drew 146px, because "corner · two aspects" is nine characters longer
+ * than "garden". A bar whose length depends on a word beside it is not a
+ * measurement of anything. */
+.measure {
   display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows 0.5s var(--ease-ui);
+  grid-template-columns: 3.75rem minmax(0, 1fr) 9rem;
+  align-items: center;
+  gap: var(--space-1);
+  width: 100%;
+  padding: 0.125rem 0;
 }
 
-.amenitiesOpen {
-  grid-template-rows: 1fr;
-}
-
-.amenities {
-  overflow: hidden;
-  list-style: none;
+.dots {
   display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1) var(--space-2);
-  font-size: var(--text-sm);
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.dotFilled,
+.dotOpen {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+}
+
+.dotFilled {
+  background: var(--stone-deep);
+}
+
+/* Open, not half-filled: the extra bed is a thing the room *allows*, and an
+   allowance is an outline. */
+.dotOpen {
+  border: 1px solid var(--stone);
+}
+
+.size {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+/* 2px, not the 1px the rest of this origin rules with. A hairline is a
+   *separator*; this is a *mark*, and a 1px fill at --stone-deep over a 15%
+   umber track is indistinguishable from the track it sits in. */
+.track {
+  flex: 1;
+  min-width: 1.5rem;
+  height: 2px;
+  background: rgb(var(--umber-rgb) / 0.15);
+}
+
+.fill {
+  display: block;
+  height: 100%;
+  background: var(--stone-deep);
+}
+
+/* The number at the bar's end, not floating above it. The bar answers bigger or
+   smaller; this answers by how much. */
+.sizeValue {
+  flex: none;
+  font-size: var(--text-xs);
+  line-height: 1;
   color: var(--stone-deep);
 }
 
-.priceColumn {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  align-items: flex-start;
+/* Right-aligned inside its fixed column, so every card's aspect ends on the same
+   edge the price and the button below it end on. */
+.aspect {
+  font-size: var(--text-xs);
+  line-height: 1;
+  color: var(--stone-deep);
+  text-align: right;
+  white-space: nowrap;
 }
 
-@media (min-width: 45rem) {
-  .priceColumn {
-    align-items: flex-end;
-    text-align: right;
-  }
-}
+/* ---- The two prices ---------------------------------------------------- */
 
-.priceBlock {
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem; /* One block of related lines, not four separate facts. */
-  align-items: inherit;
+/* The authoritative figure, and the one the card leads with — the stay total is
+   what the guest is agreeing to. */
+.total {
+  margin-top: var(--space-1);
+  font-family: var(--font-display), serif;
+  font-size: var(--text-display-sm);
+  line-height: 1.1;
 }
 
 .perNight {
   font-size: var(--text-sm);
   line-height: 1.4;
-  color: var(--stone-deep);
-}
-
-.multiplier,
-.grossNote {
-  font-size: var(--text-xs);
   color: var(--stone);
 }
 
-/* The authoritative figure, and the one the card leads with — the stay total is
-   what the guest is agreeing to, and the per-night line under it qualifies it. */
-.total {
-  font-family: var(--font-display), serif;
-  font-size: var(--text-lg);
-  line-height: 1.2;
-}
-
-.priceAbsent {
-  font-size: var(--text-sm);
-  line-height: 1.5;
-  color: var(--stone);
-}
-
-.extraBed {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
-  font-size: var(--text-xs);
-  line-height: 1.5;
-  color: var(--stone-deep);
-  text-align: left;
-  cursor: pointer;
-}
-
-.extraBed input {
-  margin-top: 0.15rem; /* Optical: aligns the box to the cap height beside it. */
-  flex: none;
-  accent-color: var(--umber);
-}
-
-.extraBed:has(input:disabled) {
-  cursor: default;
-  color: var(--stone);
-}
+/* ---- The action -------------------------------------------------------- */
 
 /* The one primary action on the screen, and the one place --dusk-amber is spent
-   as ink — design-foundations.md §2. If a second amber thing ever appears here,
-   that is a question about which of the two is actually primary. */
+   as ink — design-foundations.md §2. Five Choose buttons are five instances of
+   one control, not five accents. If a second amber thing ever appears here, that
+   is a question about which of the two is actually primary. */
 .choose {
   margin-top: var(--space-1);
   width: 100%;
@@ -190,14 +227,7 @@
     border-color 0.4s var(--ease-ui);
 }
 
-@media (min-width: 45rem) {
-  .choose {
-    width: auto;
-    min-width: 9rem;
-  }
-}
-
-.choose:hover:not(:disabled) {
+.choose:hover {
   color: var(--umber);
   background: transparent;
 }
@@ -205,24 +235,4 @@
 .choose:focus-visible {
   outline: 2px solid var(--umber);
   outline-offset: 2px;
-}
-
-.choose:disabled {
-  cursor: default;
-  color: var(--stone);
-  background: transparent;
-  border-color: rgb(var(--umber-rgb) / 0.2);
-}
-
-.chooseNote {
-  font-size: var(--text-xs);
-  line-height: 1.5;
-  color: var(--stone);
-  max-width: 18rem;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .amenitiesWrap {
-    transition: none;
-  }
 }
