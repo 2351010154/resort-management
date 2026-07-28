@@ -645,6 +645,15 @@ export function RoomDeck({ mobile }: { mobile: boolean }) {
         },
       });
 
+      // There is no entrance tween. The stage sits a viewport below the end of
+      // the threshold's scrub and climbs into frame on the page's own scroll,
+      // which is the entrance: the door is open and settled before the stage's
+      // top edge reaches the foot of the frame, and what crosses that edge is
+      // the near end of the cascade, already composed at k = K0. Dissolved in
+      // over the door instead, the two read as one muddled frame — arches and
+      // photographs at half strength on top of each other — which is the whole
+      // reason the cross-fade is gone.
+
       // Exactly the window between the deck's last full frame and Act 5 taking
       // the viewport: the veil closes on Act 5's own dark, which is the value
       // its steam then rises out of. Nothing between the two is bare.

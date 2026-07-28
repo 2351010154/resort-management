@@ -1,8 +1,10 @@
 "use client";
 
 // The concierge: present through all 6 acts. Three phases —
-// top (full wordmark, transparent) / scrolled (monogram, translucent blur) /
-// island (menu panel open). Theme flips ink<->ivory on dark acts (5, 6).
+// top (full wordmark) / scrolled (monogram) / island (menu panel open). Only the
+// last has a ground of its own; the bar is otherwise type on the page. So the one
+// thing that adapts to what is behind it is the colour of that type: ink over a
+// light act, ivory over a dark one.
 
 import { useEffect } from "react";
 import { useArrivalActStore } from "@/features/arrival/lib/act-store";

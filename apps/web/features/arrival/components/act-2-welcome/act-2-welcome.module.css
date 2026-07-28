@@ -150,8 +150,21 @@
   --gutter: clamp(1.25rem, 4vw, 4.5rem);
   /* Scroll a panel holds still for after it lands and before the next one
      covers it. The reveal finishes here, and the tile flips are fired by the
-     landing and play out inside it. */
-  --dwell: 45vh;
+     landing and play out inside it.
+
+     Scroll bought per second of that run. The dwell is not space for the seams
+     to cross in but time, and the two are only related by how fast the reader
+     is moving — so it is written as the exchange rate rather than as a
+     distance, once for the act, and every panel derives its own from the run
+     it actually has (`--run`, set in welcome-chapters.tsx).
+
+     Deliberately under what a panel costs to hold for its whole run: an
+     outgoing panel is not gone when the dwell ends, it is covered from the
+     bottom edge over the whole viewport of the next panel's rise, and its
+     tiles sit high enough to stay in frame through most of that. The run gets
+     the dwell plus that headroom. Paying for the entire run in dwell alone
+     made three motionless panels cost five viewports of wheel. */
+  --dwell-pace: 24vh;
 }
 
 /* No box of its own: the layers take their sticky containing block from
@@ -161,20 +174,13 @@
   display: contents;
 }
 
-/* Every panel turns its photographs over, so the dwell is sized on how many
-   seams it has to fit. The flip run plays on its own clock rather than against
-   scroll, so this is not space for the seams to cross in but time — a dwell
-   too short for the run lets a reader at any normal pace scroll the panel away
-   mid-sequence. Two seams end around a second and a half after the panel
-   lands, three around two: 01 descends and is done a little sooner than 03,
-   which climbs, but they share a figure rather than splitting hairs over the
-   half-second between them. */
-.chapter[data-flips="2"] {
-  --dwell: 58vh;
-}
-
-.chapter[data-flips="3"] {
-  --dwell: 70vh;
+/* Every panel turns its photographs over, so each holds for as long as its own
+   run asks and no longer. 02 has two seams and is done inside a second and a
+   half; 03 climbs to its largest change last and takes nearly a second more,
+   and is the longest hold in the act because it earns it — not because the
+   three were sorted into buckets by tile count. */
+.chapter[data-flips] {
+  --dwell: calc(var(--run) * var(--dwell-pace));
 }
 
 /* Zero height, in flow, at the panel's static top. The layers are sticky, so

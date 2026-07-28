@@ -257,6 +257,14 @@
   color: var(--ivory);
 }
 
+/* This section keeps its natural flow position, which is a full viewport below
+   the end of the threshold's scrub. That viewport is the deck's entrance: the
+   door has finished opening and finished sinking by the time the stage's top
+   edge reaches the bottom of the frame, and the whole of the approach is the
+   cards riding up over the open door until the stage pins. Nothing dissolves —
+   the deck is already composed when it enters, and scrolling is what reveals
+   it. The stage paints no ground of its own, so there is no sheet rising with
+   it, only the photographs. */
 .roomsStage {
   position: relative;
   z-index: 2;
@@ -296,13 +304,27 @@
    it for free.
 
    Semi-transparent by necessity: the open door from movement II is still
-   running underneath, and an opaque layer here paints straight over it. */
+   running underneath, and an opaque layer here paints straight over it.
+
+   Feathered at the leading edge. This stage slides a whole viewport up the
+   frame before it pins, so the wash's own top edge travels across the open door
+   as a hard horizontal line — the same seam the door scrim was moved off this
+   stage to avoid. The wash cannot follow it there: the wipe has to carry it, so
+   it has to stay inside the clip. Spread over a fifth of the frame instead,
+   there is no edge left to read — the wash is a few percent of lift at its
+   strongest, and that much of it per viewport-fifth is a gradient, not a join. */
 .cascade::before {
   content: "";
   position: absolute;
   inset: 0;
   z-index: 1;
   pointer-events: none;
+  mask-image: linear-gradient(to bottom, transparent, rgb(0 0 0 / 1) 22%);
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    rgb(0 0 0 / 1) 22%
+  );
 }
 
 /* Warm and lifted, thrown from the side the day list stands on. */

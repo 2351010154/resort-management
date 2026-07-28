@@ -59,3 +59,43 @@ export const STAGGER_CASCADE = 0.1;
 export const LENIS_LERP = 0.06;
 /** Measured range 0.8–1; bottom of range per M1 heavier-feel call. */
 export const LENIS_WHEEL_MULTIPLIER = 0.8;
+
+/**
+ * How much the page weighs under the wheel. One setting for the whole ride was
+ * the problem: the glide that makes a pinned cascade read as a camera move is
+ * the same glide a reader has to fight through three stacked panels of type,
+ * where nothing moves but the words they are already reading.
+ *
+ * Two numbers, because they are the two halves of "heavy" and neither alone is
+ * it: `wheelMultiplier` is how far one notch of the wheel carries, `lerp` is how
+ * long the page takes to stop once it has. Cinematic spends both — a short
+ * throw that keeps drifting. Light gives the notch its full travel and settles
+ * inside a couple of frames, which is what a screen you read rather than watch
+ * wants.
+ */
+export interface ScrollWeight {
+  lerp: number;
+  wheelMultiplier: number;
+}
+
+/** The set pieces, and the default for anything that does not say otherwise:
+ *  the measured M1 feel, unchanged. */
+export const SCROLL_WEIGHT_CINEMATIC: ScrollWeight = {
+  lerp: LENIS_LERP,
+  wheelMultiplier: LENIS_WHEEL_MULTIPLIER,
+};
+
+/** Reading screens: full travel per notch, and the coast cut to about a fifth
+ *  of the cinematic one. Still smoothed — this is not native scroll, it is the
+ *  same instrument played quietly. */
+export const SCROLL_WEIGHT_LIGHT: ScrollWeight = {
+  lerp: 0.13,
+  wheelMultiplier: 1,
+};
+
+export const SCROLL_WEIGHTS = {
+  cinematic: SCROLL_WEIGHT_CINEMATIC,
+  light: SCROLL_WEIGHT_LIGHT,
+} as const;
+
+export type ScrollWeightName = keyof typeof SCROLL_WEIGHTS;
