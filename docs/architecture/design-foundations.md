@@ -276,7 +276,8 @@ The distinction that actually holds:
 - **Composition is measured.** Anything answering "where exactly does this land
   in this frame" is written where it is measured — usually a `clamp()` or a
   viewport unit, next to a comment saying what it was measured against. Act 2's
-  `--dwell: 45vh` is not a spacing decision, it is how long a panel holds.
+  `--dwell` is not a spacing decision, it is how long a stacked panel holds
+  still between the movement that brings it in and the one that covers it.
 - **A bare `rem` with no comment is neither**, and is the thing to catch in
   review. If it is rhythm it should be a token; if it is composition it should
   say what it was measured against.
@@ -388,11 +389,16 @@ had nothing that left the screen. They agree now, on these terms:
   into Motion's four-number ease form, and it *parses* `EASE_UI_CSS` rather than
   re-typing the digits — so there is still exactly one hand-written
   `cubic-bezier` in the repository.
-- **Entrances stay in CSS where CSS suffices.** The disclosure's
-  `grid-template-rows: 0fr → 1fr`, every cell hover, the range paint and the
-  segment states are all stylesheet transitions. Motion is used for four things,
-  and three of them are exits: the sheet, its scrim, the summary bar, and the
-  card cascade's stagger.
+- **Entrances stay in CSS where CSS suffices.** Every cell hover, the range
+  paint, the card and summary-row washes and the photo card's name underline are
+  all stylesheet transitions. Motion is used for six things, and five of them
+  are exits: the bottom sheet, its scrim, the wide room dialog, the summary bar,
+  **the swap between `/booking`'s two views**, and the card cascade's stagger.
+
+  The view swap is the one that could not have been anything else. `/booking`
+  asks two questions in sequence and unmounts the one it is not asking, because
+  that is how "one open decision at a time" is guaranteed by the tree rather
+  than by CSS discipline — and an unmounted view has to be able to leave.
 
 **Reduced motion is still a composition, not a frozen frame** — and Motion makes
 that a rule you have to keep by hand, because the global kill-switch in
@@ -560,6 +566,7 @@ has been audited against this; there are no undecided cases.
 | Act 6 wordmark band | `alt=""` | Inside an `aria-hidden` band behind the mark |
 | Nav island cards | manifest `alt` | Links to rooms |
 | `/login` plates | `alt=""` | Atmosphere beside a form. See below |
+| `/booking` room leads | written inline, **never `""`** | The thing the guest is choosing between. See below |
 
 **The login plates are the funnel's first images, and they are not in the
 manifest.** They live under `public/images/auth/` and are referenced by hand,
@@ -569,6 +576,26 @@ writes the *arrival's* manifest — sweeping a booking image into it would put a
 their `alt` is written inline, and the rule that decides it is the one above:
 they are atmosphere a sign-in form does not depend on, inside `aria-hidden`
 asides, so both are `alt=""`.
+
+**The booking room leads follow the same route and land on the opposite
+answer.** They live under `public/images/booking/rooms/` and are declared by
+hand in `features/booking/lib/room-images.ts`, for exactly the reason the plates
+are — but they are **content**, not atmosphere. A room card is a photograph of
+the room the guest is being asked to take; with the text covered it is the only
+thing telling five rooms apart. So every one carries a written `alt`, and
+`room-images.spec.ts` fails the build if one is empty.
+
+Two rules that fall out of that, and are worth stating because both are easy to
+get wrong:
+
+- **The `alt` does not repeat the room's name.** The name is rendered beside the
+  frame inside the same button, and again as the room sheet's title. An `alt`
+  beginning "Junior Suite," makes a screen reader say it twice — which is the
+  same defect as `alt=""`, in the other direction.
+- **A tier's number is the file's real pixel width**, so the `srcSet` descriptor
+  and the filename suffix are the same number and the browser is never told a
+  file is bigger than it is. The arrival's manifest names the width each tier was
+  *asked* for; this one names what came out.
 
 Decide from the image's job on the surface it is on, not from the file. The
 same photograph can be content on one surface and decoration on another — act
