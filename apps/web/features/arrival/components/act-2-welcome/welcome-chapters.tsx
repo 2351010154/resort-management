@@ -41,6 +41,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useEffect, useRef } from "react";
 import { arrivalImages } from "@/features/arrival/lib/image-manifest";
 import { tierSrc, tierSrcSet } from "@/features/arrival/lib/image-srcset";
+import { useScrollWeight } from "@/features/arrival/lib/lenis-scroll-provider";
 import { prefersReducedMotion } from "@/features/arrival/lib/webgl-support";
 import {
   DUR_SCENE,
@@ -325,6 +326,24 @@ const LAG: Record<Arch, readonly number[]> = {
   shingle: [6, 3],
 };
 
+/**
+ * When a chapter's flip run is over, in seconds from the panel landing — the
+ * last seam to finish, whichever tile it belongs to.
+ *
+ * This is what the dwell is sized on. It used to be a figure per flip count,
+ * written in the stylesheet and kept level with these timings by a comment,
+ * which is a pairing that can only ever drift: a seam moved half a second later
+ * here left the panel it belongs to scrolling away mid-sweep with nothing to
+ * say so. Read off the timings themselves, the dwell cannot be wrong about a
+ * run it is derived from.
+ */
+const runEnd = (chapter: Chapter) =>
+  chapter.tiles.reduce(
+    (end, tile) =>
+      tile.flip ? Math.max(end, tile.flip.at + tile.flip.dur) : end,
+    0,
+  );
+
 const SLOT_CLASS: Record<Slot, string> = {
   frame: styles.slotFrame,
   stampIn: styles.slotStampIn,
@@ -386,6 +405,12 @@ function TileImage({ image, slot }: { image: ManifestImage; slot: Slot }) {
 
 export function WelcomeChapters() {
   const rootRef = useRef<HTMLDivElement>(null);
+
+  // The one stretch of Act 2 that is read rather than watched: three panels
+  // that pin, hold still, and turn a photograph over. The act around it keeps
+  // the cinematic weight — this claims the light one for its own length and
+  // hands it back at the far edge.
+  useScrollWeight(rootRef, "light");
 
   useEffect(() => {
     const root = rootRef.current;
@@ -577,7 +602,15 @@ export function WelcomeChapters() {
           // sized on. Derived rather than written down, so the two cannot drift.
           data-flips={chapter.tiles.filter((tile) => tile.flip).length}
           className={styles.chapter}
-          style={{ "--i": i } as React.CSSProperties}
+          style={
+            {
+              "--i": i,
+              // Seconds the flip run takes. The stylesheet turns it into the
+              // dwell at one pace for the whole act, and zeroes it where the
+              // panels do not pin at all.
+              "--run": runEnd(chapter),
+            } as React.CSSProperties
+          }
         >
           <div data-chapter-mark className={styles.chapterMark} aria-hidden />
 

@@ -40,6 +40,13 @@ varying vec2 vUv;
 
 uniform float uTime;
 uniform float uAspect;
+/**
+ * How large the whole cast is, as a share of the size it was drawn at. Computed
+ * on the CPU (foliage-gobo.tsx) rather than here because the screen pass has to
+ * blur by the same figure — a frond scaled in one pass and not the other stops
+ * being a smaller shadow and becomes a mushier one.
+ */
+uniform float uScale;
 /** 0 parks the foliage (reduced motion), 1 is a full breeze. */
 uniform float uSway;
 /** Pointer in gobo units. */
@@ -181,10 +188,10 @@ float sprayLeaves(
 
 void main() {
   vec2 p = vec2(vUv.x * uAspect, vUv.y);
-  // Everything here is measured against frame height, which on a phone is most
-  // of the screen — so a spray sized for a laptop swallows a portrait frame.
-  // Pull it in with the aspect.
-  float scale = clamp(0.55 + 0.45 * uAspect, 0.72, 1.0);
+  // Everything here is measured against frame height, so the cast is only ever
+  // a share of the window unless something says otherwise. That something is
+  // uScale — see foliage-gobo.tsx for what goes into it.
+  float scale = uScale;
 
   // Far layer: the cast branch, hung off an anchor just outside the top-right
   // corner so it arrives already in frame rather than growing out of a point.
@@ -283,6 +290,9 @@ varying vec2 vUv;
 uniform sampler2D uMask;
 uniform float uMaskTexel;
 uniform float uAspect;
+/** The mask pass's own scale. The penumbra is measured in mask texels, so it
+ *  has to come down with the frond or a smaller shadow is only a blurrier one. */
+uniform float uScale;
 /** Act-level fade on the cast branch. */
 uniform float uOpacity;
 /** The near mass is far fainter than the branch — measured off the comp. */
@@ -334,12 +344,12 @@ void main() {
   float inboard = length(
     (vec2(vUv.x * uAspect, vUv.y) - vec2(uAspect, 1.0)) / vec2(uAspect, 1.0)
   );
-  float penumbra = mix(2.5, 13.0, smoothstep(0.12, 0.95, inboard));
+  float penumbra = mix(2.5, 13.0, smoothstep(0.12, 0.95, inboard)) * uScale;
 
   float branch = sampleBlur(uMask, uv, texel, penumbra, n).r;
   // Softer than the branch but still legible as leaves: enough blur to sit
   // behind the line without competing, not so much that it washes out.
-  float near = sampleBlur(uMask, uv * 1.01, texel, 19.0, n).g;
+  float near = sampleBlur(uMask, uv * 1.01, texel, 19.0 * uScale, n).g;
 
   float shade = clamp(branch * uOpacity + near * uNearOpacity, 0.0, 1.0);
   // The wall ends at the act boundary, so the shadow has to be gone before its

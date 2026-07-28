@@ -7,8 +7,14 @@
 // time — see wordmark-reveal.
 
 import { useRef } from "react";
-import { useLenis } from "@/features/arrival/lib/lenis-scroll-provider";
-import { scrollToAct, scrollToRoom } from "@/features/arrival/components/navigation/nav-hover-link";
+import {
+  useLenis,
+  useScrollWeight,
+} from "@/features/arrival/lib/lenis-scroll-provider";
+import {
+  scrollToAct,
+  scrollToRoom,
+} from "@/features/arrival/components/navigation/nav-hover-link";
 import { EmbossedMonogram, type EmbossIntensity } from "./embossed-monogram";
 import { LettersFromMariva } from "./letters-from-mariva-form";
 import { WordmarkReveal } from "./wordmark-reveal";
@@ -47,6 +53,11 @@ export function TurndownFooter({
   const sectionRef = useRef<HTMLElement>(null);
   const lenis = useLenis();
 
+  // Columns, a form, and a wordmark: the one screen of the ride that is a page.
+  // The glide that carries a camera move is only in the way of a reader looking
+  // for a link.
+  useScrollWeight(sectionRef, "light");
+
   return (
     <footer ref={sectionRef} data-act={6} className={styles.section}>
       <div className={styles.inner}>
@@ -56,7 +67,9 @@ export function TurndownFooter({
           <nav className={styles.columns} aria-label="Footer">
             {COLUMNS.map(({ title, links }) => (
               <div key={title} className={styles.column}>
-                <span className={`caps-label ${styles.columnTitle}`}>{title}</span>
+                <span className={`caps-label ${styles.columnTitle}`}>
+                  {title}
+                </span>
                 {links.map((link) =>
                   "act" in link ? (
                     <a

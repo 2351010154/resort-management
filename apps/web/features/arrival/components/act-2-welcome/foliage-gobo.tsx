@@ -58,6 +58,45 @@ const GUST = 0.6;
 /** How fast the pointer's influence fades in and out as it enters/leaves. */
 const REACH_RATE = 3.5;
 
+/**
+ * Frame height the frond's proportions were cut against, in CSS pixels.
+ *
+ * The shader measures every leaf, stem and spray against the height of the
+ * frame, so left alone the cast is a fixed share of the window and grows in
+ * pixels exactly as the window does: a leaf runs ~90px on a short laptop and
+ * ~210px on a large monitor. It was the only thing on this wall that did —
+ * every rule and every line of type beside it is capped in rem — so the shadow
+ * drifted against the type it stands behind, delicate on one screen and the
+ * loudest graphic in the act on another. Dividing by the height it was drawn
+ * for is what holds a leaf the same size on both.
+ */
+const REF_FRAME_HEIGHT = 700;
+
+/** What share of that reference the shadow is drawn at. */
+const CAST_SCALE = 0.75;
+
+/**
+ * Size of the whole cast, as the share of its drawn size both passes work in.
+ *
+ * Two corrections, and they are not the same correction. The aspect term holds
+ * a spray inside a narrow frame: measured in frame heights, one overruns a
+ * portrait screen sideways however few pixels it is. The height term is the
+ * one above — it stops the cast growing with the window at all. A phone takes
+ * both, which is why its shadow comes out the most reduced of any screen: it is
+ * the frame that is both narrow and tall.
+ */
+function castScale(width: number, height: number): number {
+  const aspect = height > 0 ? width / height : 1;
+  const narrow = Math.min(Math.max(0.55 + 0.45 * aspect, 0.72), 1);
+  // Bounded above so a short window does not inflate the cast past the size it
+  // was drawn at, and below so a very tall one keeps a shadow at all.
+  const zoom = Math.min(
+    Math.max(REF_FRAME_HEIGHT / (height || REF_FRAME_HEIGHT), 0.45),
+    1.15,
+  );
+  return narrow * zoom * CAST_SCALE;
+}
+
 // The shadow's foot is taken care of in the screen pass, which tapers it out
 // above the wall's bottom edge at any scroll position — so nothing here needs to
 // watch where the act sits on screen.
@@ -89,6 +128,7 @@ function GoboPasses({ still }: { still: boolean }) {
     () => ({
       uTime: { value: 0 },
       uAspect: { value: 1 },
+      uScale: { value: CAST_SCALE },
       uSway: { value: still ? 0 : 1 },
       // Parked well off-frame so nothing is boosted until the pointer arrives.
       uPointer: { value: new THREE.Vector2(-9, -9) },
@@ -103,6 +143,7 @@ function GoboPasses({ still }: { still: boolean }) {
       uMask: { value: target.texture },
       uMaskTexel: { value: 1 / MASK_SIZE },
       uAspect: { value: 1 },
+      uScale: { value: CAST_SCALE },
       uOpacity: { value: BRANCH_OPACITY },
       uNearOpacity: { value: NEAR_OPACITY },
       uTilt: { value: new THREE.Vector2() },
@@ -118,12 +159,17 @@ function GoboPasses({ still }: { still: boolean }) {
   const compositeMaterial = useRef<THREE.ShaderMaterial>(null);
 
   const aspect = size.height > 0 ? size.width / size.height : 1;
+  // Both passes take both figures: the mask draws the frond at this size and
+  // the screen pass has to blur it by the same amount. Re-read on resize, so a
+  // window dragged taller does not take the shadow up with it.
+  const scale = castScale(size.width, size.height);
   useEffect(() => {
-    if (maskMaterial.current)
-      maskMaterial.current.uniforms.uAspect.value = aspect;
-    if (compositeMaterial.current)
-      compositeMaterial.current.uniforms.uAspect.value = aspect;
-  }, [aspect]);
+    for (const material of [maskMaterial.current, compositeMaterial.current]) {
+      if (!material) continue;
+      material.uniforms.uAspect.value = aspect;
+      material.uniforms.uScale.value = scale;
+    }
+  }, [aspect, scale]);
 
   // Pointer lives on the window: the canvas takes no events, and the wall should
   // answer the pointer wherever it is over the act. Measured against the canvas
