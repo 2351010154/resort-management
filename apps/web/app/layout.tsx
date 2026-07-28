@@ -46,7 +46,7 @@ const ui = DM_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Mariva — 5 Star Resort",
+  title: "Mariva",
   description:
     "Rest. Relax. Rejuvenate. An arrival ritual — the Mariva resort concept.",
   icons: { icon: "/brand/mariva-monogram.svg" },
