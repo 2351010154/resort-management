@@ -43,8 +43,8 @@ everything else is transactional and loads no 3D.
 
 | | Screen | What the guest does here | Lands |
 |:-:|---|---|---|
-| 🟡 | `/booking` | Picks dates and guests, sees what is free, chooses a room type. **Screen built; reads a local fixture because the `pricing` and `inventory` reads it needs do not exist yet** | M7 |
-| ⬜ | `/booking/…/details` | Says who is staying. The room is now held on a timer | M7 |
+| 🟡 | `/booking` | Picks the nights, then picks a room from photographs of them — two views, and only one is on screen at a time. **The rate plan is not chosen here**; it moves to `/details`. **Screen built; reads a local fixture because the `pricing` and `inventory` reads it needs do not exist yet, and its five room photographs are interim frames borrowed from the landing page** | M7 |
+| ⬜ | `/booking/…/details` | Says who is staying, **which rate plan**, and whether they want an extra bed. The room is now held on a timer | M7 |
 | ⬜ | `/booking/…/payment` | Pays. **This is where the system starts handling real money** | M7 |
 | ⬜ | `/booking/…/confirming` | Waits a few seconds while the bank confirms. Not a page anyone lingers on, but it has to exist — the bank's answer arrives separately from the browser | M7 |
 | ⬜ | `/bookings/…` | Sees the booking is confirmed. The same page they come back to later to check details, and where they leave feedback after the stay | M7 |

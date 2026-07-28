@@ -1,80 +1,378 @@
-# Mariva
+<div align="center">
 
-Booking and property-management system for the Mariva resort, plus the marketing
-site that fronts it.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/mariva-lockup-dark.svg">
+  <img src="docs/assets/mariva-lockup-light.svg" alt="Mariva — 5 Star Resort" width="300">
+</picture>
 
-## Layout
+<sub>**5 STAR RESORT**</sub>
+
+**A property management system and booking engine for one resort — plus the marketing site that sells its rooms.**
+
+[![CI](https://github.com/2351010154/resort-management/actions/workflows/ci.yml/badge.svg)](https://github.com/2351010154/resort-management/actions/workflows/ci.yml)
+![Node](https://img.shields.io/badge/node-24-5FA04E?logo=node.js&logoColor=white)
+![pnpm](https://img.shields.io/badge/pnpm-11.1.2-F69220?logo=pnpm&logoColor=white)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.6-3178C6?logo=typescript&logoColor=white)
+
+</div>
+
+Mariva has two audiences that never meet. A **guest** finds a free room on the public
+site, books it and pays online. **Staff** — six roles, from housekeeping to admin — run
+the property: check people in, post charges, take payment, issue the legal invoice, hand
+over the shift, read the numbers.
+
+One database, one set of business rules, two front doors.
+
+> [!NOTE]
+> **This is a system under construction, not a finished product.** The web surface and
+> the API's foundations (config, database, logging, health, both authentication realms,
+> the capability guard) are built. Inventory, booking, folio and payments are designed in
+> `docs/architecture/` but not yet implemented — see [Roadmap](#roadmap).
+
+## Contents
+
+- [The invariant](#the-invariant)
+- [Architecture](#architecture)
+- [What's inside](#whats-inside)
+- [Getting started](#getting-started)
+- [Commands](#commands)
+- [Quality gates](#quality-gates)
+- [Asset and capture pipelines](#asset-and-capture-pipelines)
+- [Documentation](#documentation)
+- [Roadmap](#roadmap)
+
+## The invariant
+
+Everything else here is ordinary software. This is not:
+
+> **Two guests must never be sold the same room for the same night.**
+
+A hotel sells inventory that is finite, dated, and worthless the day after. The usual way
+to get this wrong is to check availability in application code — read, decide, write —
+because two requests can read the same *"1 room left"* before either writes.
+
+So the guarantee does not live in code. It lives in Postgres, in two layers:
+
+| Layer | What it holds | What makes it safe |
+| --- | --- | --- |
+| **Type level** — what you sell | rooms sold per night, per room type | `CHECK (sold_rooms <= total_rooms)`. Two people racing for the last Deluxe: one commits, the other's transaction is **rejected by the database** |
+| **Room level** — what you operate | which physical room, which date range | `EXCLUDE USING gist` — an overlapping stay on the same room is **not representable**, so no code path can store one, including a buggy one |
+
+Guests book a *type* ("a Deluxe for three nights"); room 301 is chosen at check-in. That
+separation is what makes room moves, maintenance closures and upgrades routine instead of
+a crisis.
+
+> [!IMPORTANT]
+> Invariants live in the database, never in a service-layer check. Application code may
+> not be the last line of defence for money or inventory. Migrations are plain `.sql`
+> under `apps/api/src/database/migrations/` precisely so `btree_gist`, `EXCLUDE` and
+> `daterange` stay in version control.
+
+## Architecture
+
+```mermaid
+flowchart TD
+    subgraph guests[Guests]
+        web["apps/web — Next.js<br/>marketing arrival + /booking"]
+    end
+    subgraph staff[Staff]
+        admin["apps/admin — Next.js<br/>front desk + management<br/>reserved, not scaffolded"]
+    end
+    contract["packages/shared<br/>zod contracts — the types both sides infer"]
+    api["apps/api — NestJS + Drizzle<br/>every business rule, and the only writer"]
+    db[("Postgres<br/>constraints hold the invariant")]
+
+    web --> api
+    admin --> api
+    web -.-> contract
+    admin -.-> contract
+    api -.-> contract
+    api --> db
+```
+
+Three rules follow from the picture, and they are the ones worth defending:
+
+- **One brain.** Front-ends never re-implement a rule. No business logic in a Next.js
+  server action or route handler, and no front-end talks to the database.
+- **The contract is a package.** `packages/shared` holds the zod schemas; the API
+  validates against them and both front-ends infer their types from them. Break the
+  contract and the build fails, not production.
+- **`/booking` shares an origin with the marketing site but not its bundle.** The
+  scrollytelling acts load `three`, `gsap` and `lenis`. The booking funnel ships **zero
+  bytes** of them — a conversion path is not a showreel. That is a CI budget, not a
+  convention.
+
+Dependencies point one way and never back up the chain:
 
 ```
-apps/api             NestJS + Postgres — every business rule, the only writer to the database
-apps/admin           Next.js — front desk and management, keyboard-first
-apps/web             Next.js — the public origin: the marketing arrival and the booking funnel
-packages/shared      zod schemas and the types inferred from them; the contract every app reads
-packages/api-client  typed fetch wrapper over the API, validating with the shared schemas
-packages/tokens      tokens.css — the one definition of the brand, imported by every app
-docs/                architecture, generated diagrams, traceability
+app/  →  features/  →  components/ui/ + lib/  →  packages/*
 ```
 
-`apps/web`, `apps/api`, `packages/shared` and `packages/tokens` have code.
-`apps/admin` and `packages/api-client` are reserved boundaries: the directory
-tree exists, the work that fills it has not started.
+A feature never imports another feature. When two need the same thing, the thing
+graduates: to `components/ui/` if it is presentational, to `lib/` if it is
+infrastructure, to `packages/shared` if it is a contract.
+
+## What's inside
+
+A pnpm workspace driven by Turborepo.
+
+| Workspace | Stack | State |
+| --- | --- | --- |
+| [`apps/api`](apps/api/README.md) | NestJS 11 on Express 5, Drizzle + `pg`, pino, pg-boss. **ESM** | Foundations and auth built |
+| `apps/web` | Next.js 16, React 19, CSS Modules, `three` + `@react-three/fiber` + GSAP + Lenis, `motion`, Zustand | Arrival and auth screens built; booking funnel in progress |
+| [`apps/admin`](apps/admin/README.md) | Next.js + Tailwind 4, shadcn/ui, cmdk, TanStack Table | Reserved boundary — not scaffolded |
+| `packages/shared` | zod 4, `drizzle-zod`, `@internationalized/date` | Money and stay-date contracts built |
+| `packages/tokens` | `tokens.css` — the one definition of the brand | Built |
+| `packages/api-client` | Typed fetch wrapper validating through `shared` | Reserved boundary |
+
 [`docs/architecture/repository-structure.md`](docs/architecture/repository-structure.md)
-is the authority on what goes where and why.
+is the authority on what goes where and why. A directory that exists but holds no code is
+a reserved boundary, not an oversight: an imported empty module misrepresents the
+dependency graph.
 
-## Documentation
+**Two type distinctions the contract makes into compile errors**, because both are
+otherwise the most common bug class in this domain:
 
-New here, or back after a break? [`docs/orientation.md`](docs/orientation.md) —
-what the system is, the one invariant that must never break, the road, and how to
-work out what to do next.
-
-[`docs/README.md`](docs/README.md) is the authority map: it points every fact
-domain — structure, roles, booking states, stack, infrastructure, backlog — to
-the one document that owns it.
+- **Money is `bigint` VND.** No minor unit, no decimal library, `Intl.NumberFormat('vi-VN')`
+  to display.
+- **A stay date is not an instant.** `CalendarDate` for the nights you sell,
+  `ZonedDateTime` for the moments things happen. Mixing them is the off-by-one-night bug.
 
 ### Route groups in `apps/web`
 
-The root layout carries only the document shell, the type family, and the design
-tokens. Anything that reaches `three` / `gsap` / `lenis` lives in
-`app/(marketing)/`, so `app/(booking)/` renders on the same origin without the
-WebGL bundle in its tree. Route groups do not appear in URLs:
-`app/(marketing)/page.tsx` is still `/`.
+The root layout carries only the document shell, the type families and the design tokens.
+Anything reaching `three` / `gsap` / `lenis` lives under `app/(marketing)/`, so
+`app/(booking)/` renders on the same origin without the WebGL bundle in its tree. Route
+groups do not appear in URLs — `app/(marketing)/page.tsx` is still `/`.
+
+The `(booking)` group holds the five auth screens as well as the funnel. The name means
+*plain bundle*; a screen belongs there because it must not load `three`, not because it
+sells a room.
+
+> [!NOTE]
+> `/booking` is built ahead of its API, and says so. The three reads it needs belong to
+> the unbuilt `pricing` and `inventory` modules. The **contract** for them is real and
+> permanent in `packages/shared/src/rate-calendar.ts`; the transport is a single stub,
+> `features/booking/lib/rate-calendar-fixture.ts`, deleted the day the endpoints land. No
+> component knows which of the two it is reading.
 
 ## Getting started
 
-Requires Node 24 (see `.nvmrc`) and pnpm — the version is pinned in the root
-`package.json` `packageManager` field, so `corepack enable` will fetch it.
+### Prerequisites
+
+| | |
+| --- | --- |
+| **Node 24** | Pinned in [`.nvmrc`](.nvmrc), `engines`, and CI together |
+| **pnpm 11.1.2** | Pinned in the root `packageManager` field — `corepack enable` fetches it |
+| **Postgres 17** | Local, in Docker. Neon is for deployed environments only |
 
 ```bash
+corepack enable
 pnpm install
-pnpm dev            # every app that defines a dev task
-pnpm lint
-pnpm typecheck
-pnpm build
-pnpm test
 ```
 
-The API needs a Postgres and two secrets before it will boot: copy
-`apps/api/.env.example` to `.env`, then `pnpm --filter @mariva/api db:migrate`.
-Its tests need a second database and their own `.env.test` — they truncate what
-they find, so they refuse to run off `.env`. Signing into the admin side needs a
-first `ADMIN` account, which is created from a shell because the API route that
-creates staff accounts requires one:
-[`apps/api/README.md`](apps/api/README.md#commands).
+### Configure
 
-Turborepo fans each task out across the workspaces. To drive a single one:
+The web app needs one public variable; the API refuses to boot without a database URL and
+two distinct secrets.
+
+```bash
+cp apps/web/.env.example apps/web/.env.local
+cp apps/api/.env.example apps/api/.env
+```
+
+Then generate the two secrets and put them in `apps/api/.env`:
+
+```bash
+openssl rand -base64 32   # BETTER_AUTH_SECRET
+openssl rand -base64 32   # STAFF_JWT_SECRET
+```
+
+> [!IMPORTANT]
+> `BETTER_AUTH_SECRET` and `STAFF_JWT_SECRET` must never hold the same value — one signs
+> guest session cookies, the other signs staff access tokens, and sharing them would let
+> one leak forge both realms.
+>
+> `NEXT_PUBLIC_API_URL` and the API's `WEB_ORIGIN` are two halves of one CORS pair. A
+> mismatch fails sign-in as a CORS error rather than as a wrong password.
+
+Every variable the API reads is declared in `apps/api/src/config/env.ts` and parsed by zod
+before the container is built. A missing or malformed one prints its name and exits 1 — it
+never boots on a default nobody chose.
+
+### Database
+
+Bring up Postgres, then apply the committed migrations:
+
+```bash
+docker run -d --name mariva-pg -p 5432:5432 \
+  -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=mariva_dev postgres:17
+
+pnpm --filter @mariva/api db:migrate
+```
+
+The first `ADMIN` cannot be created through the API, because creating staff accounts
+requires a capability only an `ADMIN` holds. Create it from a shell — it prompts for the
+password rather than taking it as an argument, which would put it in the shell history and
+in `ps`:
+
+```bash
+pnpm --filter @mariva/api staff:create -- \
+  --email owner@mariva.vn --name "Trần Minh" --role ADMIN
+```
+
+### Run
+
+```bash
+pnpm dev
+```
+
+Turborepo fans the task out across every workspace that defines one: the web app on
+<http://localhost:3000>, the API on <http://localhost:3001>. To drive a single one:
 
 ```bash
 pnpm --filter @mariva/web dev
 ```
 
-## Asset and capture scripts
+`GET /health` executes `select 1` through the pool and returns 200 only after that
+round-trip comes back — never a 200 with a body explaining that things are bad.
 
-`apps/web/scripts/` holds the pipelines that produce the arrival's images and
-video, and the Playwright scripts that photograph acts against a running dev
-server. Run them from the repo root:
+## Commands
+
+Run from the repo root.
+
+| Command | What it does |
+| --- | --- |
+| `pnpm dev` | Every app that defines a dev task |
+| `pnpm build` | Turborepo build, respecting workspace dependencies |
+| `pnpm lint` | Biome across the repo, then stylelint on the web app's CSS |
+| `pnpm format` | Biome, writing in place |
+| `pnpm typecheck` | Every workspace that owns a `tsc` pass |
+| `pnpm test` | Vitest across the workspaces |
+| `pnpm backlog:view` | Renders the local backlog as a filterable HTML page |
+
+The API's own commands — migrations, the Nest watch loop, the first-admin script — are in
+[`apps/api/README.md`](apps/api/README.md#commands).
+
+## Quality gates
+
+| Gate | Tool | Where it runs |
+| --- | --- | --- |
+| Format + typecheck | Biome, `tsc` | **Commit**, via lefthook. Formatting is applied and re-staged, not reported |
+| Lint | Biome + stylelint | **CI** — a lint failure at commit time leaves the author nothing staged to fix |
+| Typecheck | `tsc` per workspace | CI |
+| Build | `next build`, `tsc` | CI. The Next app's type check happens inside its build |
+| Unit + integration | Vitest 4 | Per workspace |
+| Visual baseline | Playwright | `apps/web/tests/visual-baseline/`, desktop and mobile |
+
+CI runs on every pull request and push to `main`: install with a frozen lockfile, then
+lint → typecheck → build, with in-flight runs superseded per branch.
+
+> [!WARNING]
+> The API's tests need a **second** database and their own `apps/api/.env.test`. They
+> apply the committed migrations and truncate every table they use, so they refuse to
+> start when that file is missing rather than falling back to `.env` — which is how a test
+> run empties somebody's development database.
+
+Two notes that will otherwise cost you an afternoon:
+
+- **`apps/api` is ESM** (`"type": "module"`, `nodenext`). Relative imports need explicit
+  `.js` extensions; CommonJS dependencies like `pg` are default-imported. This is forced,
+  not stylistic — `@orpc/*` ships ESM only.
+- **Nest under Vitest transforms with SWC, not esbuild.** Nest's DI reads constructor
+  parameter types from `emitDecoratorMetadata`, which esbuild does not emit. Without the
+  SWC plugin, every injected dependency arrives as `undefined`.
+
+## Asset and capture pipelines
+
+`apps/web/scripts/` holds the pipelines that produce the arrival's images and video, and
+the Playwright scripts that photograph acts against a running dev server. Run them from
+the repo root:
 
 ```bash
 node apps/web/scripts/capture-finale.mjs
 ```
 
 Captures are written to `plans/reports/screenshots/`, which is untracked.
+
+## Documentation
+
+Written as the system is built, not assembled at the end.
+
+| Start here | For |
+| --- | --- |
+| [`docs/orientation.md`](docs/orientation.md) | What the system is, the invariant, the milestone road, and how to work out what to do next |
+| [`docs/README.md`](docs/README.md) | The **authority map** — which document owns which fact, and the precedence order when two disagree |
+| [`docs/screens.md`](docs/screens.md) | Every screen, what it is for, and how far along it is |
+
+| Design fact | Owner |
+| --- | --- |
+| Repository structure, dependency rules, module map | [`repository-structure.md`](docs/architecture/repository-structure.md) |
+| Palette, type, spacing, motion, copy voice, alt-text rule | [`design-foundations.md`](docs/architecture/design-foundations.md) |
+| Technology stack, versions, rejected options | [`tech-stack.md`](docs/architecture/tech-stack.md) |
+| Roles and permissions | [`rbac-matrix.md`](docs/architecture/rbac-matrix.md) |
+| Booking states and transitions | [`booking-state-machine.md`](docs/architecture/booking-state-machine.md) |
+| Property facts, rates, cancellation grid, charge model | [`property-and-tariff.md`](docs/architecture/property-and-tariff.md) |
+| Hosting, database, storage, backups, payments, e-invoice | [`infrastructure.md`](docs/architecture/infrastructure.md) |
+
+The architecture documents are authored **ahead** of the code that enforces them: change
+the document first, then the implementation.
+
+[`docs/bao-cao/`](docs/bao-cao/README.md) is the Vietnamese coursework report — nine
+chapters assembled from the documents above. It is a consumer of truth, never a source.
+
+> [!TIP]
+> The working backlog lives in `plans/`, which is deliberately untracked. `pnpm backlog:view`
+> renders it as a filterable page, generated on every run and storing nothing, so it can
+> never become a second status source.
+
+### Vocabulary
+
+The docs are written in hotel vocabulary. The short version:
+
+| Term | What it means here |
+| --- | --- |
+| **Hold** | A booking that has reserved inventory but is not paid. Expires on a timer and gives the room back |
+| **Folio** | The bill attached to one stay. **Append-only** — "editing an invoice" means adding a reversing line, never an `UPDATE` |
+| **Night audit** | A nightly job: posts room charges, rolls the business date forward, freezes a snapshot. Reports read snapshots, so last month's numbers never change |
+| **Business date** | The hotel's day, which is not midnight-to-midnight |
+| **Housekeeping status** | `CLEAN / DIRTY / INSPECTED / OUT_OF_ORDER`, completely separate from occupancy. A checked-out room is not sellable until inspected |
+| **Occupancy / ADR / RevPAR** | The three numbers a hotel is actually judged on. Gross revenue alone says nothing |
+
+Two enumerations worth knowing before reading any module:
+
+- **Booking states**, six and no more: `HELD` → `CONFIRMED` → `CHECKED_IN` → `CHECKED_OUT`,
+  with `CANCELLED` and `NO_SHOW` terminal. There is no `EXPIRED` — an abandoned hold and a
+  guest cancellation differ in *reason*, not in what the system must do, so `CANCELLED`
+  carries a reason code and the reason drives the penalty.
+- **Roles**, in two realms no single token opens: `GUEST` on Better Auth;
+  `RECEPTIONIST`, `HOUSEKEEPING`, `ACCOUNTANT`, `MANAGER`, `ADMIN` on Passport-JWT. A
+  route with no `@RequiresCapability()` declaration is unreachable by everyone — the guard
+  is fail-closed, and the one escape hatch takes a written reason.
+
+## Roadmap
+
+Fourteen milestones. Each ends with something demonstrable, and stopping at any of them
+leaves a coherent system rather than a half-built one. **Bold rows are the spine**; the
+rest can be deferred without breaking anything downstream.
+
+| # | Milestone | What you can do once it is done |
+| --- | --- | --- |
+| M0 | Paperwork & procurement | Nothing visible. Unlocks real payments and legal invoices |
+| M1 | Web migration ✅ | The marketing site sits on current React/Next, guarded by a visual baseline |
+| **M2** | **Foundations** ◐ | API boots against Postgres, six roles enforced, tests run, ERD generates from the schema |
+| **M3** | **Inventory & availability** | The system knows what is free on any date and **cannot** oversell |
+| **M4** | **Booking lifecycle & front desk** | A receptionist can check a guest in, move rooms, extend, cancel — keyboard only |
+| M5 | Assignment optimizer | Refused bookings become revenue by re-packing rooms |
+| **M6** | **Folio, payments, invoicing** | You can take money and issue a legal invoice |
+| M6.5 | MoMo | Second wallet, only if VNPay-only abandonment proves it is needed |
+| **M7** | **Guest booking engine** | A stranger books on the website and pays |
+| **M8** | **Operations** | Shift handover, income/expense, audit log viewer, Excel export |
+| **M9** | **Reporting** | Occupancy / ADR / RevPAR, and the charts the brief asks for |
+| M9.5 | Overbooking | Sell above 100% against a no-show model. Needs real data first |
+| **M10** | **Hardening** | Security audit, load test, paper-fallback runbook |
+| M11 | OTA channel manager | Booking.com / Agoda / Traveloka sell your rooms. Deferred |
+
+M3 is called the correctness core: the test that proves it — 50 parallel bookings on the
+last room, exactly one success — is written **before** any booking screen. It is the one
+test in this project that cannot be retrofitted honestly.
