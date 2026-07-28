@@ -1,13 +1,16 @@
-<!-- README header lockup: the monogram over the wordmark, as on the brand sheet.
-     Paths are copied verbatim from apps/web/public/brand/mariva-monogram.svg and
-     mariva-wordmark.svg; only the fill, the stylesheet and the two transforms are
-     added here. Those sources use currentColor, which resolves to black when a
-     Markdown <img> loads them, so the ink is set explicitly: --ink (#1c1915) by
-     default, --ivory (#f4efe6) when the reader prefers a dark scheme. The rule
-     beats the presentation attribute and the paths inherit it. GitHub cannot
-     resolve relative paths inside <picture>, so the README points a plain <img>
-     at this one file. Regenerate it if the brand SVGs change. -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 320" fill="#1c1915" aria-label="Mariva" role="img">
+  <!-- README header lockup: the monogram over the wordmark, as on the brand sheet.
+       Paths are copied verbatim from apps/web/public/brand/mariva-monogram.svg and
+       mariva-wordmark.svg; only the fill, the stylesheet and the two transforms are
+       added here. Those sources use currentColor, which resolves to black when a
+       Markdown img tag loads them, so the ink is set explicitly: the ink token
+       (#1c1915) by default, the ivory token (#f4efe6) when a reader prefers a dark
+       scheme. That rule beats the presentation attribute and the paths inherit it.
+       Token names are spelled out because an XML comment cannot hold a double
+       hyphen, and a malformed comment makes the whole file an invalid image.
+       GitHub does not rewrite relative paths inside a picture element, so the
+       README points a plain img tag at this one file. Regenerate it if the brand
+       SVGs change. -->
   <style>
     @media (prefers-color-scheme: dark) { svg { fill: #f4efe6 } }
   </style>
