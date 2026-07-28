@@ -1,0 +1,44 @@
+/* The demoted rows.
+ *
+ * A separate stylesheet rather than an addition to room-type-list.module.css:
+ * this is a different composition — text, no picture, no control — and keeping
+ * it apart is what let this and the photo card be written without either one
+ * touching the other's file.
+ *
+ * About 28px a row. Enough to read, not enough to compete with a photograph.
+ */
+
+.demoted {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding-top: var(--space-2);
+  border-top: 1px solid rgb(var(--umber-rgb) / 0.15);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.label {
+  color: var(--stone);
+}
+
+.rows {
+  list-style: none;
+}
+
+/* No button and no image, by construction as well as by intent — there is
+   nothing here for the guest to do, and a control that does nothing is the
+   defect this whole section exists to remove. */
+.row {
+  min-height: 1.75rem; /* 28px. */
+  display: flex;
+  align-items: center;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--stone-deep);
+}

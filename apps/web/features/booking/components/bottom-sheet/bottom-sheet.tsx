@@ -1,7 +1,13 @@
 "use client";
 
-// A full-height panel from the bottom edge, for the three things the search band
-// collapses to on a phone: dates, guests, rate.
+// A full-height panel from the bottom edge — the room sheet's narrow
+// presentation.
+//
+// It used to carry the search band's three collapsed segments as well. It no
+// longer does: the screen asks "when" as a whole view now, so at 375 the
+// calendar *is* the page and there is nothing left to put in a sheet. What
+// survives is this — looking closer at one room, which is a detour from the
+// list rather than a view of its own.
 //
 // This is the component Motion is in the funnel *for*. It has to animate out, and
 // CSS has no exit — a dismissed element with a transition is either still mounted
@@ -38,14 +44,30 @@ export function BottomSheet({
   const panel = useRef<HTMLDivElement>(null);
   const titleId = useId();
 
-  // Escape closes it, and focus goes into it on open. Not a full focus trap: the
-  // page behind is inert to the pointer via the scrim, and a trap that a guest
-  // cannot tab out of is worse than one they can when the sheet is the only thing
-  // on screen at this width anyway.
+  // Focus goes into it on open and **back to whatever opened it** on close. Not
+  // a full focus trap: the page behind is inert to the pointer via the scrim,
+  // and a trap that a guest cannot tab out of is worse than one they can when
+  // the sheet is the only thing on screen at this width anyway. But the return
+  // is not optional — without it a keyboard guest who closes the sheet is
+  // dropped at the top of the document, having lost the card they were reading.
+  //
+  // Keyed on `isOpen` alone. The keydown listener below is a separate effect
+  // because it depends on `onClose`, which is a new function on every render of
+  // the screen above: folding the two together would re-run this one constantly,
+  // pulling focus back into the panel and handing it out again on each render.
   useEffect(() => {
     if (!isOpen) return;
 
+    const opener = document.activeElement;
     panel.current?.focus();
+
+    return () => {
+      if (opener instanceof HTMLElement) opener.focus();
+    };
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
 
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();

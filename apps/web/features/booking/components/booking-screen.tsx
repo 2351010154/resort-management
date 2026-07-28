@@ -1,25 +1,54 @@
 "use client";
 
-// `/booking` — pick dates and guests, see what is free, choose a room type.
+// `/booking` — two questions, in order: when, then which room.
 //
-// One search band, one list, one summary. No third region.
+// **Only one of them is ever mounted.** Round 1 asked both at once: the calendar
+// opened on arrival and five room cards sat under it, each of them saying
+// "Choose your dates for prices." The band collapsing to a summary was never the
+// problem — the list never left. So the screen is two views now, and the
+// inactive one is not in the DOM. Not hidden, not collapsed, not `inert`:
+// unmounted, which is how "one open decision at a time" is guaranteed by the
+// tree rather than by CSS discipline nobody can enforce.
 //
-// The screen holds no search state of its own. Everything a guest answers is
-// written to the URL and read back from it, per `repository-structure.md`: this
-// route is stateless, so it is shareable, a marketing link can land straight on a
-// date range, and back and refresh work without being implemented. The only local
-// state is which room they have picked, because that belongs to the *next* step and
-// becomes a hold id in the path.
+// **Which view is open is derived, never stored.** It follows from whether the
+// URL holds a complete range — see `booking-view.ts`. A `useState` beside the
+// URL is a second source of truth that can disagree with the address bar, and
+// this screen was designed to be incapable of that.
+//
+// The screen still holds no search state of its own. Everything a guest answers
+// is written to the URL and read back from it, per `repository-structure.md`:
+// this route is stateless, so it is shareable, a marketing link can land
+// straight on a date range, and back and refresh work without being implemented.
+// The two pieces of local state belong to *this* visit and to nothing else —
+// which room is picked, and which room is being looked at.
+//
+// **The rate plan is no longer chosen here.** `/booking` quotes `STANDARD`; the
+// choice, its three cancellation sentences and the live re-pricing of five cards
+// move to `/details`, where the guest is already reading terms. The `plan`
+// search param and its codec survive untouched: `/details` will write it, and a
+// link carrying `plan=NONREF` must not start quoting something else. What went
+// is the control, not the parameter.
 
 import type { RoomTypeCode, StayRange } from "@mariva/shared";
 import { I18nProvider } from "@react-aria/i18n";
-import { domAnimation, LazyMotion } from "motion/react";
-import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import {
+  AnimatePresence,
+  domAnimation,
+  LazyMotion,
+  m,
+  useReducedMotion,
+} from "motion/react";
+import { useSearchParams } from "next/navigation";
+import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
+import { stillMotion, viewMotion } from "@/features/booking/lib/booking-motion";
 import {
   readBookingSearch,
   writeBookingSearch,
 } from "@/features/booking/lib/booking-search";
+import {
+  bookingView,
+  rememberRoomsScroll,
+} from "@/features/booking/lib/booking-view";
 import { alternatives } from "@/features/booking/lib/nearest-availability";
 import {
   monthOfNights,
@@ -28,19 +57,22 @@ import {
   soldOutTypes,
   TARIFF_RATES,
 } from "@/features/booking/lib/rate-calendar-fixture";
+import { roomType } from "@/features/booking/lib/room-types";
 import {
   indexNights,
   nightsInRange,
   type Party,
+  partitionRoomTypes,
   partySize,
   quoteStay,
   stayNights,
 } from "@/features/booking/lib/stay-quote";
-import { NoAvailability } from "./no-availability/no-availability";
-import { RoomTypeList } from "./room-type-list/room-type-list";
-import { SearchBand } from "./search-band/search-band";
-import { SummaryBar } from "./summary-bar/summary-bar";
 import styles from "./booking-screen.module.css";
+import { NoAvailability } from "./no-availability/no-availability";
+import { RoomSheet } from "./room-sheet/room-sheet";
+import { RoomsView } from "./rooms-view/rooms-view";
+import { SummaryBar } from "./summary-bar/summary-bar";
+import { WhenView } from "./when-view/when-view";
 
 /**
  * Days of calendar to price at once.
@@ -53,14 +85,15 @@ import styles from "./booking-screen.module.css";
 const PRICED_DAYS = 124;
 
 export function BookingScreen() {
-  const router = useRouter();
   const params = useSearchParams();
+  const reduced = useReducedMotion();
   const search = useMemo(
     () => readBookingSearch(new URLSearchParams(params.toString())),
     [params],
   );
 
   const [chosen, setChosen] = useState<RoomTypeCode | null>(null);
+  const [looking, setLooking] = useState<RoomTypeCode | null>(null);
   const [nextStep, setNextStep] = useState<string | null>(null);
 
   // Today in the property's zone, never the browser's. A guest in Seoul at 00:30
@@ -90,17 +123,36 @@ export function BookingScreen() {
     });
   }, [search.range, search.party, search.plan, nights]);
 
-  // Every control goes through here, so there is one writer to the URL. `replace`
-  // rather than `push`: changing a date is refining one search, not navigating, and
-  // pushing would make the back button walk every keystroke of a party size.
+  // Every control goes through here, so there is one writer to the URL.
+  //
+  // **Replacing, not pushing.** Changing a date is refining one search rather
+  // than navigating, and pushing would make the back button walk every keystroke
+  // of a party size.
+  //
+  // **`history.replaceState`, not `router.replace`** — and this one is a bug fix
+  // rather than a preference. `router.replace("/booking")` from
+  // `/booking?from=…&to=…` is a **no-op**: the App Router treats a href with no
+  // query as the route it is already on and never updates the address bar, so
+  // the search cannot be cleared. Nothing in round 1 produced an empty query, so
+  // nothing surfaced it; `[Change]` produces one every time it is pressed, and
+  // without this the guest presses it and the screen does not move.
+  //
+  // It is also the right call on its own terms. Next patches `pushState` and
+  // `replaceState` so `useSearchParams` sees them, this route is static and
+  // fully client-rendered, and its state *is* the query string — so a router
+  // navigation would fetch an RSC payload that cannot differ, on every date
+  // pressed. This writes the URL and re-renders, which is the whole job. It also
+  // never scrolls, which is what `scroll: false` was asking for.
   const commit = useCallback(
     (next: Partial<typeof search>) => {
       const merged = { ...search, ...next };
-      router.replace(`/booking${writeBookingSearch(merged)}`, {
-        scroll: false,
-      });
+      window.history.replaceState(
+        null,
+        "",
+        `/booking${writeBookingSearch(merged)}`,
+      );
     },
-    [router, search],
+    [search],
   );
 
   const onRangeChange = useCallback(
@@ -122,12 +174,79 @@ export function BookingScreen() {
     [commit],
   );
 
-  const fitsNobody =
-    search.range !== null &&
-    offers.length > 0 &&
-    offers.every((offer) => !offer.isAvailable);
+  // Back to View A. Clearing the range is what opens it, and where the guest had
+  // scrolled to is put aside first — the list is about to be unmounted, so this
+  // is the last moment its offset exists anywhere.
+  const onChangeDates = useCallback(() => {
+    rememberRoomsScroll(window.scrollY);
+    onRangeChange(null);
+  }, [onRangeChange]);
 
+  const view = bookingView(search.range);
   const chosenOffer = offers.find((offer) => offer.code === chosen) ?? null;
+
+  // What the guest can take, and what they cannot. Derived once here rather than
+  // twice, because the screen and the list both need the same answer: the list
+  // to draw it, and the screen to notice when there is nothing left to draw.
+  const partition = useMemo(
+    () => partitionRoomTypes(offers, search.party),
+    [offers, search.party],
+  );
+
+  // The room the sheet is showing, held one beat past the close.
+  //
+  // `looking` is the open flag and goes null the moment the guest closes the
+  // sheet — but the sheet has to animate out, and a panel whose contents vanish
+  // on the first frame of its own exit reads as a crash. So the last room looked
+  // at is kept, and the sheet renders it until it has finished leaving.
+  const lastLooked = useRef<RoomTypeCode | null>(null);
+  if (looking) lastLooked.current = looking;
+  const sheetCode = looking ?? lastLooked.current;
+  const sheetType = sheetCode ? roomType(sheetCode) : null;
+  const sheetOffer = offers.find((offer) => offer.code === sheetCode) ?? null;
+
+  // The two views, and View B's own empty state. Built as a value rather than
+  // nested in the tree below, because the branch is three-way and a nested
+  // ternary in JSX is the shape that hides the third case.
+  let content: ReactNode;
+  if (search.range === null) {
+    content = (
+      <WhenView
+        minDate={minDate}
+        nights={nights}
+        onPartyChange={onPartyChange}
+        onRangeChange={onRangeChange}
+        party={search.party}
+        range={search.range}
+      />
+    );
+  } else if (offers.length > 0 && partition.takeable.length === 0) {
+    // Nothing the guest can take — sold out, too small, or some of each. The
+    // view is replaced rather than shown as eight caps-labelled lines of what
+    // they cannot have, which is a wall and not an answer.
+    content = (
+      <NoAvailability
+        alternatives={alternatives(nights, search.range, stayLength)}
+        onPick={onRangeChange}
+        party={search.party}
+        requested={search.range}
+      />
+    );
+  } else {
+    content = (
+      <RoomsView
+        chosen={chosen}
+        nights={stayLength}
+        offers={offers}
+        onChangeDates={onChangeDates}
+        onChoose={setChosen}
+        onLookCloser={setLooking}
+        partition={partition}
+        party={search.party}
+        range={search.range}
+      />
+    );
+  }
 
   return (
     // Two providers, and each one is a decision about weight.
@@ -149,49 +268,24 @@ export function BookingScreen() {
         <main className={styles.screen}>
           <header className={styles.head}>
             <h1 className={`${styles.title} font-display`}>Your stay</h1>
-            <p className={styles.subtitle}>
-              Choose the nights you are here, and the room you would like.
-              Prices include VAT and service.
-            </p>
           </header>
 
-          <SearchBand
-            minDate={minDate}
-            nights={nights}
-            onPartyChange={onPartyChange}
-            onPlanChange={(plan) => {
-              setChosen(null);
-              commit({ plan });
-            }}
-            onRangeChange={onRangeChange}
-            party={search.party}
-            plan={search.plan}
-            range={search.range}
-          />
-
-          <div className={styles.results}>
-            {fitsNobody && search.range ? (
-              // Nothing free at all. The list is replaced rather than shown empty,
-              // because five cards each saying "not free" is a wall, not an answer.
-              <NoAvailability
-                alternatives={alternatives(nights, search.range, stayLength)}
-                onPick={onRangeChange}
-                party={search.party}
-                requested={search.range}
-              />
-            ) : (
-              // Partly free is the common case with five types and forty rooms,
-              // and it is handled inside the list: a sold-out type keeps its
-              // position and says so where its price was.
-              <RoomTypeList
-                chosen={chosen}
-                nights={stayLength}
-                offers={offers}
-                onChoose={setChosen}
-                party={search.party}
-                range={search.range}
-              />
-            )}
+          {/* `mode="wait"` so the outgoing view is gone before the incoming one
+              mounts: at no frame are both decisions in the tree. `initial={false}`
+              so a guest arriving on a link does not watch the whole screen fade
+              in over the room cascade that is already arriving inside it. */}
+          <div className={styles.views}>
+            <AnimatePresence initial={false} mode="wait">
+              <m.div
+                animate="animate"
+                exit="exit"
+                initial="initial"
+                key={view}
+                variants={reduced ? stillMotion : viewMotion}
+              >
+                {content}
+              </m.div>
+            </AnimatePresence>
           </div>
 
           {/* Where the funnel stops today, said out loud.
@@ -214,6 +308,21 @@ export function BookingScreen() {
                 "Your room is chosen. The next step opens when payments are connected — nothing is held and nothing is charged yet.",
               )
             }
+          />
+
+          {/* Look closer. Choosing from inside it closes it, because the guest
+              has answered the question the sheet was opened to answer. */}
+          <RoomSheet
+            isChosen={chosen === sheetCode}
+            isOpen={looking !== null}
+            offer={sheetOffer}
+            onChoose={() => {
+              if (sheetCode) setChosen(sheetCode);
+              setLooking(null);
+            }}
+            onClose={() => setLooking(null)}
+            plan={search.plan}
+            type={sheetType}
           />
 
           {/* The bar is fixed, so the last card needs room to clear it. */}

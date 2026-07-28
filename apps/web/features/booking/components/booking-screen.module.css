@@ -12,15 +12,12 @@
 }
 
 .head {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
-  /* The measure, shared with .results and .head, so the band's rules run the full
-     width while the type inside stays readable. 64rem is about 90 characters at
-     --text-base, which is the top of the comfortable range. */
+  /* The measure, shared with .views, so both views sit on the same column.
+     64rem is about 90 characters at --text-base, which is the top of the
+     comfortable range — and two 3:2 frames with a --space-3 gutter inside it. */
   max-width: 64rem;
   margin: 0 auto;
-  padding: var(--space-4) var(--space-2) var(--space-3);
+  padding: var(--space-4) var(--space-2) var(--space-2);
 }
 
 .title {
@@ -28,14 +25,12 @@
   line-height: 1.1;
 }
 
-.subtitle {
-  font-size: var(--text-sm);
-  line-height: 1.6;
-  color: var(--stone-deep);
-  max-width: 34rem;
-}
+/* The subtitle is gone. It carried both of the screen's questions in one
+   sentence — "Choose the nights you are here, and the room you would like." —
+   which was accurate when both were asked at once and is now a description of a
+   screen that no longer exists. Each view says its own six words. */
 
-.results {
+.views {
   max-width: 64rem;
   margin: 0 auto;
   padding: 0 var(--space-2) var(--space-4);

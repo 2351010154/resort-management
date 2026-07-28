@@ -1,5 +1,6 @@
-/* The bottom sheet. Only ever on screen below 45rem — above that the search band
- * has room for its three controls and there is nothing to collapse.
+/* The bottom sheet. Only ever on screen below 45rem — above that the room sheet
+ * is a centred dialog with room for its gallery, and this presentation is not
+ * rendered at all.
  */
 
 .layer {

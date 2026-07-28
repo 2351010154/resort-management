@@ -23,7 +23,7 @@ import {
   type StayRange,
   type VndAmount,
 } from "@mariva/shared";
-import { INCLUDED_OCCUPANCY, type RoomType, ROOM_TYPES } from "./room-types";
+import { INCLUDED_OCCUPANCY, ROOM_TYPES, type RoomType } from "./room-types";
 
 /** A child, with the age that decides what they cost — `property-and-tariff` §3. */
 export interface Child {
@@ -221,4 +221,53 @@ export function occupancyFit(
 /** Whether an extra bed is a thing this party needs, on this type. */
 export function needsExtraBed(type: RoomType, party: Party): boolean {
   return type.takesExtraBed && partySize(party) > type.beddingSleeps;
+}
+
+/**
+ * The five types split by what the guest can actually do with them.
+ *
+ * With five types and forty rooms, "some of them" is the common case rather than
+ * the edge — four-of-five sold out will happen far more often than zero. So it
+ * gets a shape: what is takeable becomes a photograph, and what is not becomes
+ * one line under a label saying why.
+ *
+ * **Nothing is dropped.** A guest who cannot see the Superior at all concludes
+ * the hotel has no such room; a guest who sees it demoted concludes it is not
+ * free this week, which is the truth. The partition is presentation over data
+ * that already exists — `occupancyFit` and `offer.isAvailable` are unchanged.
+ *
+ * Occupancy is tested first. A type that is both too small and sold out is still
+ * too small next week, so telling the guest to move their dates would be a
+ * suggestion that cannot work.
+ */
+export interface RoomTypePartition {
+  /** Free for the range and big enough for the party. These get photographs. */
+  readonly takeable: readonly RoomType[];
+  /** Big enough, but not free on at least one night of the range. */
+  readonly soldOut: readonly RoomType[];
+  /** The party does not fit, whatever the dates say. */
+  readonly tooSmall: readonly RoomType[];
+}
+
+export function partitionRoomTypes(
+  offers: readonly RoomTypeOffer[],
+  party: Party,
+): RoomTypePartition {
+  const byCode = new Map(offers.map((offer) => [offer.code, offer]));
+
+  const takeable: RoomType[] = [];
+  const soldOut: RoomType[] = [];
+  const tooSmall: RoomType[] = [];
+
+  for (const type of ROOM_TYPES) {
+    if (!occupancyFit(type, party).fits) {
+      tooSmall.push(type);
+    } else if (byCode.get(type.code)?.isAvailable === true) {
+      takeable.push(type);
+    } else {
+      soldOut.push(type);
+    }
+  }
+
+  return { takeable, soldOut, tooSmall };
 }

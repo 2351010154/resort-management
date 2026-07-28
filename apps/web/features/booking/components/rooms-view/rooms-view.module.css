@@ -1,0 +1,83 @@
+/* View B, and the one line that carries the answer to View A's question.
+ *
+ * **The summary row is sticky, and that is what makes the way back usable.** A
+ * guest four cards down who wants to move a date has to be able to say so from
+ * where they are: if the only exit is at the top of the page, they scroll up to
+ * reach it, and "put me back where I was" then means "put me back at the top",
+ * which is not a feature.
+ *
+ * It is one 48px row and not round 1's band. Round 1 pinned three live controls
+ * — Google Flights does the same thing and it costs 220px at 375, 27% of the
+ * viewport spent restating the question before a single answer is visible. This
+ * is a statement of an answer already given, and the prices under it never
+ * re-price while it is on screen.
+ */
+
+.view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+/* One row, one control. The value and the way back sit at opposite ends of it,
+   so the row reads as a statement with an exit rather than as a field. */
+.summary {
+  position: sticky;
+  top: 0;
+  z-index: 5; /* Over the cards it scrolls above; under the sheet layer at 20. */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 3rem; /* 48px — this is a control the guest actually taps. */
+  padding: var(--space-1) 0;
+  text-align: left;
+  /* Opaque, or the cards read through it as it passes over them. */
+  background: var(--ivory);
+  border-top: 1px solid rgb(var(--umber-rgb) / 0.15);
+  border-bottom: 1px solid rgb(var(--umber-rgb) / 0.15);
+  transition: background-color 0.4s var(--ease-ui);
+}
+
+.summary:hover {
+  background: rgb(var(--umber-rgb) / 0.04);
+}
+
+.summary:focus-visible {
+  outline: 2px solid var(--dusk-amber);
+  outline-offset: -2px;
+}
+
+.summaryValue {
+  font-size: var(--text-base);
+  line-height: 1.4;
+  color: var(--ink);
+}
+
+.summaryChange {
+  flex: none;
+  font-size: var(--text-sm);
+  color: var(--stone-deep);
+  border-bottom: 1px solid var(--stone);
+  transition: border-color 0.4s var(--ease-ui);
+}
+
+.summary:hover .summaryChange {
+  border-bottom-color: var(--umber);
+}
+
+/* The two sentences that qualify every price under them. Said once, here, and
+   never on a card. */
+.terms {
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--stone);
+  max-width: 34rem;
+}
+
+/* The grid stands off the terms above it — they qualify the prices in it, they
+   are not a caption on the first card. */
+.rooms {
+  margin-top: var(--space-2);
+}

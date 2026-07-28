@@ -1,65 +1,91 @@
 "use client";
 
-// The five types, in one column, in a fixed order.
+// The rooms, in two registers: what the guest can take, and what they cannot.
 //
-// Ascending by maximum occupancy then by price, which is `ROOM_TYPES`' own order.
-// Five items do not need a sort control, and a stable order is the thing that
-// lets a guest compare one fact down a column.
+// `ROOM_TYPES`' own order is preserved *within* each group — ascending by
+// maximum occupancy then by price. Five items do not need a sort control, and a
+// stable order is the thing that lets a guest compare one fact down a column.
 //
-// Sold-out types stay in the list, in position, with "Not free for these dates"
-// where the price was. With five types and forty rooms, four-of-five sold out will
-// happen far more often than zero — so the partly-free state is the common case,
-// not the edge, and the guest gets to see that the property is nearly full without
-// being told to hurry about it.
+// The partition itself is `stay-quote.ts`' — presentation over data that already
+// exists, and pure, so the rule that decides what a guest sees is testable
+// without a browser.
 
-import type { RoomTypeCode, RoomTypeOffer, StayRange } from "@mariva/shared";
+import type { RoomTypeCode, RoomTypeOffer } from "@mariva/shared";
 import { m, useReducedMotion } from "motion/react";
 import { cardListMotion } from "@/features/booking/lib/booking-motion";
-import { ROOM_TYPES } from "@/features/booking/lib/room-types";
-import type { Party } from "@/features/booking/lib/stay-quote";
+import { sizeBarFills } from "@/features/booking/lib/room-measure";
+import type {
+  Party,
+  RoomTypePartition,
+} from "@/features/booking/lib/stay-quote";
+import { DemotedRows } from "./demoted-rows";
 import { RoomTypeCard } from "./room-type-card";
 import styles from "./room-type-list.module.css";
 
 export function RoomTypeList({
+  partition,
   offers,
   party,
-  range,
   nights,
   chosen,
+  holdNoteId,
   onChoose,
+  onLookCloser,
 }: {
+  readonly partition: RoomTypePartition;
   readonly offers: readonly RoomTypeOffer[];
   readonly party: Party;
-  readonly range: StayRange | null;
   readonly nights: number;
   readonly chosen: RoomTypeCode | null;
+  readonly holdNoteId: string;
   readonly onChoose: (code: RoomTypeCode) => void;
+  readonly onLookCloser: (code: RoomTypeCode) => void;
 }) {
   const reduced = useReducedMotion();
   const byCode = new Map(offers.map((offer) => [offer.code, offer]));
 
+  // Normalised over the types this list draws a bar for, never over
+  // `ROOM_TYPES`. A bar measured against a room the guest cannot have is a bar
+  // measured against nothing.
+  const fills = sizeBarFills(partition.takeable);
+
   return (
-    <m.ul
-      animate="animate"
-      className={styles.list}
-      // Under reduced motion all five render at once rather than cascading: §9's
-      // rule that the reduced path is its own composition, not the same one held
-      // still. A stagger cut to nothing is five cards appearing in five frames.
-      initial={reduced ? "animate" : "initial"}
-      variants={cardListMotion}
-    >
-      {ROOM_TYPES.map((type) => (
-        <RoomTypeCard
-          hasDates={range !== null}
-          isChosen={chosen === type.code}
-          key={type.code}
-          nights={nights}
-          offer={byCode.get(type.code)}
-          onChoose={() => onChoose(type.code)}
-          party={party}
-          type={type}
-        />
-      ))}
-    </m.ul>
+    <>
+      <m.ul
+        animate="animate"
+        className={styles.list}
+        // Under reduced motion they all render at once rather than cascading:
+        // §9's rule that the reduced path is its own composition, not the same
+        // one held still. A stagger cut to nothing is five cards appearing in
+        // five frames.
+        initial={reduced ? "animate" : "initial"}
+        variants={cardListMotion}
+      >
+        {partition.takeable.map((type) => {
+          const offer = byCode.get(type.code);
+          if (!offer) return null;
+
+          return (
+            <RoomTypeCard
+              holdNoteId={holdNoteId}
+              isChosen={chosen === type.code}
+              key={type.code}
+              nights={nights}
+              offer={offer}
+              onChoose={() => onChoose(type.code)}
+              onLookCloser={() => onLookCloser(type.code)}
+              sizeFill={fills.get(type.code) ?? 0}
+              type={type}
+            />
+          );
+        })}
+      </m.ul>
+
+      <DemotedRows
+        party={party}
+        soldOut={partition.soldOut}
+        tooSmall={partition.tooSmall}
+      />
+    </>
   );
 }

@@ -1,13 +1,14 @@
 import { parseDate } from "@internationalized/date";
 import type { NightRate, RoomTypeCode, VndAmount } from "@mariva/shared";
 import { describe, expect, it } from "vitest";
-import { roomType } from "./room-types";
+import { ROOM_TYPES, roomType } from "./room-types";
 import {
   indexNights,
   needsExtraBed,
   nightsInRange,
   occupancyFit,
   type Party,
+  partitionRoomTypes,
   quoteStay,
   type TariffRates,
 } from "./stay-quote";
@@ -220,5 +221,95 @@ describe("nights of a range", () => {
       "2026-08-10",
       "2026-08-11",
     ]);
+  });
+});
+
+describe("the partition into cards and demoted rows", () => {
+  /** An offer per type, with only the named codes free for the range. */
+  function offering(...free: RoomTypeCode[]) {
+    return ROOM_TYPES.map((type) => ({
+      code: type.code,
+      perNightGross: ROOM_GROSS,
+      stayTotalGross: ROOM_GROSS,
+      isAvailable: free.includes(type.code),
+      extraBedPerNightGross: type.takesExtraBed ? 350_000n : null,
+    }));
+  }
+
+  const two: Party = { adults: 2, children: [] };
+  const three: Party = { adults: 3, children: [] };
+
+  it("gives a card to what is free and fits, and a row to the rest", () => {
+    const { takeable, soldOut, tooSmall } = partitionRoomTypes(
+      offering("SUPERIOR", "PREMIER", "PANORAMA_SUITE"),
+      two,
+    );
+
+    expect(takeable.map((type) => type.code)).toEqual([
+      "SUPERIOR",
+      "PREMIER",
+      "PANORAMA_SUITE",
+    ]);
+    expect(soldOut.map((type) => type.code)).toEqual([
+      "DELUXE",
+      "JUNIOR_SUITE",
+    ]);
+    expect(tooSmall).toEqual([]);
+  });
+
+  it("demotes a type the party does not fit even when it is free", () => {
+    const { takeable, tooSmall } = partitionRoomTypes(
+      offering(...ROOM_TYPES.map((type) => type.code)),
+      three,
+    );
+
+    // Superior and Deluxe both sleep two.
+    expect(tooSmall.map((type) => type.code)).toEqual(["SUPERIOR", "DELUXE"]);
+    expect(takeable.map((type) => type.code)).toEqual([
+      "PREMIER",
+      "JUNIOR_SUITE",
+      "PANORAMA_SUITE",
+    ]);
+  });
+
+  it("calls a type too small before it calls it sold out", () => {
+    // Both true at once. "Not free for these nights" invites the guest to move
+    // their dates, and moving the dates cannot make a room sleep three.
+    const { soldOut, tooSmall } = partitionRoomTypes(offering(), three);
+
+    expect(tooSmall.map((type) => type.code)).toEqual(["SUPERIOR", "DELUXE"]);
+    expect(soldOut.map((type) => type.code)).toEqual([
+      "PREMIER",
+      "JUNIOR_SUITE",
+      "PANORAMA_SUITE",
+    ]);
+  });
+
+  it("loses no type, whatever the search", () => {
+    const { takeable, soldOut, tooSmall } = partitionRoomTypes(
+      offering("JUNIOR_SUITE"),
+      three,
+    );
+
+    // Hiding a type makes the guest think the hotel does not have that room.
+    expect(takeable.length + soldOut.length + tooSmall.length).toBe(
+      ROOM_TYPES.length,
+    );
+  });
+
+  it("leaves nothing takeable when the party fits nothing free", () => {
+    // This is what sends the view to `NoAvailability` rather than to a column of
+    // caps-labelled lines.
+    expect(partitionRoomTypes(offering("SUPERIOR"), three).takeable).toEqual(
+      [],
+    );
+  });
+
+  it("keeps ROOM_TYPES' order inside each group", () => {
+    const { soldOut } = partitionRoomTypes(offering("PREMIER"), two);
+    const order = ROOM_TYPES.map((type) => type.code);
+
+    const positions = soldOut.map((type) => order.indexOf(type.code));
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
   });
 });
