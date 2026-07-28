@@ -1,9 +1,6 @@
 <div align="center">
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/mariva-lockup-dark.svg">
-  <img src="docs/assets/mariva-lockup-light.svg" alt="Mariva — 5 Star Resort" width="300">
-</picture>
+<img src="docs/assets/mariva-lockup.svg" alt="Mariva — 5 Star Resort" width="300">
 
 <sub>**5 STAR RESORT**</sub>
 
