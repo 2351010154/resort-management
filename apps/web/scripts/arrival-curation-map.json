@@ -315,6 +315,38 @@
       "role": "orbit"
     }
   ],
+  "act-2-chapters": [
+    {
+      "file": "27-7-2026/Amanoi, Vietnam - Accommodation, Forest Wellness Pool Villa, Relaxation area and pool (1).webp",
+      "slug": "villa-deck-forest",
+      "alt": "Villa deck with a daybed above an infinity pool, forested hills beyond",
+      "role": "chapter-plate"
+    },
+    {
+      "file": "27-7-2026/amanoi_vietnam_-_ocean_pool_villa.webp",
+      "slug": "ocean-pool-dusk",
+      "alt": "Infinity pool at dusk above a headland and the open sea",
+      "role": "chapter-plate"
+    },
+    {
+      "file": "27-7-2026/696ea90c2b7a9713587435.jpg",
+      "slug": "pool-hills-day",
+      "alt": "Long pool beside olive trees under a wide morning sky",
+      "role": "chapter-plate"
+    },
+    {
+      "file": "27-7-2026/66fbdc15572fa046338968.jpg",
+      "slug": "garden-pavilion",
+      "alt": "Timber pavilion in a sunlit garden of tall trees",
+      "role": "chapter-plate"
+    },
+    {
+      "file": "27-7-2026/Amandaya, China - Jade Dragon Snow Mountain.webp",
+      "slug": "snow-peak-roofs",
+      "alt": "Snow peak standing over tiled roofs and spring blossom",
+      "role": "chapter-plate"
+    }
+  ],
   "act-4-corridor": [
     {
       "file": "aman-tokyo-lounge (2)_0_13.webp",

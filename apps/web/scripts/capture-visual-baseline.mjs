@@ -27,11 +27,18 @@
 // Usage: node apps/web/scripts/capture-visual-baseline.mjs [baseUrl] [outDir]
 //   default baseUrl http://localhost:3000
 //   default outDir  apps/web/tests/visual-baseline
-// Output: <outDir>/<viewport>/act-<n>-p<PP>.png and .../nav-<state>.png
+// Output: <outDir>/<viewport>/act-<n>-p<PP>.png, .../nav-<state>.png
+//         and .../booking-<view>.png
+//
+// The frames are the *record*. For `/booking` the *gate* is
+// `check-booking-screen.mjs`, which measures the 3:2 box, the accessible names
+// and the scroll restoration in a browser rather than comparing pixels over a
+// photograph — see design-foundations.md §10 on why a diff of these files only
+// means something between two captures on the same machine.
 
-import { chromium } from "playwright";
 import { mkdir, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { chromium } from "playwright";
 import { VIRTUAL_CLOCK } from "./visual-baseline-clock.mjs";
 
 const BASE_URL = process.argv[2] ?? "http://localhost:3000";
@@ -79,7 +86,11 @@ await rm(OUT, { recursive: true, force: true });
 // the gobo take the same branch they take on a machine with a GPU, and take it
 // through a software rasteriser that renders the same pixels every run.
 const browser = await chromium.launch({
-  args: ["--use-gl=angle", "--use-angle=swiftshader", "--enable-unsafe-swiftshader"],
+  args: [
+    "--use-gl=angle",
+    "--use-angle=swiftshader",
+    "--enable-unsafe-swiftshader",
+  ],
 });
 
 /** Park every video at a fixed frame. Re-run before each shot: the acts mount
@@ -90,7 +101,9 @@ async function freezeMedia(page, at) {
     const deadline = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
     const once = (target, event, ms) =>
       Promise.race([
-        new Promise((resolve) => target.addEventListener(event, resolve, { once: true })),
+        new Promise((resolve) =>
+          target.addEventListener(event, resolve, { once: true }),
+        ),
         deadline(ms),
       ]);
 
@@ -202,7 +215,9 @@ for (const vp of VIEWPORTS) {
   const dir = path.join(OUT, vp.name);
   await mkdir(dir, { recursive: true });
 
-  const page = await browser.newPage({ viewport: { width: vp.width, height: vp.height } });
+  const page = await browser.newPage({
+    viewport: { width: vp.width, height: vp.height },
+  });
   await page.addInitScript(VIRTUAL_CLOCK);
   const cdp = await page.context().newCDPSession(page);
   await page.goto(BASE_URL, { waitUntil: "networkidle" });
@@ -264,13 +279,22 @@ for (const vp of VIEWPORTS) {
   ]) {
     const y = await page.evaluate((n) => {
       const el = document.querySelector(`[data-act="${n}"]`);
-      return el.getBoundingClientRect().top + window.scrollY + window.innerHeight * 0.5;
+      return (
+        el.getBoundingClientRect().top +
+        window.scrollY +
+        window.innerHeight * 0.5
+      );
     }, act);
     await page.evaluate((to) => window.scrollTo(0, Math.round(to)), y);
     await page.waitForTimeout(OBSERVER_SETTLE_MS);
     await step(page, SETTLE_FRAMES);
     await page.waitForTimeout(OBSERVER_SETTLE_MS);
-    await shoot(cdp, page, path.join(dir, `nav-${state}.png`), await boxOf(page, NAV));
+    await shoot(
+      cdp,
+      page,
+      path.join(dir, `nav-${state}.png`),
+      await boxOf(page, NAV),
+    );
     shots++;
   }
 
@@ -284,6 +308,35 @@ for (const vp of VIEWPORTS) {
   await step(page, 2);
   await shoot(cdp, page, path.join(dir, "nav-menu-open.png"));
   shots++;
+
+  // `/booking` asks two questions in sequence and only one of them is mounted at
+  // a time, so it is **two baselines per viewport, not one**. Each is loaded as
+  // its own page rather than reached by pressing through the first: the
+  // inactive view is unmounted, the transition between them runs under Motion,
+  // and a frame taken mid-crossfade is a frame that cannot be compared.
+  //
+  // The range is fixed rather than found. Under the virtual clock `Date.now` is
+  // 2025-01-01, which is what the property's `today()` reads, and the rate
+  // fixture derives every price and every sold-out night from the date itself —
+  // so these two dates are the same search on every machine and every run.
+  for (const [name, query, view] of [
+    ["booking-when", "", "when"],
+    ["booking-rooms", "?from=2025-01-05&to=2025-01-07", "rooms"],
+  ]) {
+    await page.goto(`${BASE_URL}/booking${query}`, {
+      waitUntil: "networkidle",
+    });
+    await page.waitForSelector(`[data-view="${view}"]`);
+    await page.evaluate(() => document.fonts.ready);
+    // The card cascade is Motion's, so it runs on the frame clock the harness
+    // owns. Without stepping it, every card is photographed at opacity 0.
+    await step(page, SETTLE_FRAMES);
+    await awaitVisibleImages(page);
+    await step(page, SETTLE_FRAMES);
+    await page.waitForTimeout(OBSERVER_SETTLE_MS);
+    await shoot(cdp, page, path.join(dir, `${name}.png`));
+    shots++;
+  }
 
   console.log(`${vp.name}: ${shots} frames`);
   await page.close();
