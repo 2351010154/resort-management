@@ -1,8 +1,6 @@
 <div align="center">
 
-<img src="docs/assets/mariva-lockup.svg" alt="Mariva — 5 Star Resort" width="300">
-
-<sub>**5 STAR RESORT**</sub>
+<img src="docs/assets/mariva-lockup.svg" alt="Mariva" width="300">
 
 **A property management system and booking engine for one resort — plus the marketing site that sells its rooms.**
 
@@ -95,9 +93,9 @@ Three rules follow from the picture, and they are the ones worth defending:
   validates against them and both front-ends infer their types from them. Break the
   contract and the build fails, not production.
 - **`/booking` shares an origin with the marketing site but not its bundle.** The
-  scrollytelling acts load `three`, `gsap` and `lenis`. The booking funnel ships **zero
-  bytes** of them — a conversion path is not a showreel. That is a CI budget, not a
-  convention.
+  scrollytelling acts load `three`, `gsap` and `lenis`. The booking funnel does not, so a
+  guest on the way to paying never downloads them. Route groups are what keep it that way;
+  nothing in CI measures the bundle, so it holds by convention.
 
 Dependencies point one way and never back up the chain:
 
@@ -370,6 +368,7 @@ rest can be deferred without breaking anything downstream.
 | **M10** | **Hardening** | Security audit, load test, paper-fallback runbook |
 | M11 | OTA channel manager | Booking.com / Agoda / Traveloka sell your rooms. Deferred |
 
-M3 is called the correctness core: the test that proves it — 50 parallel bookings on the
-last room, exactly one success — is written **before** any booking screen. It is the one
-test in this project that cannot be retrofitted honestly.
+M3 is the correctness core. The test that proves it — 50 parallel bookings on the last
+room, exactly one success — is not written yet; the plan is to write it **before** any
+booking screen, because a test for a race is hard to trust once the code it guards
+already works.
