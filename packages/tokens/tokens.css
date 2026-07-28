@@ -42,6 +42,11 @@
    * is the exact bug this package exists to prevent, so they are paired here
    * rather than grouped by kind. */
   --ivory-rgb: 244 239 230;
+  /* Act 2's wall. Earned a triplet when the last chapter stopped being a
+     photograph on the wall and became a photograph the wall dissolves into:
+     the haze the reading stands on is that same wall at partial strength, and
+     ivory at the equivalent alpha reads a shade cool against it. */
+  --ivory-warm-rgb: 238 231 222;
   --stone-deep-rgb: 100 92 81;
   --umber-rgb: 58 51 43;
   --ink-rgb: 28 25 21;

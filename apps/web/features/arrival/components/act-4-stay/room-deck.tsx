@@ -156,14 +156,32 @@ interface Frame {
   ew: number;
 }
 
-/** Read off `third.mp4`: the OFF half's cards sit on a ray from just outside
- *  the upper-right corner and leave past the lower-left one. */
+/**
+ * Read off `third.mp4`: the OFF half's cards sit on a ray from outside the
+ * upper-right corner and leave past the lower-left one.
+ *
+ * The vanishing point sits a fifth of a viewport clear of the corner rather
+ * than on it, and the exit a comparable distance further out, which lengthens
+ * the ray by about a quarter without changing where on it a given depth lands
+ * relative to its neighbours. That is what puts the trail on the frame's whole
+ * diagonal: with the point on the corner, the first card the eye can see was
+ * already a third of the way across, and the quarter of the frame between the
+ * register and it was wall. The far end now spawns level with the register's
+ * own column, and the near end bleeds the opposite corner on both edges rather
+ * than only the side one.
+ *
+ * `ew` grows with the ray. The two are not independent — a longer ray with the
+ * old card size spreads the same photographs thinner, which is the opposite of
+ * what the length was for. At this size the largest whole card in frame is
+ * about a third of the width (it was a quarter), and the one behind it, cropped
+ * by the exit corner, a little over four tenths.
+ */
 const NIGHT_FRAME: Frame = {
-  vpx: 0.97,
-  vpy: -0.09,
-  ex: -0.53,
-  ey: 1.33,
-  ew: 0.62,
+  vpx: 1.185,
+  vpy: -0.133,
+  ex: -0.65,
+  ey: 1.276,
+  ew: 0.73,
 };
 const NIGHT_FRAME_NARROW: Frame = {
   vpx: 1.04,
