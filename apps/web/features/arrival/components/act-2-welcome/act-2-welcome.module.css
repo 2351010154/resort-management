@@ -219,21 +219,45 @@
 }
 
 /* The composition itself, held to the act's measure inside a full-bleed layer
-   so the plate's wall covers the previous panel edge to edge. */
+   so the plate's wall covers the previous panel edge to edge.
+
+   Must stay unpositioned. The bled archetype's stack is taken out of this grid
+   and positioned against the panel instead, which only reaches the panel while
+   nothing between the two is a containing block.
+
+   The photographs take exactly the width their archetype asked for and the
+   reading takes the rest, and that is the whole of the fix for a composition
+   that used to sit small inside its own panel. A fraction gave the stack a
+   column that had nothing to do with what would go in it: a stack is sized off
+   the panel's height — a pinned panel is exactly one viewport, and a tall
+   photograph in it runs out of height long before it runs out of width — so a
+   `1.05fr` column left 150px of nothing between the picture and the page edge
+   on a 1440 wall, and more on a shorter one.
+
+   The track reads `--stack-w`, the same figure the stack sets its own width
+   from, because the plate and the type are two separate grids that have to
+   agree. Sizing the track to its contents instead would have collapsed it to
+   nothing in the type layer, which holds no photographs — and on a mirrored
+   panel, where the photographs take the first column, that puts the reading on
+   top of them. Nothing is set for the bled archetype, which has no column: the
+   fallback is the whole point of the fallback. */
 .panelInner {
   height: 100%;
   max-width: 1560px;
   margin-inline: auto;
   padding-inline: var(--gutter);
   display: grid;
-  grid-template-columns: 3rem minmax(0, 1fr) minmax(0, 1.05fr);
-  column-gap: clamp(1.5rem, 4vw, 4.5rem);
+  grid-template-columns: 3rem minmax(0, 1fr) var(--stack-w, 0px);
+  column-gap: clamp(1.5rem, 3.4vw, 4rem);
   align-items: center;
-  padding-block: clamp(3rem, 8vh, 6rem);
+  /* Tighter than the act's usual block rhythm, and deliberately: this padding
+     is subtracted from the height the compositions size themselves off, so
+     every rem of it is nearly two off the photograph. */
+  padding-block: clamp(2rem, 5vh, 3.5rem);
 }
 
 .chapter[data-side="left"] .panelInner {
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr) 3rem;
+  grid-template-columns: var(--stack-w, 0px) minmax(0, 1fr) 3rem;
 }
 
 /* Every child is pinned to row 1. Without it the mirrored panel breaks into
@@ -267,7 +291,7 @@
   align-items: center;
   gap: 0.75rem;
   color: var(--stone);
-  margin-bottom: 1.75rem;
+  margin-bottom: 2rem;
 }
 
 .chapterIndex::after {
@@ -278,9 +302,13 @@
   opacity: 0.5;
 }
 
+/* Up a step with the photographs. The head is the only thing on the reading
+   side with any mass to it, and against a composition that now fills the panel
+   the old size read as a caption to the picture rather than the other half of
+   the frame. */
 .chapterHead {
-  font-size: clamp(1.75rem, 3.3vw, 3.05rem);
-  line-height: 1.16;
+  font-size: clamp(1.75rem, 3.6vw, 3.4rem);
+  line-height: 1.14;
   color: var(--ink);
   font-weight: 300;
   letter-spacing: -0.008em;
@@ -293,11 +321,11 @@
 }
 
 .chapterBody {
-  max-width: 34ch;
-  margin-top: 2rem;
+  max-width: 33ch;
+  margin-top: 2.25rem;
   color: var(--stone-deep);
-  font-size: 0.9375rem;
-  line-height: 1.85;
+  font-size: 1rem;
+  line-height: 1.9;
 }
 
 .chapterCaption {
@@ -321,16 +349,26 @@
    edges with logical insets, so a mirrored panel needs one direction flip
    rather than a second set of coordinates.
 
-   The vh term in each width is the panel's doing: a stacked panel is exactly
-   one viewport, so on a short screen the frame has to give way rather than
-   overrun the panel and be cut off by the next one. Held as variables because
-   the narrow layouts at the foot of this file reset them, and an archetype
-   selector outranks a plain `.stack` rule whatever the media query. */
+   The vh term in each width is the panel's doing, and is what actually sizes
+   the composition on a desktop: a stacked panel is exactly one viewport, so a
+   frame that is taller than it is wide runs out of height first, and every
+   archetype's width is really its height budget divided by its own ratio. The
+   rem term is only the ceiling on a tall window.
+
+   Both are set on the chapter rather than on the stack, because the panel's
+   grid track is the same figure (see `.panelInner`) and a stack that disagreed
+   with its own column would leave the slack the column was sized to remove.
+
+   No percentage term in the desktop widths: they are grid track sizes as well
+   as element widths, and a track cannot be a percentage of a row it is sizing.
+   `max-width` covers overflow instead, and only bites in the single-column
+   layouts at the foot of this file. */
 .stack {
   grid-column: 3;
   position: relative;
   aspect-ratio: var(--stack-ar, 3 / 4);
-  width: var(--stack-w, min(100%, 28rem, 60vh));
+  width: var(--stack-w, min(30rem, 60vh));
+  max-width: 100%;
   margin-inline-start: auto;
 }
 
@@ -401,69 +439,226 @@
 /* The archetypes, selected on `data-arch`. Three panels of one composition at
    slightly different percentages read as a template — a panel pins for a whole
    viewport, which is long enough for the eye to find the frame, the satellite,
-   and the corner exactly where they were — so what differs between archetypes
-   is the silhouette: tile count, tile shapes, and where they overlap.
-
-   01 and 03 do share one. There the flip run is what separates them: both turn
-   all three photographs over, but 01 descends from the tall frame outwards and
-   03 climbs back to it (see CHAPTERS in welcome-chapters.tsx).
+   and the corner exactly where they were — so no two share a silhouette: the
+   tile count, the shapes, the overlap, and, for the last one, whether the
+   composition is inside the measure at all.
 
    Widths are shares of the stack; `top`/`bottom` are shares of its height, so a
    tile's own aspect-ratio and the stack's are what set the vertical figures.
    Every tile ratio is matched to its photograph's native one (the manifest runs
    0.76, 1.00, and 1.62), since the tiles cover rather than contain. */
 
-/* A — corner stamps (01). One tall mass with two small satellites hanging off
-   opposite corners, one breaking inward over the type side, one dropping
-   outward past the page edge. The act's establishing composition. */
-.chapter[data-arch="stamps"] .stack {
-  --stack-ar: 3 / 4;
-  --stack-w: min(100%, 28rem, 60vh);
+/* A — portal (01). A tall frame inset from the top of the stack, a circle in a
+   brass ring rising into the room that inset leaves, and two sheets of glass —
+   one standing behind the frame and offset out past it, one crossing its foot.
+   The act's establishing composition.
+
+   The stack is the whole arrangement, not the photograph: the frame starts 12%
+   down it, and that 12% is what the circle breaks up into. Sizing the stack to
+   the frame instead put the circle above the panel's top edge, where the plate
+   stops and the hairline that leads it runs. */
+.chapter[data-arch="portal"] {
+  --stack-ar: 4 / 5.6;
+  --stack-w: min(34rem, 58vh);
 }
 
 .slotFrame {
-  inset: 0;
-}
-
-.slotStampIn {
-  top: -9%;
-  inset-inline-start: -20%;
-  width: 52%;
-  aspect-ratio: 1;
-  z-index: 2;
-}
-
-.slotStampOut {
-  bottom: -7%;
-  inset-inline-end: calc(-1 * var(--gutter));
-  width: 42%;
-  aspect-ratio: 4 / 3;
   z-index: 1;
+  top: 12%;
+  bottom: 0;
+  inset-inline: 0;
+}
+
+.slotPortal {
+  z-index: 3;
+  top: 0;
+  inset-inline-end: 8%;
+  width: 36%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  /* Lifted further off the wall than the frame it breaks over — it is the one
+     tile in the act with nothing behind it on two of its sides. */
+  box-shadow: 0 22px 48px rgb(var(--ink-rgb) / 0.22);
+}
+
+/* The ring. Brushed rather than flat: a conic sweep around the palette's brass
+   and back through its stone, so the circle catches the same raking light the
+   gobo is casting rather than sitting on the photograph as a drawn outline.
+
+   Masked down to the outer band instead of drawn as a border, which would have
+   taken the photograph's own edge with it — the tile is clipped to this circle,
+   and a border eats inwards from the clip. */
+.slotPortal::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 200deg,
+    var(--stone-deep),
+    var(--dusk-amber) 14%,
+    var(--sand) 27%,
+    var(--dusk-amber) 44%,
+    var(--stone-deep) 58%,
+    var(--sand) 76%,
+    var(--dusk-amber) 88%,
+    var(--stone-deep)
+  );
+  -webkit-mask-image: radial-gradient(
+    closest-side,
+    transparent 0 85%,
+    var(--ink) 87%
+  );
+  mask-image: radial-gradient(closest-side, transparent 0 85%, var(--ink) 87%);
+}
+
+/* The two sheets. Not photographs and not the wall: panes of the same glass the
+   ring is set into, one standing the composition on something and one laid
+   across its foot. What they are for is depth — the frame was a rectangle lying
+   flat on a flat wall, and at every size that was tried it stayed one. */
+.glass {
+  position: absolute;
+  pointer-events: none;
+  border: 1px solid rgb(var(--ivory-rgb) / 0.5);
+}
+
+.glassSheet {
+  z-index: 0;
+  top: 5%;
+  /* Past the foot of the frame, not level with it. Stopping short read as a
+     panel that had been cut to fit behind the photograph; overrunning reads as
+     the thing the photograph is standing on, which is what it is for. */
+  bottom: -4%;
+  inset-inline-start: -11%;
+  inset-inline-end: 7%;
+  background: linear-gradient(
+    150deg,
+    rgb(var(--ivory-rgb) / 0.62),
+    rgb(var(--ivory-rgb) / 0.14) 62%,
+    rgb(var(--stone-deep-rgb) / 0.06)
+  );
+  box-shadow: 0 24px 60px rgb(var(--ink-rgb) / 0.07);
+}
+
+/* The one that reads as glass rather than as paper, because it is the only
+   layer in the act with a photograph behind it to frost. Runs out past the
+   frame on the reading side so the blur is seen starting and stopping.
+
+   Everything here is set to keep it from reading as a card laid on the
+   photograph, which is what it was at first pass: it sat a third of the way up
+   the frame with a drop shadow under it, and a lit rectangle with a shadow is
+   an object rather than a surface. It is down at the foot now, shallower, and
+   casts nothing.
+
+   The tint is doing more than it looks like it should have to, and the blur is
+   why. Frosted glass shows whatever is behind it averaged, and what is behind
+   this is the foot of a bed — white linen over dark timber over floor — which
+   averages to mud. A thinner tint was the honest number and the wrong one: the
+   band has to read as lit rather than as a smear, so it carries enough ivory
+   to sit above the darkest thing it crosses. Desaturating it turned the cedar
+   grey as well, so it lifts the saturation instead of dropping it. */
+.glassBand {
+  z-index: 4;
+  bottom: 2%;
+  height: 9%;
+  inset-inline-start: -11%;
+  inset-inline-end: -2%;
+  background: rgb(var(--ivory-rgb) / 0.38);
+  backdrop-filter: blur(24px) saturate(1.08);
 }
 
 /* B — shingled pair (02). Two photographs of comparable area but opposite
-   orientation, crossing in a shallow band at the portrait's foot. Nothing hangs
-   off a corner and there is no third tile — that absence is what keeps it from
-   reading as A mirrored. */
-.chapter[data-arch="shingle"] .stack {
-  --stack-ar: 4 / 5;
-  --stack-w: min(100%, 30rem, 62vh);
+   orientation, crossing in a shallow band at the portrait's foot. Nothing
+   breaks a corner, nothing is round, and there is no third tile — that absence
+   is what keeps it from reading as A mirrored. */
+.chapter[data-arch="shingle"] {
+  --stack-ar: 4 / 5.2;
+  --stack-w: min(36rem, 62vh);
 }
 
 .slotPairFar {
   top: 0;
   inset-inline-start: 0;
-  width: 62%;
+  width: 66%;
   aspect-ratio: 3 / 4;
   z-index: 1;
 }
 
 .slotPairNear {
-  bottom: 4%;
+  bottom: 2%;
   inset-inline-end: calc(-1 * var(--gutter));
-  width: 74%;
+  width: 82%;
   aspect-ratio: 8 / 5;
   z-index: 2;
+}
+
+/* C — bled (03). One photograph filling the panel, dissolved back into the wall
+   down its left edge and along its foot, with the reading standing on the
+   dissolve. The closing chapter, and the only one the reader is inside rather
+   than looking at.
+
+   Positioned against the panel, not the measure. `.panelInner` is a static
+   grid, so an absolutely positioned item in it falls through to the sticky
+   plate — which is exactly one viewport at the top of the screen, which is the
+   frame this composition wants. Giving `.panelInner` a position would quietly
+   crop this back to the measure. */
+.chapter[data-arch="bleed"] .stack {
+  position: absolute;
+  inset: 0;
+  width: auto;
+  max-width: none;
+  aspect-ratio: auto;
+  margin: 0;
+}
+
+.slotBleed {
+  inset: 0;
+  /* An edge that has been dissolved cannot also be casting a shadow. */
+  box-shadow: none;
+  /* The dissolve: two ramps intersected. Across, so the photograph gives out
+     under the reading — the ramp is long and starts shallow, because the words
+     sit over its middle and the photograph turns over to a much darker one
+     halfway through the dwell, so what has to hold is the darker of the two.
+     And up from the foot, which is the edge the next panel arrives over. The
+     top and the outer edge stay whole; those are the two the picture is bled
+     off. */
+  -webkit-mask-image:
+    linear-gradient(
+      96deg,
+      transparent 10%,
+      rgb(var(--ink-rgb) / 0.08) 28%,
+      rgb(var(--ink-rgb) / 0.42) 46%,
+      var(--ink) 68%
+    ),
+    linear-gradient(180deg, var(--ink) 0 72%, transparent 100%);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(
+      96deg,
+      transparent 10%,
+      rgb(var(--ink-rgb) / 0.08) 28%,
+      rgb(var(--ink-rgb) / 0.42) 46%,
+      var(--ink) 68%
+    ),
+    linear-gradient(180deg, var(--ink) 0 72%, transparent 100%);
+  mask-composite: intersect;
+}
+
+/* The last of the wall, carried back over the photograph where the words are.
+   The dissolve above is a straight ramp and the reading is not a straight
+   column — the head runs wide and the caption does not — so this is the shape
+   the type actually takes, and it is the wall's own colour so the two cannot
+   be told apart where they meet. */
+.bleedHaze {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    64% 72% at 17% 47%,
+    rgb(var(--ivory-warm-rgb) / 0.82) 0%,
+    rgb(var(--ivory-warm-rgb) / 0.44) 42%,
+    rgb(var(--ivory-warm-rgb) / 0) 74%
+  );
 }
 
 /* Phones and small tablets: one column, stack under the type, rail inline.
@@ -524,8 +719,12 @@
 
   /* Held off the end of the column so a tile breaking inward has somewhere to
      go; the outward ones still run flush to the page edge. Written at the
-     archetype selectors' specificity, or they would keep their wide widths. */
-  .chapter[data-arch] .stack {
+     archetype selectors' specificity, or they would keep their wide widths —
+     and the vh terms go with them, since nothing is one viewport tall here.
+     A percentage is safe again: the grid is one column wide, so this is only a
+     width now. */
+  .chapter[data-arch="portal"],
+  .chapter[data-arch="shingle"] {
     --stack-w: min(84%, 20rem);
   }
 
@@ -535,16 +734,56 @@
 
   /* Each archetype gives back what the narrower stack costs it, so the overlaps
      stay the ones drawn above rather than tightening at every width. */
-  .slotStampIn {
-    inset-inline-start: -16%;
+  .slotPortal {
+    inset-inline-end: 4%;
+    width: 40%;
   }
 
   .slotPairFar {
-    width: 68%;
+    width: 70%;
   }
 
   .slotPairNear {
-    width: 82%;
+    width: 86%;
+  }
+
+  .glassSheet,
+  .glassBand {
+    inset-inline-start: -7%;
+  }
+
+  /* The bled panel goes back to being a photograph in the column: nothing pins
+     here, so there is no panel for it to fill and no reading for it to sit
+     under. It keeps the foot of its dissolve — that edge is the composition
+     rather than a way of clearing room for words that are now above it — and
+     drops the sideways one, which has nothing left to clear.
+
+     The composite is reset rather than left to a single layer. A lone mask
+     layer composited `source-in` against nothing beneath it is a mask of
+     nothing on the browsers that still want the prefixed keyword, and the
+     photograph disappears. */
+  .chapter[data-arch="bleed"] .stack {
+    position: relative;
+    inset: auto;
+    width: 100%;
+    max-width: none;
+    aspect-ratio: 4 / 5;
+    margin: 0;
+  }
+
+  .slotBleed {
+    -webkit-mask-image: linear-gradient(
+      180deg,
+      var(--ink) 0 74%,
+      transparent 100%
+    );
+    -webkit-mask-composite: source-over;
+    mask-image: linear-gradient(180deg, var(--ink) 0 74%, transparent 100%);
+    mask-composite: add;
+  }
+
+  .bleedHaze {
+    display: none;
   }
 }
 
@@ -562,20 +801,22 @@
   }
 }
 
-/* Below this the outward tile of a three-part stack has nowhere to go without
-   crowding the frame. The shingled pair only has two, so it keeps both. */
+/* Below this the sheets have nowhere to stand out to without crowding the
+   frame, and the frosted band is wider than the blur it is meant to show. Both
+   go; the circle stays, because it is what the panel is. */
 @media (max-width: 520px) {
-  .slotStampOut {
-    display: none;
-  }
-
-  .chapter[data-arch] .stack {
+  .chapter[data-arch="portal"],
+  .chapter[data-arch="shingle"] {
     --stack-w: min(86%, 18rem);
   }
 
-  .slotStampIn {
-    inset-inline-start: -14%;
-    width: 46%;
+  .glass {
+    display: none;
+  }
+
+  .slotPortal {
+    inset-inline-end: 2%;
+    width: 44%;
   }
 }
 

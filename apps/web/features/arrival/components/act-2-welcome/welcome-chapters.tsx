@@ -16,25 +16,35 @@
 // stylesheet for the z-scale that depends on.
 //
 // The three panels are not one template filled three times. Each carries an
-// archetype — a tile count, tile shapes, and an overlap — and the seam flip
-// carries the rest: which tiles turn over, which way, and when in the run.
-// The flip is the only thing that happens while a panel is held, so the same
-// move landing in the same slot three times stopped reading as motion and
-// started reading as machinery. Percentages were no answer either: a pinned
-// panel holds still for a whole viewport, long enough to notice that the frame,
-// the satellite, and the corner are where they were last time.
+// archetype — how many photographs, what shapes, and how they stand against the
+// panel — and no two share one:
 //
-// The run is triggered by the landing and then plays at its own speed. Scrubbing
-// it against scroll tied the seam to the wheel, so the same gesture crossed in
-// two frames for anyone moving quickly — on a panel that is pinned and otherwise
-// motionless, that is the whole of what there is to see.
+//   01 portal   a tall frame with a brass-ringed circle breaking its top
+//               corner, standing on two sheets of glass offset behind and
+//               across it
+//   02 shingle  two photographs of comparable area and opposite orientation,
+//               crossing in a shallow band, the whole panel mirrored
+//   03 bleed    one photograph filling the panel, dissolved into the wall down
+//               its left edge and along its foot, the reading over the dissolve
 //
-// Every tile in the act turns over. What separates the panels is the shape of
-// the run: 01 descends, largest tile first; 02 has two tiles and takes the
-// shorter breath between, its sideways seam mirrored with the panel; 03 climbs,
-// smallest first, and finishes on the tall frame. 01 and 03 share an archetype,
-// so the direction and the order of their runs is the whole of what tells them
-// apart.
+// They used to be three stacks of rectangles at slightly different percentages,
+// and on a screen that is pinned and otherwise still that read as machinery: a
+// panel holds for a whole viewport, which is long enough to notice that the
+// frame, the satellite, and the corner are where they were last time. The
+// compositions also sat too small inside their own panel — a stack capped at
+// 28rem on a 1440 wall left a column of nothing between the reading and the
+// page edge. Each archetype now sizes off the height it is given rather than a
+// figure in rem, and the last one gives up the measure entirely.
+//
+// Every photograph in the act turns over. The run is triggered by the landing
+// and then plays at its own speed — scrubbing it against scroll tied the seam
+// to the wheel, so the same gesture crossed in two frames for anyone moving
+// quickly, and on a panel that is otherwise motionless that is the whole of
+// what there is to see. What separates the runs is their shape: 01 descends
+// from the frame to the circle, 02 takes the shorter breath between two and
+// runs its sideways seam out over the page edge it is mirrored onto, and 03
+// spends its whole dwell on one seam climbing the panel — the last chapter,
+// and the one that hands over to Act 3.
 
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -54,6 +64,10 @@ import styles from "./act-2-welcome.module.css";
 const CONVERGE = arrivalImages["act-1-converge"];
 const ORBIT = arrivalImages["act-2-orbit"];
 const ROOMS = arrivalImages["act-4-rooms"];
+/** Landscapes cut wide enough to carry a whole panel on their own — the only
+ *  set in the manifest that can, which is why the bled chapter draws from it
+ *  rather than from the room and detail crops the other two are built out of. */
+const PLATES = arrivalImages["act-2-chapters"];
 
 type ManifestImage = (typeof arrivalImages)[keyof typeof arrivalImages][number];
 
@@ -65,10 +79,10 @@ type Line = readonly [text: string, indent: number];
 
 /** Which composition a chapter's photographs take. The geometry itself lives in
  *  the archetype blocks of the stylesheet, selected on `data-arch`. */
-type Arch = "stamps" | "shingle";
+type Arch = "portal" | "shingle" | "bleed";
 
 /** A tile's place in its archetype, and its class key in the stylesheet. */
-type Slot = "frame" | "stampIn" | "stampOut" | "pairFar" | "pairNear";
+type Slot = "frame" | "portal" | "pairFar" | "pairNear" | "bleed";
 
 /**
  * Which way a seam travels. Physical, not logical: `clip-path: inset()` is
@@ -124,10 +138,13 @@ const CHAPTERS: Chapter[] = [
     index: "01",
     side: "right",
     rail: "Rest",
-    // Corner stamps: one tall mass, two small satellites hanging off opposite
-    // corners. The act's establishing composition — the two below reduce away
-    // from it rather than restate it.
-    arch: "stamps",
+    // Portal: one tall frame, a circle set in a brass ring breaking its top
+    // corner, and two sheets of glass — one standing behind the frame, one
+    // crossing its foot. The act's establishing composition, and the only one
+    // holding anything that is not a photograph. The sheets are what stand the
+    // frame on something: a rectangle alone on the wall is what the panel used
+    // to be, and it read as flat at every size it was tried at.
+    arch: "portal",
     lines: [
       ["Rooms that keep", 0],
       ["the quiet you", 0],
@@ -138,10 +155,7 @@ const CHAPTERS: Chapter[] = [
       "Cedar, linen, and lamplight kept low enough to hear the room. Nothing " +
       "here asks anything of you.",
     caption: "Suites & Villas",
-    // The run descends: the tall frame goes first and the satellites follow it
-    // down, largest to smallest, and it is over inside two seconds. 03 runs the
-    // same composition the other way — smallest first, every seam climbing —
-    // so the two share a silhouette and nothing else.
+    // The run descends: the frame goes first and largest, the circle closes.
     tiles: [
       {
         slot: "frame",
@@ -153,33 +167,26 @@ const CHAPTERS: Chapter[] = [
           image: bySlug(ROOMS, "room-premier"),
           seam: "down",
           at: 0.35,
-          dur: 0.85,
+          dur: 0.9,
         },
       },
       {
-        slot: "stampIn",
-        image: bySlug(ORBIT, "round-window-detail"),
-        // Last, and the shortest sweep: the smallest tile, and the panel's
-        // closing beat. A second round window would have been the invisible
-        // flip again, so this one leaves the detail for the room it sits in.
+        slot: "portal",
+        // Dark, and full to its own edges. The round-window detail was here
+        // first for the obvious reason — a circular subject in a circular tile
+        // — and it was the wrong picture for exactly that reason: the window is
+        // a dark disc on a pale wall, so a circle cut out of it came back as a
+        // dark disc inside a ring of that wall, and the ring read as three
+        // times its width. What the slot wants is a photograph with no margin
+        // of its own.
+        image: bySlug(ROOMS, "room-onsen"),
+        // Last, and the shorter sweep — the panel's closing beat. Steam at dusk
+        // for a room standing in daylight, which at this size is the whole of
+        // what makes a seam inside a circle readable.
         flip: {
           image: bySlug(ROOMS, "room-washigamine"),
           seam: "down",
-          at: 1.5,
-          dur: 0.4,
-        },
-      },
-      {
-        slot: "stampOut",
-        image: bySlug(ROOMS, "room-library"),
-        // Second. The wide tile, so the seam crosses sideways and outward, off
-        // the page edge this tile already hangs over — and it trades the
-        // library's lantern dark for daylight, which is the whole of what makes
-        // a seam between two interiors readable at this size.
-        flip: {
-          image: bySlug(ROOMS, "room-mori"),
-          seam: "rightward",
-          at: 1.05,
+          at: 1.2,
           dur: 0.5,
         },
       },
@@ -193,10 +200,14 @@ const CHAPTERS: Chapter[] = [
     // orientation, overlapped shallowly. Nothing hangs off a corner and there
     // is no third tile, which is what keeps it from reading as 01 mirrored.
     arch: "shingle",
+    // Shallower steps than the ragged setting used to take. The display size
+    // went up with the compositions, and an indent written in em went up with
+    // it — at the old figures the last line of a three-line head ran past the
+    // column it is set in before the words did.
     lines: [
       ["Water first,", 0],
-      ["then the rest", 1.6],
-      ["of the day.", 3.2],
+      ["then the rest", 1.4],
+      ["of the day.", 2.8],
     ],
     body:
       "The bath house opens at six and stays warm until ten. Thermal stone, a " +
@@ -204,13 +215,13 @@ const CHAPTERS: Chapter[] = [
       "growing on the ridge above the property.",
     caption: "The Bath House",
     // Both turn over, in the order the copy reads: water first, then the rest
-    // of the day. Two seams rather than three is the archetype's doing — this
-    // is the panel with two tiles — and it is what keeps the middle chapter
-    // the shorter breath between the two three-part runs.
+    // of the day. The run is the shortest in the act — it opens later than 01's
+    // and is done sooner — which is what keeps the middle chapter the shorter
+    // breath between the establishing panel and the closing one.
     //
     // This is also the one mirrored panel, and the sideways seam is where that
     // shows: the wide tile hangs off the left page edge here, so its seam runs
-    // out to the left. The gesture is 01's, reflected.
+    // out to the left rather than in towards the reading.
     tiles: [
       {
         slot: "pairFar",
@@ -241,71 +252,47 @@ const CHAPTERS: Chapter[] = [
     index: "03",
     side: "right",
     rail: "Rejuvenate",
-    // 01's composition again, and deliberately: what this panel does with it is
-    // run it the other way. Every seam climbs, and the order is reversed —
-    // smallest tile first, the tall frame last — so where 01 spends its largest
-    // change and settles, this one builds to it. Upward is also the direction
-    // the copy walks.
-    arch: "stamps",
+    // The panel gives up the measure. One photograph fills it edge to edge and
+    // is dissolved back into the wall down its left side and along its foot,
+    // and the reading stands on the dissolve rather than beside the picture.
+    //
+    // Two panels of photographs held at arm's length inside a grid, and then
+    // the act stops holding them: the last chapter is the one the reader is
+    // standing in rather than looking at, which is the handover Act 3 opens on.
+    // `side` still places the rail and the reading — the photograph is behind
+    // both and pays no attention to the columns.
+    arch: "bleed",
     lines: [
       ["The day begins", 0],
-      ["somewhere", 1.8],
-      ["up the hill.", 3.6],
+      ["somewhere", 1.5],
+      ["up the hill.", 3],
     ],
     body:
       "Dawn walks up the cedar steps, a garden three minutes from the kitchen, " +
       "and one table of eight for whatever was picked that morning. You leave " +
       "lighter than you arrived.",
     caption: "Land & Table",
-    // The cascade runs smallest first and finishes on the tall frame, so the
-    // panel builds to its largest change instead of spending it and decaying,
-    // which is 01's order read backwards — this is the last chapter, and the
-    // one that hands over to Act 3.
+    // One seam, and it takes the whole dwell. The other two panels spend their
+    // hold on a sequence — a change, then another, then the panel is done —
+    // and doing that a third time at full-panel scale would have been the act
+    // repeating its one trick at its loudest. A single edge crossing a whole
+    // screen slowly is the other thing a seam can be, and it is the one the
+    // closing chapter wants.
     //
-    // Each sweep is timed off how far its own seam has to travel, not given an
-    // equal third: the frame is nearly three times the height of the square
-    // stamp, so equal durations made its seam cross nearly three times as fast.
-    // Not strictly proportional either — a big tile that took three times as
-    // long read as slow — so the tall one gets roughly twice the small one's.
-    // The gaps between them shrank with the sweeps: they are what makes three
-    // seams read as three events, so holding them while the sweeps quickened
-    // would have left the run airier than it was. It ends around two and a
-    // half seconds in, which is what the longer dwell in the stylesheet keeps
-    // the panel on screen for.
+    // Climbing, because the copy does. The photograph is a peak at first light
+    // over a village still in shadow; the one it gives way to is the garden the
+    // copy walks to, three minutes downhill from the kitchen — full daylight,
+    // full green, which at this size is the whole of what makes the seam
+    // readable. Two dawn landscapes would have crossed invisibly.
     tiles: [
       {
-        slot: "frame",
-        image: bySlug(CONVERGE, "forest-steps-kimono"),
-        // Last, and further up the same climb.
+        slot: "bleed",
+        image: bySlug(PLATES, "snow-peak-roofs"),
         flip: {
-          image: bySlug(CONVERGE, "temple-gate"),
+          image: bySlug(PLATES, "garden-pavilion"),
           seam: "up",
-          at: 1.5,
-          dur: 0.9,
-        },
-      },
-      {
-        slot: "stampIn",
-        image: bySlug(ORBIT, "kaiseki-bento"),
-        // First: the table, then the terrace it is carried out to.
-        flip: {
-          image: bySlug(ORBIT, "tea-terrace-sunset"),
-          seam: "up",
-          at: 0.3,
-          dur: 0.45,
-        },
-      },
-      {
-        slot: "stampOut",
-        image: bySlug(CONVERGE, "terrace-lunch-sea"),
-        // Second: the sitting, then the kitchen three minutes from it. The one
-        // seam in the panel that crosses sideways, because this is the one wide
-        // tile — and outward, off the page edge it already hangs over.
-        flip: {
-          image: bySlug(CONVERGE, "spring-cafe-forest"),
-          seam: "rightward",
-          at: 0.9,
-          dur: 0.42,
+          at: 0.5,
+          dur: 1.75,
         },
       },
     ],
@@ -315,15 +302,21 @@ const CHAPTERS: Chapter[] = [
 /**
  * How far each tile lags its panel as it rises, in % of its own height, by
  * position in the archetype's tile list. Per archetype rather than shared: in
- * `stamps` the big frame lags least and the satellite most, in `shingle` the
- * near tile is the steady one, so the two read as different depths rather than
- * as the same parallax applied to different rectangles. They land on the
- * composition as drawn and hold there for the dwell — the stack reads as depth
- * on the way in and as a photograph once it has arrived.
+ * `portal` the frame lags least and the circle most, in `shingle` the near tile
+ * is the steady one, so the two read as different depths rather than as the
+ * same parallax applied to different rectangles. They land on the composition
+ * as drawn and hold there for the dwell — the stack reads as depth on the way
+ * in and as a photograph once it has arrived.
+ *
+ * `bleed` is zero, and not for want of trying: a photograph pinned to the
+ * panel's own edges has nowhere to lag to, and any offset uncovers the edge it
+ * was bled off. The panel's rise carries it, which is the point of bleeding it
+ * — the reader is inside that frame rather than watching it arrive.
  */
 const LAG: Record<Arch, readonly number[]> = {
-  stamps: [4, 12, 7],
+  portal: [4, 13],
   shingle: [6, 3],
+  bleed: [0],
 };
 
 /**
@@ -346,19 +339,20 @@ const runEnd = (chapter: Chapter) =>
 
 const SLOT_CLASS: Record<Slot, string> = {
   frame: styles.slotFrame,
-  stampIn: styles.slotStampIn,
-  stampOut: styles.slotStampOut,
+  portal: styles.slotPortal,
   pairFar: styles.slotPairFar,
   pairNear: styles.slotPairNear,
+  bleed: styles.slotBleed,
 };
 
 /** Rendered width of each slot, from its share of the archetype's stack. */
 const SLOT_SIZES: Record<Slot, string> = {
-  frame: "(max-width: 900px) 88vw, 28rem",
-  stampIn: "(max-width: 900px) 46vw, 15rem",
-  stampOut: "(max-width: 900px) 40vw, 12rem",
-  pairFar: "(max-width: 900px) 60vw, 19rem",
-  pairNear: "(max-width: 900px) 72vw, 22rem",
+  frame: "(max-width: 900px) 88vw, 34rem",
+  portal: "(max-width: 900px) 34vw, 12rem",
+  pairFar: "(max-width: 900px) 60vw, 24rem",
+  pairNear: "(max-width: 900px) 76vw, 30rem",
+  // The one slot whose width is the window's.
+  bleed: "100vw",
 };
 
 /**
@@ -497,9 +491,14 @@ export function WelcomeChapters() {
         // order — which tile is the steady one is part of what tells the three
         // compositions apart.
         tiles.forEach((tile, t) => {
+          const lag = LAG[data.arch][t] ?? 0;
+          // A bled tile is pinned to the panel's edges and has none to give;
+          // skipped rather than tweened to zero so it does not carry a
+          // ScrollTrigger that recalculates on every resize to do nothing.
+          if (lag === 0) return;
           gsap.fromTo(
             tile,
-            { yPercent: LAG[data.arch][t] ?? 0 },
+            { yPercent: lag },
             { yPercent: 0, ease: "none", scrollTrigger: rise() },
           );
         });
@@ -661,6 +660,18 @@ export function WelcomeChapters() {
           <div className={`${styles.panel} ${styles.panelPlate}`}>
             <div className={styles.panelInner}>
               <div className={styles.stack}>
+                {/* The sheet the composition stands on, offset up and out
+                    behind the frame. Rendered ahead of the tiles because that
+                    is the order it paints in — every one of these is
+                    positioned, so DOM order is the z-scale inside the stack. */}
+                {chapter.arch === "portal" && (
+                  <div
+                    className={`${styles.glass} ${styles.glassSheet}`}
+                    data-chapter-fade
+                    aria-hidden
+                  />
+                )}
+
                 {chapter.tiles.map(({ slot, image, flip }) => (
                   <div
                     key={slot}
@@ -687,6 +698,29 @@ export function WelcomeChapters() {
                     )}
                   </div>
                 ))}
+
+                {/* And the sheet across its foot, which is the one that reads
+                    as glass: it is the only layer in the act with a
+                    photograph behind it to frost. */}
+                {chapter.arch === "portal" && (
+                  <div
+                    className={`${styles.glass} ${styles.glassBand}`}
+                    data-chapter-fade
+                    aria-hidden
+                  />
+                )}
+
+                {/* The reading's ground on the bled panel. The dissolve gets
+                    the photograph most of the way out of the words' way; this
+                    settles the rest of it, and holds while the photograph
+                    turns over to a darker one halfway through the dwell. */}
+                {chapter.arch === "bleed" && (
+                  <div
+                    className={styles.bleedHaze}
+                    data-chapter-fade
+                    aria-hidden
+                  />
+                )}
               </div>
             </div>
           </div>
