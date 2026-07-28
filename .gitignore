@@ -44,3 +44,6 @@ __pycache__/
 # macOS / Windows noise
 .DS_Store
 Thumbs.db
+
+# Visual regression baseline screenshots (generated, large binaries)
+apps/web/tests/visual-baseline/
