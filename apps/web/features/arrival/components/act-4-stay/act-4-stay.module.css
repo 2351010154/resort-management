@@ -381,8 +381,13 @@
   top: 0;
   left: 0;
   --dim: 0.26;
-  width: var(--card-w);
-  aspect-ratio: 3 / 2;
+  /* Each card takes its own photograph's shape, so nothing is cropped, and its
+     width is the frame's quote scaled to hold the area across shapes — both
+     figures are written on the element by the markup, from the same helper the
+     ticker positions the box with. The fallbacks are the old fixed card, for a
+     node that somehow reaches paint before its style does. */
+  width: calc(var(--card-w) * var(--card-fit, 1));
+  aspect-ratio: var(--card-ar, 3 / 2);
   overflow: hidden;
   background: var(--umber);
   /* Overlapping plates on a dark ground merged into one mass — you could not

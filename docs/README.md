@@ -23,6 +23,15 @@ over them.
    a design fact, the `docs/` file is right and the other is stale.
 3. **`docs/bao-cao/` never wins.** The coursework report is assembled from the
    two above; it is a consumer of truth, never a source.
+Within `docs/`, altitude splits the ownership:
+[`product-requirements.md`](product-requirements.md) owns the product-level
+**what and why** — requirement statements, their stable IDs and acceptance
+criteria, the external-assumption registry, and the brief traceability matrix —
+while the `architecture/` files own the design **how**. Where a requirement
+there disagrees with an architecture file about a design fact, the architecture
+file wins and the requirement is stale; where its status dashboard disagrees
+with `plans/backlog.md`, the backlog wins.
+
 4. **`plans/reports/archive/` is frozen dated rationale.** The advisory reports
    explain *why* a decision was taken on the day it was taken. They are
    read-only, they are never updated, and they are not a fourth source. Cite
@@ -44,6 +53,7 @@ contracts and the regulations. Everything else, in a canonical file, is English.
 
 | Fact domain | Canonical file | Status |
 |---|---|---|
+| Product requirements — stable `FR`/`NFR` IDs, acceptance criteria, external-assumption registry (`ASM`), brief traceability | [`product-requirements.md`](product-requirements.md) | active — touched at milestone close and when an external answer lands, never per ticket |
 | Repository structure, dependency rules, module map | [`architecture/repository-structure.md`](architecture/repository-structure.md) | decided |
 | Palette, type, spacing, motion, copy voice, alt-text rule | [`architecture/design-foundations.md`](architecture/design-foundations.md) | decided |
 | Property facts, rate structure, cancellation grid, charge model, service catalog | [`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) | decided — provisional in whole; §1–§6 all ⚑, §7 is config and never ⚑ |
@@ -79,7 +89,9 @@ is cheap to overturn, an undocumented wait is not. `D5`, `D6` and
 
 Once the schema exists: a generated ERD, sequence diagrams for the booking
 hold, payment webhook, check-in and night-audit flows, and a traceability table
-from each brief requirement to its endpoint, screen and test. The use-case and
+from each brief requirement to its endpoint, screen and test — it grows from
+the brief → `FR` mapping already standing in
+[`product-requirements.md`](product-requirements.md) §8. The use-case and
 state diagrams generate from the RBAC matrix and the state machine. `P0-DOC-01`
 through `P0-DOC-05` own that work.
 
