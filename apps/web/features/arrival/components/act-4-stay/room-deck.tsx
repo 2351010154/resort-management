@@ -107,7 +107,87 @@ const GROWTH = 1.33;
  * what it used to be.
  */
 const FOCUS_D = 3;
-const CARD_ASPECT = 3 / 2;
+/**
+ * The shape a card's width is quoted for. Cards no longer share one: each takes
+ * its own photograph's aspect, so nothing is cropped and the trail is a mix of
+ * uprights, squares and landscapes rather than twelve identical rectangles.
+ *
+ * What they share instead is area. A card's width is `ew` scaled by
+ * `sqrt(aspect / CARD_QUOTE)`, which holds `w * h` constant across shapes — an
+ * upright comes out narrower and taller than a landscape at the same depth
+ * instead of merely taller. Giving every shape the same width was the obvious
+ * thing and the wrong one: at 3:2 against 0.76:1 the upright covers twice the
+ * frame, so the card nearest the eye was whichever one happened to be portrait
+ * and depth stopped being what told you how near a card was.
+ */
+const CARD_QUOTE = 3 / 2;
+/**
+ * How far the whole cascade turns toward the cursor at full deflection, in
+ * radians — yaw from its x, pitch from its y. One rigid rotation of the group
+ * about an axis standing in front of the eye, which is what the reference
+ * composition does: `scene.rotation.y = ndc.x * 0.1` and `scene.rotation.x =
+ * ndc.y * 0.05`, read off its bundle. Per-card nudges cannot produce it: every
+ * card answering the cursor by the same 26px is a pan, and the arrangement
+ * stays as flat under it as it was.
+ *
+ * Its 2:1 between the two, not its figures. What an angle buys is the angle
+ * times the arm it turns on, and the arms are not comparable: the reference
+ * turns a scene about an axis standing inside it, while this trail stands
+ * wholly in front of its axis (see PIVOT_Z) and spans `GROWTH^SPAN` of depth —
+ * the front card rides an arm of `PERSPECTIVE * (GROWTH^SPAN - 1)`, four and a
+ * half times the perspective itself. At 0.1 that card crossed 747px for one
+ * pointer crossing of the frame, and photographs that large moving that freely
+ * have no weight: the deck went where the cursor went.
+ *
+ * At half of it the front card answers that same crossing with a quarter of the
+ * pointer's own travel. Nothing about the near/far spread changes — both
+ * ends scale by the one factor, so the figures under PIVOT_Z hold — but the
+ * cascade now resists the cursor rather than goes with it, which is the whole
+ * difference between a heavy arrangement and a light one.
+ */
+const YAW = 0.05;
+const PITCH = 0.025;
+/**
+ * The perspective the swing is worked out under, in px. Has to be the figure
+ * `.deck` carries in the stylesheet: a card's own turn is rendered by the
+ * browser under that perspective, and the travel worked out below is the rest
+ * of the same rotation. Two different numbers and the group comes apart.
+ */
+const PERSPECTIVE = 1400;
+/**
+ * Where the axis the group turns about stands, as a distance from the eye in
+ * px.
+ *
+ * The cascade is already a perspective projection, so it can be read back into
+ * one. A card drawn at `scale(r)` in the z = 0 plane is the same picture as
+ * that card standing `PERSPECTIVE / r` from the eye, because a card `d` away is
+ * drawn at `PERSPECTIVE / d` under that perspective and nothing else about it
+ * changes; and its offset from the axis, undone, is its screen offset over `r`.
+ * That is the whole lift: divide out `r`, turn the trail about the axis with
+ * everything else standing on it, project it again.
+ *
+ * Which leaves one number to choose, and it is not the depth scale. Write depth
+ * as `Z0 / r`, turn by θ, and the screen travel comes out
+ * `θ · (PERSPECTIVE · (r / rp − 1) − offset² / PERSPECTIVE)` — Z0 has
+ * cancelled. Only `rp`, the depth the axis stands at, survives, and it is the
+ * whole of the near/far spread: travel is zero at the axis, grows without bound
+ * in front of it, and saturates at `−PERSPECTIVE · θ` behind it.
+ *
+ * Standing the axis at the spawn end, `r = GROWTH^-SPAN`, is what makes the far
+ * end quiet: travel is then `θ · PERSPECTIVE · (GROWTH^depth − 1)`, the same
+ * exponential the sizes run on. Measured at 1440 × 900, a pointer crossing the
+ * whole frame carries the far end of the trail 40px and the largest card in it
+ * 375px — nine times, and that spread is the effect. Any nearer axis buys a
+ * smaller front swing by putting the far end in motion: stood at the focus slot
+ * the spawn card is the one that travels furthest of all, which is the
+ * arrangement shearing about its own middle rather than receding.
+ *
+ * The front card travels a quarter as far as the pointer that moved it, so the
+ * cursor gains on a card it is approaching three times faster than the card can
+ * get away. That is what keeps the hit test below from oscillating on a hover
+ * it is itself displacing.
+ */
+const PIVOT_Z = PERSPECTIVE * GROWTH ** SPAN;
 /**
  * The fan: how far each step of depth carries a card off the ray, normal to it,
  * in card widths. One direction for every card, so the trail leaves the
@@ -214,6 +294,19 @@ const HOVER_DRIFT = 0.12;
 /** Seconds the brake takes to reach most of the way to its target. */
 const BRAKE_TAU = 0.4;
 
+/**
+ * A card's shape, and how wide it is drawn against the frame's quoted width.
+ * Fixed for the life of the node: `POOL` is a multiple of `HALF`, so the
+ * recycle never changes the `src` under a card and therefore never changes its
+ * box either — the ticker reads this, and so does the markup that sets the
+ * element's own width, and the two cannot disagree.
+ */
+const cardShape = (room: Room) => {
+  const img = pick(room.slug);
+  const aspect = img.width / img.height;
+  return { aspect, fit: Math.sqrt(aspect / CARD_QUOTE) };
+};
+
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 
 const smoothstep = (a: number, b: number, v: number) => {
@@ -276,6 +369,9 @@ interface Cascade {
   /** Index into ROOMS of this half's first room, so a node's slot can be read
    *  back to the room in it when the caption needs naming. */
   roomOffset: number;
+  /** Each node's shape, by pool slot — the same figures the markup sized the
+   *  element with, so the box the ticker positions is the box on screen. */
+  boxes: ReturnType<typeof cardShape>[];
   /** Per-node pull, eased 0→1 while that node is the one under the pointer.
    *  Indexed by pool slot, which is what the recycle addresses. */
   pull: number[];
@@ -328,6 +424,9 @@ export function RoomDeck({ mobile }: { mobile: boolean }) {
         entries: gsap.utils.toArray<HTMLElement>("[data-room-entry]", list),
         focused: -1,
         roomOffset,
+        boxes: Array.from({ length: POOL }, (_, node) =>
+          cardShape(ROOMS[roomOffset + (node % HALF)]),
+        ),
         pull: new Array(POOL).fill(0),
         hovered: -1,
         dimWritten: new Array(POOL).fill(-1),
@@ -339,8 +438,15 @@ export function RoomDeck({ mobile }: { mobile: boolean }) {
         build(night, nightList, HALF, nightFrame, NIGHT_RUN),
       ];
 
-      // One field response for the whole stage, not per-card hover.
-      const spring = new SecondOrderSpring2(1.1, 0.55, 1.4);
+      // One field response for the whole stage, not per-card hover. Unhurried,
+      // critically damped, and with no anticipation at all: the deck is half
+      // way to the cursor's new answer in about a third of a second, does not
+      // overshoot when it arrives, and never leans into a move before the
+      // pointer has finished making it. The figures it used to carry — 1.1Hz,
+      // under-damped, and leading the pointer by its own velocity — did all
+      // three, which is what a light thing does. The overshoot also carried
+      // every hit box past its mark and back on each flick of the cursor.
+      const spring = new SecondOrderSpring2(0.85, 1, 0);
       const pointer = { x: 0, y: 0 };
       const pointerPx = { x: -1e5, y: -1e5 };
       let vw = 1;
@@ -392,6 +498,31 @@ export function RoomDeck({ mobile }: { mobile: boolean }) {
 
         const p = progress.current;
         const drift = driftK;
+
+        // The group's answer to the pointer, solved once for the whole stage:
+        // both halves are the same arrangement and turn together. Every card
+        // carries this rotation itself, and picks up the near/far factor its
+        // own place on the trail earns under it.
+        const yaw = YAW * spring.value.x;
+        const pitch = PITCH * spring.value.y;
+        // CSS turns the near edge toward the viewer on a positive rotateX and
+        // away on a positive rotateY, so the pitch is negated and the yaw is
+        // not. Both are the same sense on screen: the side the cursor is on
+        // goes back, and the far side comes forward to meet it.
+        const yawDeg = (yaw * 180) / Math.PI;
+        const pitchDeg = (-pitch * 180) / Math.PI;
+        // That same pair as a rotation, for the travel the browser cannot do
+        // for us: it turns each card about its own centre, and the group's
+        // centres have to be carried round the axis to match. `rotateY(yaw)`
+        // then `rotateX(-pitch)`, in that order, so `sinP` enters negated.
+        const cosY = Math.cos(yaw);
+        const sinY = Math.sin(yaw);
+        const cosP = Math.cos(pitch);
+        const sinP = Math.sin(pitch);
+        // The axis the group turns about: through the point `.deck` puts its
+        // perspective origin on, standing PIVOT_Z back from the eye.
+        const midX = vw / 2;
+        const midY = vh / 2;
 
         // One edge sweeps left to right: night owns everything behind it, day
         // everything ahead of it. The two clips are complements, so there is
@@ -454,8 +585,11 @@ export function RoomDeck({ mobile }: { mobile: boolean }) {
           const vpY = f.vpy * vh;
           const dx = f.ex * vw - vpX;
           const dy = f.ey * vh - vpY;
+          // The frame's quoted width. Every card's own box is this scaled by
+          // its shape, and the trail's own figures — the fan, the pull — stay
+          // on the quote, so the ribbon's spine does not shift depending on
+          // which shape happens to be passing through a given depth.
           const w0 = f.ew * vw;
-          const h0 = w0 / CARD_ASPECT;
           // Unit normal to the ray — the axis the fan is spread along — turned
           // so it always points down-frame. `(-dy, dx)` is a quarter turn, and
           // a quarter turn is not preserved by the reflection `mirrored()`
@@ -487,8 +621,10 @@ export function RoomDeck({ mobile }: { mobile: boolean }) {
               continue;
             }
             const r = GROWTH ** (depth - SPAN);
-            // Front cards answer the cursor by ~26px, the far ones barely.
-            const reach = 26 * r;
+            // This node's own box at the exit end, from the photograph in it.
+            const { aspect, fit } = c.boxes[slot];
+            const cw = w0 * fit;
+            const ch = cw / aspect;
             // One direction for every card, growing with depth: tight at the
             // vanishing point, spread at the front. Both terms are functions of
             // where the card is, so this is continuous through the recycle.
@@ -497,24 +633,48 @@ export function RoomDeck({ mobile }: { mobile: boolean }) {
             // pointer. Slides the card out from under the ones in front and
             // takes its scrim off as it goes.
             const t = c.pull[slot];
-            // Where the card sits with the fan alone — the box the pointer is
-            // tested against, so the pull cannot move its own hit target.
-            const restX = vpX + dx * r + nx * fan + spring.value.x * reach;
-            const restY =
-              vpY + dy * r + ny * fan + spring.value.y * reach * 0.6;
+            // Where this depth sits on the ray, before the pointer.
+            const rayX = vpX + dx * r + nx * fan;
+            const rayY = vpY + dy * r + ny * fan;
+            // And what the group's turn does to it. The card is lifted off the
+            // screen to where it is actually standing — `PERSPECTIVE / r` from
+            // the eye, its offset from the axis divided back out — carried
+            // round the axis with the rest of the trail, and projected again.
+            // Depth is the whole of the answer: a card at the axis does not
+            // move, one in front of it swings by its distance from the axis
+            // times the angle. Screen position, which is what this used to be
+            // worked out from, says nothing about how near a card is.
+            const mx = (rayX - midX) / r;
+            const my = (rayY - midY) / r;
+            const mz = PIVOT_Z - PERSPECTIVE / r;
+            const tx = mx * cosY + mz * sinY;
+            const zy = mz * cosY - mx * sinY;
+            const ty = my * cosP + zy * sinP;
+            const tz = zy * cosP - my * sinP;
+            // Back to the screen. `rs` is the depth scale the card has earned
+            // where the turn left it, so the box and its offset from the axis
+            // still ride one factor — the cascade's whole premise. The turn is
+            // rigid and the depths are decades apart, so nothing overtakes
+            // anything, which is why the paint order below is still read off
+            // depth alone.
+            const rs = PERSPECTIVE / (PIVOT_Z - tz);
+            // The box the pointer is tested against, so the pull cannot move
+            // its own hit target.
+            const restX = midX + tx * rs;
+            const restY = midY + ty * rs;
             // Out to the side, against the direction the cascade recedes: back
             // toward the register, and along the one axis that has frame left
             // to give. The card holds its height, so nothing it does under the
             // pointer can put it off the bottom.
-            const cx = restX - turn * t * PULL * w0 * r;
+            const cx = restX - turn * t * PULL * w0 * rs;
             const cy = restY;
             const opacity =
               smoothstep(0, 1.4, depth) *
               (1 - smoothstep(SPAN - 0.9, SPAN, depth));
             node.style.transform =
-              `translate3d(${(cx - w0 / 2).toFixed(2)}px, ${(cy - h0 / 2).toFixed(2)}px, 0) ` +
-              `rotateY(${(spring.value.x * 4 * r).toFixed(3)}deg) ` +
-              `scale(${r.toFixed(4)})`;
+              `translate3d(${(cx - cw / 2).toFixed(2)}px, ${(cy - ch / 2).toFixed(2)}px, 0) ` +
+              `rotateY(${yawDeg.toFixed(3)}deg) rotateX(${pitchDeg.toFixed(3)}deg) ` +
+              `scale(${rs.toFixed(4)})`;
             node.style.opacity = opacity.toFixed(3);
             // Depth alone decides who is in front, hover included. The pulled
             // card used to be lifted to the top of its half as well, because a
@@ -552,8 +712,8 @@ export function RoomDeck({ mobile }: { mobile: boolean }) {
             // only for the card already held, so following it with the cursor
             // keeps it rather than dropping it at the edge of the rest box.
             if (owns && opacity > 0.5 && r > nearest) {
-              const hw = (w0 * r) / 2;
-              const hh = (h0 * r) / 2;
+              const hw = (cw * rs) / 2;
+              const hh = (ch * rs) / 2;
               const held = c.hovered === slot;
               const on =
                 (Math.abs(pointerPx.x - restX) < hw &&
@@ -715,18 +875,28 @@ export function RoomDeck({ mobile }: { mobile: boolean }) {
       <div className={styles.deck} aria-hidden>
         {Array.from({ length: POOL }, (_, node) => {
           const room = rooms[node % HALF];
+          // Written here rather than by the ticker: a node keeps one room and
+          // therefore one shape for the life of the page, so this is a static
+          // style, not a per-frame one.
+          const { aspect, fit } = cardShape(room);
           return (
             <article
               // biome-ignore lint/suspicious/noArrayIndexKey: the deck is a fixed pool of DOM slots the animation addresses by position — `node` is the slot, not the room in it, which is why it is also the data-card the tweens select on.
               key={node}
               data-card={node}
               className={styles.card}
-              style={{ opacity: 0 }}
+              style={
+                {
+                  opacity: 0,
+                  "--card-ar": aspect,
+                  "--card-fit": fit,
+                } as React.CSSProperties
+              }
             >
               <img
                 src={tierSrc(pick(room.slug).src, 1280)}
                 srcSet={tierSrcSet(pick(room.slug))}
-                sizes={mobile ? "72vw" : "44vw"}
+                sizes={mobile ? "72vw" : "46vw"}
                 alt={pick(room.slug).alt}
                 loading={node < HALF ? undefined : "lazy"}
               />
