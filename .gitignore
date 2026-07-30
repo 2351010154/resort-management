@@ -19,10 +19,8 @@ next-env.d.ts
 .vscode/
 .idea/
 
-# Markdown planning records are versionable. Generated views and capture output
-# remain local because they can be reproduced from Markdown and capture scripts.
-/plans/**/*.html
-/plans/reports/screenshots/
+# Project planning artifacts
+/plans/
 
 # Python / local runtime artifacts
 venv/
