@@ -9,10 +9,10 @@ granularity (also the backlog). Where a requirement here disagrees with an
 architecture file about a design fact, the architecture file is right and the
 requirement is stale — fix it here.
 
-**Maintenance rule.** This file is touched at exactly two moments: when a
-milestone closes (update §9 and any `Lands` column it changed) and when an
-external answer lands (resolve the `ASM` row in §7 and re-read the requirements
-it lists). Never per ticket, never mid-milestone.
+**Maintenance rule.** Change this file only when a requirement or external
+assumption changes. Delivery status belongs to the execution authority named in
+[`README.md`](README.md), while shipped behaviour is proved by source, tests,
+schemas and generated artifacts.
 
 **ID rules.** `FR-<MOD>-nn` for functional requirements, `NFR-nn` for
 non-functional, `ASM-nn` for assumptions. IDs are stable forever: a dropped
@@ -93,14 +93,15 @@ milestone per [`orientation.md`](orientation.md) §5; status per story lives in
 | `FR-AUTH-01` | Guest and staff authentication are two separate realms; no token opens both | Guest token on a staff route → 403, and the reverse — asserted by test in both directions | M2 ✅ |
 | `FR-AUTH-02` | Guest account lifecycle: sign-up, email verification, sign-in, password reset, Google as the one social provider | Flows driven in a real browser against the running API; Google registered only when both credential halves are present, refused at boot in production when absent | M2 ✅ |
 | `FR-AUTH-03` | Staff sign-in issues a token carrying exactly one staff role | Expired and tampered tokens both → 401, by named test | M2 ✅ |
+| `FR-AUTH-04` | Signed-in credential management: password change by proving the current password; email change only through re-verification of the new address | The new address becomes the sign-in identifier only after its link is used — until then the old address signs in; a Google-only account is offered neither form — it has no password to change and its address belongs to Google. Screen intent in [`screens.md`](screens.md) §Account | M7 |
 
 ### 4.2 `identity` — roles and the guard
 
 | ID | Requirement | Acceptance criteria | Lands |
 |---|---|---|---|
-| `FR-IDN-01` | Six roles enforced by a fail-closed capability guard over the RBAC matrix; a route with no capability declaration is unreachable for everyone | Data-driven test iterates every matrix row asserting every allowed and every denied role; anonymous → 401, wrong realm → 403 | M2 ✅ |
+| `FR-IDN-01` | Five staff roles plus the separate `GUEST` principal/realm are enforced by a fail-closed capability guard over the RBAC matrix; a route with no capability declaration is unreachable for everyone | Data-driven test iterates every matrix row asserting every allowed and every denied principal; anonymous → 401, wrong realm → 403 | M2 ✅ |
 | `FR-IDN-02` | Staff account management (`ADMIN` only), with a CLI bootstrap for the first admin | `GET/POST /identity/staff-accounts` behind the guard; `staff:create` CLI exists because the first `ADMIN` cannot come from an API requiring one | M2 ✅ |
-| `FR-IDN-03` | System configuration — VAT rate, retention floor `N`, business-date rollover, gateway credentials — is data, editable by `ADMIN` without a deploy | No tax rate or retention constant compiled anywhere in the tree ([`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) §7). Cites `ASM-01`, `ASM-02` | M6/M8 |
+| `FR-IDN-03` | System configuration — VAT rate and applicability window, whether the VAT base includes service charge, retention floor `N`, business-date rollover, gateway credentials — is data, editable by `ADMIN` without a deploy | No tax rate, tax-base rule or retention period compiled anywhere in the tree ([`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) §7). Cites `ASM-01`, `ASM-02` | M6/M8 |
 
 ### 4.3 `guest` — profiles and personal data
 
@@ -127,7 +128,7 @@ milestone per [`orientation.md`](orientation.md) §5; status per story lives in
 | `FR-PRC-01` | Three rate plans (`STANDARD`, `NONREF`, `BB`) priced off a per-type per-date rate calendar; seasons are names over data, never hardcoded ranges | Per [`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) §3; `BB`'s breakfast posts as its own folio line | M3 |
 | `FR-PRC-02` | Stay restrictions — min/max stay, closed-to-arrival, closed-to-departure — reject at **query** time, not at booking time | One test per restriction | M3 |
 | `FR-PRC-03` | Promotions and discounts as rate modifiers | Brief bullet *giảm giá, khuyến mãi* covered | M3 |
-| `FR-PRC-04` | Child and extra-person pricing per the age bands, charged cheapest-heads-first above included occupancy, never above the type maximum | Per [`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) §3; above-max occupancy is a rejection, not a price | M3 |
+| `FR-PRC-04` | Child and extra-person pricing per the age bands, charged cheapest-heads-first above included occupancy, never above the type maximum | Per [`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) §3. The owner must still decide when an extra bed is mandatory and whether its service charge stacks with or replaces the extra-person charge; no quote may assume that rule (§8; [SCRUM-87](https://hungphat2018-1785053353783.atlassian.net/browse/SCRUM-87)) | M3 |
 
 ### 4.6 `booking` — lifecycle and front desk
 
@@ -138,13 +139,13 @@ milestone per [`orientation.md`](orientation.md) §5; status per story lives in
 | `FR-BOOK-03` | Front-desk operations: check-in (room assigned and ready), check-out (folio settled), room move, extend, early departure, night-audit no-show, `NO_SHOW` → `CHECKED_IN` reinstate (`MANAGER`, fails if resold) | Guards per [`architecture/booking-state-machine.md`](architecture/booking-state-machine.md) §4–§5 | M4 |
 | `FR-BOOK-04` | Cancellation always carries a reason code; the refund is policy-computed from the cancellation grid; waiving any cell is `MANAGER`+ | [`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) §4 grid; `refund.policy` and `refund.override` are separate endpoints with separate roles | M4 |
 | `FR-BOOK-05` | Search by room number, type, status, date range, guest name/phone | Brief bullet 6, verbatim | M4 |
-| `FR-BOOK-06` | Guest funnel: search → room choice → details → payment → gateway return → confirmation, six routes with the hold id in the path; confirmation and stay detail are one route | Route map per [`architecture/repository-structure.md`](architecture/repository-structure.md) §`(booking)`; 0 bytes of `three`/`gsap`/`lenis` in the funnel bundle (NFR-05) | M7 |
+| `FR-BOOK-06` | Guest funnel: six logical steps — search → room choice → details → payment → gateway return → confirmation — across five URL patterns because search and room choice share `/booking`; confirmation and stay detail are one route | Route map per [`architecture/repository-structure.md`](architecture/repository-structure.md) §`(booking)`; 0 bytes of `three`/`gsap`/`lenis` in the funnel bundle (NFR-05) | M7 |
 
 ### 4.7 `housekeeping` — room condition
 
 | ID | Requirement | Acceptance criteria | Lands |
 |---|---|---|---|
-| `FR-HK-01` | Housekeeping status `CLEAN`/`DIRTY`/`INSPECTED`/`OUT_OF_ORDER`, orthogonal to occupancy; checkout sets `DIRTY`; check-in guard rejects a room not `CLEAN`/`INSPECTED` (⚑ owner decision 2 in the state machine) | A checked-out room is not sellable until inspected — asserted by the check-in guard test | M4 |
+| `FR-HK-01` | Housekeeping status `CLEAN`/`DIRTY`/`INSPECTED`/`OUT_OF_ORDER`, orthogonal to occupancy; checkout sets `DIRTY`; check-in guard rejects a room not `CLEAN`/`INSPECTED` (⚑ owner decision 2 in the state machine) | A checked-out room is not sellable until housekeeping returns it to `CLEAN`; `INSPECTED` is an optional quality pass, never a prerequisite — asserted by the check-in guard test | M4 |
 | `FR-HK-02` | Housekeeping board for `HOUSEKEEPING`, `RECEPTIONIST`, `MANAGER`+; setting `OUT_OF_ORDER` status never reduces sellable inventory (that is `FR-INV-04`) | Role rows per [`architecture/rbac-matrix.md`](architecture/rbac-matrix.md) §3 Housekeeping | M4 |
 
 ### 4.8 `folio` — the money ledger
@@ -152,9 +153,9 @@ milestone per [`orientation.md`](orientation.md) §5; status per story lives in
 | ID | Requirement | Acceptance criteria | Lands |
 |---|---|---|---|
 | `FR-FOL-01` | One folio per stay: an **append-only** posting ledger in integer VND — charges, payments, refunds, reversals. A mistake is corrected by a reversing entry, never an `UPDATE` or `DELETE` | Nightly: Σ postings = Σ payments + outstanding (NFR-02); no rounding inside any calculation | M6 |
-| `FR-FOL-02` | VAT and service charge post as separate lines; guest-facing prices display gross; both rates are read from config at posting time, never compiled in | Cites `ASM-01`; structure per [`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) §5 | M6 |
+| `FR-FOL-02` | VAT and service charge post as separate lines; guest-facing prices display gross; rates and the rule for whether VAT applies to service charge are read from config at posting time, never compiled in | Cites `ASM-01`; structure per [`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) §5 | M6 |
 | `FR-FOL-03` | Service catalog items post to folios with their tax class; catalog grows as data, no migration | Eight seeded items per [`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) §6 | M6 |
-| `FR-FOL-04` | Closing a folio enqueues an **idempotent e-invoice job keyed on folio id** — *hóa đơn điện tử khởi tạo từ máy tính tiền*, signed by an HSM certificate; the provider's number is the legal reference; *điều chỉnh/thay thế* map onto folio reversals; a provider timeout never rolls back a checkout | 100% of closed folios carry a provider invoice number; 0 manual dongle steps in the checkout path. Cites `ASM-03`, `ASM-04` | M6 |
+| `FR-FOL-04` | If written tax-agent advice confirms `ASM-03`, closing a folio enqueues an **idempotent e-invoice job keyed on folio id** for *hóa đơn điện tử khởi tạo từ máy tính tiền*, signed by an HSM certificate; the provider's number is the legal reference; *điều chỉnh/thay thế* map onto folio reversals; a provider timeout never rolls back a checkout. If applicability differs, the written ruling replaces this invoice subtype before implementation | The confirmed invoice workflow is covered end to end; no manual dongle step enters checkout. Cites `ASM-03`, `ASM-04` | M6 |
 
 ### 4.9 `payment` — gateways
 
@@ -171,7 +172,7 @@ milestone per [`orientation.md`](orientation.md) §5; status per story lives in
 
 | ID | Requirement | Acceptance criteria | Lands |
 |---|---|---|---|
-| `FR-OPS-01` | Shift open/close with cash-drawer count and variance; handover notes and pending items, including services posted during the shift | Receptionist scoped to own shift; brief bullet 8 | M8 |
+| `FR-OPS-01` | Shift open/close with cash-drawer count and variance; handover notes and pending items, including services posted during the shift. Every cash payment belongs to an open shift — taking cash with none open prompts opening one in place, so variance stays computable; gateway payments are outside the drawer | Receptionist scoped to own shift; a cash payment posted with no open shift is impossible by test; brief bullet 8 | M8 |
 | `FR-OPS-02` | Income/expense (*thu chi*) with categories | Brief bullet 11 | M8 |
 | `FR-OPS-03` | Excel export of management data, streamed | Brief bullet 10; library re-evaluated at M8 per [`architecture/tech-stack.md`](architecture/tech-stack.md) §Still open | M8 |
 
@@ -244,12 +245,12 @@ None of them blocks M2 or M3.
 
 | ID | Assumption | Whose answer | Tracked as | Requirements affected |
 |---|---|---|---|---|
-| `ASM-01` | The VAT rate and the reduced-VAT window are **configuration**; whatever value is seeded is provisional | Accountant | `D2b` | `FR-IDN-03`, `FR-FOL-02`, `NFR-02` |
-| `ASM-02` | A statutory retention floor `N` exists for registration records and CCCD scans, and offshore (Singapore) storage is permissible | Lawyer | `D2c` / `M0-05` | `FR-GST-02`, `FR-IDN-03`, `NFR-08` |
-| `ASM-03` | Nghị định 70/2025/NĐ-CP binds this entity → the invoice is *hóa đơn điện tử khởi tạo từ máy tính tiền*, issued at folio close, signed by HSM — never a USB token | Tax agent | `M0-06` | `FR-FOL-04` |
-| `ASM-04` | The e-invoice provider is Viettel S-Invoice; switches to MISA meInvoice if the accountant works in MISA AMIS | Accountant | `M0-01` | `FR-FOL-04` |
-| `ASM-05` | VNPay grants refund sandbox access during merchant onboarding, so `refund` is testable before production | VNPay | `M0-04` | `FR-PAY-02`, `FR-PAY-04` |
-| `ASM-06` | Generated Mermaid diagrams satisfy the coursework's notation requirement (vs strict UML) | Professor | `D8` | none — affects the docs pipeline (`P0-DOC-03/04`), no product requirement |
+| `ASM-01` | The VAT rate, reduced-VAT window and whether the VAT base includes service charge are **configuration**; every seeded value is provisional pending the accountant's written answer | Accountant | `D2b`; [SCRUM-12](https://hungphat2018-1785053353783.atlassian.net/browse/SCRUM-12), [SCRUM-86](https://hungphat2018-1785053353783.atlassian.net/browse/SCRUM-86) | `FR-IDN-03`, `FR-FOL-02`, `NFR-02` |
+| `ASM-02` | A statutory retention floor `N` exists for registration records and CCCD scans, and offshore (Singapore) storage is permissible; neither claim is accepted until written legal advice arrives | Lawyer | `D2c` / `M0-05`; [SCRUM-13](https://hungphat2018-1785053353783.atlassian.net/browse/SCRUM-13) | `FR-GST-02`, `FR-IDN-03`, `NFR-08` |
+| `ASM-03` | If Nghị định 70/2025/NĐ-CP binds this operating entity and activity, the invoice is *hóa đơn điện tử khởi tạo từ máy tính tiền*, issued at folio close and signed by HSM; applicability awaits the tax agent's written answer | Tax agent | `M0-06`; [SCRUM-12](https://hungphat2018-1785053353783.atlassian.net/browse/SCRUM-12) | `FR-FOL-04` |
+| `ASM-04` | The e-invoice provider is Viettel S-Invoice; switches to MISA meInvoice if the accountant works in MISA AMIS | Accountant | `M0-01`; [SCRUM-12](https://hungphat2018-1785053353783.atlassian.net/browse/SCRUM-12) | `FR-FOL-04` |
+| `ASM-05` | VNPay grants refund sandbox access during merchant onboarding, so `refund` is testable before production | VNPay | `M0-04`; [SCRUM-14](https://hungphat2018-1785053353783.atlassian.net/browse/SCRUM-14) | `FR-PAY-02`, `FR-PAY-04` |
+| `ASM-06` | Generated Mermaid diagrams satisfy the coursework's notation requirement (vs strict UML) | Professor | `D8`; [SCRUM-16](https://hungphat2018-1785053353783.atlassian.net/browse/SCRUM-16) | none — affects the docs pipeline (`P0-DOC-03/04`), no product requirement |
 
 ## 8. Traceability — the professor's twelve requirements
 
@@ -275,25 +276,10 @@ is `plans/backlog.md` §10; this table adds the requirement layer between them.
 
 All twelve are demonstrable by M9 without building for the rubric.
 
-## 9. Status dashboard
+## 9. Delivery evidence
 
-*Snapshot at module grain, updated at milestone boundaries only. Dated
-2026-07-29; `plans/backlog.md` wins wherever they disagree.*
-
-**Road position: M1 done · M2 in progress · nothing built past M2.**
-
-| Module | Requirements | State |
-|---|---|---|
-| `auth` | `FR-AUTH-01…03` | ✅ built — both realms, tested |
-| `identity` | `FR-IDN-01…02` | ✅ built; `FR-IDN-03` config rows pending M6/M8 |
-| `notification` | `FR-NTF-01` | 🟡 mailer built with log fallback; provider domain pending infra |
-| `payment` | `FR-PAY-01…03` | ⬜ M2 carries the sandbox port; the rest lands M6 |
-| `inventory`, `pricing` | `FR-INV-*`, `FR-PRC-*` | ⬜ designed, reserved — M3, the correctness core |
-| `booking`, `housekeeping` | `FR-BOOK-*`, `FR-HK-*` | ⬜ designed (state machine ✔), reserved — M4. `/booking` screen built on a fixture |
-| `folio` | `FR-FOL-*` | ⬜ structure designed, rates external — M6 |
-| `guest`, `feedback` | `FR-GST-*`, `FR-FBK-*` | ⬜ reserved — M7 |
-| `operations`, `audit` | `FR-OPS-*`, `FR-AUD-*` | ⬜ reserved — M8 |
-| `reporting` | `FR-RPT-*` | ⬜ reserved — M9 |
-
-Screen-level view: [`screens.md`](screens.md). Per-story truth:
-`plans/backlog.md`.
+This requirements document does not carry a status snapshot. For current work
+state, follow the execution authority named in [`README.md`](README.md). For
+release claims, inspect the owning source, tests, schemas, workflows and
+generated artifacts; a planned milestone or accepted architecture is not proof
+that a requirement has shipped.

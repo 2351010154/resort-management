@@ -3,8 +3,9 @@
 Chương này là phần khác biệt nhất của đồ án so với một báo cáo môn học thông
 thường: không phải vì quy trình được mô tả đẹp, mà vì nó tồn tại dưới dạng
 **hiện vật kiểm chứng được** — một backlog có thứ tự phụ thuộc, các cổng chặn
-tường minh, một sổ đối chiếu ghi lại thứ gì đã bị thay thế và vì sao, và 48 chỉ
-tiêu đo lường được dùng làm tiêu chí nghiệm thu.
+tường minh và một sổ đối chiếu ghi lại thứ gì đã bị thay thế và vì sao. Số
+lượng ticket, chỉ tiêu và trạng thái không được sao chép vào chương này; hệ
+thống thực thi là chủ sở hữu của chúng.
 
 ## 6.1 Nguyên tắc: xây xương sống trước, xây da sau
 
@@ -19,7 +20,7 @@ Xây UI admin đầu tiên là việc dễ thấy nhất và ít thông tin nh�
 
 | Mốc | Pha | Ước lượng | Nội dung |
 |---|---|---|---|
-| M1 | **P−1** Migration web *(đang chạy)* | 1 tuần | Visual baseline đã commit, gỡ drei, React 19, R3F 9, Next 15 → 16, `packages/tokens`, Biome |
+| M1 | **P−1** Migration web | 1 tuần | Visual baseline, nâng runtime frontend, `packages/tokens`, Biome |
 | M2 | **P0** Nền tảng | 2–3 tuần | Monorepo, Postgres, auth + RBAC, contract oRPC, CI có test, pipeline ERD, hello-world API trên production, hạ tầng, VNPay sandbox sau `PaymentGateway` port |
 | M3 | **P1** Tồn kho và phòng trống | 3–4 tuần | Loại buồng, buồng, rate plan, mùa vụ, hạn chế lưu trú, **tồn kho hai tầng**, test tương tranh 50 luồng xanh |
 | M4 | **P2** Vòng đời booking và quầy lễ tân | 4 tuần | Máy trạng thái, gán buồng, bảng buồng phòng, tìm kiếm, **primitive bàn phím**, màn hình admin đầu tiên |
@@ -46,7 +47,7 @@ lúc chúng chặn tất cả.
 |---|---|
 | `M0-01` | Hỏi kế toán: đã có nhà cung cấp HĐĐT chưa? có làm việc trên MISA AMIS không? |
 | `M0-02` | Mua **chữ ký số HSM / ký số từ xa** — tường minh **không** phải USB token |
-| `M0-03` | Mua SKU **hoá đơn điện tử khởi tạo từ máy tính tiền** |
+| `M0-03` | Chỉ mua SKU **hoá đơn điện tử khởi tạo từ máy tính tiền** nếu đại lý thuế xác nhận bằng văn bản rằng loại này áp dụng cho pháp nhân/mã ngành vận hành Mariva |
 | `M0-04` | Bắt đầu onboarding merchant VNPay — **xin quyền sandbox hoàn tiền trong cùng hồ sơ** |
 | `M0-05` | Luật sư: lưu trữ CCCD ở nước ngoài + mức sàn lưu trữ luật định |
 | `M0-06` | Đại lý thuế: Nghị định 70/2025 có ràng buộc mã ngành của pháp nhân này không? |
@@ -59,11 +60,12 @@ một dòng.
 
 ## 6.3 Cổng chặn — là issue, không phải story
 
-Ba thứ dưới đây không phải công việc; chúng là **điều kiện merge**.
+`G1` là bằng chứng quyết định đã đóng. `G2` và `G3` mới là điều kiện còn tác
+động tới việc merge hoặc đưa tiền thật vào hệ thống.
 
 | Mã | Cổng | Chặn | Chi tiết |
 |---|---|---|---|
-| `G1` | Spike `@orpc/nest` — nó có cưỡng chế contract ở mức biên dịch không? | `P0-C*` | 30 phút. Kết quả "không đi" sẽ mở lại toàn bộ tầng contract. **Ghi kết quả lại dù đi hay không đi** |
+| `G1` | Spike `@orpc/nest` — nó có cưỡng chế contract ở mức biên dịch không? | Đã đóng | **Đạt.** Kết quả và giới hạn nằm ở `docs/architecture/tech-stack.md`, không còn là blocker |
 | `G2` | **Cái công tắc** — commit đổi VNPay từ sandbox sang credential production | Mọi thứ sau P4 | Danh sách 6 mục dưới đây. Không gì merge qua khi còn ô chưa tick |
 | `G3` | Thời gian chờ giấy tờ | `P3-*` | Hàng tuần trong quy trình của người khác |
 
@@ -93,17 +95,20 @@ lần đặt phòng thật đầu tiên là sai thứ tự.
 
 | Mã | Quyết định | Người quyết | Chặn | Trạng thái |
 |---|---|---|---|---|
-| `D1` | **Dữ kiện cơ sở** — số buồng, cơ cấu loại, số tầng, quy tắc đánh số, giờ nhận/trả phòng, giờ đẩy business date, sức chứa tối đa, quy tắc giường phụ | Chủ đầu tư | `P1-INV-*`, `P1-SEED-*`, `P2`, `P6` | **Mở** |
-| `D2` | **Mô hình thuế và phí** — thuế suất VAT, % phí phục vụ, **VAT có tính trên phí phục vụ không**, hiển thị gộp hay tách, quy tắc làm tròn VND, hạng thuế theo dịch vụ | Kế toán | `P3-FOL-*`, mọi tổng tiền | **Mở**. Ưu đãi thuế có tính thời điểm — không hardcode theo trí nhớ |
-| `D3` | **Lưới huỷ / no-show** — mốc thời hạn, mức phạt, phí no-show, phí trả sớm | Chủ đầu tư | `P2-CAN-*`, `P3-REF-*`, `P4` | **Mở** |
-| `D4` | **Cơ cấu giá lúc khai trương** — số rate plan, lịch mùa, định nghĩa cuối tuần, giá trẻ em/người thêm | Chủ đầu tư | `P1-RAT-*` | **Mở** |
+| `D1` | **Dữ kiện cơ sở** — loại buồng, sức chứa, giờ vận hành | Chủ đầu tư | Seed và vận hành | **Đã có mặc định đề xuất** → `property-and-tariff.md` §1–§2; cần ký duyệt trước khai trương |
+| `D2a` | **Cấu trúc phí** — phí phục vụ, hiển thị gross/line-item, làm tròn, tax class | Chủ đầu tư | Folio | **Đã có mặc định đề xuất** → `property-and-tariff.md` §5 |
+| `D2b` | **Đầu vào thuế** — thuế suất, thời hạn ưu đãi, **VAT có tính trên phí phục vụ không** | Kế toán | Mọi tổng tiền | **Mở; là cấu hình.** Chờ câu trả lời bằng văn bản |
+| `D2c` | **Thời hạn lưu trữ `N` và lưu trữ CCCD ở Singapore** | Luật sư | Lifecycle và dữ liệu lưu trú | **Mở; là cấu hình.** Chờ tư vấn bằng văn bản |
+| `D3` | **Lưới huỷ / no-show** | Chủ đầu tư | Huỷ, hoàn tiền | **Đã có mặc định đề xuất** → `property-and-tariff.md` §4 |
+| `D4` | **Cơ cấu giá lúc khai trương** | Chủ đầu tư | Báo giá | **Mặc định giá đã có; còn mở** quy tắc khi nào giường phụ bắt buộc và phí giường phụ cộng dồn hay thay thế phí người thêm (`property-and-tariff.md` §8) |
 | `D5` | Nội dung ma trận RBAC | — | `P0-AUTH-*` | ✅ **Xong** → `rbac-matrix.md`, 6 dòng ⚑ chờ ký duyệt |
-| `D6` | Bảng chuyển trạng thái booking | — | `P2-SM-*` | ✅ **Xong** → `booking-state-machine.md`, 3 dòng ⚑ chờ ký duyệt |
-| `D7` | Danh mục dịch vụ — hạng mục, giá, hạng thuế | Chủ đầu tư | `P3-SVC-*`, `P5` | **Mở**. Có thể seed mỏng |
+| `D6` | Bảng chuyển trạng thái booking | — | `P2-SM-*` | ✅ **Xong** → `booking-state-machine.md`, **2** dòng ⚑ chờ ký duyệt |
+| `D7` | Danh mục dịch vụ | Chủ đầu tư | Folio và vận hành | **Đã có seed mỏng đề xuất** → `property-and-tariff.md` §6 |
 | `D8` | Ký pháp sơ đồ mà giảng viên yêu cầu | Giảng viên | `P0-DOC-*` | **Mở** |
 
-`D1`–`D4` và `D7` là **một** cuộc trò chuyện. Đặt lịch cho nó; đừng chặn P0 vì
-nó.
+Ngoài bảng trên, đại lý thuế vẫn phải xác nhận bằng văn bản liệu luồng hoá đơn
+điện tử khởi tạo từ máy tính tiền có áp dụng cho pháp nhân/mã ngành này hay
+không. Không mua SKU hoặc mô tả luồng đó như nghĩa vụ đã chốt trước câu trả lời.
 
 ### 6.4.1 Vì sao đây là điểm nghẽn lớn nhất còn lại
 
@@ -171,39 +176,32 @@ thì đáng tin hơn một danh sách trông sạch sẽ.
 | **Đặt trùng qua kênh OTA** | Quyết định hoãn P8 | Cao — ràng buộc DB **không** ngăn được vì nó xảy ra ngoài DB | Chặn tồn kho thủ công; bắt đầu đánh giá channel manager ở M9 |
 | **Mua nhầm chứng thư số** (USB token) | Quyết định lúc mua | Cao — phá vỡ toàn bộ tiền đề tự động hoá | `M0-02` nêu tường minh HSM/ký số từ xa |
 | **Sandbox hoàn tiền của VNPay bị từ chối** | Quy trình của bên thứ ba | Trung bình — đường hoàn tiền chỉ thử được trên tiền thật | Xin ngay trong hồ sơ onboarding (`M0-04`) |
-| **`D1`–`D4`, `D7` không được trả lời** | Chủ đầu tư / kế toán | Cao — chặn tiêu chí nghiệm thu của M3 và M6 | Một cuộc trò chuyện; ticket quyết định, không chặn P0 |
-| **`@orpc/nest` không cưỡng chế contract** | Chưa xác minh | Trung bình — mở lại tầng contract | Cổng `G1`, spike 30 phút trước khi commit |
+| **Đầu vào thuế, quy tắc giường phụ và thời hạn `N` chưa được trả lời** | Kế toán / chủ đầu tư / luật sư | Cao — báo giá, tổng tiền hoặc retention có thể sai | Giữ chúng là config hoặc câu hỏi mở; không suy đoán trong mã |
 | **Một người, không bus factor** | Ràng buộc C1 | Cao nếu kéo dài | Test dồn vào đường tiền và tồn kho; tài liệu viết song song |
-| **Node 20 đã hết vòng đời** | Cấu hình trước migration | Thấp nhưng rẻ để sửa | ✅ **Đã đóng** — `.nvmrc`, `engines` và CI cùng ghim Node 24 trong migration P−1 |
 | **Nghị định 70/2025 có ràng buộc pháp nhân này không** | Chưa xác minh | Trung bình | `M0-06` với đại lý thuế; báo cáo đánh dấu "đang chờ" |
 | **pg-boss vô hiệu hoá scale-to-zero của Neon** | Tương tác giữa hai lựa chọn | Thấp về tiền, cao về bất ngờ | Chương 8 §3: ngân sách compute luôn bật cho production, tắt worker ở staging |
 | **exceljs không còn được bảo trì** | Phụ thuộc | Thấp | Đánh giá lại ở P5 |
 
 ## 6.8 Chiến lược viết báo cáo: xây trước, viết sau
 
-Báo cáo này **không** được duy trì song song với việc xây dựng theo kiểu viết
-dần từng chương ngay khi hệ thống còn đang đổi. Lý do: duy trì một bản tiếng
-Việt song song với một hệ thống đang dịch chuyển tạo ra hai tài liệu mâu thuẫn
-nhau, và chính sự mâu thuẫn đó là thứ bị phát hiện.
+Báo cáo này là **bản dẫn xuất**, không phải nguồn có thẩm quyền. Nó có thể đi
+sau hệ thống trong lúc xây, nhưng mọi chương phải mang trạng thái *cần đối
+chiếu* cho tới khi được kiểm lại với tài liệu canonical và bằng chứng thực thi.
+Việc một chương đã có đủ chữ không làm nó hoàn thành.
 
 Thay vào đó:
 
 1. Tài liệu tiếng Anh trong `docs/` được viết **trong lúc** xây. Thói quen này đang chạy tốt.
-2. Báo cáo là một **lượt dịch và lắp ráp** trên một tập tài liệu luôn cập nhật.
+2. Báo cáo là một **lượt dịch và lắp ráp** trên tài liệu canonical và bằng chứng
+   hiện tại; trước khi nộp phải đối chiếu lại toàn bộ.
 3. Hiện vật được **chụp lại đúng lúc chúng được tạo ra**, không dựng lại sau (§6.9).
 
 ### 6.8.1 Điều kiện của chiến lược này
 
-Chiến lược này chỉ đứng vững khi **hạn nộp rơi sau khi mốc P1 hoàn thành** —
-khoảng 7 tuần công việc kỹ thuật theo bảng mốc ở §6.2.
-
-**Điều kiện này đã được xác nhận** (2026-07-26): hạn nộp chưa ấn định và còn xa.
-Chiến lược xây-trước-viết-sau do đó là chiến lược đang áp dụng.
-
-Việc cần làm khi hạn nộp được ấn định: đối chiếu nó với bảng mốc ở §6.2. Nếu nó
-rơi trước khi P1 xong, chiến lược đảo ngược — báo cáo phải viết dựa trên thiết
-kế thay vì dựa trên kết quả đo, và ranh giới phạm vi ở chương 1 §1.4 phải thu
-hẹp tương ứng.
+Chiến lược chỉ đứng vững nếu còn đủ thời gian cho một lượt đối chiếu bằng chứng
+trước hạn nộp. Ngày nộp và yêu cầu định dạng hiện chưa có bằng chứng ổn định
+trong kho mã; khi chúng được xác nhận, phạm vi báo cáo phải thu hẹp theo phần có
+bằng chứng thay vì lấp khoảng trống bằng trạng thái dự kiến.
 
 ## 6.9 Chụp hiện vật ngay tại thời điểm sinh ra
 
@@ -212,8 +210,8 @@ mục dưới đây gần như miễn phí trong lúc xây và tốn một ngày
 
 | Khi nào | Chụp lại cái gì | Phục vụ chương |
 |---|---|---|
-| Kết quả cổng `G1` | Kết luận spike oRPC, viết ra dù đi hay không | 3 |
-| Mỗi lần `D1`–`D8` được chốt | Một tệp ADR có ghi ngày — bối cảnh, quyết định, lý do, hệ quả | 3, phụ lục |
+| Kết quả cổng `G1` | Giữ kết luận và bằng chứng tại `docs/architecture/tech-stack.md` | 3 |
+| Khi một quyết định được chốt | Cập nhật đúng tài liệu canonical được chỉ ra bởi `docs/README.md`; không tạo một bản sao trạng thái trong báo cáo | 2–6 |
 | `P0-CI-*` xanh | Ảnh chụp lần chạy CI; thời gian boot ấm của Testcontainers | 7 |
 | `P0-DOC-01/02` | `docs/erd.dbml`, `docs/openapi.json` đã commit và có kiểm tra trôi trong CI | 5 |
 | `P0-AUTH-04` | Output test: mọi dòng ma trận, cả cho phép lẫn từ chối | 5, 7 |
@@ -240,15 +238,10 @@ cưỡng chế dưới điều kiện tương tranh. Cần chụp cho đúng: c�
 - Conventional commit, không tham chiếu tới công cụ AI.
 - Không commit secret, tệp dotenv, token, khoá riêng, thông tin đăng nhập database, hay dữ liệu cá nhân.
 
-## 6.11 Chỉ tiêu của riêng giai đoạn lập kế hoạch
+## 6.11 Bằng chứng lập kế hoạch
 
-| # | Chỉ tiêu | Mục tiêu |
-|---|---|---|
-| 1 | Số nguồn của backlog | **1** tài liệu hợp nhất; ba báo cáo chỉ đọc |
-| 2 | Hạng mục đã bị thay thế mà lại được nhập lại thành ticket | **0** |
-| 3 | Story ở P0+P1 có chỉ tiêu đo lường làm DoD | **100%** |
-| 4 | Chỉ tiêu (trong 48) không có ticket sở hữu | **0**, hoặc hoãn tường minh kèm lý do |
-| 5 | Gạch đầu dòng đề bài đã ánh xạ trong bảng đối chiếu | **12/12** trước commit đầu tiên của P1 |
-| 6 | Cổng chặn được mô hình hoá thành issue | **3** |
-| 7 | Story chi tiết vượt quá P3 | **0** |
-| 8 | Ticket có tiêu chí nghiệm thu ghi "TBD" | **0** |
+Số ticket, cổng, tiêu chí nghiệm thu và trạng thái thay đổi theo quá trình thực
+hiện nên không được duy trì lại trong báo cáo. Hệ thống thực thi được chỉ ra bởi
+[`docs/README.md`](../README.md) sở hữu chúng; bảng yêu cầu bền vững nằm tại
+[`docs/product-requirements.md`](../product-requirements.md). Chương này chỉ giữ
+lý do về thứ tự, cổng và cách thu thập bằng chứng.

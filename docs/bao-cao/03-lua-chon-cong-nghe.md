@@ -1,8 +1,9 @@
 # Chương 3 — Lựa chọn công nghệ
 
 Chương này ghi *lý do* chứ không chỉ ghi *kết quả*. Mỗi quyết định được trình
-bày kèm phương án bị loại và điều đánh đổi phải chấp nhận. Phiên bản đã kiểm
-chứng trên npm registry ngày 2026-07-26.
+bày kèm phương án bị loại và điều đánh đổi phải chấp nhận. Bảng phiên bản là
+một ảnh chụp nghiên cứu có ngày; các `package.json` và lockfile hiện tại mới là
+bằng chứng về phiên bản đang dùng.
 
 ## 3.1 Nguyên tắc chọn
 
@@ -131,11 +132,12 @@ không bắt ta phải đánh đổi tồi.
 một điểm về quy trình: quyết định kỹ thuật nên thắng bằng bằng chứng, chứ không
 bằng việc ai nêu ra trước.
 
-**Điều kiện chưa đóng.** Việc `@orpc/nest` có thực sự cưỡng chế contract ở mức
-**biên dịch** hay không vẫn chưa được kiểm chứng — tài liệu ở các URL đã thử trả
-về 404. Đây là cổng `G1` trong chương 6: một spike 30 phút, và kết quả được ghi
-lại **dù đi hay không đi**. Nếu không, oRPC mất lợi thế chính so với
-Nest + Swagger và tầng contract phải mở lại trước khi viết endpoint đầu tiên.
+**Cổng `G1` đã đóng với kết quả đi tiếp.** Spike đo trực tiếp xác nhận
+`@orpc/nest` bắt các sai lệch contract quan trọng ở mức biên dịch và đồng thời
+phát hiện ràng buộc ESM của `apps/api`. Kết luận, các trường hợp đo và giới hạn
+"extra output field" nằm tại
+[`docs/architecture/tech-stack.md`](../architecture/tech-stack.md) mục
+*Settled by spike — G1*; báo cáo không chép lại ma trận thử nghiệm đó.
 
 ## 3.7 Frontend
 
@@ -210,7 +212,7 @@ sách chuyển động.** Admin dùng Motion cho phản hồi trạng thái (≤
 ## 3.10 Đánh đổi phải chấp nhận
 
 - **Hai idiom CSS.** Chuyển qua lại giữa CSS Modules và Tailwind là ma sát thật. Đổi lấy: rủi ro bằng không cho phần Three.js, và dùng được shadcn/Bklit/React Bits như chúng được phát hành.
-- **oRPC còn trẻ.** Ít câu trả lời trên StackOverflow hơn cả ts-rest. Giảm thiểu bằng spike `G1` trước khi commit.
+- **oRPC còn trẻ.** Ít câu trả lời trên StackOverflow hơn cả ts-rest. Spike `G1` đã giảm rủi ro compile-time, nhưng không làm cộng đồng hay tài liệu của nó lớn hơn.
 - **Bắt buộc có Docker Desktop** trên máy Windows để chạy Testcontainers. Không thương lượng, vì test tương tranh phải chạy trên Postgres thật.
 - **Drizzle thay vì Prisma** — không có Studio GUI, tài liệu mỏng hơn, phải đọc nhiều SQL hơn.
 - **pg-boss dùng chung database.** Tải job và tải truy vấn cạnh tranh cùng một Postgres. Không đáng kể ở quy mô này; sẽ đáng kể ở quy mô gấp 10.
@@ -223,16 +225,15 @@ sách chuyển động.** Admin dùng Motion cho phản hồi trạng thái (≤
 Báo cáo phân biệt rõ ba mức, vì trộn lẫn chúng là cách một tài liệu kỹ thuật mất
 uy tín.
 
-**Đã kiểm chứng phiên bản trên npm registry (2026-07-26):** toàn bộ số phiên bản
-trong các bảng trên; xung đột peer `zod` của ts-rest; peer của `@orpc/*`; ngày
-phát hành cuối của exceljs.
+**Bằng chứng quyết định:** xung đột peer `zod` của ts-rest, peer của `@orpc/*`
+và kết quả spike `G1` được giữ ở
+[`docs/architecture/tech-stack.md`](../architecture/tech-stack.md). Phiên bản
+đang cài đặt do manifest và lockfile sở hữu.
 
 **Độ tin cậy cao, thực hành chuẩn, không kiểm chứng trong khoá luận này:** cơ chế
 `@theme` của Tailwind v4 đọc CSS custom property; ngữ nghĩa enqueue trong
 transaction của pg-boss; việc migration Drizzle sửa tay mang được ràng buộc
 `EXCLUDE`.
 
-**Chưa kiểm chứng — phải xác nhận trước khi dựa vào:** `@orpc/nest` có cưỡng chế
-contract ở mức biên dịch hay không (cổng `G1`); công nghệ render bên dưới của
-Bklit và khả năng tiếp cận bằng bàn phím / trình đọc màn hình của nó; số hiệu
-dòng LTS của Node tại ngày cài đặt thực tế.
+**Chưa kiểm chứng — phải xác nhận trước khi dựa vào:** công nghệ render bên
+dưới của Bklit và khả năng tiếp cận bằng bàn phím / trình đọc màn hình của nó.

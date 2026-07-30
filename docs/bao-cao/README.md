@@ -3,27 +3,26 @@
 Báo cáo môn Công nghệ phần mềm. Viết bằng tiếng Việt, giữ nguyên thuật ngữ kỹ
 thuật tiếng Anh.
 
-**Trạng thái:** đang xây dựng. Các chương 1–4 và 6 viết từ tài liệu đã có.
-Chương 5 hoàn thiện dần theo lược đồ và contract. Chương 7–9 ghi *chiến lược và
-mục tiêu đo lường*; phần **kết quả đo** để trống cho tới khi các mốc tương ứng
-chạy xong. Mọi ô còn trống đều được đánh dấu rõ — báo cáo này không ghi số liệu
-chưa đo.
+**Trạng thái:** bản dẫn xuất đang xây dựng và **cần đối chiếu trước khi nộp**.
+Không chương nào được coi là hoàn thành chỉ vì đã có đủ nội dung. Tài liệu
+canonical, mã nguồn, test, schema, workflow CI và artifact sinh hiện tại luôn
+thắng; kết quả đo để trống cho tới khi có bằng chứng trực tiếp.
 
 ## Cấu trúc
 
 | Tệp | Nội dung | Trạng thái |
 |---|---|---|
-| [00-trang-bia.md](00-trang-bia.md) | Trang bìa, thông tin đồ án, lời cam đoan | 🔶 chỉ còn thiếu ngày nộp |
-| [01-gioi-thieu-de-tai.md](01-gioi-thieu-de-tai.md) | Bối cảnh, bài toán, phạm vi, non-goals | ✅ |
-| [02-phan-tich-yeu-cau.md](02-phan-tich-yeu-cau.md) | Yêu cầu chức năng, phi chức năng, tác nhân, use case | ✅ |
-| [03-lua-chon-cong-nghe.md](03-lua-chon-cong-nghe.md) | Stack theo từng tầng, bảng so sánh, một quyết định bị đảo | ✅ |
-| [04-thiet-ke-kien-truc.md](04-thiet-ke-kien-truc.md) | Modular monolith, một API ba consumer, bản đồ mô-đun | ✅ |
-| [05-thiet-ke-chi-tiet.md](05-thiet-ke-chi-tiet.md) | ERD, bất biến, máy trạng thái, RBAC, biểu đồ tuần tự | 🔶 ERD là thiết kế, chưa sinh tự động |
-| [06-quy-trinh-phat-trien.md](06-quy-trinh-phat-trien.md) | Giao hàng theo pha, mốc, cổng chặn, quy trình git, sổ rủi ro | ✅ |
-| [07-kiem-thu-va-chat-luong.md](07-kiem-thu-va-chat-luong.md) | Chiến lược kiểm thử, cổng CI | 🔶 chiến lược có, kết quả chưa |
-| [08-trien-khai-va-van-hanh.md](08-trien-khai-va-van-hanh.md) | Hạ tầng, môi trường, secrets, giám sát, sao lưu | 🔶 thiết kế có, bằng chứng chưa |
-| [09-ket-qua-han-che-huong-phat-trien.md](09-ket-qua-han-che-huong-phat-trien.md) | Kết quả đo, đối chiếu yêu cầu, hạn chế, lộ trình | ⚠ chờ kết quả xây dựng |
-| [10-phu-luc.md](10-phu-luc.md) | Bảng đối chiếu, danh mục ADR, hướng dẫn cài đặt, tài liệu tham khảo | 🔶 |
+| [00-trang-bia.md](00-trang-bia.md) | Trang bìa, thông tin đồ án, lời cam đoan | Thiếu metadata nộp bài |
+| [01-gioi-thieu-de-tai.md](01-gioi-thieu-de-tai.md) | Bối cảnh, bài toán, phạm vi, non-goals | Dẫn xuất — cần đối chiếu |
+| [02-phan-tich-yeu-cau.md](02-phan-tich-yeu-cau.md) | Yêu cầu chức năng, phi chức năng, tác nhân, use case | Dẫn xuất — cần đối chiếu |
+| [03-lua-chon-cong-nghe.md](03-lua-chon-cong-nghe.md) | Stack theo từng tầng, bảng so sánh, một quyết định bị đảo | Dẫn xuất — manifest/lockfile thắng |
+| [04-thiet-ke-kien-truc.md](04-thiet-ke-kien-truc.md) | Modular monolith, một API ba consumer, bản đồ mô-đun | Dẫn xuất — không phải release proof |
+| [05-thiet-ke-chi-tiet.md](05-thiet-ke-chi-tiet.md) | ERD, bất biến, máy trạng thái, RBAC, biểu đồ tuần tự | Dẫn xuất — ERD vẫn là thiết kế |
+| [06-quy-trinh-phat-trien.md](06-quy-trinh-phat-trien.md) | Giao hàng theo pha, mốc, cổng chặn, quy trình git, sổ rủi ro | Dẫn xuất — trạng thái thuộc hệ thống thực thi |
+| [07-kiem-thu-va-chat-luong.md](07-kiem-thu-va-chat-luong.md) | Chiến lược kiểm thử, cổng CI | Bản ghi trạng thái — cần đối chiếu |
+| [08-trien-khai-va-van-hanh.md](08-trien-khai-va-van-hanh.md) | Hạ tầng, môi trường, secrets, giám sát, sao lưu | Thiết kế — chờ bằng chứng triển khai |
+| [09-ket-qua-han-che-huong-phat-trien.md](09-ket-qua-han-che-huong-phat-trien.md) | Kết quả đo, đối chiếu yêu cầu, hạn chế, lộ trình | Bản ghi trạng thái — kết quả chủ lực chưa có |
+| [10-phu-luc.md](10-phu-luc.md) | Bảng đối chiếu, nguồn quyết định, hướng dẫn cài đặt, tài liệu tham khảo | Dẫn xuất — cần đối chiếu |
 
 ## Danh mục hình
 
@@ -46,10 +45,10 @@ Nguồn `.drawio` và bản xuất `.png` / `.svg` nằm trong [`hinh/`](hinh/).
 các tài liệu được phát biểu đúng một lần, tại [`../README.md`](../README.md)
 (bản đồ thẩm quyền).
 
-**Sơ đồ được sinh ra, không vẽ tay** — ở những nơi có bộ sinh. Tại `P0-DOC-01`
-đến `P0-DOC-04`, ERD, danh sách endpoint, biểu đồ use case và biểu đồ trạng thái
-sẽ được sinh lại trong CI và CI fail khi chúng lệch. Cho tới lúc đó, các hình
-trong `hinh/` là bản vẽ thiết kế và được đánh dấu như vậy.
+**Artifact sinh mới là bằng chứng máy đọc được.** Hiện chưa có
+`docs/erd.dbml`, `docs/openapi.json` hoặc cổng CI kiểm tra trôi tương ứng. Các
+hình trong `hinh/` là bản vẽ thiết kế có nguồn `.drawio`, không được mô tả như
+output sinh từ schema hay contract.
 
 **Không có số liệu nào chưa đo.** Một ô trống trung thực đọc tốt hơn một con số
 bịa; và người chấm chỉ mất ba mươi giây để phát hiện ERD không khớp lược đồ.

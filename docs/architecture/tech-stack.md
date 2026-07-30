@@ -25,7 +25,7 @@ up, monitor and upgrade.
 |---|---|---|
 | Framework | NestJS 11.1.x | `@orpc/nest` peers `>=11` |
 | HTTP adapter | Express 5.2.x | `@orpc/nest` peers `express >=5`; the boring pick |
-| Module system | **ESM** — `"type": "module"`, `module`/`moduleResolution` `nodenext` | `@orpc/*` ships ESM only. Not the Nest default; measured in the `G1` spike below |
+| Module system | **ESM** — `"type": "module"`, `module`/`moduleResolution` `nodenext` | `@orpc/*` ships ESM only. Not the Nest default; measured below |
 | ORM | drizzle-orm 0.45.x + drizzle-kit 0.31.x | Migrations emit real `.sql` — `btree_gist`, `EXCLUDE`, `daterange` stay in version control. The two version independently; drizzle-kit is not on 0.45 |
 | DB driver | `pg` 8.22.x | pg-boss uses `pg` internally: one pool, not two |
 | Job queue | pg-boss 12.26.x | Queue inside Postgres; enqueue joins the transaction |
@@ -64,11 +64,12 @@ up, monitor and upgrade.
 |---|---|---|
 | Test runner | Vitest 4.1.x | One runner, whole repo |
 | Nest under Vitest | `unplugin-swc` 1.5.x + `@swc/core` 1.15.x | Vitest transforms with Oxc/esbuild, neither of which emits `emitDecoratorMetadata`; without it every Nest injection in a test is `undefined` |
-| Real Postgres in test | `@testcontainers/postgresql` 12.0.x — **not yet wired**; `apps/api` currently reads `.env.test` and applies the committed migrations to a local database | Local equals CI; needs Docker Desktop on Windows, which the development machine does not have today. `P0-CI-02` |
+| Real Postgres in test | `@testcontainers/postgresql` 12.0.x | Local and CI use the same helper, not a CI-only service container. `apps/api/vitest.config.ts` shows the current `.env.test` implementation gap |
+| Test task cache | No replay of database-backed success until runtime dependencies are hermetic and represented | A stale Turbo result must not mask a missing Postgres runtime; policy lives in `turbo.json` |
 | Property tests | fast-check 4.9.x | "No assignment map ever overlaps" |
 | E2E | Playwright 1.61.x | Keyboard-only check-in; visual baseline of the acts |
 | Seed data | `@faker-js/faker` 10.5.x, `vi` locale | Realistic Vietnamese guest data |
-| Lint + format | Biome 2.5.x | One tool, one config, ~25× faster |
+| Lint + format | Biome 2.5.x | One repository config; its executable scope and current API exclusion live in `biome.jsonc` |
 | Git hooks | lefthook 2.1.x | Format + typecheck on commit |
 | ERD | `drizzle-dbml-generator` 0.10.x | Schema → DBML, CI fails on drift |
 | Excel export | exceljs 4.4.0 | ⚠ Last published 2024-12-20; re-evaluate at P5 |
@@ -89,10 +90,10 @@ up, monitor and upgrade.
 | Two test runners | Vitest everywhere |
 | Hand-rolled VNPay HMAC | Use the maintained `vnpay` library |
 
-## Settled by spike — `G1`, 2026-07-26
+## oRPC compile-time contract evidence
 
-**Does `@orpc/nest` enforce the contract at compile time? Yes. `G1` is a go, and
-the contract layer stands as designed.**
+**Does `@orpc/nest` enforce the contract at compile time? Yes. The contract
+layer stands as designed.**
 
 Measured, not read from documentation. Isolated project, `@orpc/contract` /
 `@orpc/nest` / `@orpc/server` 1.14.10, `@nestjs/common` + `@nestjs/core` 11.1.6,
@@ -116,10 +117,9 @@ Four deliberate violations, each typechecked in isolation:
 | Output carries an **extra** field the contract omits | *passes* | none — see the caveat |
 | Contract gains a required field; handler untouched | **fails** | TS2345 — argument not assignable |
 
-Row 2 is the one that matters most: the money regression `VndAmount` exists to
-prevent (`P0-C-02`) is caught by the contract on its own. Row 5 is `P0-C-04`'s
-DoD, verified in the direction that actually happens — the contract changes and
-an implementation goes stale.
+The money regression `VndAmount` exists to prevent is caught by the contract on
+its own. The required-field case verifies the direction that actually happens:
+the contract changes and an implementation goes stale.
 
 **Caveat: the contract is a floor, not an exact shape.** An extra output field
 compiles. It does not reach the wire — zod's object schema strips unknown keys,
@@ -141,12 +141,4 @@ entry. Consequences for `apps/api`, measured:
 
 **`apps/api` is therefore an ESM package**, not the CommonJS default a Nest
 scaffold produces. Relative imports need explicit `.js` extensions. Decided
-here rather than discovered at `P0-C-04`, which is the whole point of the gate.
-
-## Still open
-
-| Question | Where it is tracked |
-|---|---|
-| Bklit keyboard / screen-reader accessibility — a daily console has a higher bar than a marketing chart | Milestone M9 |
-| `exceljs` replacement | Milestone M8 |
-| Diagram notation the professor requires | Decision `D8` |
+here rather than during server binding, which is the whole point of the gate.

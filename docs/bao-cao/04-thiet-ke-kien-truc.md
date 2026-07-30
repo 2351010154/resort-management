@@ -107,7 +107,7 @@ Chương 5 §3 trình bày chi tiết cơ chế này.
 ```
 src/
   main.ts, app.module.ts
-  common/          Guard (@Roles), audit interceptor, exception filter, pipe
+  common/          Capability guard, audit interceptor, exception filter, pipe
   config/          Parse và validate env, một schema, chết ngay lúc boot nếu sai
   database/
     schema/        Một tệp cho mỗi miền, re-export từ index.ts
@@ -236,18 +236,18 @@ thật sự. Xem lại khi nào xuất hiện một cái.
 
 ## 4.8 Trạng thái hiện tại của kho mã
 
-Ghi trung thực để chương 9 có mốc so sánh.
+Chương này mô tả kiến trúc đích; nó không phải bằng chứng phát hành. Trạng thái
+công việc thuộc hệ thống thực thi được chỉ ra bởi
+[`docs/README.md`](../README.md). Khi cần kiểm tra phần nào đã tồn tại, đọc trực
+tiếp các chủ sở hữu sau:
 
-| Bề mặt | Trạng thái |
-|---|---|
-| `apps/web` | **Có mã thật.** Trang marketing scrollytelling. Đã lên React 19.2 + Next 16.2 + R3F 9.6 sau một Playwright visual baseline đã commit; phần còn lại của P−1 là `packages/tokens`, Biome và lefthook |
-| `apps/api` | Chỉ có README và cây thư mục đã đặt chỗ. Chưa có `package.json` |
-| `apps/admin` | Chỉ có README và cây thư mục đã đặt chỗ |
-| `packages/shared` | Chỉ có `zod ^4.4.3` |
-| `packages/api-client` | `src/` rỗng |
-| Toolchain | pnpm 11.1.2, Turborepo 2.10.7, TypeScript 5.6.3, Node ghim 24 (`.nvmrc` + `engines` + CI) |
-| CI | Đọc `.nvmrc`, chạy lint + typecheck + build. **Chưa có test** |
+- `apps/api/src/app.module.ts` cho các mô-đun API đang được đăng ký;
+- `apps/api/src/database/schema/index.ts` và
+  `apps/api/src/database/migrations/` cho lược đồ và migration đang tồn tại;
+- `packages/shared/src/index.ts` cho bề mặt contract/primitives hiện được export;
+- `.github/workflows/ci.yml` cho đúng các cổng đang chạy trên CI.
 
-Các thư mục chỉ chứa `.gitkeep` là **ranh giới đã đặt chỗ** — công việc lấp đầy
-chúng chưa bắt đầu. Việc đặt chỗ trước có mục đích: khi `apps/api` được scaffold
-ở P0, nó rơi vào một cấu trúc đã được quyết định thay vì đẻ ra một cấu trúc mới.
+Theo các nguồn đó, API nền tảng, hai realm xác thực và lược đồ
+identity/guest-auth đã tồn tại; lược đồ tồn kho và các artifact sinh
+`docs/erd.dbml`/`docs/openapi.json` thì chưa. Sự phân biệt này ngăn kiến trúc đã
+chấp nhận bị đọc nhầm thành tính năng đã ship.

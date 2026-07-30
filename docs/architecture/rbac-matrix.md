@@ -60,7 +60,8 @@ token on a guest route is 403. Not 401 — the token is valid, the realm is wron
   different role. This is the only place the matrix is deliberately strict.
 - **Policy vs override are separate endpoints**, not one endpoint with an
   amount check. `refund.policy` and `refund.override` carry different
-  `@Roles()`. Same for cancellation penalty and rate override.
+  `@RequiresCapability()` declarations. Same for cancellation penalty and rate
+  override.
 - **Guest permissions are always scoped to the requester's own record.**
   Ownership is checked in the handler; the role alone never grants access.
 

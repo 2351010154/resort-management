@@ -1,110 +1,75 @@
-# Docs
+# Documentation authority
 
-Written as the system is built, not assembled at the end. This file is the
-**authority map**: it says which document owns which fact, and nothing else
-restates it.
+This file routes collaborators to the smallest authority surface for each kind
+of fact. Start with [`orientation.md`](orientation.md) for project context and
+use this map when two sources disagree.
 
-Looking for the project rather than a fact? [`orientation.md`](orientation.md) is
-the human entry point — what Mariva is, the invariant everything else protects,
-the milestone road, and a procedure for answering *what should I do next*. It
-owns no facts and cites the files below for all of them.
+[`screens.md`](screens.md) records screen intent and navigation rationale. It
+does not report implementation or delivery status.
 
-[`screens.md`](screens.md) is the same kind of file for a narrower question:
-every screen, what it is for, and how far along it is. Also a view, also owns
-nothing — the tick marks in it are a dated snapshot and `plans/backlog.md` wins
-over them.
+## Precedence
 
-## Precedence — stated once, here
+1. **Source, tests, schemas, manifests and workflows own current behavior.**
+   Documentation points to that evidence; an intended contract is not release
+   proof.
+2. **The [SCRUM Jira project](https://hungphat2018-1785053353783.atlassian.net/issues/?jql=project%20%3D%20SCRUM)
+   owns current execution.** Status, assignee, priority, sprint, dates and
+   blockers belong there.
+3. **Repository documentation owns durable intent, decisions and rationale.**
+   [`product-requirements.md`](product-requirements.md) owns product outcomes,
+   business rules and acceptance criteria. The files under `architecture/` own
+   architectural boundaries, constraints, trade-offs and pointers to their
+   executable evidence.
+4. **`plans/` contains versionable stateful records.** Plans, reports and research
+   snapshots preserve context but may age; they do not override Jira, current
+   evidence or durable documentation. Generated HTML and capture screenshots
+   remain untracked.
+5. **`docs/bao-cao/` is a consumer.** The coursework report is assembled from
+   the authorities above and never overrides them.
 
-1. **`plans/backlog.md` wins for tickets, phases, gates and status.** What is
-   being built, in what order, and whether it is done.
-2. **`docs/` wins for design facts.** Structure, roles, states, stack,
-   infrastructure. Where a plan or a report disagrees with a `docs/` file about
-   a design fact, the `docs/` file is right and the other is stale.
-3. **`docs/bao-cao/` never wins.** The coursework report is assembled from the
-   two above; it is a consumer of truth, never a source.
-Within `docs/`, altitude splits the ownership:
-[`product-requirements.md`](product-requirements.md) owns the product-level
-**what and why** — requirement statements, their stable IDs and acceptance
-criteria, the external-assumption registry, and the brief traceability matrix —
-while the `architecture/` files own the design **how**. Where a requirement
-there disagrees with an architecture file about a design fact, the architecture
-file wins and the requirement is stale; where its status dashboard disagrees
-with `plans/backlog.md`, the backlog wins.
+When Jira says work is complete but the executable evidence disagrees, report
+the inconsistency rather than rewriting either source to conceal it.
 
-4. **`plans/reports/archive/` is frozen dated rationale.** The advisory reports
-   explain *why* a decision was taken on the day it was taken. They are
-   read-only, they are never updated, and they are not a fourth source. Cite
-   them for reasoning; take the fact from the canonical file.
+## Durable decision map
+
+| Fact domain | Owner |
+|---|---|
+| Product outcomes, stable requirements, acceptance criteria, business rules and external assumptions | [`product-requirements.md`](product-requirements.md) |
+| Repository boundaries and dependency rationale | [`architecture/repository-structure.md`](architecture/repository-structure.md) |
+| Palette, typography, spacing, motion, copy voice and alternative-text rules | [`architecture/design-foundations.md`](architecture/design-foundations.md) |
+| Property facts, rate structure, cancellation rules, charge model and service catalog | [`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) |
+| Roles, capabilities and permission rationale | [`architecture/rbac-matrix.md`](architecture/rbac-matrix.md) |
+| Booking states and transition rules | [`architecture/booking-state-machine.md`](architecture/booking-state-machine.md) |
+| Technology choices and rejected alternatives | [`architecture/tech-stack.md`](architecture/tech-stack.md) |
+| Hosting, database, storage, backup, payment and e-invoice decisions | [`architecture/infrastructure.md`](architecture/infrastructure.md) |
+| Screen intent and navigation | [`screens.md`](screens.md) |
+| Current delivery fields and blockers | [SCRUM in Jira](https://hungphat2018-1785053353783.atlassian.net/issues/?jql=project%20%3D%20SCRUM) |
+| Coursework report | [`bao-cao/README.md`](bao-cao/README.md) |
+
+Architecture documents may describe an accepted target before code enforces it.
+Follow their evidence links to determine what is implemented.
+
+## How decisions move
+
+Track unresolved work and external answers in Jira. Once an answer becomes a
+durable product or architecture decision, record it once in the relevant owner
+above and link the Jira issue to that document. Source, tests, schemas or
+workflows then become the evidence that the decision has shipped.
+
+Advisory material under `plans/reports/archive/` is frozen dated rationale. Cite
+it for the trade-off considered at that time, but take the current decision from
+the durable owner.
 
 ## Language
 
-**English is the language of truth.** `docs/README.md`, everything under
-`docs/architecture/`, `plans/backlog.md` and the plan files are English.
+English is the canonical language for product and architecture documentation
+and for Markdown plans. `docs/bao-cao/` is the Vietnamese coursework
+deliverable. Vietnamese legal and commercial terms keep their Vietnamese names
+where they are the terms used by contracts or regulations.
 
-`docs/bao-cao/` is the Vietnamese coursework deliverable, translated and
-assembled from the English documents. Vietnamese legal and commercial terms —
-*hóa đơn điện tử* (electronic invoice), *chữ ký số* (digital signature), *hóa
-đơn khởi tạo từ máy tính tiền* (point-of-sale-issued invoice) — keep their
-Vietnamese names everywhere, because that is what they are called in the
-contracts and the regulations. Everything else, in a canonical file, is English.
+## Coursework
 
-## The map — one canonical file per fact domain
-
-| Fact domain | Canonical file | Status |
-|---|---|---|
-| Product requirements — stable `FR`/`NFR` IDs, acceptance criteria, external-assumption registry (`ASM`), brief traceability | [`product-requirements.md`](product-requirements.md) | active — touched at milestone close and when an external answer lands, never per ticket |
-| Repository structure, dependency rules, module map | [`architecture/repository-structure.md`](architecture/repository-structure.md) | decided |
-| Palette, type, spacing, motion, copy voice, alt-text rule | [`architecture/design-foundations.md`](architecture/design-foundations.md) | decided |
-| Property facts, rate structure, cancellation grid, charge model, service catalog | [`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) | decided — provisional in whole; §1–§6 all ⚑, §7 is config and never ⚑ |
-| Roles and permissions | [`architecture/rbac-matrix.md`](architecture/rbac-matrix.md) | decided — **six** ⚑ decisions await owner sign-off, counted in its §5; §3 now has a code mirror in `apps/api/src/modules/identity/rbac/matrix.ts`, and the document stays the authority |
-| Booking states and transitions | [`architecture/booking-state-machine.md`](architecture/booking-state-machine.md) | decided — **two** ⚑ decisions await owner sign-off, counted in its §7 |
-| Technology stack, versions, rejected options | [`architecture/tech-stack.md`](architecture/tech-stack.md) | decided — contract layer gated on `G1` |
-| Hosting, database, storage, backups, payments, e-invoice | [`architecture/infrastructure.md`](architecture/infrastructure.md) | decided — production flip gated on `G2` |
-| Tickets, milestones, phases, gates, open decisions | [`../plans/backlog.md`](../plans/backlog.md) | active |
-| Coursework report | [`bao-cao/README.md`](bao-cao/README.md) | draft — chapters 5, 7–9 await measured results |
-
-Status means: **decided** — the fact is settled and code may rely on it;
-**active** — a working record that changes as work lands; **draft** — being
-written, not yet an authority; **open** — no canonical file yet, the decision
-lives as a row in `plans/backlog.md` §1.
-
-The architecture documents are authored **ahead** of the code that enforces
-them: change the document first, then the implementation.
-
-## How a decision becomes a document
-
-Open decisions live as rows in [`plans/backlog.md`](../plans/backlog.md) §1 —
-`D1` through `D8`. When one is settled, its content graduates into a `docs/`
-file and the backlog row flips to **Done → `<docs path>`**. A decided fact never
-stays in the backlog, and an open decision never gets a `docs/` file.
-
-§1 is split by **who has to answer**: `§1.1` decisions that were always the
-developer's, `§1.2` the three that are genuinely somebody else's. A decision in
-§1.1 is settled by writing it down and marking it ⚑ — an assumption on the page
-is cheap to overturn, an undocumented wait is not. `D5`, `D6` and
-`property-and-tariff.md` are the worked examples.
-
-## Not written yet
-
-Once the schema exists: a generated ERD, sequence diagrams for the booking
-hold, payment webhook, check-in and night-audit flows, and a traceability table
-from each brief requirement to its endpoint, screen and test — it grows from
-the brief → `FR` mapping already standing in
-[`product-requirements.md`](product-requirements.md) §8. The use-case and
-state diagrams generate from the RBAC matrix and the state machine. `P0-DOC-01`
-through `P0-DOC-05` own that work.
-
-## The coursework report
-
-[`bao-cao/`](bao-cao/README.md) — the Vietnamese đồ án (coursework) report.
-Nine chapters plus front matter and appendices, assembled from the documents
-above rather than authored separately.
-
-[`bao-cao/hinh/`](bao-cao/hinh/) carries the eight figures as `.drawio` sources
-with `.png` and `.svg` exports. They are hand-drawn **today** because the
-schema, the contract and the CI generators do not exist yet — each one says so
-on its face. `P0-DOC-01` through `P0-DOC-04` replace the ERD, the use-case
-diagram and the state diagram with generated equivalents that CI re-runs and
-fails on drift. Delete the hand-drawn version the day its generator lands; a
-diagram that has drifted from the schema is worse than no diagram.
+[`bao-cao/`](bao-cao/README.md) is the Vietnamese đồ án report.
+[`bao-cao/hinh/`](bao-cao/hinh/) contains its editable diagram sources and
+exports. Treat every report claim as downstream material: verify it against the
+durable owner and executable evidence before submission.
