@@ -1,0 +1,323 @@
+/* The stay panel. Four sections down one column, divided by hairlines.
+ *
+ * The column that holds this animates its width; nothing in here does. That is
+ * `login-screen.module.css`'s rule kept — the ground moves and the pane stays
+ * still — and it is why the panel has a `min-width` in `booking-screen.module.css`
+ * rather than a percentage of its own: the text inside is set once, at its final
+ * measure, and the column reveals it. A panel that re-flowed its own type on every
+ * frame of the opening would be unreadable for the half-second it took.
+ *
+ * The ground is `--ivory-warm`, set on the column rather than here, so the plate
+ * runs the full height of the page whatever this content does. Every hairline
+ * below is a step stronger than the ones on the ivory side: the same 0.15 umber
+ * over a warmer ground reads as a smudge.
+ */
+
+/* The sections stack from the top and stop where they stop.
+ *
+ * They used to be pushed apart to fill the plate, with the action held at its
+ * foot — and since the plate is a full-height column, that put the one primary
+ * button on the bottom edge of the viewport, half a screen below the rows it
+ * confirms. A summary reads downward; the button belongs directly under the last
+ * thing it is agreeing to. */
+.panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* A hairline above every section but the first. Structure without a rule that
+   reads as a boundary. */
+.section + .section,
+.action {
+  padding-top: var(--space-3);
+  border-top: 1px solid rgb(var(--umber-rgb) / 0.14);
+}
+
+.kicker {
+  color: var(--stone);
+}
+
+.property {
+  margin-top: var(--space-2);
+  font-size: var(--text-lg);
+  line-height: 1.2;
+  color: var(--ink);
+}
+
+.place {
+  margin-top: 0.25rem; /* Name to place: one notch, so they read as one block. */
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--stone-deep);
+}
+
+/* ---- The two ends ------------------------------------------------------- */
+
+.ends {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.end {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.endLabel {
+  color: var(--stone);
+}
+
+.endDate {
+  margin-top: var(--space-1);
+  font-size: var(--text-base);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.3;
+  color: var(--ink);
+}
+
+.endDay {
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--stone-deep);
+}
+
+/* An arrow drawn rather than typed. A "→" glyph is drawn by whichever face has it
+   and would land off the baseline the way the đồng sign did; two borders always
+   land where they are put. Pushed down onto the date line, past the caps label. */
+.arrow {
+  position: relative;
+  width: 1.25rem;
+  height: 1px;
+  flex: none;
+  margin-top: 2.25rem;
+  background: var(--sand);
+}
+
+.arrow::after {
+  content: "";
+  position: absolute;
+  top: -3px;
+  right: 0;
+  width: 6px;
+  height: 6px;
+  border-top: 1px solid var(--sand);
+  border-right: 1px solid var(--sand);
+  transform: rotate(45deg);
+}
+
+/* ---- Who is staying ----------------------------------------------------- */
+
+.rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.row {
+  display: flex;
+  flex-direction: column;
+}
+
+/* The whole row is the control, and the answer is its label. */
+.rowHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 3.25rem; /* 52px — the panel's row pitch, above the 44px floor. */
+  cursor: pointer;
+  list-style: none; /* Firefox's own summary marker. */
+  transition: color 0.4s var(--ease-ui);
+}
+
+.rowHead::-webkit-details-marker {
+  display: none;
+}
+
+.rowHead:hover {
+  color: var(--umber);
+}
+
+.rowHead:focus-visible {
+  outline: 2px solid var(--dusk-amber);
+  outline-offset: 2px;
+}
+
+.rowValue,
+.rowStatic {
+  font-size: var(--text-base);
+  line-height: 1.4;
+  color: var(--ink);
+}
+
+.rowStatic {
+  display: flex;
+  align-items: center;
+  min-height: 3.25rem;
+}
+
+/* A hairline between rows and none above the first: the section's own rule is
+   already there. Declared after both rows above, so specificity climbs down the
+   file rather than up it. */
+.row + .row,
+.row + .rowStatic {
+  border-top: 1px solid rgb(var(--umber-rgb) / 0.1);
+}
+
+/* The caret. Rotated on open, so the row says which way it goes. */
+.chevron {
+  width: 0.4rem;
+  height: 0.4rem;
+  flex: none;
+  border-right: 1px solid var(--stone);
+  border-bottom: 1px solid var(--stone);
+  transform: translateY(-2px) rotate(45deg);
+  transition:
+    transform 0.4s var(--ease-ui),
+    border-color 0.4s var(--ease-ui);
+}
+
+.rowHead:hover .chevron {
+  border-color: var(--umber);
+}
+
+.row[open] .chevron {
+  transform: translateY(2px) rotate(-135deg);
+}
+
+.rowBody {
+  padding-bottom: var(--space-2);
+}
+
+/* Three glyphs, right-aligned under the answer they change. No boxes: a bordered
+   pair drew a control the size of the panel's own action for something that moves a
+   count by one. */
+.stepper {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+}
+
+.step {
+  width: 2.75rem; /* 44px, borderless but still a target. */
+  height: 2.75rem;
+  display: grid;
+  place-items: center;
+  font-size: var(--text-lg);
+  line-height: 1;
+  color: var(--stone-deep);
+  transition: color 0.4s var(--ease-ui);
+}
+
+.step:hover:not(:disabled) {
+  color: var(--ink);
+}
+
+.step:disabled {
+  cursor: default;
+  color: var(--sand);
+}
+
+.step:focus-visible {
+  outline: 2px solid var(--dusk-amber);
+  outline-offset: 2px;
+}
+
+.stepperValue {
+  min-width: 2ch;
+  font-size: var(--text-base);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  color: var(--ink);
+}
+
+.ages {
+  display: flex;
+  flex-direction: column;
+}
+
+.ageField {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-1);
+  min-height: 2.75rem;
+}
+
+.ageLabel {
+  font-size: var(--text-sm);
+  color: var(--stone-deep);
+}
+
+/* Native, so a phone gets the platform picker — and set as a line of type with a
+   hairline under it rather than as a boxed field, because three boxed selects in a
+   summary panel is a form and this is not one. */
+.ageSelect {
+  min-height: 2.75rem; /* 44px. */
+  padding: 0 0 0 var(--space-1);
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--ink);
+  text-align: right;
+  background: none;
+  border: none;
+  border-bottom: 1px solid rgb(var(--umber-rgb) / 0.2);
+  border-radius: 0;
+  transition: border-color 0.4s var(--ease-ui);
+}
+
+.ageSelect:hover {
+  border-bottom-color: var(--umber);
+}
+
+.ageSelect:focus-visible {
+  outline: 2px solid var(--dusk-amber);
+  outline-offset: 2px;
+}
+
+.ageNote {
+  padding: var(--space-1) 0;
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--stone);
+}
+
+/* ---- The way forward ---------------------------------------------------- */
+
+.action {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* The one primary action on the screen, and the only solid ink on it. Full width,
+   because the panel is the measure it belongs to. The caps run keeps the mono —
+   which is what `.caps-label` reserves it for. */
+.continue {
+  min-height: 3.5rem; /* 56px — the funnel's primary, above the 44px floor. */
+  padding: 0 var(--space-2);
+  font-family: var(--font-ui), sans-serif;
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--ivory);
+  background: var(--ink);
+  transition: background-color 0.4s var(--ease-ui);
+}
+
+.continue:hover {
+  background: var(--umber);
+}
+
+.continue:focus-visible {
+  outline: 2px solid var(--dusk-amber);
+  outline-offset: 2px;
+}
+
+.terms {
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--stone);
+}

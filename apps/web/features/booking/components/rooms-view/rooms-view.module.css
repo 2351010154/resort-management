@@ -67,8 +67,8 @@
   border-bottom-color: var(--umber);
 }
 
-/* The two sentences that qualify every price under them. Said once, here, and
-   never on a card. */
+/* The sentence that qualifies every price under it. Said once, here, and never on
+   a card. Its companion — VAT and service — is the view's lede now. */
 .terms {
   font-size: var(--text-xs);
   line-height: 1.6;

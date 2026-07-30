@@ -1,0 +1,92 @@
+/* The funnel's bar. Type on the page, with one rule under it.
+ *
+ * No ground of its own, and no padding of its own either: it is the first row of
+ * the left section, so the section's gutter is its gutter and the wordmark lands on
+ * the same vertical as the heading below it. That alignment is the whole reason
+ * the bar moved inside the column.
+ *
+ * The rule under it stops where the column stops — which is what makes the warm
+ * plate beside it read as a second ground rather than as a panel hung under a
+ * header.
+ */
+
+.bar {
+  border-bottom: 1px solid rgb(var(--umber-rgb) / 0.12);
+}
+
+/* The same measure the steps and the views hold — `--funnel-measure` and
+   `--funnel-gutter` are declared once on the screen root in
+   `booking-screen.module.css`, and the pattern is repeated rather than the values,
+   so the bar's type lands on the heading's vertical in both readings: centred while
+   the plate is shut, against the gutter once it is open. */
+.inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  max-width: calc(var(--funnel-measure) + 2 * var(--funnel-gutter));
+  margin-inline: auto;
+  padding-inline: var(--funnel-gutter);
+  min-height: 5rem; /* 80px — slim: a bar, not a header. Measured off the comp. */
+}
+
+.brand {
+  display: block;
+  height: 22px;
+  flex: 0 0 auto;
+}
+
+/* Masked rather than drawn, so the mark is the text colour it inherits. The width
+   is the wordmark's own ratio at this height — the concierge bar sets the same
+   file at 165×28. */
+.wordmark {
+  display: block;
+  width: 130px;
+  height: 100%;
+  background: currentcolor;
+  mask-image: url("/brand/mariva-wordmark.svg");
+  mask-repeat: no-repeat;
+  mask-size: contain;
+  mask-position: left center;
+  -webkit-mask-image: url("/brand/mariva-wordmark.svg");
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  -webkit-mask-position: left center;
+}
+
+.brand:focus-visible {
+  outline: 2px solid var(--dusk-amber);
+  outline-offset: 6px;
+}
+
+.link {
+  display: flex;
+  align-items: center;
+  min-height: 2.75rem; /* 44px — the tap floor the whole funnel is set to. */
+  color: var(--stone);
+  transition: color 0.4s var(--ease-ui);
+}
+
+.link:hover {
+  color: var(--ink);
+}
+
+.link:focus-visible {
+  outline: 2px solid var(--dusk-amber);
+  outline-offset: 4px;
+}
+
+@media (max-width: 40rem) {
+  .inner {
+    min-height: 4rem;
+  }
+
+  .brand {
+    height: 18px;
+  }
+
+  .wordmark {
+    width: 106px;
+  }
+}

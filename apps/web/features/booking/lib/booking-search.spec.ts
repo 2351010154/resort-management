@@ -4,6 +4,7 @@ import {
   type BookingSearch,
   formatStayDate,
   formatStayDates,
+  formatStayEnd,
   readBookingSearch,
   writeBookingSearch,
 } from "./booking-search";
@@ -66,6 +67,29 @@ describe("reading a search from the URL", () => {
     expect(read("plan=FREE_ROOMS").plan).toBe("STANDARD");
     expect(read("plan=NONREF").plan).toBe("NONREF");
   });
+
+  it("starts on the dates step", () => {
+    expect(read("").step).toBe("dates");
+    expect(read("from=2026-08-10&to=2026-08-12").step).toBe("dates");
+  });
+
+  it("takes the room step when the link names it", () => {
+    expect(read("from=2026-08-10&to=2026-08-12&step=rooms").step).toBe("rooms");
+  });
+
+  // There are no rooms to show until there are nights to price them over, so the
+  // step is normalised on read rather than guarded at every reader.
+  it("refuses the room step without a range", () => {
+    expect(read("step=rooms").step).toBe("dates");
+    expect(read("from=2026-08-10&step=rooms").step).toBe("dates");
+    expect(read("from=2026-08-12&to=2026-08-10&step=rooms").step).toBe("dates");
+  });
+
+  it("falls back to the dates step for an unknown step", () => {
+    expect(read("from=2026-08-10&to=2026-08-12&step=payment").step).toBe(
+      "dates",
+    );
+  });
 });
 
 describe("writing a search back to the URL", () => {
@@ -76,12 +100,26 @@ describe("writing a search back to the URL", () => {
     },
     party: { adults: 2, children: [] },
     plan: "STANDARD",
+    step: "dates",
   };
 
   // Defaults are omitted so the shortest link that means something is the one a
   // guest is asked to share.
   it("writes only what differs from the default", () => {
     expect(writeBookingSearch(base)).toBe("?from=2026-08-10&to=2026-08-12");
+  });
+
+  it("writes the step next to the dates it qualifies", () => {
+    expect(writeBookingSearch({ ...base, step: "rooms" })).toBe(
+      "?from=2026-08-10&to=2026-08-12&step=rooms",
+    );
+  });
+
+  // A link to a room list for a stay nobody chose is not a link to anything.
+  it("drops the room step when there is no range to show rooms for", () => {
+    expect(writeBookingSearch({ ...base, range: null, step: "rooms" })).toBe(
+      "",
+    );
   });
 
   it("writes the party when it is not two adults", () => {
@@ -99,6 +137,7 @@ describe("writing a search back to the URL", () => {
         range: null,
         party: { adults: 2, children: [] },
         plan: "STANDARD",
+        step: "dates",
       }),
     ).toBe("");
   });
@@ -113,6 +152,7 @@ describe("writing a search back to the URL", () => {
       },
       party: { adults: 3, children: [{ age: 4 }, { age: 11 }] },
       plan: "BB",
+      step: "rooms",
     };
 
     const again = read(writeBookingSearch(full).slice(1));
@@ -121,6 +161,7 @@ describe("writing a search back to the URL", () => {
     expect(again.range?.checkOut.toString()).toBe("2026-12-27");
     expect(again.party).toEqual(full.party);
     expect(again.plan).toBe("BB");
+    expect(again.step).toBe("rooms");
   });
 });
 
@@ -159,6 +200,16 @@ describe("saying the dates back to the guest", () => {
     });
 
     expect(stay.dates).toBe("30 August – 2 September");
+  });
+
+  // The panel sets each end as two lines, so it gets two strings. The short month
+  // is deliberate — "10 Aug 2026" under a caps label, not the spelled-out form the
+  // accessible name uses.
+  it("sets one end of the stay as a date and a weekday", () => {
+    expect(formatStayEnd(parseDate("2026-08-10"))).toEqual({
+      day: "10 Aug 2026",
+      weekday: "Monday",
+    });
   });
 
   // The regression the property's timezone exists to prevent: a stay date formatted

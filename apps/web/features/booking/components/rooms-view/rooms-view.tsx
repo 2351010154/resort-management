@@ -2,11 +2,11 @@
 
 // View B. One question: which room.
 //
-// The date summary, the two sentences that qualify every price under them, and
-// the grid. Round 1 printed those two sentences on all five cards — sixty words
-// where twelve were needed — and printed "N nights · N guests" five times as
-// well. Said once, above the prices they qualify, they cost the view twenty
-// words and read as what they are: terms, not features of a room.
+// The date summary, the sentence that qualifies every price under it, and the
+// grid. Round 1 printed that sentence on all five cards — sixty words where
+// twelve were needed — and printed "N nights · N guests" five times as well. Said
+// once, above the prices it qualifies, it costs the view twenty words and reads
+// as what it is: a term, not a feature of a room.
 //
 // The hold sentence is one string with one id, and every `Choose` button on the
 // screen points at it with `aria-describedby`. A sighted guest and a
@@ -67,8 +67,9 @@ export function RoomsView({
     <section className={styles.view} data-view="rooms">
       <DateSummary onChange={onChangeDates} party={party} range={range} />
 
-      <p className={styles.terms}>Prices include VAT and service.</p>
-
+      {/* "Prices include VAT and service." is not here any more: it is the view's
+          own lede, above the title, where it qualifies the prices before the first
+          one is read rather than in a line between the summary and the grid. */}
       <p className={styles.terms} id={holdNoteId}>
         Choosing a room holds it while you finish. Nothing is charged yet.
       </p>

@@ -1,6 +1,6 @@
 "use client";
 
-// One month, as a real table.
+// One month, as a real table, with its own pager on the caption line.
 //
 // `<table role="grid">` with a `<caption>` naming the month, `<th scope="col">`
 // weekday heads, and a `<button>` inside every `<td>`. Trainline is the one picker
@@ -12,27 +12,42 @@
 // Two months means two tables, not one wide one. Each gets its own caption, so a
 // guest arrowing from 31 August to 1 September crosses a boundary that is
 // announced rather than one that is only visible.
+//
+// **The pager sits beside the caption, and outside the table.** It was a pair of
+// bordered buttons in the calendar's header, a thousand pixels from the month they
+// paged — which read as two stray controls. On the caption line it reads as what
+// it is: this month, and the way to the one before or after it. Outside the
+// `<table>` because a button inside `<caption>` joins the table's accessible
+// name, and "August 2026 Earlier months" is not the name of a grid.
 
 import type { CalendarDate } from "@internationalized/date";
-import type { NightIndex } from "@/features/booking/lib/stay-quote";
-import type { RangeCalendarState } from "@react-stately/calendar";
 import { useCalendarGrid } from "@react-aria/calendar";
+import type { RangeCalendarState } from "@react-stately/calendar";
 import { DayCell } from "./day-cell";
-import styles from "./stay-calendar.module.css";
 import type { AvailabilityRules } from "./stay-availability";
+import styles from "./stay-calendar.module.css";
 
 export function MonthGrid({
   state,
   startDate,
-  nights,
   rules,
   caption,
+  pager,
+  onDayPress,
 }: {
   readonly state: RangeCalendarState;
   readonly startDate: CalendarDate;
-  readonly nights: NightIndex;
   readonly rules: AvailabilityRules;
   readonly caption: string;
+  /** Runs after React Aria's own press. See `stay-calendar.tsx`. */
+  readonly onDayPress: (date: CalendarDate) => void;
+  /** The one page control this month carries, if it carries either. */
+  readonly pager: {
+    readonly label: string;
+    readonly glyph: string;
+    readonly isDisabled: boolean;
+    readonly onPress: () => void;
+  } | null;
 }) {
   const { gridProps, headerProps, weekDays } = useCalendarGrid(
     { startDate, endDate: startDate.add({ months: 1 }).subtract({ days: 1 }) },
@@ -48,51 +63,66 @@ export function MonthGrid({
   );
 
   return (
-    <table {...gridProps} className={styles.month}>
-      <caption className={`${styles.monthCaption} caps-label`}>
-        {caption}
-      </caption>
-      <thead {...headerProps}>
-        <tr>
-          {/* The weekday heads are hidden from assistive tech by React Aria,
-              because each cell's own name already carries its weekday — reading
-              the column head as well says "Monday" twice for every cell.
+    <div className={styles.monthBlock}>
+      {pager ? (
+        <button
+          aria-label={pager.label}
+          className={styles.pager}
+          data-side={pager.glyph === "‹" ? "start" : "end"}
+          disabled={pager.isDisabled}
+          onClick={pager.onPress}
+          type="button"
+        >
+          {pager.glyph}
+        </button>
+      ) : null}
 
-              Keyed by position, because position is what a weekday head *is*: the
-              narrow style repeats letters ("S" for both Saturday and Sunday), so
-              the label is not unique and the column index is the only identity
-              available. */}
-          {weekDays.map((day, index) => (
-            // biome-ignore lint/suspicious/noArrayIndexKey: the column index is the identity — seven fixed positions that never reorder, with labels that are not unique.
-            <th className={styles.weekday} key={index} scope="col">
-              {day}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {weeks.map((dates) => (
-          <tr key={dates.find(Boolean)?.toString() ?? ""}>
-            {dates.map((date, index) =>
-              date ? (
-                <DayCell
-                  date={date}
-                  isOutsideMonth={date.month !== startDate.month}
-                  key={date.toString()}
-                  night={nights.get(date.toString())}
-                  rules={rules}
-                  state={state}
-                />
-              ) : (
-                // A date the calendar system does not have. Never happens in the
-                // Gregorian calendar, and React Aria's contract allows for it.
-                // biome-ignore lint/suspicious/noArrayIndexKey: a hole in a week has no date to key on, and its position in the row is its identity.
-                <td className={styles.cellOutside} key={index} />
-              ),
-            )}
+      <table {...gridProps} className={styles.month}>
+        <caption className={`${styles.monthCaption} caps-label`}>
+          {caption}
+        </caption>
+        <thead {...headerProps}>
+          <tr>
+            {/* The weekday heads are hidden from assistive tech by React Aria,
+                because each cell's own name already carries its weekday — reading
+                the column head as well says "Monday" twice for every cell.
+
+                Keyed by position, because position is what a weekday head *is*: the
+                narrow style repeats letters ("S" for both Saturday and Sunday), so
+                the label is not unique and the column index is the only identity
+                available. */}
+            {weekDays.map((day, index) => (
+              // biome-ignore lint/suspicious/noArrayIndexKey: the column index is the identity — seven fixed positions that never reorder, with labels that are not unique.
+              <th className={styles.weekday} key={index} scope="col">
+                {day}
+              </th>
+            ))}
           </tr>
-        ))}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {weeks.map((dates) => (
+            <tr key={dates.find(Boolean)?.toString() ?? ""}>
+              {dates.map((date, index) =>
+                date ? (
+                  <DayCell
+                    date={date}
+                    isOutsideMonth={date.month !== startDate.month}
+                    key={date.toString()}
+                    onPress={onDayPress}
+                    rules={rules}
+                    state={state}
+                  />
+                ) : (
+                  // A date the calendar system does not have. Never happens in the
+                  // Gregorian calendar, and React Aria's contract allows for it.
+                  // biome-ignore lint/suspicious/noArrayIndexKey: a hole in a week has no date to key on, and its position in the row is its identity.
+                  <td className={styles.cellOutside} key={index} />
+                ),
+              )}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
