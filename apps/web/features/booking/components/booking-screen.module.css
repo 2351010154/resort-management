@@ -1,23 +1,208 @@
-/* The screen. One column, one measure, ivory ground.
+/* The screen. Two grounds, side by side, and the right one is a full-height plate.
  *
- * No composition measured against film here — design-foundations.md §4 is explicit
- * that the funnel stays on the spacing scale, and an off-scale value in (booking)
- * should be rare enough to need a sentence. The two below have one each.
+ * Three decisions here are departures from what the funnel did before, and each is
+ * argued where it sits: the second ground, the measure, and the body face.
  */
 
 .screen {
+  /* **The funnel's prose is Literata, not DM Mono.**
+   *
+   * `globals.css` sets `--font-ui` on `body` for the whole document, and on the
+   * arrival that is right — a caption over a film plate wants the mono. A booking
+   * screen is not captions. It is dates, counts, sentences and values, and set in
+   * a monospace they read as output rather than as writing: even spacing between
+   * every glyph is exactly what makes a sentence look like a log line.
+   *
+   * So prose here takes the house's other face, which the display line already
+   * uses, and `.caps-label` keeps the mono for what it was chosen for — caps runs,
+   * labels, the one primary button. Two faces still, no new bytes, and the arrival
+   * is untouched.
+   *
+   * It also fixes something: DM Mono has no Vietnamese coverage, so ₫ fell through
+   * to whatever the system offered. Literata carries the mark.
+   */
+  font-family: var(--font-display), serif;
+
+  /* The left section's measure and its minimum gutter, in one place because two
+     stylesheets read them: this file, for the steps and the views, and
+     `funnel-nav.module.css`, for the bar's contents. The bar has to be able to
+     draw a hairline the full width of the column while its own type sits on the
+     same vertical as the heading below it, which is why the pattern is repeated
+     there rather than the element being nested in something here.
+
+     60rem is two seven-column months at a 60px cell with a --space-4 gutter
+     between them — the comp's own calendar width, scaled to 1440. */
+  --funnel-measure: 60rem;
+  --funnel-gutter: var(--space-4);
+
   min-height: 100dvh;
   background: var(--ivory);
   color: var(--ink);
 }
 
+/* The two columns, and the one property that animates between the screen's two
+ * readings.
+ *
+ * **The number is a registered custom property, not `grid-template-columns`.**
+ * Track lists interpolate in current browsers, but only where the two lists match
+ * track for track, and the failure mode when they do not is a jump with no
+ * warning. A registered `<percentage>` cannot fail that way: it is a number, the
+ * browser tweens numbers, and the grid re-resolves each frame from the result. It
+ * also means the collapsed state is genuinely `0%` — the plate is absent, not a
+ * narrow rail pretending to be.
+ */
+@property --booking-panel-share {
+  syntax: "<percentage>";
+  inherits: false;
+  initial-value: 0%;
+}
+
+.stage {
+  --booking-panel-share: 0%;
+
+  display: grid;
+  /* `minmax(0, 1fr)` rather than `1fr`, or the calendar's own minimum content
+     width would stop the first track from ever giving anything back. */
+  grid-template-columns: minmax(0, 1fr) var(--booking-panel-share);
+  /* Stretch, not start: this is what makes the plate a full column rather than a
+     box the height of its own contents. */
+  align-items: stretch;
+  min-height: 100dvh;
+  transition: --booking-panel-share 0.5s var(--ease-ui);
+}
+
+.screen[data-panel="open"] .stage {
+  --booking-panel-share: 30%;
+}
+
+/* Reduced motion is a composition, not a frozen frame — §9. The global
+   kill-switch would cut the tween to 0.01ms, which is a full-width calendar
+   snapping to 70% on a date press. Both readings are complete and correct
+   compositions, so the honest answer is that the plate is simply *there*, with no
+   width travelling at all. */
+@media (prefers-reduced-motion: reduce) {
+  .stage {
+    transition: none;
+  }
+}
+
+/* The left section: the bar, the steps, and whichever view is open.
+ *
+ * **The measure is a gutter, not a centred box.** Both views used to sit in a
+ * 64rem column centred in the window, which is right for a single run of prose and
+ * wrong for this: a calendar with a plate beside it has no centre to be in, and the
+ * comp this was set from holds a constant margin at both edges instead. So the
+ * left section is full-bleed with one gutter, the plate takes the other edge, and
+ * the bar's wordmark lands on the same vertical as the heading below it.
+ */
+.left {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* **The section is centred until the plate needs the room, and nothing switches it
+ * over.** Both readings fall out of one measure: a block of `--funnel-measure`
+ * with a gutter each side, `margin-inline: auto`, no `data-panel` in sight.
+ *
+ * While the column is wider than that block, the auto margins split what is left
+ * and the calendar sits in the middle of an otherwise empty page. As the plate
+ * opens the column narrows, the margins shrink with it, and at the moment the
+ * column is the block's own width they reach zero and the section is flush against
+ * its gutter — which is where the comp has it. So the shift left is the *same*
+ * tween as the plate's width, interpolated by the browser rather than staged by us,
+ * and there is no frame where the content is neither centred nor placed.
+ *
+ * `max-width` counts the padding, which is why the gutter is added to the measure
+ * here: the content box is then exactly `--funnel-measure` and it is the *content*
+ * that lands centred, not the box around it.
+ */
+.rail,
+.views {
+  width: 100%;
+  max-width: calc(var(--funnel-measure) + 2 * var(--funnel-gutter));
+  margin-inline: auto;
+  padding-inline: var(--funnel-gutter);
+}
+
+.views {
+  padding-bottom: var(--space-5);
+}
+
+/* The second ground. `--ivory-warm` is §2's own pairing for `--ivory` — the login
+ * plates fall back to it — and at six units apart it separates the sections
+ * without either reading as a different colour.
+ *
+ * Clipped rather than hidden, so its contents can be set at their final measure
+ * and revealed instead of re-flowing on every frame of the opening. `inert` in the
+ * markup keeps the collapsed state out of the tab order; `overflow: hidden` only
+ * stops it being seen.
+ */
+.panel {
+  overflow: hidden;
+  min-width: 0;
+  /* The plate starts at the top of the page, so its contents need clearing the
+     bar's height before they begin. --space-5 lands "YOUR STAY" on the same line
+     as the step indicator across the gap, which is the one alignment holding the
+     two grounds together at the top of the screen. */
+  padding: var(--space-5) var(--space-3) var(--space-4);
+  background: var(--ivory-warm);
+}
+
+.panel > * {
+  /* The panel's own measure, held while the column is narrower than it. 20rem is
+     "CHECK IN → CHECK OUT" as two columns at --text-base without either date
+     wrapping, measured at en-GB. */
+  min-width: 20rem;
+}
+
+/* One column until the two would both be comfortable.
+ *
+ * 78rem, and the number is derived rather than picked: two months side by side
+ * need 45rem (`stay-calendar.module.css`), and the calendar column is 70% of the
+ * window less this section's two gutters. Below it the plate goes under the
+ * calendar at full width, which is the same reading a phone gets.
+ */
+@media (max-width: 77.999rem) {
+  .stage {
+    grid-template-columns: minmax(0, 1fr);
+    min-height: 0;
+  }
+
+  .screen {
+    --funnel-gutter: var(--space-2);
+  }
+
+  .views {
+    padding-bottom: var(--space-3);
+  }
+
+  /* No width to animate at this size, so the plate is present or it is not. A
+     zero-height collapsed block would still take a row of space. */
+  .screen[data-panel="shut"] .panel {
+    display: none;
+  }
+
+  .panel {
+    padding: var(--space-3) var(--space-2) var(--space-4);
+  }
+
+  /* Stacked, the panel has the whole page to fill, and it should not take it: a
+     56px button 1000px wide and two dates at opposite ends of the screen are the
+     same panel with the relationships pulled out of it. */
+  .panel > * {
+    min-width: 0;
+    max-width: 34rem;
+  }
+}
+
+/* ---- The view's own head ------------------------------------------------- */
+
+/* The air above the heading is the comp's, measured: the bar, then the steps, then
+   a clear run before the title. It is what makes the screen read as spacious
+   rather than as full. */
 .head {
-  /* The measure, shared with .views, so both views sit on the same column.
-     64rem is about 90 characters at --text-base, which is the top of the
-     comfortable range — and two 3:2 frames with a --space-3 gutter inside it. */
-  max-width: 64rem;
-  margin: 0 auto;
-  padding: var(--space-4) var(--space-2) var(--space-2);
+  padding: var(--space-3) 0 var(--space-2);
 }
 
 .title {
@@ -25,21 +210,22 @@
   line-height: 1.1;
 }
 
-/* The subtitle is gone. It carried both of the screen's questions in one
-   sentence — "Choose the nights you are here, and the room you would like." —
-   which was accurate when both were asked at once and is now a description of a
-   screen that no longer exists. Each view says its own six words. */
-
-.views {
-  max-width: 64rem;
-  margin: 0 auto;
-  padding: 0 var(--space-2) var(--space-4);
+/* The dates view has no lede: the calendar's own status sentence sits here
+   instead, because it says the same thing and can also say what changed. Only the
+   room view sets one. */
+.lede {
+  margin-top: var(--space-1);
+  font-size: var(--text-base);
+  line-height: 1.6;
+  color: var(--stone-deep);
+  max-width: 34rem;
 }
 
 .nextStep {
-  max-width: 64rem;
-  margin: 0 auto;
-  padding: 0 var(--space-2) var(--space-3);
+  width: 100%;
+  max-width: calc(var(--funnel-measure) + 2 * var(--funnel-gutter));
+  margin-inline: auto;
+  padding: 0 var(--funnel-gutter) var(--space-3);
   font-size: var(--text-sm);
   line-height: 1.6;
   color: var(--stone-deep);

@@ -25,7 +25,14 @@ export function DateSummary({
 }: {
   readonly range: StayRange;
   readonly party: Party;
-  /** Back to View A. Clears the range, because that is the question again. */
+  /**
+   * Back to the dates step, keeping them.
+   *
+   * It used to clear the range, because clearing it was the only way to reopen
+   * the calendar. With the step in the URL the guest arrives back at the grid with
+   * their own dates still selected and stated beside it — which is what "Change"
+   * always meant, rather than "start again".
+   */
   readonly onChange: () => void;
 }) {
   const stay = formatStayDates(range);

@@ -50,10 +50,16 @@ export function NoAvailability({
     <section className={styles.empty}>
       {/* The dates and the party in one sentence, so the offer below can be a
           sentence about dates alone. Round 1 spent a second line restating the
-          party and the length; the length is in the dates. */}
-      <h2 className={styles.headline}>
+          party and the length; the length is in the dates.
+        *
+        * `<h1>`, and it is the view's own. The other two views take a title from
+        * the screen — "Your nights", "Your room" — and neither of them is true
+        * here: a heading saying "Your room" over a page saying there is no room
+        * is a page arguing with itself. So this state states the fact as its
+        * heading and the screen prints none above it. */}
+      <h1 className={styles.headline}>
         Nothing free for {requestedStay.dates}, {forParty}.
-      </h2>
+      </h1>
 
       {alternatives.length > 0 ? (
         <ul className={styles.options}>

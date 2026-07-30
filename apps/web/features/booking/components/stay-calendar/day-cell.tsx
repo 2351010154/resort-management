@@ -1,17 +1,20 @@
 "use client";
 
-// One night. A day number, a price under it, and a name that says everything the
-// pixels say.
+// One night. A day number, and a name that says everything the pixels say.
 //
-// Three things here are corrections to pickers verified for this screen rather
-// than inventions:
+// **The price has gone out of the cell.** It used to sit under every number —
+// Amadeus does that, and it is the only way to answer "which nights are cheap"
+// without a second control, which is why it was here. What it cost was sixty-one
+// figures on a screen whose whole job is to be read at a glance, and at two
+// months wide that reads as a spreadsheet rather than a calendar. The rate is
+// stated where a guest is deciding on it: in the stay panel, and on the room
+// cards. The trade is real and it is deliberate — a guest can no longer scan a
+// month for a cheap night.
 //
-// 1. **The price lives inside the button.** Not beside it, not in a title
-//    attribute. Amadeus puts the per-night rate in the cell and it is the only
-//    way to answer "which nights are cheap" without a second control; putting it
-//    outside the button would shrink the hit area below the 44 px floor.
+// Two things here are corrections to pickers verified for this screen rather
+// than inventions, and both survive:
 //
-// 2. **`aria-disabled`, never `disabled`.** React Aria draws the distinction for
+// 1. **`aria-disabled`, never `disabled`.** React Aria draws the distinction for
 //    us: a date failing `minValue` is `isDisabled` and drops out of the tab
 //    order, which is right for a date in the past — there is nothing to explain.
 //    A date failing `isDateUnavailable` is `isUnavailable`, stays focusable, and
@@ -19,14 +22,13 @@
 //    days, so a keyboard user cannot land on them and never learns why they are
 //    gone.
 //
-// 3. **The reason is in the accessible name.** React Aria's own label is the date
-//    and its selection state. The price and the restriction are appended here,
-//    because that is the failure shared by every picker probed: Amadeus's label is
-//    date-only while the cell shows a price and a rule, and Resy's sold-out days
-//    carry exactly the same name as its free ones.
+// 2. **The reason is in the accessible name.** React Aria's own label is the date
+//    and its selection state; the restriction is appended here, because that is
+//    the failure shared by every picker probed — Resy's sold-out days carry
+//    exactly the same name as its free ones. The price is no longer appended, for
+//    the reason above: a name should say what the cell says.
 
 import type { CalendarDate } from "@internationalized/date";
-import { formatVndThousands, type NightRate } from "@mariva/shared";
 import { useCalendarCell } from "@react-aria/calendar";
 import type { RangeCalendarState } from "@react-stately/calendar";
 import { useRef } from "react";
@@ -61,15 +63,16 @@ function rangePosition(
 export function DayCell({
   state,
   date,
-  night,
   rules,
   isOutsideMonth,
+  onPress,
 }: {
   readonly state: RangeCalendarState;
   readonly date: CalendarDate;
-  readonly night: NightRate | undefined;
   readonly rules: AvailabilityRules;
   readonly isOutsideMonth: boolean;
+  /** Runs after React Aria's own press handler, never instead of it. */
+  readonly onPress: (date: CalendarDate) => void;
 }) {
   const ref = useRef<HTMLButtonElement>(null);
   const {
@@ -116,22 +119,16 @@ export function DayCell({
     reason?.kind === "closed-to-arrival" ? styles.dayClosedToArrival : "",
     position === "start" || position === "single" ? styles.dayArrival : "",
     position === "end" ? styles.dayDeparture : "",
-    position === "inside" ? styles.dayInside : "",
     isFocused ? styles.dayFocused : "",
   ]
     .filter(Boolean)
     .join(" ");
 
-  // Everything the cell shows, in one sentence, after React Aria's date.
+  // Why the night cannot be taken, after React Aria's date.
   //
-  // A past date gets neither. It is `isDisabled` rather than merely unpickable, and
-  // the report's argument for putting a reason in the name is that the guest can act
-  // on it — nobody can act on last Tuesday, and "Not yet priced." on a date before
-  // today reads as a fault in the page rather than as a fact about the property.
-  const priceSentence =
-    !isDisabled && night?.lowestGross != null
-      ? `From ${formatVndThousands(night.lowestGross)} thousand đồng.`
-      : "";
+  // A past date gets nothing. It is `isDisabled` rather than merely unpickable, and
+  // the argument for putting a reason in the name is that the guest can act on it —
+  // nobody can act on last Tuesday.
   const reasonText =
     reason && !isDisabled
       ? reasonSentence(
@@ -139,7 +136,15 @@ export function DayCell({
           state.anchorDate ? formatStayDate(state.anchorDate) : undefined,
         )
       : "";
-  const label = [buttonProps["aria-label"], priceSentence, reasonText]
+
+  // The way out of a chosen stay, said on the cell that is the way out. It costs
+  // the screen nothing — the status line carries the same sentence for a sighted
+  // guest — and without it the affordance is invisible to anyone who cannot see the
+  // filled disc they would be pressing again.
+  const undoText =
+    position === "start" && state.value ? "Press again to start over." : "";
+
+  const label = [buttonProps["aria-label"], reasonText, undoText]
     .filter(Boolean)
     .join(" ");
 
@@ -155,18 +160,33 @@ export function DayCell({
         aria-label={label}
         className={buttonClass}
         data-date={date.toString()}
+        // Composed, not overridden. React Aria's own handler runs first and does
+        // what it does — set an anchor, commit a range — and `stay-calendar.tsx`
+        // then decides whether this particular press meant "start over". Spreading
+        // `buttonProps` after this would silently drop one of the two.
+        //
+        // **Both paths, because React Aria does not give one.** Its press hook
+        // handles Enter and Space inside `onKeyDown` and calls `preventDefault`, so
+        // the browser never synthesises the click a keyboard press would normally
+        // produce — hooking `onClick` alone made this work with a mouse and do
+        // nothing at all from the keyboard. Verified: `buttonProps` carries
+        // `onKeyDown` and no `onKeyUp`, which is why the key test is here.
+        onClick={(event) => {
+          buttonProps.onClick?.(event);
+          onPress(date);
+        }}
+        onKeyDown={(event) => {
+          buttonProps.onKeyDown?.(event);
+          if (event.key === "Enter" || event.key === " ") onPress(date);
+        }}
         ref={ref}
         type="button"
       >
+        {/* The number carries the disc. Hover, focus and the two ends of the stay
+            are all a round ground behind this span rather than a fill of the whole
+            cell — a 58 × 48 cell filled edge to edge reads as a block of colour,
+            and the shape a chosen date wants is the shape of the number. */}
         <span className={styles.dayNumber}>{formattedDate}</span>
-        {/* Sold-out nights carry no price, because a price on a night nobody can
-            buy is noise. The slot is still rendered so the cells keep one height
-            and the grid does not reflow row by row as availability changes. */}
-        <span className={styles.dayPrice} aria-hidden="true">
-          {night?.lowestGross != null
-            ? formatVndThousands(night.lowestGross)
-            : ""}
-        </span>
       </button>
     </td>
   );

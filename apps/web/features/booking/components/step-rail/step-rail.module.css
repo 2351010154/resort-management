@@ -1,0 +1,107 @@
+/* The two steps, centred over both views.
+ *
+ * Three states, told apart by weight rather than by colour alone: the step the
+ * guest is on has a filled disc and ink type, the step behind it a hairline disc
+ * and stone type, the step ahead the same hairline at a lighter weight. A guest
+ * reading the page in greyscale gets the same three.
+ */
+
+/* Centred on the left section — which means it re-centres when the plate opens,
+   along with everything else in the column. The air above and below it is the
+   comp's: the steps float between the bar and the heading rather than sitting on
+   either. */
+.rail {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-3) 0;
+}
+
+.steps {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  list-style: none;
+}
+
+.step {
+  display: flex;
+}
+
+.control {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem; /* Disc to its own label: tighter than --space-1 pairs them. */
+  min-height: 2.75rem; /* 44px, whether or not this one is a button. */
+  color: var(--stone);
+  transition: color 0.4s var(--ease-ui);
+}
+
+.disc {
+  width: 1.75rem; /* 28px — a numeral in a ring, not a button. */
+  height: 1.75rem;
+  flex: none;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-ui), sans-serif;
+  font-size: var(--text-xs);
+  line-height: 1;
+  border: 1px solid currentcolor;
+  border-radius: 50%;
+  transition:
+    color 0.4s var(--ease-ui),
+    background-color 0.4s var(--ease-ui),
+    border-color 0.4s var(--ease-ui);
+}
+
+.label {
+  white-space: nowrap;
+}
+
+/* Here. The one filled shape on the rail. */
+.step[data-state="current"] .control {
+  color: var(--ink);
+}
+
+.step[data-state="current"] .disc {
+  color: var(--ivory);
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+/* Behind. A control, and it says so on hover. */
+.step[data-state="done"] .control {
+  color: var(--stone-deep);
+}
+
+.step[data-state="done"] button:hover {
+  color: var(--ink);
+}
+
+.step[data-state="done"] button:hover .disc {
+  border-color: var(--ink);
+}
+
+.step[data-state="done"] button:focus-visible {
+  outline: 2px solid var(--dusk-amber);
+  outline-offset: 4px;
+}
+
+/* Ahead. Present, so the guest knows the funnel is two steps and not five. */
+.step[data-state="ahead"] .control {
+  color: var(--sand);
+}
+
+/* The connector, at the height of the type rather than the discs. Its width is
+   measured to sit inside the rail without pushing either label off centre, at
+   375 and at 1670. */
+.rule {
+  width: clamp(2rem, 8vw, 6rem);
+  height: 1px;
+  background: rgb(var(--umber-rgb) / 0.18);
+}
+
+@media (max-width: 40rem) {
+  .rail {
+    padding: var(--space-2) 0;
+  }
+}
