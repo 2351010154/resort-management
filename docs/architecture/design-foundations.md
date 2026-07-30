@@ -27,7 +27,7 @@ to the same house, not that it looks like the same page.
 | Base element styles, the two global classes, the reduced-motion kill switch | [`apps/web/app/globals.css`](../../apps/web/app/globals.css) |
 | Every ease, duration, stagger; the `--ease-*` custom properties | [`apps/web/lib/motion-tokens.ts`](../../apps/web/lib/motion-tokens.ts) |
 | Type families (`--font-display`, `--font-ui`), the `:root` block for the eases | [`apps/web/app/layout.tsx`](../../apps/web/app/layout.tsx) |
-| Colour and easing enforcement | Review. See §10 — the stylelint config exists but is not wired |
+| Colour and easing enforcement | [`apps/web/stylelint.config.mjs`](../../apps/web/stylelint.config.mjs), invoked by the web and root package scripts |
 | Image alt text | [`apps/web/features/arrival/lib/image-manifest.ts`](../../apps/web/features/arrival/lib/image-manifest.ts) (generated) |
 | Per-act composition | `apps/web/features/arrival/components/act-{1..6}-*/` |
 | The first booking surface, as a worked example | `apps/web/features/auth/components/login-screen.*` |
@@ -53,7 +53,7 @@ had all typed the same number.
 | Token | Value | Role | Uses in CSS |
 |---|---|---|---|
 | `--ivory` | `#f4efe6` | Page ground on the light acts; type on the dark ones | 26 |
-| `--ivory-warm` | `#eee7de` | The wall. Acts 2 and 3 settle onto it so they read as one surface | 4 |
+| `--ivory-warm` | `#eee7de` | The wall. Acts 2 and 3 settle onto it so they read as one surface; `/booking`'s stay panel is a plate of it beside the ivory calendar | 5 |
 | `--sand` | `#cfc0ab` | Secondary type on dark grounds — captions, kickers, footer links | 10 |
 | `--stone` | `#8a7b6e` | Quietest type. Rail labels, column titles, placeholders, small print | 6 |
 | `--stone-deep` | `#645c51` | Body copy on light grounds; the corridor's lit tone panel | 4 |
@@ -184,6 +184,22 @@ custom properties:
 
 `globals.css` sets `--font-ui` at weight 300 on `body`, so the mono is the
 default and the serif is opt-in.
+
+**The booking funnel inverts that, and only the funnel.** `(booking)`'s screen
+root sets `--font-display` for prose, and `.caps-label` keeps the mono for what
+it was chosen for — caps runs, labels, the one primary button.
+
+The reason is that the two surfaces say different kinds of thing. On the arrival
+the mono is a caption over a film plate, a few words at a time, and it is the
+house's signature. A booking screen is dates, counts, values and sentences, and
+in a monospace those read as output rather than as writing: even spacing between
+every glyph is exactly what makes a line of prose look like a log line. At two
+months of calendar plus a summary panel there is enough of it on screen at once
+for the texture to decide how the page feels.
+
+Two faces still, no new bytes, and the arrival untouched. It also fixes something
+`layout.tsx` documents at length: DM Mono has no Vietnamese subset, so ₫ fell
+through to whatever the system offered. Literata carries the mark.
 
 ### The two global classes
 
@@ -361,6 +377,42 @@ keeping: the reader's scroll is the only input.
 
 No scroll-driven anything. No pinning. No canvas. A funnel that animates like
 the arrival is a funnel that gets in the way of booking a room.
+
+**One property is on that list that is not a transform, and it is named rather
+than assumed.** `/booking`'s stage is two grid columns — the calendar and the stay
+panel — and the panel opening moves them from `100 / 0` to `70 / 30`. That is a
+width, and no amount of `transform` will do it: a scaled column scales its own
+type, and a translated one does not give the space back. So the funnel transitions
+**a registered `<percentage>` custom property**, once, on one element, and the
+grid resolves its tracks from it:
+
+```css
+@property --booking-panel-share { syntax: "<percentage>"; inherits: false; initial-value: 0%; }
+.stage { grid-template-columns: minmax(0, 1fr) var(--booking-panel-share); }
+```
+
+Three things keep this inside the budget rather than widening it:
+
+- **It is one number on one element**, which is the mechanism limit the login
+  screen's filmstrip established — not a crossfade plus two position changes.
+- **A registered property is animated as a number, not as a track list.**
+  Transitioning `grid-template-columns` directly works only where both lists match
+  track for track, and fails as a silent jump where they do not. This cannot.
+- **Nothing inside either column animates.** The panel's contents are set at their
+  final measure and revealed by a clip (`min-width` on the panel's child,
+  `overflow: hidden` on the column), because §"What the login screen settled" is
+  explicit that a funnel screen must not re-lay-out its own inputs. The calendar's
+  own grid does re-flow to the narrower column, and the cell the guest pressed keeps
+  focus and its 44 px floor throughout — which is why the calendar reads its
+  breakpoints from a container query on itself rather than from the window.
+
+The one number carries the second ground with it. The panel column is painted
+`--ivory-warm` and runs the full height of the page, so the same tween that gives
+the calendar's 30% back also wipes a warm plate in from the right edge — one
+property, two things read off it, and no cross-fade anywhere.
+
+The reduced-motion path is the same composition with no travel: the panel is
+simply there. Both readings are complete, which is §9's rule and not a fallback.
 
 **`motion` is permitted in `(booking)`, for exits only.** This section said
 *CSS-only* until `/booking` was built, and that rule could not be kept: **CSS
@@ -659,10 +711,10 @@ optional.
   reader's browse mode, which is the mode that reads a price inside a cell —
   React Aria's calendar sets it and `stay-calendar.tsx` strips it back off.
 
-The first two are the rules this document leans on hardest, and they are the two
-nothing currently checks: the stylelint config that would is written but not
-wired (§10). Until it is, they are enforced in review — writing one costs a
-reviewer's attention rather than a red build.
+The first two are enforced by
+[`apps/web/stylelint.config.mjs`](../../apps/web/stylelint.config.mjs). The web
+package exposes that check as `lint:css`, and the root `lint` script invokes it;
+CI runs the root script.
 
 ### The disable convention
 
@@ -675,17 +727,8 @@ A one-off is allowed. It has to say why:
 background: #fff;
 ```
 
-The config sets `reportDescriptionlessDisables`, so a disable without a `--`
-reason is itself an error, and `reportNeedlessDisables`, so one that has stopped
-suppressing anything is an error too. There are exactly three disables on the
-page today, and each names a category the palette should not absorb:
-
-1. **Act 1's `--sea-standin`** — five colours read off the backdrop encode.
-   Their job is to match footage, so they change when the footage is re-cut and
-   never for a palette reason.
-2. **Act 5's CTA hover** — `#fff` as a lift away from `--ivory`.
-3. **Act 6's emboss faces** — four stone values plus black, read as a set
-   against each other and retuned as one whenever the panel's ground moves.
+The config owns the checks for missing reasons and obsolete suppressions.
+Exceptions and their rationale stay beside the declaration they exempt.
 
 The test for a legitimate disable: *would naming this as a token invite someone
 to reuse it?* If yes, disable it instead. Shader- and canvas-adjacent CSS is the
@@ -955,28 +998,23 @@ Two rules learned the hard way:
 
 ## 10. Enforcement
 
-| Gate | Command | Catches |
-|---|---|---|
-| Biome | `pnpm lint` | Correctness, React hooks, accessibility (as warnings) |
-| Biome | commit hook | Formatting — applied to staged files, not reported |
-| TypeScript | commit hook, and `pnpm build` (Next runs it) | — |
-| Visual regression | `apps/web/scripts/compare-visual-baseline.mjs` | Everything above the pixel tolerance |
-
-`apps/web/stylelint.config.mjs` is **not** one of these yet. It is written and
-it is the only thing that can enforce the two rules this document leans on
-hardest — no raw hex, no hand-written easing curve — because Biome's CSS linter
-cannot express either. But its dependency is not installed and no script calls
-it, so today those two rules are enforced by review alone. Installing it or
-deleting it is an open decision, not a documented state.
+The executable quality gates live in the root
+[`package.json`](../../package.json), the web
+[`package.json`](../../apps/web/package.json),
+[`lefthook.yml`](../../lefthook.yml) and the
+[CI workflow](../../.github/workflows/ci.yml). Stylelint is installed and
+invoked by the root lint path; its
+[configuration](../../apps/web/stylelint.config.mjs) owns the colour and easing
+rules described above.
 
 ### Visual baselines
 
-`apps/web/tests/visual-baseline/` holds 66 committed frames — six acts × five
-scroll fractions × two viewports, plus three nav states.
-`capture-visual-baseline.mjs` records them against a **production** server with
-a virtual clock, video parked at a fixed frame, and CSS animations paused at a
-fixed offset. `compare-visual-baseline.mjs` diffs two capture directories with a
-per-channel tolerance and a per-frame pixel budget.
+Baseline fixtures live under
+[`apps/web/tests/visual-baseline/`](../../apps/web/tests/visual-baseline/).
+[`capture-visual-baseline.mjs`](../../apps/web/scripts/capture-visual-baseline.mjs)
+owns how they are produced, and
+[`compare-visual-baseline.mjs`](../../apps/web/scripts/compare-visual-baseline.mjs)
+owns comparison behavior and thresholds.
 
 Two things to know before you trust a result:
 
@@ -998,4 +1036,5 @@ pixel diff, and it is not subject to either problem above.
 ### Adding to the standard
 
 The order is: change this document, then change the code. A token that appears
-in `packages/tokens/tokens.css` without a row in §2 is a token nobody agreed to.
+in `packages/tokens/tokens.css` without an agreed role in the palette is a token
+nobody agreed to.

@@ -27,17 +27,18 @@ phòng lúc 11 giờ không làm buồng đó bán được lúc 11 giờ 01.
 
 **Hình 5.1** — ERD thiết kế. Nguồn `.drawio`: [`hinh/erd.drawio`](hinh/erd.drawio).
 
-> ⚠ **Đây là ERD *thiết kế*, chưa phải ERD *sinh tự động*.** Lược đồ chưa tồn tại
-> trong mã nguồn — `apps/api/src/database/schema/` hiện còn rỗng và các ticket
-> `P1-SCH-*` chưa được thực hiện. Tại `P0-DOC-01`, `drizzle-dbml-generator` sẽ
-> sinh `docs/erd.dbml` từ lược đồ sống và **CI sẽ fail khi sơ đồ lệch**. Hình này
-> khi đó bị thay thế bởi bản sinh tự động.
+> ⚠ **Đây là ERD *thiết kế*, chưa phải ERD *sinh từ lược đồ sống*.** Lược đồ
+> hiện tại đã tồn tại cho identity và guest auth tại
+> `apps/api/src/database/schema/index.ts`, cùng các migration đã commit, nhưng
+> chưa có lược đồ inventory/booking/folio mà hình này mô tả.
+> `docs/erd.dbml` và cổng kiểm tra trôi cũng chưa tồn tại. Vì vậy hình này là
+> ý định thiết kế, không phải bằng chứng release.
 >
 > Lý do nói thẳng điều này: một ERD trôi khỏi lược đồ còn tệ hơn không có ERD
 > nào, và người chấm chỉ mất ba mươi giây để phát hiện sự không khớp.
 
-Hai mươi mốt thực thể, chia thành năm nhóm: buồng và giá, khách và định danh, đặt
-phòng, sổ sách, vận hành và báo cáo.
+Thiết kế dự kiến chia thực thể thành các nhóm: buồng và giá, khách và định danh,
+đặt phòng, sổ sách, vận hành và báo cáo.
 
 ## 5.3 Tồn kho hai tầng — tường chịu lực
 
@@ -163,7 +164,7 @@ mua được gì và nhân đôi bảng chuyển trạng thái.
 ### 5.4.6 Thao tác không đổi trạng thái
 
 Đây là nơi phần lớn công việc thật của quầy lễ tân diễn ra. Mỗi thao tác là một
-endpoint riêng với `@Roles()` riêng.
+endpoint riêng với khai báo năng lực riêng.
 
 | Thao tác | Hợp lệ ở | Ghi chú |
 |---|---|---|
@@ -260,24 +261,30 @@ Nghiệp vụ *hoá đơn điều chỉnh / thay thế* của Việt Nam ánh x�
 > **Chưa chốt:** thứ tự áp thuế — VAT có tính trên phí phục vụ hay không — quyết
 > định mọi tổng tiền trong hệ thống. Đây là quyết định `D2`, thuộc về kế toán, và
 > tình trạng thuế suất ưu đãi có tính thời điểm. Báo cáo **không** ghi một con số
-> phỏng đoán ở đây; thuế suất là giá trị cấu hình từ ngày đầu.
+> phỏng đoán ở đây; thuế suất, thời hạn áp dụng và tax-base mode đều là cấu hình
+> từ ngày đầu, chờ kế toán trả lời bằng văn bản.
+
+Quy tắc giá giữa **người thêm** và **giường phụ** cũng chưa chốt: chủ đầu tư phải
+xác nhận khi nào giường phụ là bắt buộc và dòng dịch vụ đó cộng dồn hay thay thế
+phí người thêm. Thiết kế folio giữ được hai dòng riêng; công thức báo giá không
+được tự suy ra câu trả lời.
 
 ## 5.7 Hoá đơn điện tử — quy định định hình thiết kế
 
-**Nghị định 70/2025/NĐ-CP**, hiệu lực 01/06/2025, yêu cầu các cơ sở bán hàng hoá
-dịch vụ **trực tiếp cho người tiêu dùng** — danh sách liệt kê nêu đích danh
-**khách sạn** — sử dụng **hoá đơn điện tử khởi tạo từ máy tính tiền**, có kết nối
-truyền dữ liệu tới cơ quan thuế. Hoá đơn được khởi tạo, ký số và phát hành **ngay
-tại điểm bán**.
+**Nghị định 70/2025/NĐ-CP** có các quy định về hoá đơn điện tử khởi tạo từ máy
+tính tiền và nêu *khách sạn*. Tuy nhiên, việc các quy định đó có áp dụng cho
+pháp nhân và mã ngành vận hành Mariva hay không vẫn chờ đại lý thuế trả lời bằng
+văn bản (`M0-06`).
 
-Hệ quả với thiết kế:
+Nếu được xác nhận áp dụng, thiết kế đích có các hệ quả sau:
 
-1. Phải mua **đúng sản phẩm "từ máy tính tiền"**, không phải HĐĐT thông thường. Cùng nhà cung cấp, khác SKU và khác API.
+1. Mua **đúng sản phẩm "từ máy tính tiền"**, không phải HĐĐT thông thường. Cùng nhà cung cấp, khác SKU và khác API.
 2. **Màn hình trả phòng chính là máy tính tiền.** Hoá đơn phát hành khi folio đóng, trước mặt khách — không phải trong night audit.
 3. Điều đó **không** có nghĩa là gọi đồng bộ trong HTTP request. Hình dạng đúng: folio đóng → xếp hàng một job pg-boss **idempotent khoá theo folio id** → job ký và phát hành → màn hình subscribe và hiển thị kết quả sau vài giây. Một lần timeout của nhà cung cấp **không bao giờ** được phép rollback một lần trả phòng đã hoàn tất.
 4. **Số hoá đơn là của nhà cung cấp, không phải của ta.** Lưu số của họ cạnh folio id và dùng số của họ làm tham chiếu pháp lý trên mọi báo cáo.
 
-> ⚠ **Bắt buộc mua chữ ký số HSM / ký số từ xa — không bao giờ là USB token.**
+> ⚠ **Nếu luồng máy tính tiền được xác nhận, phải mua chữ ký số HSM / ký số từ
+> xa — không dùng USB token.**
 >
 > Ký tự động từ máy chủ cloud đòi hỏi khoá ký nằm trong HSM có API (ký số từ xa
 > xác thực bằng JWT), không nằm trên một dongle. Nếu mua nhầm chứng thư dạng USB
@@ -289,10 +296,9 @@ Hệ quả với thiết kế:
 > Quyết định này được đưa ra **nhiều tháng trước dòng mã đầu tiên** và rất khó
 > đảo ngược giữa kỳ hạn chứng thư.
 
-**Trạng thái xác minh:** hiệu lực và nội dung của Nghị định 70/2025 đã được kiểm
-chứng. Việc nó có ràng buộc **mã ngành cụ thể của pháp nhân này** hay không thì
-**chưa** — đang chờ đại lý thuế (`M0-06`). Báo cáo giữ nguyên viện dẫn, trích dẫn
-đầy đủ, và đánh dấu là *đang chờ xác nhận*.
+Nếu đại lý thuế kết luận không áp dụng, loại hoá đơn, thời điểm phát hành và
+luồng nhà cung cấp phải được thay bằng đúng kết luận đó trước khi viết mã hoặc
+mua sản phẩm.
 
 ## 5.8 Bảo vệ dữ liệu giấy tờ tuỳ thân
 
@@ -301,19 +307,12 @@ khác nhau.
 
 | Lớp | Nội dung | Động lực | Thời gian lưu |
 |---|---|---|---|
-| **Ảnh chụp giấy tờ** | JPEG/PNG của CCCD/hộ chiếu | Chỉ phục vụ vận hành — chứng minh danh tính *đã từng* được xác minh | **30 ngày sau khi trả phòng, xoá cứng** |
-| **Bản ghi lưu trú** | Họ tên, ngày sinh, quốc tịch, số CCCD, ngày lưu trú | Nghĩa vụ pháp lý — luật cư trú và luật kế toán | **Mức sàn luật định, tính bằng năm** |
+| **Ảnh chụp giấy tờ** | JPEG/PNG của CCCD/hộ chiếu | Phục vụ vận hành — chứng minh danh tính *đã từng* được xác minh | **`N` ngày sau khi trả phòng**, xoá cứng bằng lifecycle rule; `N` chờ tư vấn pháp lý bằng văn bản |
+| **Bản ghi lưu trú** | Họ tên, ngày sinh, quốc tịch, số CCCD, ngày lưu trú | Nghĩa vụ pháp lý — luật cư trú và luật kế toán | Mức sàn luật định theo tư vấn pháp lý bằng văn bản |
 
-Ảnh mang gần như toàn bộ rủi ro rò rỉ và gần như không mang nghĩa vụ pháp lý
-nào. Các trường dữ liệu mang nghĩa vụ, nhưng rủi ro thấp hơn nhiều (được mã hoá
-và che bớt).
-
-**Vì sao 30 ngày mà không phải 7.** Cửa sổ cần bảo hiểm là các **tranh chấp nổi
-lên muộn**: khiếu nại hư hỏng/mất mát xuất hiện lúc tổng vệ sinh hoặc khi khách
-kế tiếp phàn nàn — vài ngày tới vài tuần; tranh chấp thanh toán rơi vào sau kỳ
-sao kê thẻ, có thể tới một tháng; yêu cầu từ cơ quan chức năng đến theo lịch của
-họ. Sau khoảng 30 ngày, giá trị vận hành biên của tấm ảnh sụp xuống trong khi
-rủi ro tích tụ tuyến tính.
+Ảnh và bản ghi có mục đích, rủi ro và nghĩa vụ lưu trữ khác nhau nên không được
+gom vào một thời hạn suy đoán. Mục tiêu là thời hạn ngắn nhất vẫn đáp ứng nhu
+cầu vận hành và mức sàn pháp lý đã được luật sư xác nhận.
 
 **Quy tắc có thể bảo vệ được:** `thời gian lưu = max(nhu cầu vận hành, mức sàn
 pháp lý)`, đánh giá **theo từng lớp dữ liệu**, lý do ghi rõ cho từng lớp. Một
@@ -329,15 +328,22 @@ khung như vậy sống sót qua kiểm tra; một con số trần trụi thì k
 Truy cập chỉ qua presigned GET ngắn hạn, cấp bởi API **sau** khi kiểm tra vai
 trò, và **chính việc cấp URL** là thứ được ghi nhật ký — không phải việc tải về.
 
-> **Chưa chốt:** mức sàn luật định cho bản ghi lưu trú, và việc lưu trữ dữ liệu
-> CCCD ở nước ngoài (Singapore) có hợp lệ hay không. Cả hai đang chờ luật sư
-> (`M0-05`). Vì vậy N là **giá trị cấu hình**, không phải hằng số.
+> **Chưa chốt:** `N`, mức sàn cho bản ghi lưu trú, và việc lưu dữ liệu CCCD ở
+> Singapore có hợp lệ hay không. Tất cả đang chờ luật sư trả lời bằng văn bản
+> (`M0-05`). Vì vậy `N` là **giá trị cấu hình**, không phải hằng số.
 
 ## 5.9 Contract API
 
-Contract sống trong `packages/shared` dưới dạng router `@orpc/contract`, và cả
-ba mặt đều suy ra từ nó: hiện thực phía server (`@orpc/nest`), client có kiểu
-(`@orpc/client`), và tài liệu OpenAPI (`@orpc/openapi`).
+Thiết kế đã chấp nhận đặt router `@orpc/contract` trong `packages/shared`, từ đó
+sinh binding server, client có kiểu và OpenAPI. Cổng kỹ thuật `G1` đã xác nhận
+`@orpc/nest` cưỡng chế các sai lệch quan trọng ở mức biên dịch; bằng chứng quyết
+định nằm tại
+[`docs/architecture/tech-stack.md`](../architecture/tech-stack.md).
+
+Bằng chứng hiện tại hẹp hơn thiết kế: `packages/shared/src/index.ts` đang export
+các primitive/codec ngày và tiền; `apps/api` đã tồn tại nhưng các route hiện tại
+vẫn là Nest controller; router oRPC, `packages/api-client` và
+`docs/openapi.json` chưa tồn tại.
 
 Hai kiểu nguyên thuỷ của contract:
 
@@ -346,7 +352,6 @@ Hai kiểu nguyên thuỷ của contract:
 | `StayDate` | `CalendarDate` | Trộn một ngày lưu trú với một timestamp là **lỗi biên dịch** |
 | `VndAmount` | `bigint` | Không float ở bất kỳ đâu trên đường đi của tiền |
 
-> 🔶 **Chưa hoàn thành.** Danh sách endpoint đầy đủ được sinh tại `P0-DOC-02`
-> (`docs/openapi.json`, phục vụ qua Scalar) và phụ thuộc vào kết quả cổng `G1`.
-> Phần này sẽ được thay bằng bảng endpoint sinh tự động; báo cáo **không** liệt
-> kê một danh sách viết tay có nguy cơ trôi.
+> 🔶 **Chưa có artifact OpenAPI sinh tự động.** Khi generator tồn tại, artifact
+> và cấu hình phục vụ nó là bằng chứng; báo cáo **không** liệt kê một danh sách
+> endpoint viết tay có nguy cơ trôi.

@@ -7,8 +7,9 @@ evidence:
 
 Region is **AWS `ap-southeast-1` (Singapore)** wherever a region is selectable —
 the nearest mature region to Vietnam. No vendor here has a Vietnam region.
-Offshore storage of guest ID data is an accepted risk, to be closed with a
-lawyer before opening (`M0-05`).
+Offshore storage of guest ID data is a provisional design choice, not an
+accepted legal conclusion. It requires written legal advice before opening
+(`M0-05`; [SCRUM-13](https://hungphat2018-1785053353783.atlassian.net/browse/SCRUM-13)).
 
 ## Hosting
 
@@ -40,7 +41,8 @@ disabled, so it genuinely suspends.
 - **The R2 lifecycle rule enforces ID-scan retention; a job only verifies it.**
   Retention becomes bucket configuration rather than a cron that can fail
   silently. The object key carries the checkout date; `N` stays a config value
-  because the statutory floor may override it.
+  and must not be seeded as a legal fact until written advice establishes the
+  applicable floor.
 - Access to a scan is a short-TTL presigned GET issued by the API after the role
   check. **Issuance** is what gets audit-logged, not the fetch. The registration
   record itself stays in Postgres under statutory retention — only the image
@@ -57,7 +59,9 @@ One internal `PaymentGateway` port — `createPayment` / `verifyCallback` /
 - **VNPay may send the same IPN more than once.** A unique constraint on the
   gateway transaction id is mandatory, not defensive.
 - **Refunds are restricted in the VNPay sandbox** and must be requested during
-  merchant onboarding (`M0-04`), not discovered at P3.
+  merchant onboarding (`M0-04`;
+  [SCRUM-14](https://hungphat2018-1785053353783.atlassian.net/browse/SCRUM-14)),
+  not discovered at P3.
 - IPN URLs are configured per terminal in the merchant admin, so staging and
   production need separate terminals.
 - **MoMo is conditional** (P3.5), gated on measured VNPay-only abandonment. It
@@ -74,11 +78,16 @@ with a box unticked.
 ## E-invoice
 
 **Nghị định 70/2025/NĐ-CP** (Decree 70/2025, in force since 2025-06-01) names
-*khách sạn* (hotels) among businesses selling directly to consumers that
-must issue **hóa đơn điện tử khởi tạo từ máy tính tiền** — an electronic invoice
-created, signed and transmitted to the tax authority at the point of sale.
+*khách sạn* (hotels) in its point-of-sale e-invoice provisions. Whether those
+provisions bind Mariva's operating entity and registered activity is still
+unresolved; the tax agent's written answer is the authority (`M0-06`).
+The provider/accountant decision shares the same execution record:
+[SCRUM-12](https://hungphat2018-1785053353783.atlassian.net/browse/SCRUM-12).
 
-Consequences that shape the build:
+If applicability is confirmed, the target is **hóa đơn điện tử khởi tạo từ máy
+tính tiền** and the following constraints shape the build. If it is not
+confirmed, the required invoice subtype and provider workflow must be replaced
+from the written ruling before implementation or procurement:
 
 - Buy the *máy tính tiền* SKU, not the ordinary e-invoice product — same
   vendors, different SKU and different API (`M0-03`).

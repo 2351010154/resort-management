@@ -78,8 +78,8 @@ Ví dụ bắt được lỗi bạn nghĩ tới. Property bắt được lỗi b
 - các vai trò được phép đi qua, **và**
 - **ít nhất một vai trò bị từ chối nhận 403**.
 
-Dữ liệu test lấy từ **một bảng được export duy nhất** — cùng bảng mà `@Roles()`
-đọc. Ma trận và test do đó **không thể trôi khỏi nhau**. Một dòng thêm vào tài
+Dữ liệu test lấy từ **một bảng được export duy nhất** — cùng bảng mà capability
+guard đọc. Ma trận và test do đó **không thể trôi khỏi nhau**. Một dòng thêm vào tài
 liệu mà không có dòng test tương ứng là một lỗ hổng, và cấu trúc này khiến lỗ
 hổng đó không tồn tại được.
 
@@ -136,14 +136,14 @@ nhiều lần, và đó là hành vi đã xác minh.
 
 | Cổng | Kiểm tra gì | Trạng thái |
 |---|---|---|
-| Lint + format | Biome trên toàn kho mã | 🔶 Biome thay ESLint ở `P-1-09` |
+| Lint + format | Biome trên toàn kho mã, không còn cảnh báo tồn đọng | ❌ `apps/api` còn bị loại khỏi cổng gốc (`SCRUM-85`); cảnh báo arrival được theo dõi ở `SCRUM-96` |
 | Typecheck | `tsc --noEmit` trên toàn workspace | ✅ Đang chạy |
 | Build | `pnpm build` qua Turborepo | ✅ Đang chạy |
-| **Test** | `pnpm test` với Docker khả dụng | ❌ **Chưa có** — `P0-CI-04` |
-| **Trôi ERD** | Sinh lại từ lược đồ sống, **fail khi lệch** | ❌ Chưa có — `P0-DOC-01` |
-| **Độ phủ OpenAPI** | 100% endpoint có trong `openapi.json` | ❌ Chưa có — `P0-DOC-02` |
+| **Test** | `pnpm test` với database cô lập, không dùng cache cũ | ❌ **Chưa có** — `SCRUM-21` |
+| **Trôi ERD** | Sinh lại từ lược đồ sống, **fail khi lệch** | ❌ Chưa có — `SCRUM-89` |
+| **Độ phủ OpenAPI** | 100% procedure đã triển khai có trong `openapi.json` | ❌ Chưa có — `SCRUM-90`, bị chặn bởi `SCRUM-20` |
 | **Ngân sách bundle** | 0 byte `three`/`gsap`/`lenis` trong `/booking` | ❌ Chưa có — P4 |
-| **Phá vỡ contract có chủ ý** | Đổi contract mà không đổi hiện thực → **build fail** | ❌ Chưa có — `P0-C-04`, phụ thuộc `G1` |
+| **Phá vỡ contract có chủ ý** | Đổi contract mà không đổi hiện thực → **build fail** | ❌ Chưa có — `SCRUM-20`; spike `G1` đã đóng |
 
 Ba cổng cuối là loại cổng đáng nói. Chúng không kiểm thử hành vi; chúng khiến
 **một số loại sai lầm nhất định trở thành không thể merge được**:

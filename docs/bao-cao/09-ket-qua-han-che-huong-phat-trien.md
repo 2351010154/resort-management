@@ -1,33 +1,34 @@
 # Chương 9 — Kết quả, hạn chế và hướng phát triển
 
-> ⚠ **Chương này chờ kết quả xây dựng.** §9.2 và §9.3 chỉ được điền bằng số liệu
-> **đo trực tiếp**, theo lịch chụp hiện vật ở chương 6 §6.9. Không có ô nào được
-> điền bằng ước lượng. §9.4 trở đi đã viết được ngay, vì hạn chế và lộ trình là
-> hệ quả của các quyết định đã đưa ra chứ không phải của kết quả chưa có.
+> ⚠ **Đây là chương dẫn xuất và đang cần đối chiếu.** §9.2 và §9.3 chỉ được
+> điền bằng bằng chứng trực tiếp; không có ô nào được điền bằng ước lượng.
+> Trước khi nộp phải kiểm lại chương này với tài liệu canonical, mã nguồn, test,
+> schema, workflow CI và artifact sinh hiện tại.
 
 ## 9.1 Trạng thái tại thời điểm biên soạn
 
-Ghi trung thực, để chương này có mốc so sánh khi được cập nhật.
+Đây là ảnh chụp đối chiếu có thể cũ đi; các đường dẫn ở cột bằng chứng mới là
+chủ sở hữu hiện tại.
 
-| Bề mặt | Trạng thái |
-|---|---|
-| `apps/web` | **Mã chạy thật.** Trang marketing scrollytelling sáu act. Đang migrate React 18.3 → 19 và Next 14.2 → 16, phía sau một Playwright visual baseline đã commit (`b80e902`) |
-| `apps/api` | Ranh giới đã đặt chỗ. Chưa có `package.json`, chưa có lược đồ |
-| `apps/admin` | Ranh giới đã đặt chỗ |
-| `packages/shared` | Chỉ `zod ^4.4.3` |
-| `packages/api-client` | `src/` rỗng |
-| CI | Lint + typecheck + build. **Chưa có test** |
-| Tài liệu kiến trúc | 3 tài liệu viết **trước** mã: cấu trúc kho mã, ma trận RBAC, máy trạng thái booking |
-| Backlog | Hợp nhất, 11 mốc, có thứ tự phụ thuộc, 48 chỉ tiêu làm DoD |
+| Bề mặt | Bằng chứng hiện tại | Kết luận hẹp |
+|---|---|---|
+| `apps/web` | `apps/web/package.json`, `apps/web/app/`, `apps/web/features/` | Bề mặt marketing, auth và booking đã có mã; trạng thái từng yêu cầu không suy ra từ việc route tồn tại |
+| `apps/api` | [`app.module.ts`](../../apps/api/src/app.module.ts), [`package.json`](../../apps/api/package.json) | API nền tảng, health, identity, notification và hai realm auth đã tồn tại |
+| Lược đồ API | [`schema/index.ts`](../../apps/api/src/database/schema/index.ts), [`migrations/`](../../apps/api/src/database/migrations/) | Đã có schema/migration identity và guest auth; chưa có schema inventory/booking/folio |
+| `packages/shared` | [`src/index.ts`](../../packages/shared/src/index.ts) | Primitive/codec ngày, tiền và contract lịch giá đã tồn tại; router oRPC chưa có |
+| `apps/admin`, `packages/api-client` | README/ranh giới dự kiến | Chưa phải bề mặt sản phẩm có thể tuyên bố hoàn thành |
+| CI và test | [workflow CI](../../.github/workflows/ci.yml), test cạnh mã trong `apps/api` và `packages/shared` | Test tồn tại và chạy được cục bộ khi có database test; workflow CI hiện chưa chạy bước test |
+| Artifact sinh | `docs/erd.dbml`, `docs/openapi.json` | Chưa tồn tại; các hình thiết kế và mô tả contract không phải artifact sinh |
 
-Điều đáng nói ở bảng này: **tài liệu kiến trúc được viết trước mã**, theo đúng
-quy tắc "đổi tài liệu trước, rồi mới đổi mã". Ma trận RBAC và bảng chuyển trạng
-thái tồn tại đầy đủ và có thẩm quyền, dù chưa một dòng nào cưỡng chế chúng.
+Kiến trúc được phép đi trước mã, nhưng không được đọc như release proof. Trạng
+thái công việc thuộc hệ thống thực thi được chỉ ra tại
+[`docs/README.md`](../README.md).
 
 ## 9.2 Kết quả đo
 
-> ⚠ **Chưa có kết quả nào.** Bảng đầy đủ 20 chỉ tiêu kèm mốc sinh ra chúng nằm ở
-> chương 7 §7.8.
+> ⚠ **Chưa có bằng chứng cho các kết quả chủ lực dưới đây.** Kho mã đã có test
+> cho primitive, auth và RBAC, nhưng đó không phải bằng chứng thay thế cho test
+> tương tranh inventory, toàn vẹn folio, E2E nhận phòng hoặc ngân sách bundle.
 
 Bốn kết quả dưới đây được xác định là **kết quả chủ lực** của báo cáo — tức là
 những con số mà, khi có, sẽ mang phần lớn sức nặng của chương này.
@@ -55,9 +56,9 @@ theo cách này".
 
 | # | Gạch đầu dòng | Mốc / epic | Mã issue | Bằng chứng |
 |---|---|---|---|---|
-| 1 | Phân quyền ≥ 3 mức | `P0-AUTH` | | *chưa* |
+| 1 | Phân quyền ≥ 3 mức | `P0-AUTH` | | [`access.guard.spec.ts`](../../apps/api/src/common/auth/access.guard.spec.ts) và [`matrix.spec.ts`](../../apps/api/src/modules/identity/rbac/matrix.spec.ts) |
 | 2 | Loại phòng và thuộc tính | `P1-SCH-01` | | *chưa* |
-| 3 | Tài khoản khách | M7 | | *chưa* |
+| 3 | Tài khoản khách | M7 | | Auth đã có test; hồ sơ, lịch sử lưu trú và điểm tích luỹ chưa có bằng chứng hoàn thành |
 | 4 | Phản hồi sau lưu trú | M7 | | *chưa* |
 | 5 | Hiển thị phòng trống | `P1-AVL-01` | | *chưa* |
 | 6 | Tìm kiếm | `P2-SRC` | | *chưa* |
@@ -68,9 +69,9 @@ theo cách này".
 | 11 | Thu chi | M8 | | *chưa* |
 | 12 | Thanh toán trực tuyến | `P3-PAY` | | *chưa* — **một** cổng production đóng yêu cầu này |
 
-Cột "Mã issue" được điền **trong lúc tạo ticket**, không phải sau. Khi đó phụ lục
-"đối chiếu yêu cầu" tự lắp ráp, và cùng một bảng vừa chứng minh đồ án hoàn thành
-vừa chứng minh không có yêu cầu nào bị bỏ sót.
+Mã issue và trạng thái thuộc hệ thống thực thi. Cột bằng chứng chỉ được điền khi
+có source/test/schema/artifact chứng minh trọn vẹn yêu cầu, không chỉ khi ticket
+được đóng.
 
 ## 9.4 Hạn chế
 
@@ -93,20 +94,22 @@ Phần này viết được ngay, vì hạn chế là hệ quả của các quy�
 |---|---|---|
 | **Một người, không bus factor** | Không ai review; nếu người này dừng, dự án dừng | Test dồn vào đường tiền và tồn kho (không phải UI); tài liệu viết song song với mã |
 | **Tự xây toàn bộ, không thuê PMS** | Ta sở hữu uptime của một doanh nghiệp mất tiền khi hệ thống chết. Không có nhà cung cấp nào để gọi lúc 23 giờ đêm Ba mươi Tết | Giám sát, cảnh báo, và một **runbook dự phòng giấy** viết như thể nó sẽ được dùng |
-| **Lưu ảnh giấy tờ tuỳ thân** | Dữ liệu rủi ro cao nhất trong hệ thống | Giảm thiểu rẻ nhất là lưu trữ ngắn hạn quyết liệt: 30 ngày, cưỡng chế bởi lifecycle rule của bucket (chương 5 §5.8) |
+| **Lưu ảnh giấy tờ tuỳ thân** | Dữ liệu rủi ro cao nhất trong hệ thống | Lifecycle rule cưỡng chế thời hạn `N`; `N` là cấu hình chỉ được chốt sau tư vấn pháp lý bằng văn bản (chương 5 §5.8) |
 | **Một region, một instance** | Sự cố AZ ở Singapore làm sập toàn bộ | Đánh đổi đúng ở quy mô này |
 
-### 9.4.3 Câu hỏi pháp lý còn mở
+### 9.4.3 Câu hỏi bên ngoài và nghiệp vụ còn mở
 
-Ba câu hỏi dưới đây **không** được trình bày như đã kết luận, và đó là chủ ý.
+Các câu hỏi dưới đây **không** được trình bày như đã kết luận, và đó là chủ ý.
 
 | Câu hỏi | Trạng thái | Ai trả lời |
 |---|---|---|
+| VAT có tính trên phí phục vụ hay không; thuế suất và thời hạn ưu đãi nào áp dụng? | **Mở.** Tất cả là cấu hình, không phải hằng số | Kế toán |
+| Khi nào giường phụ là bắt buộc; phí giường phụ cộng dồn hay thay thế phí người thêm? | **Mở.** Thiết kế hiện chưa được phép suy ra từ sức chứa | Chủ đầu tư |
 | Nghị định 70/2025 có ràng buộc **mã ngành của pháp nhân này** không? | **Mở.** Nội dung nghị định đã kiểm chứng; phạm vi áp dụng thì chưa | Đại lý thuế (`M0-06`) |
-| Lưu ảnh CCCD ở nước ngoài (Singapore) có hợp lệ không? | **Mở.** Rủi ro pháp lý đã được chấp nhận có ý thức, chờ đóng lại trước khi khai trương | Luật sư (`M0-05`) |
-| Mức sàn lưu trữ luật định cho bản ghi lưu trú là bao nhiêu? | **Mở.** Vì vậy N là giá trị **cấu hình**, không phải hằng số | Luật sư (`M0-05`) |
+| Lưu ảnh CCCD ở nước ngoài (Singapore) có hợp lệ không? | **Mở.** Đây là thiết kế tạm thời, không phải rủi ro pháp lý đã được chấp nhận | Luật sư (`M0-05`) |
+| `N` và mức sàn lưu trữ luật định cho bản ghi lưu trú là bao nhiêu? | **Mở.** `N` là giá trị **cấu hình**, không phải hằng số | Luật sư (`M0-05`) |
 
-Việc giữ ba dòng này ở trạng thái "mở" thay vì điền một câu trả lời nghe hợp lý
+Việc giữ các dòng này ở trạng thái "mở" thay vì điền một câu trả lời nghe hợp lý
 là điều báo cáo cố ý làm. Một khung quyết định có ghi rõ điều chưa biết thì sống
 sót qua kiểm tra; một con số trần trụi thì không.
 
@@ -146,21 +149,27 @@ bảo vệ.
 
 ## 9.6 Tự đánh giá
 
-Phần này được viết trước khi có kết quả, và sẽ được xem lại sau.
+Phần này là bản tự đánh giá dẫn xuất và phải được xem lại cùng bằng chứng trước
+khi nộp.
 
 **Điều đã làm đúng, và có bằng chứng ngay bây giờ:**
 
-- Tài liệu kiến trúc được viết **trước** mã, có thẩm quyền, và có quy tắc "đổi tài liệu trước".
-- Một backlog hợp nhất duy nhất, với **sổ đối chiếu ghi lại bảy thứ đã bị thay thế và vì sao** (chương 6 §6.6). Việc này ngăn cùng một lỗi được sửa hai lần.
-- Ba cổng chặn được mô hình hoá thành issue thay vì thành ý định tốt.
-- Một quyết định kỹ thuật bị **đảo có ghi chép** (ts-rest → oRPC, chương 3 §3.6), kèm bằng chứng đã dẫn tới việc đảo.
-- Visual baseline được commit **trước** khi chạm vào dependency đầu tiên — lưới an toàn mà sáu act chưa từng có.
+- Tài liệu kiến trúc có chủ sở hữu rõ và tách ý định khỏi bằng chứng phát hành.
+- `G1` đã được đo và đóng với kết quả đi tiếp; bằng chứng nằm ở
+  `docs/architecture/tech-stack.md`.
+- API nền tảng, auth, schema identity/guest-auth và test tương ứng đều có chủ sở
+  hữu thực thi ở các đường dẫn trong §9.1.
 
 **Điều còn là rủi ro:**
 
-- **`D1`–`D4` và `D7` vẫn mở.** Khoảng hai giờ ra quyết định đang chặn tiêu chí nghiệm thu của hai mốc. Đây hiện là điểm nghẽn lớn nhất còn lại.
-- **Chưa có test nào.** CI hiện chỉ chứng minh hệ thống biên dịch được, không chứng minh nó đúng.
-- Cổng `G1` chưa chạy, nên toàn bộ tầng contract vẫn là tạm thời.
+- Các câu trả lời về tax base, giường phụ, retention và phạm vi áp dụng HĐĐT
+  vẫn chưa có văn bản.
+- Test tồn tại nhưng workflow CI chưa chạy chúng; môi trường database test chưa
+  hermetic.
+- Router oRPC, API client, OpenAPI và ERD sinh tự động chưa có; `G1` chỉ chứng
+  minh lựa chọn kỹ thuật khả thi, không chứng minh tầng contract đã được xây.
+- Báo cáo từng trôi khỏi mã nguồn; cho tới lượt đối chiếu trước khi nộp, không
+  chương nào được coi là nguồn trạng thái.
 
 **Bất đồng được ghi lại và giữ nguyên:** phân tích ban đầu khuyến nghị thuê một
 PMS có sẵn và chỉ tự xây phần đặt phòng trực tiếp. Chủ đầu tư chọn tự xây toàn

@@ -6,7 +6,7 @@ Mười hai gạch đầu dòng, phát biểu lại ở dạng kiểm chứng đ
 
 | # | Yêu cầu | Phát biểu kiểm chứng được |
 |---|---|---|
-| 1 | Phân quyền ≥ 3 mức | Sáu vai trò: `GUEST`, `RECEPTIONIST`, `HOUSEKEEPING`, `ACCOUNTANT`, `MANAGER`, `ADMIN`. Mọi route đều có guard; ma trận được tài liệu hoá và có test |
+| 1 | Phân quyền ≥ 3 mức | Năm vai trò nhân viên: `RECEPTIONIST`, `HOUSEKEEPING`, `ACCOUNTANT`, `MANAGER`, `ADMIN`, cộng principal `GUEST` ở realm riêng. Mọi route đều có guard; ma trận được tài liệu hoá và có test |
 | 2 | Loại phòng và thuộc tính | Loại (Standard/Deluxe/Suite/VIP) với cấu hình giường, diện tích m², hướng nhìn, ban công, tiện nghi, sức chứa tối đa, ảnh. Buồng thuộc về một loại, mang số và tầng |
 | 3 | Tài khoản khách | Đăng ký/đăng nhập, hồ sơ, dữ liệu giấy tờ, hạng VIP, điểm tích luỹ, lịch sử lưu trú của chính mình |
 | 4 | Phản hồi sau lưu trú | Gắn với một booking đã `CHECKED_OUT` |
@@ -35,12 +35,12 @@ chúng là tường chịu lực.
 | 14 | **Rate plan và mùa vụ** | Giá cơ bản theo loại theo ngày; ghi đè cuối tuần/lễ/mùa; số đêm tối thiểu; chính sách huỷ. "Giảm giá, khuyến mãi" của đề bài chỉ là một lát mỏng của việc này |
 | 15 | **Máy trạng thái vòng đời booking** | Sáu trạng thái, chuyển trạng thái bất hợp lệ bị từ chối. Chi tiết ở chương 5 §4 |
 | 16 | **Trạng thái buồng phòng** | `CLEAN` / `DIRTY` / `INSPECTED` / `OUT_OF_ORDER`, **trực giao** với tình trạng có khách. Khách trả phòng ≠ buồng bán được ngay |
-| 17 | **Folio / sổ ghi phí** | Sổ theo từng booking: tiền buồng + dịch vụ + thuế; VAT và phí phục vụ là các dòng riêng; đặt cọc, hoàn tiền. Huỷ hoá đơn = bút toán đảo, không bao giờ là xoá |
-| 18 | **Hoá đơn điện tử khởi tạo từ máy tính tiền** | Không phải HĐĐT thông thường. **Nghị định 70/2025/NĐ-CP** (hiệu lực 01/06/2025) nêu đích danh *khách sạn*. Màn hình trả phòng chính **là** máy tính tiền. Cần chứng thư ký số HSM, không bao giờ là USB token |
+| 17 | **Folio / sổ ghi phí** | Sổ theo từng booking: tiền buồng + dịch vụ + thuế; VAT và phí phục vụ là các dòng riêng; đặt cọc, hoàn tiền. Thuế suất và việc VAT có tính trên phí phục vụ hay không là cấu hình đang chờ kế toán trả lời bằng văn bản. Huỷ hoá đơn = bút toán đảo, không bao giờ là xoá |
+| 18 | **Luồng hoá đơn điện tử theo kết luận thuế** | **Nghị định 70/2025/NĐ-CP** nêu *khách sạn*, nhưng phạm vi áp dụng với pháp nhân và mã ngành vận hành Mariva chưa được xác nhận. Nếu đại lý thuế xác nhận áp dụng, màn hình trả phòng là máy tính tiền và cần chữ ký số HSM; nếu không, kết luận bằng văn bản của đại lý thuế quyết định loại hoá đơn và luồng tích hợp |
 | 19 | **Night audit / ngày làm việc** | Chốt đêm: ghi tiền buồng, đẩy ngày làm việc, đóng băng snapshot. **Không** phát hành hoá đơn — xem yêu cầu 18 |
 | 20 | **KPI khách sạn** | Công suất buồng, ADR, RevPAR. Không chỉ là doanh thu gộp |
 | 21 | **Idempotency webhook và đối soát** | Callback trùng không được ghi có hai lần; đối soát hằng ngày với báo cáo của cổng thanh toán |
-| 22 | **Bảo vệ dữ liệu giấy tờ khách** | Lưu trữ riêng tư, mã hoá khi lưu, URL ký ngắn hạn, chặn theo vai trò, ghi nhật ký truy cập, tự xoá |
+| 22 | **Bảo vệ dữ liệu giấy tờ khách** | Lưu trữ riêng tư, mã hoá khi lưu, URL ký ngắn hạn, chặn theo vai trò, ghi nhật ký truy cập, tự xoá sau `N` ngày; `N` là cấu hình chờ tư vấn pháp lý bằng văn bản |
 | 23 | **Thông báo giao dịch** | Email xác nhận / huỷ / nhắc trước ngày đến |
 
 ### 2.2.1 Vì sao yêu cầu 13 là yêu cầu đắt nhất
@@ -90,8 +90,10 @@ Từ chối là 403 chứ không phải 401: token hợp lệ, chỉ là sai rea
 
 ### 2.4.1 Ba quy tắc phân quyền định hình ma trận
 
-**Từ chối mặc định.** Một route không có `@Roles()` là route *không tới được*,
-không phải route công khai. Route công khai phải được đánh dấu tường minh.
+**Từ chối mặc định.** Một route không khai báo năng lực là route *không tới
+được*, không phải route công khai. Ngoại lệ công khai phải được đánh dấu tường
+minh; chủ sở hữu thực thi nằm tại
+`apps/api/src/common/auth/access.decorators.ts`.
 
 **Thẩm quyền về tiền tách khỏi thẩm quyền vận hành.** Lễ tân chuyển khách và thu
 tiền; đảo một bút toán hoặc miễn một khoản phạt là vai trò khác. Đây là chỗ duy
@@ -99,8 +101,8 @@ nhất ma trận cố tình nghiêm ngặt.
 
 **Chính sách và ngoại lệ là hai endpoint khác nhau**, không phải một endpoint có
 thêm câu lệnh kiểm tra số tiền. `refund.policy` và `refund.override` mang
-`@Roles()` khác nhau. Một điều kiện `if` trong thân hàm là thứ bị bỏ qua khi
-người ta vội; một guard khác thì không.
+khai báo năng lực khác nhau. Một điều kiện `if` trong thân hàm là thứ bị bỏ qua
+khi người ta vội; một guard khác thì không.
 
 `ADMIN ⊇ MANAGER` là ngoại lệ có chủ ý. Ở một cơ sở duy nhất với một chủ, bắt
 đổi tài khoản chỉ để huỷ một hoá đơn là loại ma sát sẽ bị lách. Nhật ký kiểm
@@ -111,15 +113,16 @@ toán vẫn ghi lại người thực hiện, nên quy trách nhiệm không m�
 ![Biểu đồ use case](hinh/use-case.png)
 
 **Hình 2.1** — Biểu đồ use case. Màu thể hiện vai trò *chính* của mỗi use case;
-quyền đầy đủ theo từng vai trò nằm ở ma trận RBAC (§2.6). Sinh từ
-`docs/architecture/rbac-matrix.md`; tại `P0-DOC-03` hình này được sinh lại trong
-CI để không lệch khỏi ma trận mà `@Roles()` thực thi.
+quyền đầy đủ theo từng vai trò nằm ở ma trận RBAC (§2.6). Đây là bản vẽ thiết
+kế dẫn xuất từ `docs/architecture/rbac-matrix.md`, chưa phải output sinh tự
+động. Bằng chứng thực thi hiện tại là bảng capability và test được dẫn ở
+§2.6.1.
 
 Nguồn `.drawio`: [`hinh/use-case.drawio`](hinh/use-case.drawio).
 
 ## 2.6 Ma trận RBAC
 
-Ma trận đầy đủ — khoảng 45 năng lực × 6 vai trò — là
+Ma trận đầy đủ là
 [`docs/architecture/rbac-matrix.md`](../architecture/rbac-matrix.md), và tài liệu
 đó là **nguồn có thẩm quyền**: đổi tài liệu trước, rồi mới đổi mã.
 
@@ -144,17 +147,18 @@ tuần.
 
 ### 2.6.1 Nghĩa vụ kiểm thử
 
-`P0-AUTH-04` giao một test mà với **mọi** dòng của ma trận, khẳng định các vai
-trò được phép đi qua và **ít nhất một vai trò bị từ chối nhận 403**. Test lấy dữ
-liệu từ một bảng được export duy nhất, nên ma trận và test không thể trôi khỏi
-nhau.
+Nghĩa vụ này đã có chủ sở hữu thực thi:
+`apps/api/src/common/auth/access.guard.spec.ts` kiểm tra guard theo dữ liệu,
+còn `apps/api/src/modules/identity/rbac/matrix.spec.ts` kiểm tra cấu trúc ma
+trận. Ma trận thiết kế vẫn do
+[`docs/architecture/rbac-matrix.md`](../architecture/rbac-matrix.md) sở hữu.
 
 Khẳng định chéo realm là riêng biệt và không thương lượng: token khách → route
 nhân viên → 403; token nhân viên → route khách → 403.
 
 ## 2.7 Yêu cầu chưa chốt
 
-Sáu dòng trong ma trận RBAC và ba dòng trong máy trạng thái mang dấu ⚑ — đó là
+Sáu dòng trong ma trận RBAC và hai dòng trong máy trạng thái mang dấu ⚑ — đó là
 quyết định của **chủ đầu tư**, không phải quyết định kỹ thuật. Chúng được ghi
 kèm giá trị giả định để không chặn việc xây, nhưng phải được ký duyệt trước khi
 khai trương.
@@ -170,8 +174,15 @@ khai trương.
 | 7 | Cho nhận phòng sớm trước ngày đến? | Chặn, đã có cờ cấu hình sẵn |
 | 8 | Cho nhận phòng vào buồng `DIRTY` khi quản lý duyệt? | Chặn hoàn toàn |
 
-Ngoài ra còn năm quyết định **thương mại** chặn việc viết tiêu chí nghiệm thu
-cho P1 và P3 — số buồng và cơ cấu loại, mô hình thuế, lưới phạt huỷ, cơ cấu giá
-lúc khai trương, danh mục dịch vụ. Chúng được theo dõi là `D1`–`D4` và `D7`
-trong `plans/backlog.md`, và chúng là điểm nghẽn lớn nhất còn lại. Chi tiết ở
-chương 6 §6.
+Các mặc định về cơ sở, lưới huỷ, cơ cấu giá và danh mục dịch vụ đã được ghi ở
+[`docs/architecture/property-and-tariff.md`](../architecture/property-and-tariff.md);
+đó là thiết kế đề xuất, không phải bằng chứng khai trương. Bốn đầu vào vẫn chưa
+được phép suy đoán:
+
+- kế toán xác nhận thuế suất, thời hạn ưu đãi và VAT có tính trên phí phục vụ
+  hay không;
+- chủ đầu tư xác nhận khi nào giường phụ là bắt buộc và phí giường phụ cộng dồn
+  hay thay thế phí người thêm;
+- luật sư xác nhận `N` và việc lưu ảnh CCCD tại Singapore;
+- đại lý thuế xác nhận Nghị định 70/2025 có áp dụng cho pháp nhân và mã ngành
+  vận hành Mariva hay không.

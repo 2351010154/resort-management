@@ -82,7 +82,7 @@ Rejections that are not about the state pair.
 ## 5. Operations that do not change state
 
 These are where most real front-desk work happens. Legality is per state, and
-each is a separate endpoint with its own `@Roles()`.
+each is a separate endpoint with its own `@RequiresCapability()` declaration.
 
 | Operation | Legal in | Notes |
 |---|---|---|

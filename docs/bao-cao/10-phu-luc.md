@@ -70,63 +70,22 @@ vừa chứng minh không yêu cầu nào bị bỏ sót.
 Cột "Mã issue" và "Bằng chứng" được điền **trong lúc tạo và đóng ticket**, không
 phải ở cuối dự án.
 
-## C. Danh mục ADR
+## C. Nguồn quyết định
 
-Các quyết định kiến trúc được ghi thành tệp `docs/adr/NNNN-slug.md` với bốn mục:
-**bối cảnh, quyết định, lý do, hệ quả**, kèm ngày.
-
-> 🔶 Thư mục `docs/adr/` chưa được tạo. Bảng dưới đây liệt kê những quyết định
-> **đã chốt** cần backfill, cùng những quyết định sẽ sinh ADR khi được chốt.
-
-### Cần backfill — đã quyết định
-
-| # | Quyết định | Ghi ở |
-|---|---|---|
-| 1 | Monorepo pnpm + Turborepo, một API ba consumer | Ch4 §4.2 |
-| 2 | Modular monolith thay vì microservice | Ch4 §4.1 |
-| 3 | NestJS 11 + Express 5 | Ch3 §3.3 |
-| 4 | Postgres, với bất biến cưỡng chế bởi ràng buộc | Ch5 §5.3 |
-| 5 | **Drizzle thay vì Prisma** | Ch3 §3.4.1 |
-| 6 | **oRPC thay vì ts-rest — một lần đảo quyết định** | Ch3 §3.6 |
-| 7 | **pg-boss thay vì Redis/BullMQ**, và đặt ở P3 chứ không P6 | Ch3 §3.4.2; Ch6 §6.6 |
-| 8 | Tồn kho hai tầng | Ch5 §5.3 |
-| 9 | `bigint` VND, không dùng thư viện tiền tệ | Ch3 §3.5 |
-| 10 | `@internationalized/date` — bất biến ngày thành lỗi biên dịch | Ch3 §3.5 |
-| 11 | Hai realm xác thực tách biệt | Ch2 §2.4 |
-| 12 | Neon / Fly.io / Vercel / R2 / Resend / Better Stack, region Singapore | Ch8 §8.2 |
-| 13 | VNPay trước, MoMo có điều kiện | Ch6 §6.2 |
-| 14 | Ảnh giấy tờ: 30 ngày, cưỡng chế bởi lifecycle rule | Ch5 §5.8 |
-| 15 | SKU hoá đơn từ máy tính tiền + chứng thư HSM | Ch5 §5.7 |
-| 16 | Không bao giờ xây đường ghi offline | Ch8 §8.6.1 |
-| 17 | Tailwind 4 cho admin, CSS Modules giữ nguyên cho web | Ch3 §3.7 |
-| 18 | Testcontainers thay vì service container của CI | Ch7 §7.2.1 |
-
-### Sẽ sinh ADR khi được chốt
-
-`D1` dữ kiện cơ sở · `D2` mô hình thuế · `D3` lưới huỷ · `D4` cơ cấu giá ·
-`D7` danh mục dịch vụ · `D8` ký pháp sơ đồ · `G1` kết quả spike oRPC.
+Báo cáo không duy trì một danh mục ADR song song. Bản đồ thẩm quyền tại
+[`docs/README.md`](../README.md) chỉ tới tài liệu sở hữu từng quyết định; chương
+2–6 chỉ dẫn lại lý do cần cho bài báo cáo. `G1` đã đóng và bằng chứng nằm tại
+[`docs/architecture/tech-stack.md`](../architecture/tech-stack.md), không còn là
+câu hỏi hay ADR cần sinh.
 
 ## D. Hướng dẫn cài đặt
 
-> 🔶 Chỉ phần `apps/web` chạy được ở thời điểm này. Phần API và admin sẽ bổ sung
-> khi `P0-API-01` và `P2-UI` hoàn tất.
-
-### Yêu cầu
-
-- Node.js — dòng LTS chẵn (xem `.nvmrc`)
-- pnpm 11.1.2
-- Docker Desktop — **bắt buộc** cho Testcontainers và Postgres cục bộ
-
-### Các bước
-
-```bash
-pnpm install
-pnpm dev        # chạy toàn workspace qua Turborepo
-pnpm build
-pnpm lint
-pnpm typecheck
-pnpm test       # sẽ chạy khi P0-CI-04 hoàn tất
-```
+Hướng dẫn chạy toàn workspace thuộc
+[`README.md`](../../README.md#getting-started); lệnh và yêu cầu riêng của API
+thuộc [`apps/api/README.md`](../../apps/api/README.md#commands). API đã có
+package, schema identity/guest-auth và lệnh chạy; admin vẫn là ranh giới dự
+kiến. Phụ lục không chép lại chuỗi lệnh vì manifest và README sở hữu chúng sẽ
+thay đổi trước bản báo cáo này.
 
 ## E. Tài liệu tham khảo
 
@@ -192,7 +151,9 @@ Exclusion Constraints, btree_gist*, `postgresql.org/docs`.
 
 [23] `docs/architecture/repository-structure.md` — cấu trúc kho mã và các quy tắc phụ thuộc.
 
-[24] `docs/architecture/rbac-matrix.md` — ma trận phân quyền sáu vai trò. **Nguồn có thẩm quyền** cho guard `@Roles()` và test của nó.
+[24] `docs/architecture/rbac-matrix.md` — ma trận năng lực cho năm vai trò nhân
+viên và principal `GUEST` ở realm riêng. **Nguồn có thẩm quyền** cho capability
+guard; mã mirror và test nằm dưới `apps/api/src/modules/identity/rbac/`.
 
 [25] `docs/architecture/booking-state-machine.md` — bảng chuyển trạng thái. **Nguồn có thẩm quyền** cho máy trạng thái và các test chuyển trạng thái bất hợp lệ.
 
@@ -230,18 +191,13 @@ liệu) và `.svg` (vector, có nhúng XML nên mở lại được trong draw.i
 
 Tập hợp lại từ toàn bộ báo cáo, xếp theo mức độ chặn.
 
-| # | Câu hỏi | Chặn | Ai trả lời |
-|---|---|---|---|
-| 1 | `D1`–`D4`, `D7` — dữ kiện cơ sở, mô hình thuế, lưới huỷ, cơ cấu giá, danh mục dịch vụ | Tiêu chí nghiệm thu M3 và M6, và quy tắc nghiệp vụ ở Ch2. **Điểm nghẽn lớn nhất** | Chủ đầu tư + kế toán |
-| 2 | `G1` — `@orpc/nest` có cưỡng chế contract ở mức biên dịch không? | Toàn bộ tầng contract (Ch3 §3.6) | Spike 30 phút |
-| 3 | `D8` — ký pháp sơ đồ: UML nghiêm ngặt hay sơ đồ sinh tự động | Ch2, Ch4, Ch5 | Giảng viên |
-| 4 | Giảng viên có chấp nhận ranh giới phạm vi theo pha (Ch1 §1.4) hay yêu cầu một hệ thống hoàn chỉnh duy nhất? | Cách trình bày Ch1 và Ch9 | Giảng viên |
-| 5 | Ràng buộc định dạng — số trang, kiểu trích dẫn, phương thức nộp | Mật độ bảng ở Ch3, số lượng hình | Giảng viên |
-| 6 | Ngày tháng nộp | Ch0 trang bìa | Sinh viên — phụ thuộc hạn nộp |
-| 7 | Nghị định 70/2025 có ràng buộc mã ngành của pháp nhân này không? | Việc mua SKU HĐĐT, không chặn mã | Đại lý thuế |
-| 8 | Lưu trữ CCCD ở nước ngoài và mức sàn lưu trữ luật định | Giá trị `N` trong cấu hình | Luật sư |
-| 9 | VNPay có cấp quyền sandbox hoàn tiền không? | Chiến lược kiểm thử đường hoàn tiền ở P3 | VNPay |
-
-**Đã đóng:** hạn nộp đồ án — chưa ấn định và còn xa (xác nhận 2026-07-26). Điều
-này hợp thức hoá chiến lược xây-trước-viết-sau ở Ch6 §6.8. Đối chiếu lại với
-bảng mốc khi hạn nộp được ấn định.
+| Câu hỏi | Chặn | Ai trả lời |
+|---|---|---|
+| Thuế suất, thời hạn ưu đãi và VAT có tính trên phí phục vụ không? | Công thức tổng tiền; các giá trị phải là cấu hình | Kế toán, bằng văn bản |
+| Khi nào giường phụ bắt buộc; phí giường phụ cộng dồn hay thay thế phí người thêm? | Báo giá cho nhóm vượt occupancy bao gồm | Chủ đầu tư |
+| `D8` — UML nghiêm ngặt hay sơ đồ sinh tự động? | Hình trong báo cáo | Giảng viên |
+| Giảng viên có chấp nhận ranh giới phạm vi theo pha hay yêu cầu một hệ thống hoàn chỉnh duy nhất? | Cách trình bày phạm vi và kết quả | Giảng viên |
+| Ràng buộc định dạng và ngày nộp là gì? | Lắp ráp bản nộp | Giảng viên / sinh viên |
+| Nghị định 70/2025 có áp dụng cho pháp nhân và mã ngành này không? | Loại HĐĐT, SKU và luồng phát hành | Đại lý thuế, bằng văn bản |
+| `N`, mức sàn lưu trữ bản ghi và việc lưu CCCD ở Singapore có hợp lệ không? | Cấu hình lifecycle và nơi lưu trữ | Luật sư, bằng văn bản |
+| VNPay có cấp quyền sandbox hoàn tiền không? | Bằng chứng kiểm thử đường hoàn tiền | VNPay |

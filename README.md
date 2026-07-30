@@ -12,17 +12,19 @@
 </div>
 
 Mariva has two audiences that never meet. A **guest** finds a free room on the public
-site, books it and pays online. **Staff** — six roles, from housekeeping to admin — run
+site, books it and pays online. **Staff** — five roles, from housekeeping to admin — run
 the property: check people in, post charges, take payment, issue the legal invoice, hand
-over the shift, read the numbers.
+over the shift, read the numbers. `GUEST` is a separate actor and authentication realm,
+not a sixth staff role.
 
 One database, one set of business rules, two front doors.
 
 > [!NOTE]
-> **This is a system under construction, not a finished product.** The web surface and
-> the API's foundations (config, database, logging, health, both authentication realms,
-> the capability guard) are built. Inventory, booking, folio and payments are designed in
-> `docs/architecture/` but not yet implemented — see [Roadmap](#roadmap).
+> **This is a system under construction, not a finished product.** The
+> [SCRUM Jira project](https://hungphat2018-1785053353783.atlassian.net/issues/?jql=project%20%3D%20SCRUM)
+> owns current delivery status, assignment, priority, sprint, dates and blockers.
+> Repository documentation records durable requirements, decisions and rationale;
+> a documented target is not evidence that it has shipped.
 
 ## Contents
 
@@ -34,7 +36,7 @@ One database, one set of business rules, two front doors.
 - [Quality gates](#quality-gates)
 - [Asset and capture pipelines](#asset-and-capture-pipelines)
 - [Documentation](#documentation)
-- [Roadmap](#roadmap)
+- [Delivery planning](#delivery-planning)
 
 ## The invariant
 
@@ -111,14 +113,14 @@ infrastructure, to `packages/shared` if it is a contract.
 
 A pnpm workspace driven by Turborepo.
 
-| Workspace | Stack | State |
-| --- | --- | --- |
-| [`apps/api`](apps/api/README.md) | NestJS 11 on Express 5, Drizzle + `pg`, pino, pg-boss. **ESM** | Foundations and auth built |
-| `apps/web` | Next.js 16, React 19, CSS Modules, `three` + `@react-three/fiber` + GSAP + Lenis, `motion`, Zustand | Arrival and auth screens built; booking funnel in progress |
-| [`apps/admin`](apps/admin/README.md) | Next.js + Tailwind 4, shadcn/ui, cmdk, TanStack Table | Reserved boundary — not scaffolded |
-| `packages/shared` | zod 4, `drizzle-zod`, `@internationalized/date` | Money and stay-date contracts built |
-| `packages/tokens` | `tokens.css` — the one definition of the brand | Built |
-| `packages/api-client` | Typed fetch wrapper validating through `shared` | Reserved boundary |
+| Workspace | Boundary |
+| --- | --- |
+| [`apps/api`](apps/api/README.md) | NestJS API and the only database writer |
+| `apps/web` | Public marketing, guest identity and booking |
+| [`apps/admin`](apps/admin/README.md) | Staff operations |
+| `packages/shared` | Shared contracts |
+| `packages/tokens` | Brand tokens |
+| `packages/api-client` | Browser-to-API client boundary |
 
 [`docs/architecture/repository-structure.md`](docs/architecture/repository-structure.md)
 is the authority on what goes where and why. A directory that exists but holds no code is
@@ -144,12 +146,11 @@ The `(booking)` group holds the five auth screens as well as the funnel. The nam
 *plain bundle*; a screen belongs there because it must not load `three`, not because it
 sells a room.
 
-> [!NOTE]
-> `/booking` is built ahead of its API, and says so. The three reads it needs belong to
-> the unbuilt `pricing` and `inventory` modules. The **contract** for them is real and
-> permanent in `packages/shared/src/rate-calendar.ts`; the transport is a single stub,
-> `features/booking/lib/rate-calendar-fixture.ts`, deleted the day the endpoints land. No
-> component knows which of the two it is reading.
+The intended funnel boundary and route rationale live in
+[`repository-structure.md`](docs/architecture/repository-structure.md). Inspect
+[`apps/web/app`](apps/web/app) for the routes that exist and the
+[SCRUM Jira project](https://hungphat2018-1785053353783.atlassian.net/issues/?jql=project%20%3D%20SCRUM)
+for delivery state.
 
 ## Getting started
 
@@ -244,7 +245,7 @@ Run from the repo root.
 | `pnpm format` | Biome, writing in place |
 | `pnpm typecheck` | Every workspace that owns a `tsc` pass |
 | `pnpm test` | Vitest across the workspaces |
-| `pnpm backlog:view` | Renders the local backlog as a filterable HTML page |
+| `pnpm backlog:view` | Generates `plans/backlog.html` from the Markdown planning record |
 
 The API's own commands — migrations, the Nest watch loop, the first-admin script — are in
 [`apps/api/README.md`](apps/api/README.md#commands).
@@ -296,9 +297,9 @@ Written as the system is built, not assembled at the end.
 
 | Start here | For |
 | --- | --- |
-| [`docs/orientation.md`](docs/orientation.md) | What the system is, the invariant, the milestone road, and how to work out what to do next |
+| [`docs/orientation.md`](docs/orientation.md) | What the system is, the invariant, and where to resume work |
 | [`docs/README.md`](docs/README.md) | The **authority map** — which document owns which fact, and the precedence order when two disagree |
-| [`docs/screens.md`](docs/screens.md) | Every screen, what it is for, and how far along it is |
+| [`docs/screens.md`](docs/screens.md) | Intended screen and route map; Jira owns delivery state |
 
 | Design fact | Owner |
 | --- | --- |
@@ -317,9 +318,10 @@ the document first, then the implementation.
 chapters assembled from the documents above. It is a consumer of truth, never a source.
 
 > [!TIP]
-> The working backlog lives in `plans/`, which is deliberately untracked. `pnpm backlog:view`
-> renders it as a filterable page, generated on every run and storing nothing, so it can
-> never become a second status source.
+> Markdown under `plans/` is versionable stateful evidence, not the live tracker.
+> `pnpm backlog:view` generates an ignored HTML view. Use the
+> [SCRUM Jira project](https://hungphat2018-1785053353783.atlassian.net/issues/?jql=project%20%3D%20SCRUM)
+> for current execution state.
 
 ### Vocabulary
 
@@ -345,30 +347,9 @@ Two enumerations worth knowing before reading any module:
   route with no `@RequiresCapability()` declaration is unreachable by everyone — the guard
   is fail-closed, and the one escape hatch takes a written reason.
 
-## Roadmap
+## Delivery planning
 
-Fourteen milestones. Each ends with something demonstrable, and stopping at any of them
-leaves a coherent system rather than a half-built one. **Bold rows are the spine**; the
-rest can be deferred without breaking anything downstream.
-
-| # | Milestone | What you can do once it is done |
-| --- | --- | --- |
-| M0 | Paperwork & procurement | Nothing visible. Unlocks real payments and legal invoices |
-| M1 | Web migration ✅ | The marketing site sits on current React/Next, guarded by a visual baseline |
-| **M2** | **Foundations** ◐ | API boots against Postgres, six roles enforced, tests run, ERD generates from the schema |
-| **M3** | **Inventory & availability** | The system knows what is free on any date and **cannot** oversell |
-| **M4** | **Booking lifecycle & front desk** | A receptionist can check a guest in, move rooms, extend, cancel — keyboard only |
-| M5 | Assignment optimizer | Refused bookings become revenue by re-packing rooms |
-| **M6** | **Folio, payments, invoicing** | You can take money and issue a legal invoice |
-| M6.5 | MoMo | Second wallet, only if VNPay-only abandonment proves it is needed |
-| **M7** | **Guest booking engine** | A stranger books on the website and pays |
-| **M8** | **Operations** | Shift handover, income/expense, audit log viewer, Excel export |
-| **M9** | **Reporting** | Occupancy / ADR / RevPAR, and the charts the brief asks for |
-| M9.5 | Overbooking | Sell above 100% against a no-show model. Needs real data first |
-| **M10** | **Hardening** | Security audit, load test, paper-fallback runbook |
-| M11 | OTA channel manager | Booking.com / Agoda / Traveloka sell your rooms. Deferred |
-
-M3 is the correctness core. The test that proves it — 50 parallel bookings on the last
-room, exactly one success — is not written yet; the plan is to write it **before** any
-booking screen, because a test for a race is hard to trust once the code it guards
-already works.
+The [SCRUM Jira project](https://hungphat2018-1785053353783.atlassian.net/issues/?jql=project%20%3D%20SCRUM)
+owns the current plan and its execution fields. Durable scope and acceptance criteria
+live in [`docs/product-requirements.md`](docs/product-requirements.md);
+documents under `plans/` are historical or working planning evidence and may age.

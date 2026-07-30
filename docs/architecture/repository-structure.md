@@ -15,13 +15,17 @@ packages/
   shared/           zod schemas and the types inferred from them. The contract every app reads
   api-client/       Typed fetch wrapper over the API, validating responses with `shared`
 docs/               Architecture, generated diagrams, traceability
-plans/              Working plans and reports. Untracked
+plans/              Stable requirement IDs, acceptance criteria, handoff packages, and research records
 ```
 
 One API, three consumers. Business logic exists once, in `apps/api`; the
 frontends render it and nothing else. No Next.js server action, route handler,
 or admin screen may reach the database directly — that is what turns one brain
 into three that disagree.
+
+Jira project `SCRUM` owns execution state. Files under `plans/` preserve
+requirements, rationale, and work-package boundaries; they do not mirror Jira
+status, assignment, sprint, or delivery evidence.
 
 ## Rules that survive contact with growth
 
@@ -42,6 +46,10 @@ screens and one you grep.
 **Anything crossing the network is declared once, in `packages/shared`.** A type
 hand-written on the frontend to mirror an API response is drift waiting to
 happen. Schemas live there; both sides infer.
+
+`StaffRole` follows that rule: `packages/shared` owns and exports its schema and
+type, while the capability matrix remains API policy under
+`apps/api/src/modules/identity/rbac/`.
 
 **Invariants live in the database.** Overlap and oversell are prevented by
 constraints in `apps/api/src/database/migrations/`, not by service-layer checks.
@@ -80,7 +88,7 @@ answerable without reading a single business rule.
 
 | Module | Owns |
 |---|---|
-| `identity` | Staff, roles, the permission matrix |
+| `identity` | Staff accounts and the permission matrix; imports the shared staff-role contract |
 | `auth` | Two separate realms: staff sessions and guest accounts |
 | `guest` | Guest profiles, ID records and scans, VIP tier, loyalty |
 | `inventory` | Room types, rooms, per-night type inventory, availability queries |
@@ -130,30 +138,28 @@ components/ui/     Primitives shared across route groups
 lib/               Domain-blind and genuinely shared. Currently two files
 ```
 
-`features/auth/` holds five screens — log in, sign up, confirm an address, ask
-for a reset, choose a new password — and the two `lib/` files they post with:
-`sign-in.ts` and `guest-auth.ts`, both aimed at the API's Better Auth mount. They
-belong in `packages/api-client` the day something other than these screens needs
-the same session; today the callers are all here, and the rule below about
-`shared` applies just as well to `api-client`.
+`features/auth/` owns the guest-auth screens and screen-specific orchestration.
+P0 contract work implements `packages/api-client` as the reusable transport
+boundary; Better Auth UI policy remains in this feature rather than leaking
+into the generic client.
 
 Only `login` uses the two-plate composition. The other four share
 `auth-shell.tsx`: a guest reaches them once, usually holding an email, and a
 composition that competed for attention would be competing with the task.
 
-The group is named `(booking)` and holds five screens that are not booking
-anything. Route groups do not appear in URLs, so the name costs nothing to keep
-— but what it *means* is **plain bundle**, and a screen belongs in it because it
-must not load `three`, not because it sells a room.
+The group is named `(booking)` and holds guest-auth as well as booking screens.
+Route groups do not appear in URLs, so the name costs nothing to keep — but what
+it *means* is **plain bundle**, and a screen belongs in it because it must not
+load `three`, not because it sells a room.
 
 ### The `(booking)` route map
 
-Written before the funnel exists, because two of the three decisions below are
-cheap now and are rewrites once step three is built.
+This route contract makes the resource and measurement boundaries explicit
+before later steps couple them to expiring holds and asynchronous payment.
 
 ```
 (booking)/
-  login/ signup/ verify-email/ forgot-password/ reset-password/   built
+  login/ signup/ verify-email/ forgot-password/ reset-password/
   booking/
     page.tsx              /booking                     search + results
     [hold]/
@@ -167,12 +173,21 @@ cheap now and are rewrites once step three is built.
     stays/                /account/stays                stay history
 ```
 
-**Each step is a route.** Not one route holding a step counter. Per-step
-abandonment has to be measurable — whether P3.5 gets built at all depends on
-measuring abandonment at the payment step — and a step with no URL cannot be
-measured. Back and refresh then work without being implemented, and per-route
-splitting makes the bundle budget below provable per step rather than for the
-group as a whole.
+**Six logical steps use five URL patterns.** Search and room-type selection
+share `/booking` because both are stateless views of URL search parameters.
+Guest details, payment, gateway confirmation, and the resulting booking each
+have a named resource URL. This keeps payment-step abandonment measurable,
+makes back/refresh deterministic, and avoids a hidden in-memory step counter.
+
+**Which of the two `/booking` steps is open is a search param, not component
+state.** A complete range used to be the room list on its own; the dates step now
+ends with the stay stated back beside the calendar, so a range and the room list
+are different screens and the URL has to distinguish them. `step=rooms` does
+that, and it is omitted for the dates step so the shortest meaningful link is
+still the one a guest shares. The param names and their defaults are owned by
+[`booking-search.ts`](../../apps/web/features/booking/lib/booking-search.ts);
+the same rule as the sentence above applies to it, which is why the step lives in
+the query rather than in a `useState` no link could carry.
 
 **The hold id is in the path, from step three on.** `booking-state-machine.md`
 §2 says only the public funnel starts at `HELD`, and §3 says entering `HELD`
@@ -199,22 +214,19 @@ the e-invoice job uses at folio close, and for the same reason — one provider
 timeout must never be able to roll back a completed act.
 
 **What the budget forbids is those three packages, and `motion` is not one of
-them.** `/booking` uses it, `tech-stack.md` §Frontend already listed it as this
-repo's motion budget, and
+them.** `tech-stack.md` §Frontend defines the motion boundary, and
 [`design-foundations.md`](design-foundations.md) §5 records why the funnel could
 not stay CSS-only: CSS has no exit, so a bottom sheet could enter on the house
-curve and never leave on one. The `three` / `gsap` / `lenis` line is unchanged and
-is verified against the built route — `/booking`'s chunks contain none of the
-five markers those packages leave, while `/`'s contain all five.
+curve and never leave on one. Bundle verification must prove that funnel chunks
+contain none of `three`, `gsap`, or `lenis`; inspect the executable build check
+for current evidence.
 
-**`/booking` is built ahead of its API, and says so.** The three reads it needs —
+**The funnel depends on three read contracts** —
 per-date lowest price for a month, per-date restriction flags, per-type
-availability for a range — belong to the `pricing` and `inventory` modules and do
-not exist. The **contract** for them is real and permanent, in
-`packages/shared/rate-calendar.ts`; the transport is a single stub,
-`features/booking/lib/rate-calendar-fixture.ts`, which satisfies those schemas and
-is deleted when the endpoints land. No component knows which of the two it is
-reading, which is the whole point of putting the schema in `shared` first.
+availability for a range — owned by the `pricing` and `inventory` modules. Their
+schemas live in `packages/shared/src/rate-calendar.ts`. A fixture may satisfy
+those schemas during UI work, but it must be deleted when the procedures land;
+no component may know which transport supplies the data.
 
 The browser reaches the API by `NEXT_PUBLIC_API_URL` — see
 [`apps/web/.env.example`](../../apps/web/.env.example). The guest session is an
@@ -236,9 +248,9 @@ geometry, the spring solver, the WebGL probe — moved into
 shared. The `arrival-` prefixes came off in the move: inside `features/arrival/`
 they only stuttered.
 
-`next lint` walks `app`, `pages`, `components`, `lib` and `src` and nothing
-else, so `eslint.dirs` in `next.config.mjs` has to name `features` explicitly.
-Miss it and the majority of the app lints clean by never being read.
+Lint scope is executable configuration, not a prose inventory. The root
+`package.json` owns the lint command, `biome.jsonc` owns Biome's include and
+exclude boundaries, and the web package manifest owns its CSS lint step.
 
 ## `packages/`
 
@@ -255,11 +267,12 @@ weaker argument than that. This paragraph used to say *nothing beyond zod*,
 which was true before the contract layer had been chosen and is the kind of
 rule that quietly turns a decision into an accident.
 
-`api-client` wraps fetch, injects auth, and parses every response through the
-`shared` schema. Both frontends consume it, so a breaking API change surfaces as
-a type error in two apps rather than a runtime shrug in one.
+`api-client` is the P0 transport boundary: it wraps fetch, injects auth, and
+parses responses through the `shared` schema. The directory is currently a
+reserved boundary until that contract work lands; `apps/admin` remains
+deferred.
 
-Neither a shared UI package nor a shared ESLint package exists yet. The
+Neither a shared UI package nor a shared lint-config package exists. The
 marketing arrival, the booking funnel, and the admin console have genuinely
 different visual languages; a `packages/ui` serving all three would be a
 lowest-common-denominator abstraction with no real second consumer. Revisit when
