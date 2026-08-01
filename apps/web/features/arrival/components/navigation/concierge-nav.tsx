@@ -81,7 +81,9 @@ export function ConciergeNav() {
         data-phase={navPhase}
         data-theme={navDark || menuOpen ? "dark" : "light"}
       >
-        <a href="#act-1" className={styles.brand} aria-label="Mariva — home">
+        {/* A real address, not `#act-1`: the acts carry no id, and the mark is
+            the one thing in the bar that should still work as a link. */}
+        <a href="/" className={styles.brand} aria-label="Mariva — home">
           <span className={styles.wordmark} />
           <span className={styles.monogram} />
         </a>
@@ -92,6 +94,7 @@ export function ConciergeNav() {
         </nav>
         <button
           id="nav-menu-button"
+          type="button"
           className={`${styles.menuButton} caps-label`}
           aria-expanded={menuOpen}
           aria-controls="dynamic-island-menu"

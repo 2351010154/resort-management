@@ -156,16 +156,13 @@ export function DynamicIslandMenu() {
           <p>
             Every arrival is prepared before you ask. Choose where to begin.
           </p>
-          <a
-            href="#act-5"
+          <button
+            type="button"
             className={`${styles.viewLink} caps-label`}
-            onClick={(e) => {
-              e.preventDefault();
-              scrollToAct(lenis, 5, close);
-            }}
+            onClick={() => scrollToAct(lenis, 5, close)}
           >
             View →
-          </a>
+          </button>
           <div className={styles.mobileLinks}>
             {NAV_LINKS.map((link) => (
               <NavHoverLink key={link.act} {...link} onNavigate={close} />
@@ -174,15 +171,12 @@ export function DynamicIslandMenu() {
         </div>
         <div className={styles.cards}>
           {CARDS.map(({ slug, label, room, image }) => (
-            <a
+            <button
               key={slug}
-              href="#act-4"
+              type="button"
               className={styles.card}
               data-cascade
-              onClick={(e) => {
-                e.preventDefault();
-                scrollToRoom(lenis, room, close);
-              }}
+              onClick={() => scrollToRoom(lenis, room, close)}
             >
               <img
                 src={tierSrc(image.src, 640)}
@@ -191,7 +185,7 @@ export function DynamicIslandMenu() {
                 alt={image.alt}
               />
               <span className={`${styles.cardLabel} caps-label`}>{label}</span>
-            </a>
+            </button>
           ))}
         </div>
       </div>

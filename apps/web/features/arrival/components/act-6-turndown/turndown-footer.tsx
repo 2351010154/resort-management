@@ -24,6 +24,11 @@ import styles from "./act-6-turndown.module.css";
 // rest are decorative (concept piece, no destinations) and render as plain text
 // — no dead href, no focus stop. Dine and Restore are rooms inside Act 4, not
 // acts of their own.
+//
+// The destinations are buttons, not links. There is no `#act-5` on the page to
+// link to — the acts are found by `[data-act]` and scrolled to by lenis — so an
+// anchor here would carry an href that resolves nowhere, breaking the one thing
+// a link promises: that the address in the status bar goes somewhere.
 const COLUMNS = [
   {
     title: "The resort",
@@ -72,29 +77,27 @@ export function TurndownFooter({
                 </span>
                 {links.map((link) =>
                   "act" in link ? (
-                    <a
+                    <button
                       key={link.label}
-                      href={`#act-${link.act}`}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        scrollToAct(lenis, link.act);
-                      }}
+                      type="button"
+                      className={styles.columnLink}
+                      onClick={() => scrollToAct(lenis, link.act)}
                     >
                       {link.label}
-                    </a>
+                    </button>
                   ) : "room" in link ? (
-                    <a
+                    <button
                       key={link.label}
-                      href="#act-4"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        scrollToRoom(lenis, link.room);
-                      }}
+                      type="button"
+                      className={styles.columnLink}
+                      onClick={() => scrollToRoom(lenis, link.room)}
                     >
                       {link.label}
-                    </a>
+                    </button>
                   ) : (
-                    <a key={link.label}>{link.label}</a>
+                    <span key={link.label} className={styles.columnText}>
+                      {link.label}
+                    </span>
                   ),
                 )}
               </div>
