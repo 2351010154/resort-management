@@ -17,8 +17,18 @@ import { z } from "zod";
 
 export const PROPERTY_TIME_ZONE = "Asia/Ho_Chi_Minh" as const;
 
-/** The wire form: ISO calendar date — no time, no offset. "2026-08-14". */
-const isoStayDate = z
+/**
+ * The wire form: ISO calendar date — no time, no offset. "2026-08-14".
+ *
+ * Exported because a *response* carries this form and not the decoded one. The
+ * codec below decodes on the way in, which is what a request wants; a contract
+ * that declared it on the way out would validate the handler's string by
+ * decoding it and then serialise the `CalendarDate` that came back — an object
+ * of loose numbers where the client expects nine characters. So a request takes
+ * {@link stayDateSchema} and a response takes this, and the one conversion
+ * between them happens at the controller, once, where it can be seen.
+ */
+export const isoStayDateSchema = z
   .string()
   .regex(/^\d{4}-\d{2}-\d{2}$/, "expected a YYYY-MM-DD calendar date");
 
@@ -26,30 +36,36 @@ const isoStayDate = z
  * A stay boundary, decoded from the wire into a `CalendarDate` and encoded back
  * to the same string.
  *
- * A codec rather than a one-way transform because the contract runs in both
- * directions: a request carries a date in and a response carries one out, and
- * two independent schemas for one type is how the two ends drift. No serializer
- * knows what a `CalendarDate` is — `bigint` it would carry natively, this it
- * would flatten into an object of loose numbers — so the crossing is declared
- * here, once.
+ * A codec rather than a one-way transform: the decode is what a request needs
+ * and the encode is what a stored or rendered date needs, and two independent
+ * schemas for one type is how the two ends drift. No serializer knows what a
+ * `CalendarDate` is — `bigint` it would carry natively, this it would flatten
+ * into an object of loose numbers — so the crossing is declared here, once.
+ *
+ * It is the schema for an *input*. A response declares
+ * {@link isoStayDateSchema} instead, and that comment says why.
  */
-export const stayDateSchema = z.codec(isoStayDate, z.instanceof(CalendarDate), {
-  decode: (value, ctx) => {
-    // The shape check alone accepts 2026-02-31. `parseDate` rejects it rather
-    // than rolling it forward into March, which is what `new Date` would do.
-    try {
-      return parseDate(value);
-    } catch {
-      ctx.issues.push({
-        code: "custom",
-        message: "not a date that exists",
-        input: value,
-      });
-      return z.NEVER;
-    }
+export const stayDateSchema = z.codec(
+  isoStayDateSchema,
+  z.instanceof(CalendarDate),
+  {
+    decode: (value, ctx) => {
+      // The shape check alone accepts 2026-02-31. `parseDate` rejects it rather
+      // than rolling it forward into March, which is what `new Date` would do.
+      try {
+        return parseDate(value);
+      } catch {
+        ctx.issues.push({
+          code: "custom",
+          message: "not a date that exists",
+          input: value,
+        });
+        return z.NEVER;
+      }
+    },
+    encode: (date) => date.toString(),
   },
-  encode: (date) => date.toString(),
-});
+);
 
 export type StayDate = z.output<typeof stayDateSchema>;
 

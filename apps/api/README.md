@@ -69,6 +69,10 @@ in version control.
 `btree_gist` supplies the operator classes that let one GiST index mix `room_id
 WITH =` and `stay_range WITH &&`. Without it `P1-INV-02` cannot be written.
 
+`0002_inventory_core.sql` is where that constraint is finally written, by hand
+below the generated statements, and `0003_pricing_core.sql` adds the rate
+calendar and the stay restrictions the availability query prices against.
+
 Local development runs Postgres in Docker; Neon is for deployed environments
 only.
 
@@ -142,6 +146,44 @@ The first `ADMIN` cannot be created through the API, because creating staff
 accounts requires a capability only an `ADMIN` holds. It is created from a shell
 instead; every account after it comes from `POST /identity/staff-accounts`.
 
+## Inventory and rates
+
+Four routes, defined in `packages/shared/src/contract/` and implemented by
+`modules/inventory`.
+
+| Route | Capability | Who |
+|---|---|---|
+| `GET /availability` | `availability.search` | anyone |
+| `GET /availability/calendar` | `availability.search` | anyone |
+| `POST /inventory/room-closures` | `inventory.close-room` | `MANAGER`, `ADMIN` |
+| `DELETE /inventory/room-closures/{id}` | `inventory.close-room` | `MANAGER`, `ADMIN` |
+
+The two availability routes are the only ones in the application a stranger can
+reach, and they are open because the matrix row says so rather than because a
+decorator was left off — `unauthenticated: true` is a column, and closing them
+is one boolean.
+
+They answer from `type_inventory` joined to `rate_calendar` in one statement.
+A stay restriction — minimum stay, maximum stay, closed to arrival, closed to
+departure — is applied at the query and not at the booking attempt, which is
+`FR-PRC-02`'s requirement: a guest told at the payment step that their chosen
+night has a two-night minimum has been made to do the work twice.
+
+Room closure is a commercial act and not a cleaning one. It writes a hold on the
+physical room and decrements `total_rooms` for every night of the range, in one
+transaction; housekeeping status changes neither. A closure across a room that
+is already held, or across a night whose type is fully sold, is a 409 — refused
+by `room_assignment_no_overlap` and `type_inventory_sold_at_most_total`, not by
+a check the service performs first, because a check followed by a write is two
+statements a concurrent request can interleave.
+
+What these do **not** price yet: promotions (`FR-PRC-03`) and the extra-person
+and extra-bed charges (`FR-PRC-04`). A party above a type's maximum is refused,
+per §3, but a third head inside the maximum is quoted at the rate, and
+`extraBedPerNightGross` is always null — `property-and-tariff.md` §9 leaves the
+extra-bed rule with the owner and says no pricing path may infer it from bed
+capacity.
+
 ## Tests
 
 Vitest, and a real Postgres — not testcontainers yet (`P0-CI-02` and a Docker
@@ -156,6 +198,15 @@ which is how a test run empties somebody's development database.
   without a test is not possible.
 - `src/modules/identity/rbac/matrix.spec.ts` — the structural rules of §2.
 - `test/auth.e2e-spec.ts` — both realms over HTTP against the real database.
+- `test/inventory-storage.e2e-spec.ts` — the rows Postgres refuses: an oversold
+  counter, a second guest in one room, a hold covering no night.
+- `test/availability.e2e-spec.ts` — pricing by plan, the four stay
+  restrictions one test each, and the `NFR-03` p95 budget over the seeded
+  twelve months.
+- `test/room-closure.e2e-spec.ts` — closure moves `total_rooms` and nothing
+  else, and a receptionist cannot perform one.
+- `test/seed.e2e-spec.ts` — forty rooms, the numbering, and that a second run
+  produces the same data rather than more of it.
 
 ## Commands
 
@@ -165,6 +216,7 @@ pnpm --filter @mariva/api dev         # nest start --watch
 pnpm --filter @mariva/api start       # node dist/main.js
 pnpm --filter @mariva/api db:generate # diff the schema into a new migration
 pnpm --filter @mariva/api db:migrate  # apply pending migrations
+pnpm --filter @mariva/api db:seed     # the demo property — see below
 pnpm --filter @mariva/api test        # vitest, against .env.test
 pnpm --filter @mariva/api typecheck   # the app, then the tests and configs
 
@@ -174,5 +226,21 @@ pnpm --filter @mariva/api staff:create -- \
   --email owner@mariva.vn --name "Trần Minh" --role ADMIN
 ```
 
-Both `db:` commands read `DATABASE_URL` the same way the app does, and
+Every `db:` command reads `DATABASE_URL` the same way the app does, and
 `staff:create` boots the container to get the same hasher the API uses.
+
+`db:seed` builds the property `docs/architecture/property-and-tariff.md` §1
+describes — five types, forty rooms, twelve months of rates and five hundred
+synthetic stays with Vietnamese-locale guests. It **empties** the property, the
+calendar and every stay standing against them first, so it converges rather than
+accumulating, and it refuses to run against `NODE_ENV=production`. Guests it
+created are recognised by their `@seed.mariva.local` address and are the only
+ones it deletes; a real sign-in in the same database survives.
+
+The calendar opens from the first of the current month in the property's zone.
+`--from` pins that instead, which is what the test suite uses — a fixture that
+moves with the wall clock cannot assert a price on a named night:
+
+```bash
+pnpm --filter @mariva/api db:seed -- --from 2027-03-01 --bookings 0
+```
