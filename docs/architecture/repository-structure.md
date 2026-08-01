@@ -268,9 +268,19 @@ which was true before the contract layer had been chosen and is the kind of
 rule that quietly turns a decision into an accident.
 
 `api-client` is the P0 transport boundary: it wraps fetch, injects auth, and
-parses responses through the `shared` schema. The directory is currently a
-reserved boundary until that contract work lands; `apps/admin` remains
+parses responses through the `shared` schema. That contract work has landed —
+the client is derived from `contract` rather than written per endpoint, so a
+route added in `shared` is callable the moment it exists. `apps/admin` remains
 deferred.
+
+Both packages are **built**, not compiled from source by their consumers. The
+`@orpc/*` packages are ESM only, which puts `shared` on `moduleResolution:
+nodenext`, where relative imports name the emitted `./money.js` — a file that
+does not exist until tsc writes it, and one Turbopack will not substitute a
+`.ts` for. The reasoning is in [`tech-stack.md`](tech-stack.md) §"The contract
+package is built, not read as source"; the consequence here is that
+`packages/*/dist` is what an app imports, and `turbo run` is what puts it
+there.
 
 Neither a shared UI package nor a shared lint-config package exists. The
 marketing arrival, the booking funnel, and the admin console have genuinely

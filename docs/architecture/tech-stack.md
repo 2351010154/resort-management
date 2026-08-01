@@ -142,3 +142,47 @@ entry. Consequences for `apps/api`, measured:
 **`apps/api` is therefore an ESM package**, not the CommonJS default a Nest
 scaffold produces. Relative imports need explicit `.js` extensions. Decided
 here rather than during server binding, which is the whole point of the gate.
+
+### What the first implemented contract found
+
+The spike above proved the contract layer typechecks. Implementing `GET /health`
+against it — the first route to go through `@Implement` — found two things a
+type test could not, both measured.
+
+**A Nest exception thrown inside an oRPC handler does not reach Nest's
+exception filter.** `ServiceUnavailableException` came back as a 500, not a 503;
+the contract layer catches the throw and encodes it first.
+`health.controller.spec.ts` is the assertion that holds the status line, and the
+handler raises `ORPCError("SERVICE_UNAVAILABLE", { status: 503 })` instead.
+
+This generalises, and M3 is where it bites: an availability query that rejects a
+stay restriction, and a booking that loses the race for the last room, both owe
+the caller a specific status — 400 and 409 — and neither gets one by throwing
+`BadRequestException` or `ConflictException` inside a handler. Domain services
+may keep raising Nest exceptions; whatever crosses the `@Implement` boundary
+states its own status.
+
+**Deny-by-default survives, and is now asserted.** `AccessGuard` reads its
+metadata off the same method `@Implement` decorates, so `@RequiresCapability`
+and `@Unguarded` behave exactly as they do on a `@Get`, including the fail-closed
+403 for a route that declares neither. That is not inference —
+`access.guard.orpc.spec.ts` proves all three outcomes on oRPC handlers, because
+the two ways it could have failed are silent and opposite.
+
+### The contract package is built, not read as source
+
+`packages/shared` emits `dist/` and its `exports` point there. It used to be
+compiled from `.ts` by whichever app imported it, via
+`transpilePackages: ["@mariva/shared"]`.
+
+Holding the contract ended that. ESM-only `@orpc/*` puts the package on
+`moduleResolution: nodenext`, where a relative import must name the emitted file
+— `./money.js`. Turbopack resolves that specifier literally, finds no such file
+beside `money.ts`, and fails the web build. Next has no extension aliasing that
+reaches it: `experimental.extensionAlias` is webpack's, and was measured to be
+ignored under both `experimental` and `turbopack`.
+
+So the file the specifier names is made to exist. `packages/api-client` is built
+for the same reason, and `turbo.json` gains `dependsOn: ["^build"]` on
+`typecheck` and `dev` so a clean clone reports a missing build as a build, not
+as a missing module.

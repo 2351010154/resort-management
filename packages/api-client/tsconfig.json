@@ -1,0 +1,24 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["esnext", "dom"],
+
+    // `nodenext` for the same reason `packages/shared` uses it: the `@orpc/*`
+    // packages ship ESM only, and this package is consumed by a bundler today
+    // and possibly by tsc tomorrow. The stricter of the two is the one worth
+    // compiling against.
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+
+    // Emitted for the same reason `packages/shared` is: a browser bundler
+    // reading `.ts` source cannot resolve the `.js` specifiers nodenext
+    // requires, and a real `dist/` makes the question moot.
+    "outDir": "dist",
+    "rootDir": "src",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true
+  },
+  "include": ["src/**/*.ts"]
+}

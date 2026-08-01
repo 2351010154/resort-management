@@ -3,9 +3,32 @@
   "compilerOptions": {
     "target": "ES2022",
     "lib": ["esnext"],
-    "module": "esnext",
-    "moduleResolution": "bundler",
-    "noEmit": true
+
+    // `nodenext`, not `bundler`, and the consumer is why. `apps/api` compiles
+    // with tsc under `moduleResolution: nodenext` and imports this package, so
+    // the emitted `.d.ts` has to be resolvable under those rules. It is also
+    // what the `@orpc/*` contract packages require, ESM only —
+    // docs/architecture/tech-stack.md §"The constraint this spike found".
+    //
+    // The cost is explicit `.js` extensions on relative imports, naming the
+    // emitted file rather than the source one.
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+
+    // Emitted, not consumed as source. `apps/web` used to read these `.ts`
+    // files directly through `transpilePackages`, which stopped working the
+    // moment the imports above grew extensions: Turbopack resolves `./money.js`
+    // literally and there is no such file until tsc writes one. Shipping a real
+    // `dist/` is what makes both consumers ordinary.
+    "outDir": "dist",
+    "rootDir": "src",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true
   },
-  "include": ["src/**/*.ts"]
+
+  // Specs are checked by `typecheck` but never emitted — `dist/` holds the
+  // contract and nothing else.
+  "include": ["src/**/*.ts"],
+  "exclude": ["dist", "node_modules", "src/**/*.spec.ts"]
 }

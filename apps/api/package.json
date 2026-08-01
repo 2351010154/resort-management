@@ -16,12 +16,15 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json"
   },
   "dependencies": {
+    "@mariva/shared": "workspace:*",
     "@nestjs/common": "11.1.28",
     "@nestjs/core": "11.1.28",
     "@nestjs/jwt": "11.0.2",
     "@nestjs/passport": "11.0.5",
     "@nestjs/platform-express": "11.1.28",
     "@node-rs/argon2": "2.0.2",
+    "@orpc/nest": "1.14.10",
+    "@orpc/server": "1.14.10",
     "better-auth": "1.6.25",
     "drizzle-orm": "0.45.2",
     "express": "5.2.1",
@@ -38,6 +41,7 @@
   "devDependencies": {
     "@nestjs/cli": "11.0.24",
     "@nestjs/testing": "11.1.28",
+    "@orpc/contract": "1.14.10",
     "@swc/core": "1.15.4",
     "@types/express": "5.0.6",
     "@types/node": "24.13.3",

@@ -7,7 +7,7 @@ import {
   type StayDate,
   stayDateSchema,
   stayRangeSchema,
-} from "./stay-date";
+} from "./stay-date.js";
 
 describe("a stay date", () => {
   it("decodes the wire form into a CalendarDate", () => {
