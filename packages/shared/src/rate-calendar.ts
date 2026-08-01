@@ -21,16 +21,39 @@ import { stayDateSchema } from "./stay-date.js";
  * The five types in `property-and-tariff.md` §1. A closed enum rather than a
  * string: the mix sums to 40 rooms, and a sixth code arriving from the wire is
  * a seed bug that should fail at the boundary rather than render an empty card.
+ *
+ * The array is exported alongside the schema because Postgres needs the same
+ * five values as an enum type. Deriving both from one tuple is what stops the
+ * database and the wire from drifting — the pattern `STAFF_ROLES` already sets
+ * for the staff realm.
  */
-export const roomTypeCodeSchema = z.enum([
+export const ROOM_TYPE_CODES = [
   "SUPERIOR",
   "DELUXE",
   "PREMIER",
   "JUNIOR_SUITE",
   "PANORAMA_SUITE",
-]);
+] as const;
+
+export const roomTypeCodeSchema = z.enum(ROOM_TYPE_CODES);
 
 export type RoomTypeCode = z.infer<typeof roomTypeCodeSchema>;
+
+/**
+ * Heads the rate covers, for every type — `property-and-tariff.md` §1.
+ *
+ * A ceiling on what is included, never a floor on who may book: one guest pays
+ * the same rate two do. §3's extra-person charge starts at the third head and
+ * runs up to the type's own maximum, so this is the number that decides *when*
+ * a party costs more, not whether it is allowed.
+ *
+ * Stated once rather than as a column on `room_type`. §1 makes the argument:
+ * a per-type value would imply the property varies what "the rate" covers when
+ * it does not. It lives here rather than in either app because the API prices
+ * against it and the funnel quotes against it, and two copies of a pricing
+ * boundary is how a quote and an invoice come to disagree.
+ */
+export const INCLUDED_OCCUPANCY = 2;
 
 /** The three plans at launch — `property-and-tariff.md` §3. */
 export const ratePlanCodeSchema = z.enum(["STANDARD", "BB", "NONREF"]);

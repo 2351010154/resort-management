@@ -7,6 +7,10 @@
 // `modules/identity`.
 export * from "./identity.js";
 
+// The property: the five room types and the forty rooms. Owned by
+// `modules/inventory`.
+export * from "./inventory.js";
+
 // The guest realm: Better Auth's four core tables. Their in-file names are
 // Better Auth's own (`user`, `session`, …) because its Drizzle adapter indexes
 // the schema object it is given by those keys. Everything outside
