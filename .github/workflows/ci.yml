@@ -41,5 +41,12 @@ jobs:
       # read .next/types, which next build rewrites underneath it.
       - run: pnpm run typecheck
 
+      # The workspaces whose tests need nothing but Node. The API's suite is not
+      # here: it applies migrations and truncates tables against a real Postgres
+      # named by apps/api/.env.test, and there is no database on this runner
+      # yet. Until there is, `pnpm --filter @mariva/api test` stays a local gate
+      # and this line covers the rest rather than covering nothing.
+      - run: pnpm exec turbo run test --filter=@mariva/web --filter=@mariva/shared
+
       # next build runs the TypeScript check for the app as part of the build.
       - run: pnpm run build
