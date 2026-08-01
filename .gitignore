@@ -47,7 +47,9 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
-# Visual regression baseline screenshots (generated, large binaries)
+# Visual regression baseline screenshots (generated, large binaries). Capture
+# them with apps/web/scripts/capture-visual-baseline.mjs before comparing; a
+# clone has none.
 apps/web/tests/visual-baseline/
 
 # Asset-pipeline scripts that read a source library outside the repo. They cut

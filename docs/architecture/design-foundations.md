@@ -1009,8 +1009,8 @@ rules described above.
 
 ### Visual baselines
 
-Baseline fixtures live under
-[`apps/web/tests/visual-baseline/`](../../apps/web/tests/visual-baseline/).
+Baseline fixtures are written to `apps/web/tests/visual-baseline/`, which is
+untracked — a clone has none until you capture them.
 [`capture-visual-baseline.mjs`](../../apps/web/scripts/capture-visual-baseline.mjs)
 owns how they are produced, and
 [`compare-visual-baseline.mjs`](../../apps/web/scripts/compare-visual-baseline.mjs)
