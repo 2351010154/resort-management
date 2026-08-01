@@ -1,6 +1,6 @@
 // Tier helpers for the generated image manifest. Every asset ships as 1-3
-// width tiers (see scripts/prepare-arrival-images.mjs); `src` points at the
-// largest, so picking a tier is a filename swap.
+// width tiers, cut by the gitignored `scripts/prepare-arrival-images.mjs`;
+// `src` points at the largest, so picking a tier is a filename swap.
 
 import type { ArrivalImage } from "./image-manifest";
 

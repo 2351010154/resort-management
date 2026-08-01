@@ -12,7 +12,10 @@
 // module nobody asked for.
 //
 // The files themselves are cut by `scripts/prepare-room-images.mjs` from the
-// picks in `scripts/room-curation-map.json`. What that script does not write is
+// picks in `scripts/room-curation-map.json`. **The script is gitignored and the
+// map is not**: it reads a library outside the repo, so what it produced is
+// versioned and it is not, while the map stays as the record of which frame
+// became which slug — the part a later reader needs. What that script does not write is
 // the `alt` below: a photograph of a room is content, its description is
 // writing, and writing belongs beside the rest of the funnel's words.
 //
