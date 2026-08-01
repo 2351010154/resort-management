@@ -1,13 +1,24 @@
 "use client";
 
-// The date control. Two months, three cell states, and one sentence that says
-// where the guest is.
+// The date control. Two months, three cell states, and a sentence it hands
+// upward.
 //
 // **The prices have left the cells and most of the small print has left the
 // screen.** Both were here for good reasons — see `day-cell.tsx` for the price and
-// the foot of this file for the rest — and both were costing the control the thing
+// `funnel-foot.tsx` for the rest — and both were costing the control the thing
 // it exists for, which is being read in one look. Sixty-one figures and four lines
 // of qualification make a spreadsheet with a grid in it.
+//
+// **The one sentence is printed by the caller, not here.** It opens as "Choose
+// the night you arrive", becomes the way to start over once there is a stay, and
+// becomes the reason a pick was refused when a rule refuses one — which is a
+// lede, and a lede belongs under the screen's title rather than over the grid.
+// The sentence can only be *composed* here, because half of it is React Aria
+// state this file owns and the other half is a violation that describes
+// something which did not happen; so it is composed here and handed to
+// `onStatus`, and `dates-stage.tsx` puts it where the comp has it. What is left
+// with the grid is the legend — the two marks nobody can decode from the drawing
+// alone, which are about the cells and belong beside them.
 //
 // Built on `@react-aria/calendar` + `@react-stately/calendar` rather than by hand.
 // The keyboard model a range calendar needs — roving tabindex, arrows by day, rows
@@ -33,26 +44,22 @@
 // unselectable, which React Aria reads as a wall one day out and would forbid the
 // whole stay. `stay-availability.ts` answers the question in nights instead.
 
-import {
-  type CalendarDate,
-  getLocalTimeZone,
-  GregorianCalendar,
-} from "@internationalized/date";
-import { PROPERTY_TIME_ZONE, type StayRange } from "@mariva/shared";
+import { type CalendarDate, GregorianCalendar } from "@internationalized/date";
+import type { StayRange } from "@mariva/shared";
 import { useRangeCalendar } from "@react-aria/calendar";
 import { useLocale } from "@react-aria/i18n";
 import { useRangeCalendarState } from "@react-stately/calendar";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { formatStayDate } from "@/features/booking/lib/booking-search";
 import type { NightIndex } from "@/features/booking/lib/stay-quote";
 import { MonthGrid } from "./month-grid";
-import styles from "./stay-calendar.module.css";
 import {
   type AvailabilityRules,
   rangeViolation,
   reasonSentence,
   unpickableReason,
 } from "./stay-availability";
+import styles from "./stay-calendar.module.css";
 
 /** Months on screen. Two on desktop; CSS stacks them below 720px. */
 const VISIBLE_MONTHS = 2;
@@ -78,15 +85,31 @@ export function StayCalendar({
   nights,
   selected,
   minDate,
+  maxDate,
   onSelect,
+  onStatus,
 }: {
   readonly nights: NightIndex;
   readonly selected: StayRange | null;
   readonly minDate: CalendarDate;
+  /**
+   * The last date the grid may reach — the morning after the last night the
+   * property has priced.
+   *
+   * Without it the pager ran forward for ever into months where every night was
+   * `no-data` and therefore every cell was dead. A guest four presses ahead of
+   * today met a calendar that drew normally and refused every date on it, with
+   * nothing on the screen saying why. A bound is the honest version: the pager
+   * stops where the property stops selling.
+   */
+  readonly maxDate: CalendarDate;
   readonly onSelect: (range: StayRange | null) => void;
+  /** Where the control's one sentence is printed. See the header. */
+  readonly onStatus: (sentence: string) => void;
 }) {
   const { locale } = useLocale();
   const ref = useRef<HTMLDivElement>(null);
+  const byKeyboard = useKeyboardModality();
 
   // The one sentence above the grid. Held in state rather than derived, because it
   // has to survive a rejected selection — a rule violation is a message about
@@ -104,6 +127,7 @@ export function StayCalendar({
     visibleDuration: { months: VISIBLE_MONTHS },
     selectionAlignment: "start",
     minValue: minDate,
+    maxValue: maxDate,
     // `StayRange` names its ends checkIn/checkOut and React Aria's names them
     // start/end. Translated at this one boundary rather than by widening the
     // contract's type: a stay's two ends are an arrival and a departure, and
@@ -125,6 +149,17 @@ export function StayCalendar({
         checkIn: range.start as CalendarDate,
         checkOut: range.end as CalendarDate,
       };
+
+      // A stay of no nights, which is the guest pressing the arrival they have
+      // just chosen: "no, forget it". React Aria has no undo for a half-made
+      // selection — see `stay-availability.ts` for why it could not even be
+      // pressed until now — and by the time this runs it has already dropped the
+      // anchor. So returning without committing is the whole of the undo, and it
+      // leaves whatever was chosen before this press standing.
+      if (picked.checkIn.compare(picked.checkOut) === 0) {
+        setViolation(null);
+        return;
+      }
 
       // The guard the cell predicate cannot give: pressing a date inside a range
       // already chosen starts a fresh anchor against an exempted state, so the
@@ -171,7 +206,11 @@ export function StayCalendar({
   // regardless, so dropping the line costs a screen reader nothing and buys the
   // grid a whole line of air.
   const { calendarProps } = useRangeCalendar(
-    { "aria-label": "Nights of your stay", minValue: minDate },
+    {
+      "aria-label": "Nights of your stay",
+      minValue: minDate,
+      maxValue: maxDate,
+    },
     state,
     ref,
   );
@@ -190,33 +229,28 @@ export function StayCalendar({
     timeZone: "UTC",
   });
 
-  const freeNights = months.reduce((count, month) => {
-    let free = 0;
-    for (let day = 1; day <= month.calendar.getDaysInMonth(month); day += 1) {
-      const night = nights.get(month.set({ day }).toString());
-      if (night && !night.isSoldOut) free += 1;
-    }
-    return count + free;
-  }, 0);
-
-  const daysShown = months.reduce(
-    (count, month) => count + month.calendar.getDaysInMonth(month),
-    0,
-  );
+  // Composed here, printed by the caller. An effect and not a call in the body,
+  // because half of what it is composed from is React Aria state that changes
+  // during this render — writing to the caller's state mid-render is the one
+  // thing React will not have. It runs on the sentence, not on every render, so
+  // hovering a cell does not touch it.
+  const sentence = violation ?? selectionSentence(state, selected);
+  useEffect(() => {
+    onStatus(sentence);
+  }, [onStatus, sentence]);
 
   return (
     // A labelled group — and explicitly not `role="application"`, see the header.
     // biome-ignore lint/a11y/useSemanticElements: `<fieldset>` is Biome's suggestion and it is wrong here — this groups a grid, not form controls, and a fieldset would want a legend the caption already provides.
-    <div {...groupProps} className={styles.calendar} ref={ref} role="group">
-      {/* The one sentence, directly under the screen's heading, where a lede
-          would be. It *is* the lede: it opens as "Choose the night you arrive",
-          becomes the range once there is one, and becomes the reason a selection
-          was refused when one is. A second static line above it would have said
-          the same thing in words that could never change. */}
-      <p className={styles.status} role="status">
-        {violation ?? selectionSentence(state, selected)}
-      </p>
-
+    <div
+      {...groupProps}
+      className={styles.calendar}
+      // Which hand is driving, and the grid's one ring answers to it. See
+      // `useKeyboardModality` at the foot of this file.
+      data-modality={byKeyboard ? "keyboard" : "pointer"}
+      ref={ref}
+      role="group"
+    >
       <div className={styles.months}>
         {months.map((month, index) => (
           <MonthGrid
@@ -251,51 +285,60 @@ export function StayCalendar({
         ))}
       </div>
 
-      {/* The band along the bottom, and it is two marks and a disclosure.
+      {/* The band along the bottom, and it is two marks.
        *
        * It was four stacked lines: a three-item legend, a free-nights count, a
        * keyboard hint and a timezone note. Every one of them is worth having and
-       * none of them is worth having *open* — small print under a control reads
+       * none of them is worth having *here* — small print under a control reads
        * as a form's terms rather than as its key, and four lines of it made the
        * calendar look like the busiest thing on a screen whose job is to be
        * scanned.
        *
-       * So what stays open is the two marks a guest cannot decode from the
-       * drawing alone. The rest is one press away, and `<details>` rather than a
-       * scripted disclosure because prose that reveals prose needs no state of
-       * its own and gets its keyboard behaviour from the browser. */}
-      <div className={styles.foot}>
-        <ul className={styles.legend}>
-          <li className={styles.legendSoldOut}>Sold out</li>
-          <li className={styles.legendClosed}>Arrival closed</li>
-        </ul>
-
-        <details className={styles.about}>
-          <summary className={styles.aboutSummary}>About these dates</summary>
-
-          <div className={styles.aboutBody}>
-            <p>
-              {freeNights} of {daysShown} nights on screen are free.
-            </p>
-
-            {/* Trainline renders its keyboard hint as visible text rather than
-                hiding it, and it is right to: a sighted keyboard user needs it as
-                much as a screen reader user, and a visually-hidden hint reaches
-                only one of the two. Behind a summary it is still visible text —
-                one press, for both of them, instead of a line on the screen for
-                neither. */}
-            <p>Cursor keys move by day, Page Up and Page Down by month.</p>
-
-            <p>
-              Dates are the property's own, in{" "}
-              {readableZone(PROPERTY_TIME_ZONE)}
-              {timeZoneAside()}
-            </p>
-          </div>
-        </details>
-      </div>
+       * So what stays with the grid is the two marks a guest cannot decode from
+       * the drawing alone, which are a key to these cells and nothing else. The
+       * rest is under the plate, one press away, in `funnel-foot.tsx`. */}
+      <ul className={styles.legend}>
+        <li className={styles.legendSoldOut}>Sold out</li>
+        <li className={styles.legendClosed}>Arrival closed</li>
+      </ul>
     </div>
   );
+}
+
+/**
+ * Whether the guest is driving with the keyboard, for the one ring the grid draws.
+ *
+ * **`:focus-visible` cannot answer this here, and the wrong answer was on the
+ * screen.** React Aria presses a date with `preventFocusOnPress` and focuses the
+ * cell itself a moment later, and Chrome grants `:focus-visible` to a
+ * programmatic focus — so every date pressed with a mouse came away wearing the
+ * keyboard's amber ring, around the disc the comp draws bare.
+ *
+ * Listened for on the document rather than on the group, because tabbing *into*
+ * the calendar is a keypress that happens while the focus is still outside it —
+ * a listener on the group would miss it and leave the first cell a keyboard
+ * guest lands on with no focus mark at all. React bails out of a `setState` that
+ * does not change the value, so the flag re-renders on a change of hand and not
+ * on a keystroke.
+ */
+function useKeyboardModality(): boolean {
+  const [byKeyboard, setByKeyboard] = useState(false);
+
+  useEffect(() => {
+    const onKeyDown = () => setByKeyboard(true);
+    const onPointerDown = () => setByKeyboard(false);
+
+    // Capture, so a handler that stops propagation on the way up cannot leave
+    // the flag describing the previous gesture.
+    document.addEventListener("keydown", onKeyDown, true);
+    document.addEventListener("pointerdown", onPointerDown, true);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown, true);
+      document.removeEventListener("pointerdown", onPointerDown, true);
+    };
+  }, []);
+
+  return byKeyboard;
 }
 
 /**
@@ -313,7 +356,8 @@ export function StayCalendar({
  * the screen. And once the stay is whole it carries the *other* thing that exists
  * nowhere else — the way to undo it.
  *
- * `role="status"` rather than a bare `aria-live` on a fragment: the region is
+ * The live region it is printed into is the caller's — `dates-stage.tsx` — and it
+ * is `role="status"` rather than a bare `aria-live` on a fragment: the region is
  * atomic, so it is read as one sentence rather than as a diff. It never fires on
  * hover — a hover-driven live region announces continuously and is worse than
  * silence, which is the mistake that makes most custom calendars unusable. The
@@ -325,32 +369,13 @@ function selectionSentence(
   selected: StayRange | null,
 ): string {
   if (state.anchorDate) {
-    return `${formatStayDate(state.anchorDate)}. Now choose the night you leave.`;
+    // The way back is named here as well as under a whole stay, because this is
+    // the state a guest is likeliest to be in by mistake — one press in, on the
+    // wrong day, with every earlier day refusing them.
+    return `${formatStayDate(state.anchorDate)}. Now choose the night you leave, or press it again to start over.`;
   }
   if (selected) {
     return `Press ${formatStayDate(selected.checkIn)} again to start over.`;
   }
   return "Choose the night you arrive.";
-}
-
-/**
- * The clock the guest is reading on, when it is not the property's.
- *
- * cal.com names the timezone next to the duration it governs, and a resort in
- * Vietnam sells to Seoul and Singapore. Said only when the two differ, because
- * telling a guest in Ho Chi Minh City which timezone they are in is noise.
- */
-function timeZoneAside(): string {
-  const here = getLocalTimeZone();
-  return here === PROPERTY_TIME_ZONE ? "." : ` — not ${readableZone(here)}.`;
-}
-
-/**
- * An IANA zone as prose.
- *
- * `replaceAll`, not `replace`: "Asia/Ho_Chi_Minh" has two underscores, and the
- * single-shot version put "Asia/Ho Chi_Minh" on the page.
- */
-function readableZone(zone: string): string {
-  return zone.replaceAll("_", " ");
 }

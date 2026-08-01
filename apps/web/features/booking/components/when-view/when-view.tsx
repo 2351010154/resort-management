@@ -33,19 +33,27 @@ export function WhenView({
   range,
   nights,
   minDate,
+  maxDate,
   onRangeChange,
+  onStatus,
 }: {
   readonly range: StayRange | null;
   readonly nights: NightIndex;
   readonly minDate: CalendarDate;
+  readonly maxDate: CalendarDate;
   readonly onRangeChange: (range: StayRange | null) => void;
+  /** Passed straight through: the grid composes the step's one sentence and the
+   *  head prints it. See `stay-calendar.tsx`. */
+  readonly onStatus: (sentence: string) => void;
 }) {
   return (
     <section className={styles.view} data-view="when">
       <StayCalendar
+        maxDate={maxDate}
         minDate={minDate}
         nights={nights}
         onSelect={onRangeChange}
+        onStatus={onStatus}
         selected={range}
       />
     </section>

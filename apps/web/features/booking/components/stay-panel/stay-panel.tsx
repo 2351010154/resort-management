@@ -85,7 +85,12 @@ export function StayPanel({
       </div>
 
       <div className={styles.action}>
-        <button className={styles.continue} onClick={onContinue} type="button">
+        <button
+          className={styles.continue}
+          data-continue
+          onClick={onContinue}
+          type="button"
+        >
           Choose your room
         </button>
 

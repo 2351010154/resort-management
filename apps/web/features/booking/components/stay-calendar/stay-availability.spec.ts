@@ -76,10 +76,12 @@ describe("choosing a departure", () => {
     expect(unpickableReason(rules(), on("2026-08-11"), anchor)).toBeNull();
   });
 
-  it("refuses the arrival itself", () => {
-    expect(unpickableReason(rules(), anchor, anchor)).toEqual({
-      kind: "before-arrival",
-    });
+  // The arrival is the one date a half-made selection leaves pressable, because
+  // pressing it again is how the guest takes the selection back. Calling it
+  // unavailable stopped React Aria pressing it at all, which left no way out of a
+  // wrong first press: every earlier date is unavailable too.
+  it("keeps the arrival itself pickable, as the way to start over", () => {
+    expect(unpickableReason(rules(), anchor, anchor)).toBeNull();
   });
 
   it("refuses a date before the arrival", () => {

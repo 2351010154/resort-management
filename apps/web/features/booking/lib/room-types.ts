@@ -41,6 +41,14 @@ export interface RoomType {
   readonly bedding: string;
   /** One concrete fact in the arrival's voice. No adjectives. */
   readonly aspect: string;
+  /**
+   * Two sentences the property says about the type — `property-and-tariff.md`
+   * §1, "What each type says for itself".
+   *
+   * Quotes no number that is not already a field above, so a size or a bed is
+   * corrected in one place rather than two.
+   */
+  readonly description: string;
 }
 
 /**
@@ -63,6 +71,8 @@ export const ROOM_TYPES: readonly RoomType[] = [
     squareMetres: 28,
     bedding: "one queen bed (1.60 m)",
     aspect: "courtyard",
+    description:
+      "The courtyard side of the building, and the quiet one. A queen bed, a desk at the window, and room enough for two.",
   },
   {
     code: "DELUXE",
@@ -73,6 +83,8 @@ export const ROOM_TYPES: readonly RoomType[] = [
     squareMetres: 34,
     bedding: "one king bed (1.80 m)",
     aspect: "garden",
+    description:
+      "Six square metres more than the Superior, facing the garden. A king bed, and a chair you will actually sit in.",
   },
   {
     code: "PREMIER",
@@ -83,6 +95,8 @@ export const ROOM_TYPES: readonly RoomType[] = [
     squareMetres: 42,
     bedding: "one king bed (1.80 m) · one single bed (1.00 m)",
     aspect: "city",
+    description:
+      "A king bed and a single, on the city side. The room a family of three stops having to negotiate.",
   },
   {
     code: "JUNIOR_SUITE",
@@ -93,6 +107,8 @@ export const ROOM_TYPES: readonly RoomType[] = [
     squareMetres: 52,
     bedding: "one king bed (1.80 m)",
     aspect: "corner · two aspects",
+    description:
+      "A corner room, so the light moves across it through the day. The sitting area is its own room in all but name.",
   },
   {
     code: "PANORAMA_SUITE",
@@ -103,6 +119,8 @@ export const ROOM_TYPES: readonly RoomType[] = [
     squareMetres: 68,
     bedding: "two queen beds (1.60 m)",
     aspect: "sea",
+    description:
+      "The largest room in the house, facing the sea, with two queen beds. It is the one people come back for.",
   },
 ];
 
@@ -115,38 +133,39 @@ export function roomType(code: RoomTypeCode): RoomType {
 }
 
 /**
- * What is in the room, by subject.
+ * ⚑ What is in every room — `property-and-tariff.md` §1, "In every room".
  *
- * **Deliberately the same for every type**, and that is why it is one tap deeper
- * than the card rather than on it. The differences between these five rooms are
- * the three things the card draws; a per-type amenity list would imply the
- * Superior has no hairdryer, and inventing which amenities each type lacks is
- * exactly the fact-invention `design-foundations.md` §6 rules out. When the
- * database holds per-type amenities, this constant is what it replaces.
+ * **This list was once deleted, and the objection that deleted it was right.**
+ * It read as seven features in three labelled groups, a tap deeper than the
+ * card, and every item on it was something a guest paying this rate has already
+ * assumed. A property that prints "Wi-Fi" as a *feature* is telling you it might
+ * not have had it.
  *
- * Grouped rather than listed flat. Apple's comparison page is twenty row
- * headers and every one of them is a *subject* — "Size and Weight" — never a
- * spec, because a reader scans for the subject they care about and reads only
- * that row. Seven items in one run is a list to be read; three subjects is a
- * thing to be scanned. The grouping is organisation of facts the property
- * already states, not a new fact.
+ * What was wrong was the register, not the facts. So the list is back, sourced
+ * from the property file rather than written in a component — which is the half
+ * `design-foundations.md` §6 actually forbids — and `room-stage.module.css`
+ * prints it as the plainest run of lines on the plate: no heading, no glyphs, no
+ * ticks, under a rule, at the smallest weight. It answers "what is in the room"
+ * for a guest who wondered, and it does not compete with the five things that
+ * differ.
+ *
+ * One list, not five. A type that ever differs takes an override at that point;
+ * five copies of the same twelve lines is five places to forget.
+ *
+ * The order is the property file's, read across then down, so the three columns
+ * on the plate group the way the table does.
  */
-export interface AmenityGroup {
-  readonly subject: string;
-  readonly items: readonly string[];
-}
-
-export const ROOM_AMENITIES: readonly AmenityGroup[] = [
-  {
-    subject: "Comfort",
-    items: ["Air conditioning", "Desk and reading light"],
-  },
-  {
-    subject: "Bathroom",
-    items: ["Rain shower", "Hairdryer"],
-  },
-  {
-    subject: "In the room",
-    items: ["Safe", "Kettle, tea and coffee", "Wi-Fi"],
-  },
+export const ROOM_AMENITIES: readonly string[] = [
+  "Air conditioning",
+  "Rain shower",
+  "Kettle, tea and coffee",
+  "Desk and reading light",
+  "Premium toiletries",
+  "Still water",
+  "In-room safe",
+  "Hairdryer",
+  "Wi-Fi",
+  "Daily housekeeping",
+  "Robes and slippers",
+  "Smart TV",
 ];

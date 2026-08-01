@@ -7,10 +7,12 @@
  * measure, and the column reveals it. A panel that re-flowed its own type on every
  * frame of the opening would be unreadable for the half-second it took.
  *
- * The ground is `--ivory-warm`, set on the column rather than here, so the plate
- * runs the full height of the page whatever this content does. Every hairline
- * below is a step stronger than the ones on the ivory side: the same 0.15 umber
- * over a warmer ground reads as a smudge.
+ * The ground is set by the column rather than here, and it is no longer always
+ * the same one: on the dates step this is a section of the plate and stands on
+ * its ivory, divided from the calendar by a hairline (`dates-stage.module.css`).
+ * The rules below are a step stronger than the ones the calendar draws either
+ * way — a summary read as a stack of labelled rows needs its divisions visible,
+ * where a grid of numerals does not.
  */
 
 /* The sections stack from the top and stop where they stop.

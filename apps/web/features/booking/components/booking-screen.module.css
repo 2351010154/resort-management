@@ -1,7 +1,8 @@
-/* The screen. Two grounds, side by side, and the right one is a full-height plate.
+/* The funnel's screen, and the room step's composition.
  *
- * Three decisions here are departures from what the funnel did before, and each is
- * argued where it sits: the second ground, the measure, and the body face.
+ * The dates step composes itself in `dates-stage.module.css` — it returns before
+ * anything below is reached — so `.screen` is all the two steps share, and
+ * everything after it belongs to the rooms.
  */
 
 .screen {
@@ -23,216 +24,542 @@
    */
   font-family: var(--font-display), serif;
 
-  /* The left section's measure and its minimum gutter, in one place because two
-     stylesheets read them: this file, for the steps and the views, and
-     `funnel-nav.module.css`, for the bar's contents. The bar has to be able to
-     draw a hairline the full width of the column while its own type sits on the
-     same vertical as the heading below it, which is why the pattern is repeated
-     there rather than the element being nested in something here.
-
-     60rem is two seven-column months at a 60px cell with a --space-4 gutter
-     between them — the comp's own calendar width, scaled to 1440. */
-  --funnel-measure: 60rem;
-  --funnel-gutter: var(--space-4);
-
   min-height: 100dvh;
   background: var(--ivory);
   color: var(--ink);
 }
 
-/* The two columns, and the one property that animates between the screen's two
- * readings.
+/* ---- The room step ------------------------------------------------------- */
+
+/* **The room is the ground now, and everything else is a plate on it.**
  *
- * **The number is a registered custom property, not `grid-template-columns`.**
- * Track lists interpolate in current browsers, but only where the two lists match
- * track for track, and the failure mode when they do not is a jump with no
- * warning. A registered `<percentage>` cannot fail that way: it is a number, the
- * browser tweens numbers, and the grid re-resolves each frame from the result. It
- * also means the collapsed state is genuinely `0%` — the plate is absent, not a
- * narrow rail pretending to be.
+ * Round 4 split the window in two: a third of it an ivory column holding the
+ * list, two thirds a plate holding a photograph with a card and a foot stacked
+ * inside it. Two grounds meeting on a vertical seam down the middle of the
+ * screen, and the room — the thing the whole step exists to show — was a band
+ * inside a box on one side of it.
+ *
+ * There is one ground now and it is the photograph, edge to edge, the size of
+ * the window. The list, the room's facts and its price are plates laid on it.
+ * That is the same composition the dates step already makes — its head stands on
+ * a photograph of the property with the calendar laid over the picture's bottom
+ * edge — so the funnel is one idea seen twice rather than a picture on one step
+ * and a page on the other.
+ *
+ * Nothing here overlays anything in the dialog sense: there is no scrim, no
+ * focus trap, no scroll lock and nothing to dismiss. A plate is a region of the
+ * page that happens to have a photograph behind it.
  */
-@property --booking-panel-share {
-  syntax: "<percentage>";
-  inherits: false;
-  initial-value: 0%;
-}
-
-.stage {
-  --booking-panel-share: 0%;
-
+.frame {
+  position: relative;
+  /* A stacking context of its own, so the ground's `z-index: 0` and the plates'
+     `1` are a local order rather than a claim about the document. */
+  isolation: isolate;
   display: grid;
-  /* `minmax(0, 1fr)` rather than `1fr`, or the calendar's own minimum content
-     width would stop the first track from ever giving anything back. */
-  grid-template-columns: minmax(0, 1fr) var(--booking-panel-share);
-  /* Stretch, not start: this is what makes the plate a full column rather than a
-     box the height of its own contents. */
-  align-items: stretch;
-  min-height: 100dvh;
-  transition: --booking-panel-share 0.5s var(--ease-ui);
+  /* The bar, then everything else. `minmax(0, 1fr)` on the second, or the
+     plates' own content height would stop the row giving anything back and the
+     price plate would fall off the bottom of the window. */
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100dvh;
+  overflow: hidden;
+
+  /* **The bar's margin and the plates' margin are two different distances, and
+   * that is the composition rather than an inconsistency.**
+   *
+   * They were one token, so the wordmark sat on exactly the vertical the list
+   * plate started on — and what that draws is a bar that is the top edge of the
+   * plate rather than a bar standing on the window. In the comp the wordmark is
+   * the leftmost thing on the screen and the plate is set in from it by better
+   * than its own width again: the type belongs to the window, the plate is an
+   * object laid on the picture, and an object does not touch the frame.
+   *
+   * `--page-gutter` is the window's own margin, which the bar's type lands on.
+   * `dates-stage.module.css` declares its own for the same job; both are local
+   * to their step because the two steps are the only readers and a shared value
+   * would be a third file to look in.
+   */
+  --page-gutter: clamp(var(--space-2), 2.7vw, 3.5rem);
+
+  /* The margin the plates stand on — the wider of the two, and the one that
+     makes the left of the composition read as inset rather than flush. */
+  --plate-gutter: clamp(var(--space-2), 5.9vw, 6.5rem);
+
+  /* **The right margin is the wider one, and it is a place rather than a
+   * margin.** The composition is not symmetrical: the plates come up from the
+   * left and the bottom, and the gallery's counter and arrows live off the end
+   * of them, on the photograph, outside every plate. That strip is what this
+   * reserves.
+   *
+   * `11rem` is its floor and it is derived: the walk measures 10rem — two
+   * `--room-walk` buttons, a counter and their gaps — and it is offset from the
+   * window edge by `--space-3` in `room-ground.module.css`, which leaves a rem
+   * of clearance between the price plate's right edge and the counter. Below
+   * that width the arrows would be over the room's plate rather than beside it,
+   * which is the one thing this strip exists to prevent. Above it the
+   * proportion takes over.
+   *
+   * **It was `12rem`, and the extra rem was what tipped the composition left.**
+   * The floor beat the proportion at every width this step is composed for, so
+   * the right margin was a sixteenth of the window wider than the comp's while
+   * the left was narrower — and the whole picture leaned. The floor is now the
+   * clearance the walk actually needs and nothing more, so at 1440 the
+   * proportion is what resolves.
+   */
+  --page-gutter-right: max(12.1vw, 11rem);
+
+  /* The gallery arrows' box. Declared here rather than in
+     `room-ground.module.css` because two stylesheets need it: that one to size
+     the buttons, and `.plates` below to reserve the strip they sit in. A
+     control only *nearly* clear of the price plate is a control the plate takes
+     the pointer for. */
+  --room-walk: 2.75rem;
+
+  /* The list plate's width. Measured rather than chosen: a room row is a 4.75rem
+     thumbnail, a 1.5rem state mark and two 0.5rem gaps — 7.25rem of furniture —
+     and what is left has to hold "3 guests · 52 m² · corner · two aspects" on
+     one line, which is the longest string the five types produce. At the
+     21.875rem floor, less the plate's inset and the row's own padding, the type
+     gets 172px against the 166px that string measures at `--plate-xs`.
+
+     **25vw was still too much of the window, and the floor was the half of it
+     that bit.** The plate holds the quietest reading on the step — five short
+     rows — and the room holds the photograph, so a rail that ran to nearly a
+     third of the window at 1440 put the weight on the wrong side of the seam
+     and left the room's own plate short of the width it wants. 24.3vw is the
+     proportion; the floor is what the longest row needs, and the row furniture
+     came down to meet it rather than the type being allowed to wrap. */
+  --room-rail: clamp(21.875rem, 24.3vw, 27rem);
+
+  /* The air inside every plate, and the reason the step stopped reading as
+     cramped.
+   *
+   * It was --space-2 flat: 16px between a photograph's edge and a column of
+   * type set at the scale of a page. What that produced was five rows running
+   * to the plate's edges with the heading pressed against its top corner — a
+   * box the content had outgrown rather than a box the content sat in.
+   *
+   * Proportional, because the plate is: a fixed inset reads as generous at
+   * 24.5rem and mean at 28rem, which is the same defect the other way round. */
+  --plate-inset: clamp(1rem, 1.5vw, 1.75rem);
+
+  /* **The step's own reading scale, one step under the document's.**
+   *
+   * `tokens.css` sizes type for a page — a heading with the window to itself, a
+   * sentence running a full measure. Nothing on this step has either. The rail
+   * is a quarter of the window and the room's plate is two columns inside a
+   * half of it, so the global scale lands every line a size too large: five
+   * room names at --text-lg read as five headings, and the facts under them run
+   * out of column and wrap.
+   *
+   * So the plates take a scale of their own, declared here because four
+   * stylesheets read it and a value re-typed in four places is a value that
+   * drifts. Two sizes, which is what the plates actually use: the line a guest
+   * reads, and the line that qualifies it. Everything larger — the question,
+   * the room's name, the total — is sized where it is set, because each is the
+   * only one of its kind on the step.
+   *
+   * **Both came down a step, and the step is what the plates are sized by.** At
+   * 13/11 the reading was a size larger than the composition it sits in: the
+   * comp sets its own facts line at about 10px and its prose at about 12 for a
+   * plate the same fraction of the window, and against that everything here read
+   * as a page shrunk to fit rather than as type cut for a plate. The rail is
+   * narrower for it too — the longest facts line has to sit on one line inside
+   * `--room-rail`, and at 11px it no longer did. */
+  --plate-sm: 0.75rem; /* 12px — sentences, prices, values. */
+  --plate-xs: 0.625rem; /* 10px — facts, terms, the specification. */
+
+  /* The gutter between the list plate and the room's. Proportional rather than a
+     step on the spacing scale, because it is the one horizontal distance in this
+     composition that has to hold its share of the window as the window changes:
+     the two plates either side of it are both proportional, and a fixed gap
+     between them reads as a different composition at 1440 than at 1600. */
+  --room-gutter: 4vw;
+
+  /* **The plates are cut with a radius, not square.** Every ivory box laid on
+     the photograph carries it — the list, the room, its price — and the rows
+     inside the list carry a smaller one. A square plate on a photograph reads
+     as a crop of the picture; a radius reads as something set down on top of
+     it, which is what these are. The room's own furniture is already round —
+     the state mark and both gallery arrows are circles — so this is the same
+     corner at three sizes rather than a new idea.
+
+     One token for the plates and one for what sits inside them: nesting the
+     same radius makes the inner box look sharper than the outer one. */
+  --plate-radius: 0.75rem;
+  --row-radius: 0.5rem;
+
+  /* **The band under the plates, kept empty on purpose.**
+   *
+   * The composition does not run to the bottom edge of the window: it stands on
+   * a margin, and the gallery's counter and arrows sit out in it at the right.
+   * The trust strip the comp draws along this band is out of this step's scope,
+   * but the *space* it stands in is not — without it every plate slid to the
+   * floor of the window and the whole composition read as bottom-heavy.
+   *
+   * So the band is reserved whether or not anything is ever put in it. That is
+   * what lands the list and the price on the comp's own bottom edge rather than
+   * on the window's. */
+  --room-foot: 3.375rem;
 }
 
-.screen[data-panel="open"] .stage {
-  --booking-panel-share: 30%;
+/* The bar stands on the photograph, so it takes the hero's light palette.
+ *
+ * Every one of these is a `--funnel-*` custom property whose fallback in
+ * `funnel-nav.module.css` and `step-rail.module.css` is the ivory reading — the
+ * same contract `booking-hero.module.css` uses, and the reason neither component
+ * needs a `tone` prop or a second branch. `--funnel-frame: 100%` is the other
+ * half of it: over a full-bleed photograph there is no 60rem column to line up
+ * with, so the frame is the window and the gutter is the page's margin.
+ */
+.screen[data-panel="rooms"] .frame {
+  --funnel-frame: 100%;
+  --funnel-gutter: var(--page-gutter);
+  --funnel-ink: var(--ivory);
+  --funnel-quiet: rgb(var(--ivory-rgb) / 0.78);
+  --funnel-hairline: rgb(var(--ivory-rgb) / 0.28);
 }
 
-/* Reduced motion is a composition, not a frozen frame — §9. The global
-   kill-switch would cut the tween to 0.01ms, which is a full-width calendar
-   snapping to 70% on a date press. Both readings are complete and correct
-   compositions, so the honest answer is that the plate is simply *there*, with no
-   width travelling at all. */
-@media (prefers-reduced-motion: reduce) {
+/* The bar is a plate too — it has to sit over the ground rather than under it. */
+.frame > header {
+  position: relative;
+  z-index: 1;
+}
+
+/* Everything laid on the photograph: the list down the left, the room's two
+ * plates at the bottom right.
+ *
+ * The rail spans both rows so its bottom edge lands level with the price plate's
+ * — the two are the outer corners of the composition and a rail stopping short
+ * of the price would leave a step in the silhouette.
+ *
+ * **The gallery is beside the plates now, not under them.** It used to sit in a
+ * strip reserved along the bottom, which is why this padding was derived from
+ * `--room-walk`: the plates had to clear it vertically. The walk moved into the
+ * right margin — `--page-gutter-right`, which is sized to hold it — so the
+ * clearance is horizontal and the bottom is free to be an edge again.
+ *
+ * **And the layer takes no pointer of its own.** Reserving the strip in padding
+ * is not the same as leaving it alone: padding is still part of the box, so this
+ * element covered the arrows it had made room for and swallowed every press on
+ * them — `check-booking-screen.mjs` fails on exactly that, which is why the
+ * gallery's tap floor is asserted by clicking the thing rather than measuring
+ * it. The same was true of the whole empty top-right of the grid, which is
+ * photograph the guest can see and nothing but this was over.
+ *
+ * So the layer is a frame that places two plates and is otherwise not there, and
+ * the plates take the pointer back. `pointer-events` rather than trimming the
+ * box to fit: the grid has to span the frame for the rail to be a full column,
+ * and any geometry that both spans it and misses the corner would be a second
+ * set of numbers to keep level with the first.
+ */
+.plates {
+  position: relative;
+  z-index: 1;
+  pointer-events: none;
+  display: grid;
+  grid-template-columns: var(--room-rail) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--space-3) var(--room-gutter);
+  min-height: 0;
+  padding: var(--space-1) var(--page-gutter-right) var(--room-foot)
+    var(--plate-gutter);
+}
+
+/* The list plate. A column of the page with a ground of its own, and the one
+ * thing on this step that scrolls — see `.views`.
+ */
+.rail {
+  /* **The plate takes the palette back off the photograph.**
+   *
+   * The bar above is ivory on a picture, and it gets there from `--funnel-*`
+   * declared on the frame — which every descendant inherits, including the step
+   * rail *inside this plate*. That shipped once: ivory type on an ivory ground,
+   * so "1 Dates — 2 Your room" was invisible and the way back to the calendar
+   * was a control nobody could see. No numeric gate catches it; the words are
+   * still in the DOM and still the right size.
+   *
+   * `initial` on a custom property is the guaranteed-invalid value, so every
+   * `var(--funnel-x, <ivory reading>)` in `step-rail.module.css` falls back —
+   * which is the whole reason those fallbacks exist. Reset here rather than
+   * scoped tighter on the frame, because this plate is the boundary: the ground
+   * outside it is a photograph and the ground inside it is ivory.
+   */
+  --funnel-ink: initial;
+  --funnel-quiet: initial;
+  --funnel-hairline: initial;
+  --funnel-ahead: initial;
+  --funnel-disc-ink: initial;
+  --funnel-disc-ground: initial;
+
+  /* Left, on the title's vertical. Centred is right for a rail heading a page;
+     this one heads a column, and centred steps over a left-aligned heading is
+     two compositions in one plate. */
+  --funnel-steps-align: flex-start;
+
+  /* And at the plate's scale, not the page's. The rail is two caps runs, two
+     discs and a connector; across the page they fit at --text-xs with the
+     connector running to 6rem, and across a plate a quarter of the window they
+     do not — the second label was cut off at the plate's right edge. The words
+     step down with everything else on the plate, and the connector, which is
+     the one part of the rail that is neither a word nor a marker, gives up the
+     rest. */
+  --funnel-steps-type: var(--plate-xs, var(--text-xs));
+  --funnel-steps-rule: clamp(2rem, 4.5vw, 4rem);
+
+  /* And no air of its own above, because the plate's inset is already that air.
+     The rail's own padding is right where it heads a page — the dates step
+     stands it between a bar and a hero — and here it stacks on top of an inset
+     the same size, which puts the discs a third of the way down the plate
+     before the question has been asked. */
+  --funnel-steps-pad: 0 0 var(--space-1);
+
+  grid-column: 1;
+  grid-row: 1 / -1;
+  /* Against the grid's `align-items: end`, which is what puts the room's plates
+     in the bottom corner. The rail is the exception: it is a full column, not a
+     box sitting on the floor of one. */
+  align-self: stretch;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  padding: var(--plate-inset);
+  background: var(--ivory);
+  border-radius: var(--plate-radius);
+  /* The same shadow the room's plates carry, for the same reason: it is what
+     says these are laid on the photograph rather than cut out of it. */
+  box-shadow: 0 1.5rem 3rem rgb(var(--night-rgb) / 0.24);
+}
+
+/* **All five rooms are on the plate at rest, and this is the overflow that
+ * catches the heights where they are not.**
+ *
+ * It used to scroll at every height, which meant the fifth room — the most
+ * expensive one, the Panorama Suite — was below the fold of a box with no
+ * scrollbar of its own to announce it, and the fourth was cut through the
+ * middle. A guest who never scrolled a plate they had no reason to think
+ * scrolled saw four rooms and concluded the property had four.
+ *
+ * The rows carry a thumbnail sized so that five of them, the title, its line and
+ * the summary all stand inside the plate at the window heights this step is
+ * composed for. Below those — a laptop's 800px, 150% zoom — this is still the
+ * one scrollbar the composition allows, and it is still on the list rather than
+ * on the room: furniture belongs beside the thing being chosen from, never over
+ * the thing being chosen.
+ *
+ * **The step rail above it and the concierge below it never scroll.** The two
+ * things a guest reaches for when they are stuck — the way back to the dates,
+ * and the way to a person — are exactly the two that must not have moved.
+ */
+.views {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* The room's two plates, in the bottom-right corner of the window. Row 2 only —
+   row 1 is the air the photograph shows through, which is what makes the picture
+   the ground rather than a backdrop behind a full page of boxes. */
+.stage {
+  grid-column: 2;
+  grid-row: 2;
+  pointer-events: auto;
+  min-width: 0;
+}
+
+/* ---- The peek ------------------------------------------------------------ */
+
+/* **Reaching for the photograph is answered by giving the photograph.**
+ *
+ * A guest who moves to the gallery's arrows has said, as plainly as a pointer
+ * can say anything, that the thing they want to look at is the room — and the
+ * room is behind two opaque plates covering the left third and the bottom right
+ * of it. So hovering that control lifts them: the list rail and the room's two
+ * plates fade out, the picture is the window, and the moment the pointer leaves
+ * they come back. Nothing is toggled, nothing is remembered, and there is no
+ * state to get stuck in.
+ *
+ * **Everything but the bar and the control itself.** `FunnelNav` stays because
+ * it is the way out of the funnel and a way out that disappears when you move
+ * the mouse is not one. The counter and the arrows stay because they are what
+ * the guest is pointing at — a control that vanishes under the cursor that
+ * summoned it takes the next press with it, and the peek would end the instant
+ * it began.
+ *
+ * **`:has()` rather than React state**, and the difference is frames. The
+ * trigger and the plates are siblings under `.frame`, so the browser can answer
+ * this itself on the compositor; routing it through `useState` would re-render
+ * the list, the stage and the gallery on every pointer entry to fade two boxes.
+ *
+ * **`:focus-visible` alongside `:hover`, never `:focus-within`.** A guest tabbing
+ * to the arrows is asking the same question with a different device and gets the
+ * same answer — but `:focus-within` also matches the focus a *mouse* click
+ * leaves behind, so pressing an arrow and moving away left the plates hidden
+ * with nothing hovering anything and no way back but a click elsewhere. That
+ * shipped in the first cut of this rule and is exactly the stuck state the
+ * paragraph above claims cannot exist. `:focus-visible` is the keyboard's focus
+ * and not the pointer's, which is the distinction the behaviour actually wants.
+ *
+ * **`visibility` as well as `opacity`.** Opacity alone leaves two invisible
+ * plates taking every press and every tab stop across two thirds of the window.
+ * It is transitioned with a delay so it flips only once the fade is done, which
+ * is what keeps the plates clickable all the way back in.
+ *
+ * Only where the photograph is the ground. Below the stack width the picture is
+ * a band at the top of a scrolling page and there is nothing laid over it to
+ * lift — see the narrow block at the foot of this file.
+ */
+@media (min-width: 78rem) {
+  .rail,
   .stage {
+    transition:
+      opacity 0.45s var(--ease-ui),
+      visibility 0s linear 0s;
+  }
+
+  .frame:has([data-room-walk]:hover) .rail,
+  .frame:has([data-room-walk]:hover) .stage,
+  .frame:has([data-room-walk] :focus-visible) .rail,
+  .frame:has([data-room-walk] :focus-visible) .stage {
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      opacity 0.45s var(--ease-ui),
+      visibility 0s linear 0.45s;
+  }
+}
+
+/* §9. The plates still get out of the way — that is the behaviour, not the
+   decoration — they simply stop dissolving to do it. */
+@media (prefers-reduced-motion: reduce) {
+  .rail,
+  .stage,
+  .frame:has([data-room-walk]:hover) .rail,
+  .frame:has([data-room-walk]:hover) .stage,
+  .frame:has([data-room-walk] :focus-visible) .rail,
+  .frame:has([data-room-walk] :focus-visible) .stage {
     transition: none;
   }
 }
 
-/* The left section: the bar, the steps, and whichever view is open.
+/* ---- Short windows ------------------------------------------------------- */
+
+/* **The plate's air is the first thing spent when the window is short.**
  *
- * **The measure is a gutter, not a centred box.** Both views used to sit in a
- * 64rem column centred in the window, which is right for a single run of prose and
- * wrong for this: a calendar with a plate beside it has no centre to be in, and the
- * comp this was set from holds a constant margin at both edges instead. So the
- * left section is full-bleed with one gutter, the plate takes the other edge, and
- * the bar's wordmark lands on the same vertical as the heading below it.
+ * Every measure on this step is written against the width, because the width is
+ * what the composition is about — a rail, a gutter and a room. The one thing
+ * that is not is whether five rooms stand on the plate, and that answers to the
+ * height: at 945 they stand with room to spare, at 800 the fifth is under the
+ * fold of a box with no scrollbar to announce it, which is the exact failure
+ * `.views` above is written to describe.
+ *
+ * So below the heights this is composed for, the two pieces of the composition
+ * that are *only* air give theirs up first — the plate's inset and the empty
+ * band under it. It does not close the gap at a netbook's height and it is not
+ * meant to; it is the difference between a list that scrolls a little and one
+ * that hides a room.
+ *
+ * Width-qualified, because below the stack width there is no plate, no band and
+ * nothing pinned to the window at all.
  */
-.left {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
+@media (min-width: 78rem) and (max-height: 50rem) {
+  .frame {
+    --plate-inset: 0.75rem;
+    --room-foot: 2.25rem;
+  }
 }
 
-/* **The section is centred until the plate needs the room, and nothing switches it
- * over.** Both readings fall out of one measure: a block of `--funnel-measure`
- * with a gutter each side, `margin-inline: auto`, no `data-panel` in sight.
+/* ---- No room to stage ---------------------------------------------------- */
+
+/* Nothing takeable in the range. There is no room, so there is no photograph and
+ * no price — `no-availability.tsx` states the fact and offers other dates, and
+ * it wants the width with no plate beside it.
  *
- * While the column is wider than that block, the auto margins split what is left
- * and the calendar sits in the middle of an otherwise empty page. As the plate
- * opens the column narrows, the margins shrink with it, and at the moment the
- * column is the block's own width they reach zero and the section is flush against
- * its gutter — which is where the comp has it. So the shift left is the *same*
- * tween as the plate's width, interpolated by the browser rather than staged by us,
- * and there is no frame where the content is neither centred nor placed.
- *
- * `max-width` counts the padding, which is why the gutter is added to the measure
- * here: the content box is then exactly `--funnel-measure` and it is the *content*
- * that lands centred, not the box around it.
+ * The bar goes back to ink on ivory by simply not being given the light palette
+ * above, which is the whole value of the `--funnel-*` fallbacks.
  */
-.rail,
-.views {
-  width: 100%;
-  max-width: calc(var(--funnel-measure) + 2 * var(--funnel-gutter));
+.screen[data-panel="shut"] .frame {
+  height: auto;
+  overflow: visible;
+}
+
+.screen[data-panel="shut"] .plates {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto;
+  padding-bottom: var(--space-4);
+}
+
+.screen[data-panel="shut"] .rail {
+  grid-row: 1;
+  max-width: 60rem;
   margin-inline: auto;
-  padding-inline: var(--funnel-gutter);
+  padding-inline: 0;
+  background: none;
+  box-shadow: none;
 }
 
-.views {
-  padding-bottom: var(--space-5);
+.screen[data-panel="shut"] .views {
+  overflow-y: visible;
 }
 
-/* The second ground. `--ivory-warm` is §2's own pairing for `--ivory` — the login
- * plates fall back to it — and at six units apart it separates the sections
- * without either reading as a different colour.
+/* ---- Narrow -------------------------------------------------------------- */
+
+/* One scrolling column: the bar, the picture, the list, the room, the price.
  *
- * Clipped rather than hidden, so its contents can be set at their final measure
- * and revealed instead of re-flowing on every frame of the opening. `inert` in the
- * markup keeps the collapsed state out of the tab order; `overflow: hidden` only
- * stops it being seen.
- */
-.panel {
-  overflow: hidden;
-  min-width: 0;
-  /* The plate starts at the top of the page, so its contents need clearing the
-     bar's height before they begin. --space-5 lands "YOUR STAY" on the same line
-     as the step indicator across the gap, which is the one alignment holding the
-     two grounds together at the top of the screen. */
-  padding: var(--space-5) var(--space-3) var(--space-4);
-  background: var(--ivory-warm);
-}
-
-.panel > * {
-  /* The panel's own measure, held while the column is narrower than it. 20rem is
-     "CHECK IN → CHECK OUT" as two columns at --text-base without either date
-     wrapping, measured at en-GB. */
-  min-width: 20rem;
-}
-
-/* One column until the two would both be comfortable.
- *
- * 78rem, and the number is derived rather than picked: two months side by side
- * need 45rem (`stay-calendar.module.css`), and the calendar column is 70% of the
- * window less this section's two gutters. Below it the plate goes under the
- * calendar at full width, which is the same reading a phone gets.
+ * 78rem, and the number is inherited rather than picked — it is the width at
+ * which the funnel has always stacked. Below it the photograph stops being the
+ * ground and becomes the first band of a page (`room-ground.module.css`), so
+ * every plate gives up its ground, its shadow and its place in the grid, and the
+ * bar goes back to ink on ivory because it is no longer standing on anything.
  */
 @media (max-width: 77.999rem) {
-  .stage {
-    grid-template-columns: minmax(0, 1fr);
-    min-height: 0;
+  .frame {
+    display: block;
+    height: auto;
+    overflow: visible;
+    isolation: auto;
+
+    /* And the plate scale goes with the plates. It exists because the reading
+       is squeezed into a quarter of the window beside a photograph; stacked,
+       every one of these blocks has the width of the page, and a sentence set
+       two sizes down for a column it is no longer in just reads as small. Each
+       reader falls back to the document's own token — which is the whole reason
+       every one of them is written `var(--plate-x, var(--text-x))`. */
+    --plate-sm: initial;
+    --plate-xs: initial;
   }
 
-  .screen {
-    --funnel-gutter: var(--space-2);
+  .screen[data-panel="rooms"] .frame {
+    --funnel-frame: initial;
+    --funnel-ink: initial;
+    --funnel-quiet: initial;
+    --funnel-hairline: initial;
+  }
+
+  .plates {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: 0 var(--page-gutter) var(--space-4);
+  }
+
+  .rail,
+  .screen[data-panel="shut"] .rail {
+    padding: 0;
+    background: none;
+    box-shadow: none;
   }
 
   .views {
-    padding-bottom: var(--space-3);
+    overflow-y: visible;
   }
 
-  /* No width to animate at this size, so the plate is present or it is not. A
-     zero-height collapsed block would still take a row of space. */
-  .screen[data-panel="shut"] .panel {
-    display: none;
+  /* Stacked, the room's plates are sections of the page rather than a corner of
+     it, so they take the whole column. */
+  .stage {
+    width: 100%;
   }
-
-  .panel {
-    padding: var(--space-3) var(--space-2) var(--space-4);
-  }
-
-  /* Stacked, the panel has the whole page to fill, and it should not take it: a
-     56px button 1000px wide and two dates at opposite ends of the screen are the
-     same panel with the relationships pulled out of it. */
-  .panel > * {
-    min-width: 0;
-    max-width: 34rem;
-  }
-}
-
-/* ---- The view's own head ------------------------------------------------- */
-
-/* The air above the heading is the comp's, measured: the bar, then the steps, then
-   a clear run before the title. It is what makes the screen read as spacious
-   rather than as full. */
-.head {
-  padding: var(--space-3) 0 var(--space-2);
-}
-
-.title {
-  font-size: var(--text-display-sm);
-  line-height: 1.1;
-}
-
-/* The dates view has no lede: the calendar's own status sentence sits here
-   instead, because it says the same thing and can also say what changed. Only the
-   room view sets one. */
-.lede {
-  margin-top: var(--space-1);
-  font-size: var(--text-base);
-  line-height: 1.6;
-  color: var(--stone-deep);
-  max-width: 34rem;
-}
-
-.nextStep {
-  width: 100%;
-  max-width: calc(var(--funnel-measure) + 2 * var(--funnel-gutter));
-  margin-inline: auto;
-  padding: 0 var(--funnel-gutter) var(--space-3);
-  font-size: var(--text-sm);
-  line-height: 1.6;
-  color: var(--stone-deep);
-}
-
-/* Clears the fixed summary bar, so the last card is not half under it. Matches the
-   bar's own 5rem plus a --space-2 breath. */
-.barSpacer {
-  height: calc(5rem + var(--space-2));
 }

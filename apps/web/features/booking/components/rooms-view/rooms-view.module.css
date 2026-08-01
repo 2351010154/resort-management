@@ -1,10 +1,12 @@
-/* View B, and the one line that carries the answer to View A's question.
+/* View B's reading column: what was answered, what is being asked, and the rows.
  *
  * **The summary row is sticky, and that is what makes the way back usable.** A
- * guest four cards down who wants to move a date has to be able to say so from
+ * guest four rows down who wants to move a date has to be able to say so from
  * where they are: if the only exit is at the top of the page, they scroll up to
  * reach it, and "put me back where I was" then means "put me back at the top",
- * which is not a feature.
+ * which is not a feature. It only ever scrolls below the width where the stage
+ * sits beside this column — above it the column is the height of the window —
+ * but the rule costs nothing where it is not needed.
  *
  * It is one 48px row and not round 1's band. Round 1 pinned three live controls
  * — Google Flights does the same thing and it costs 220px at 375, 27% of the
@@ -24,16 +26,20 @@
 .summary {
   position: sticky;
   top: 0;
-  z-index: 5; /* Over the cards it scrolls above; under the sheet layer at 20. */
+  z-index: 5; /* Over the rows it scrolls above. */
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
   width: 100%;
   min-height: 3rem; /* 48px — this is a control the guest actually taps. */
+  /* The air under it belongs to the row rather than to the list: the two
+     hairlines are what close the head of the plate, and the first room has to
+     start clear of the lower one rather than hanging off it. */
+  margin-bottom: var(--space-1);
   padding: var(--space-1) 0;
   text-align: left;
-  /* Opaque, or the cards read through it as it passes over them. */
+  /* Opaque, or the rows read through it as it passes over them. */
   background: var(--ivory);
   border-top: 1px solid rgb(var(--umber-rgb) / 0.15);
   border-bottom: 1px solid rgb(var(--umber-rgb) / 0.15);
@@ -50,14 +56,14 @@
 }
 
 .summaryValue {
-  font-size: var(--text-base);
+  font-size: var(--plate-sm, var(--text-sm));
   line-height: 1.4;
   color: var(--ink);
 }
 
 .summaryChange {
   flex: none;
-  font-size: var(--text-sm);
+  font-size: var(--plate-sm, var(--text-sm));
   color: var(--stone-deep);
   border-bottom: 1px solid var(--stone);
   transition: border-color 0.4s var(--ease-ui);
@@ -67,17 +73,60 @@
   border-bottom-color: var(--umber);
 }
 
-/* The sentence that qualifies every price under it. Said once, here, and never on
-   a card. Its companion — VAT and service — is the view's lede now. */
-.terms {
-  font-size: var(--text-xs);
-  line-height: 1.6;
-  color: var(--stone);
-  max-width: 34rem;
+/* ---- The question ------------------------------------------------------- */
+
+/* The air above the heading is what makes the column read as spacious rather
+   than as full — the same measured run the dates step holds above its own
+   title. No lede under it: the line that used to sit here said every price
+   includes VAT and service, and that belongs beside the figure it qualifies,
+   which is at the foot of the stage. */
+/* **Not `--text-display-sm`, and this is the one place the funnel steps off the
+   scale.** That token is `clamp(1.75rem, 3.5vw, 2.75rem)`, and its `vw` term is
+   sized for a heading with the window to itself — which is what every other
+   screen gives it. This one has a quarter of the window, so 3.5vw resolves to
+   44px in a 396px column and "Choose your room" breaks over two lines at 1440
+   while reading as though it were sized for a page it is not on.
+
+   2.4vw was the first correction and it did not go far enough: at 36px the
+   question was still the loudest thing on the screen, louder than the room's own
+   name on the plate beside it, which is backwards on a step whose subject is the
+   photograph. 1.9vw is a heading for a column — it clears the five room names
+   under it by a comfortable margin and is beaten by the name on the room's
+   plate, which is the order the step actually reads in.
+
+   **1.65vw now, because the plate it heads got narrower.** The rail came in to
+   the comp's quarter of the window and everything set on it stepped down a
+   size with it; a heading that did not would be the one line on the plate still
+   sized for the wider one, running most of the measure on its own. */
+/* No air above it: the plate's inset is that air, and the title is the first
+   line of the plate rather than a heading that had a summary row above it. And
+   none below either — the lede belongs to it and closes right up under it. */
+.title {
+  font-family: var(--font-display), serif;
+  font-size: clamp(1.375rem, 1.65vw, 1.75rem);
+  font-weight: 300;
+  line-height: 1.1;
+  color: var(--ink);
 }
 
-/* The grid stands off the terms above it — they qualify the prices in it, they
-   are not a caption on the first card. */
-.rooms {
+/* The line under the title. It belongs to the heading rather than to the rows,
+   so it closes the gap above it and keeps the space below — the title and this
+   read as one block, and the summary row is what starts the next one.
+
+   --stone-deep rather than --stone for the reason `.amenity` gives: this is
+   small running text and the lighter token does not clear contrast on ivory. */
+.lede {
+  padding: 0 0 var(--space-1);
+  font-size: var(--plate-sm, var(--text-sm));
+  line-height: 1.5;
+  color: var(--stone-deep);
+}
+
+/* What is not on the list, at the weight the fact deserves: one line under the
+   rows, in the colour §2 gives to what is nearly furniture. */
+.absent {
   margin-top: var(--space-2);
+  font-size: var(--plate-xs, var(--text-xs));
+  line-height: 1.6;
+  color: var(--stone);
 }
