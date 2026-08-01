@@ -19,7 +19,8 @@ next-env.d.ts
 .vscode/
 .idea/
 
-# Project planning artifacts
+# Project planning artifacts. Jira owns delivery state; these are local
+# decomposition aids, regenerable from docs/product-requirements.md.
 /plans/
 
 # Python / local runtime artifacts
