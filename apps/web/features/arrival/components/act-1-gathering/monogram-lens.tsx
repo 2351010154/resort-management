@@ -54,7 +54,7 @@ const BARREL = 1.15;
  * past the camera by APERTURE_PASS and the rest of the act belongs to the field.
  * Against the act it would peak long after there was any outline left to bend.
  */
-const barrelRamp = (push: number) => Math.sin(Math.PI * Math.pow(push, 0.85));
+const barrelRamp = (push: number) => Math.sin(Math.PI * push ** 0.85);
 
 /**
  * Magnification the reflection is gone by.
@@ -113,6 +113,7 @@ function LensQuad({
   const texture = useMemo(() => fieldTexture(field), [field]);
   useEffect(() => () => texture.dispose(), [texture]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: the backdrop is swapped in place below; rebuilding the block on every swap would hand the material a new uniform set mid-scrub.
   const uniforms = useMemo(
     () => ({
       uField: { value: texture },
@@ -129,9 +130,6 @@ function LensQuad({
       uBaseV: { value: GLYPH_BASE_V },
       uReflect: { value: 0 },
     }),
-    // the backdrop is swapped in place below; rebuilding the block on every
-    // swap would hand the material a new uniform set mid-scrub
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [texture],
   );
 
@@ -321,12 +319,11 @@ export function MonogramLens({
   // same reveal, which resolves into the mark snapping open in a few hundred
   // milliseconds instead of opening over its two and a half seconds.
   const announced = useRef(false);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: onReady is a stable callback from the orchestrator, and the announcement is latched by the ref above so a new identity would not re-announce anyway.
   useEffect(() => {
     if (announced.current || !field || !backdrop) return;
     announced.current = true;
     onReady?.();
-    // onReady is a stable callback from the orchestrator
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [field, backdrop]);
 
   return (
