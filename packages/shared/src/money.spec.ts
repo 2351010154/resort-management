@@ -7,7 +7,7 @@ import {
   splitVnd,
   type VndAmount,
   vndAmountSchema,
-} from "./money";
+} from "./money.js";
 
 describe("a VND amount", () => {
   it("is a bigint", () => {

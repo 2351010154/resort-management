@@ -14,8 +14,8 @@
 // `docs/architecture/property-and-tariff.md` §3 for the rules themselves.
 
 import { z } from "zod";
-import { vndAmountSchema } from "./money";
-import { stayDateSchema } from "./stay-date";
+import { vndAmountSchema } from "./money.js";
+import { stayDateSchema } from "./stay-date.js";
 
 /**
  * The five types in `property-and-tariff.md` §1. A closed enum rather than a

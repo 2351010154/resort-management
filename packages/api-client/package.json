@@ -1,5 +1,5 @@
 {
-  "name": "@mariva/shared",
+  "name": "@mariva/api-client",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -14,18 +14,15 @@
   ],
   "scripts": {
     "build": "tsc",
-    "test": "vitest run",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@internationalized/date": "^3.12.2",
+    "@mariva/shared": "workspace:*",
+    "@orpc/client": "1.14.10",
     "@orpc/contract": "1.14.10",
-    "@orpc/zod": "1.14.10",
-    "drizzle-zod": "0.8.3",
-    "zod": "^4.4.3"
+    "@orpc/openapi-client": "1.14.10"
   },
   "devDependencies": {
-    "typescript": "5.6.3",
-    "vitest": "4.1.10"
+    "typescript": "5.6.3"
   }
 }
