@@ -6,10 +6,19 @@
 // at M3. Nothing is listed speculatively; an entry with no implementation is a
 // promise the type system will hold the client to and nobody can keep.
 
+import { availability } from "./availability.js";
 import { health } from "./health.js";
+import { inventory } from "./inventory.js";
 
 export const contract = {
   health,
+  availability,
+  inventory,
 };
 
 export type Contract = typeof contract;
+
+// The request and response shapes themselves, so a service can name what it is
+// handed without inferring it back out of the router object.
+export { rateCalendarQuery, stayOfferQuery } from "./availability.js";
+export { closeRoomInput, roomClosureSchema } from "./inventory.js";

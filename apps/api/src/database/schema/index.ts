@@ -7,9 +7,13 @@
 // `modules/identity`.
 export * from "./identity.js";
 
-// The property: the five room types and the forty rooms. Owned by
-// `modules/inventory`.
+// The property — the five room types and the forty rooms — and the two layers
+// of inventory sold against them. Owned by `modules/inventory`.
 export * from "./inventory.js";
+
+// What a night costs and whether it may be sold — the rate calendar the
+// availability query prices against. Owned by `modules/pricing`.
+export * from "./pricing.js";
 
 // The guest realm: Better Auth's four core tables. Their in-file names are
 // Better Auth's own (`user`, `session`, …) because its Drizzle adapter indexes

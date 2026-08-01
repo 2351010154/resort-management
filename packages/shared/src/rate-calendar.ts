@@ -15,7 +15,7 @@
 
 import { z } from "zod";
 import { vndAmountSchema } from "./money.js";
-import { stayDateSchema } from "./stay-date.js";
+import { isoStayDateSchema, stayDateSchema } from "./stay-date.js";
 
 /**
  * The five types in `property-and-tariff.md` §1. A closed enum rather than a
@@ -55,8 +55,16 @@ export type RoomTypeCode = z.infer<typeof roomTypeCodeSchema>;
  */
 export const INCLUDED_OCCUPANCY = 2;
 
-/** The three plans at launch — `property-and-tariff.md` §3. */
-export const ratePlanCodeSchema = z.enum(["STANDARD", "BB", "NONREF"]);
+/**
+ * The three plans at launch — `property-and-tariff.md` §3.
+ *
+ * A tuple beside the schema for the same reason `ROOM_TYPE_CODES` is one:
+ * Postgres needs an enum type built from the identical values, and deriving
+ * both from one array is what stops the database and the wire from drifting.
+ */
+export const RATE_PLAN_CODES = ["STANDARD", "BB", "NONREF"] as const;
+
+export const ratePlanCodeSchema = z.enum(RATE_PLAN_CODES);
 
 export type RatePlanCode = z.infer<typeof ratePlanCodeSchema>;
 
@@ -68,30 +76,58 @@ export type RatePlanCode = z.infer<typeof ratePlanCodeSchema>;
  * the number the guest pays. It is absent when the night is sold out, because
  * a price on a night nobody can buy is noise.
  */
+/**
+ * Everything a night carries except the date — the one field whose wire form
+ * and application form differ, and so the one the two schemas below disagree
+ * about. Stated once so the pair cannot drift in any other respect.
+ */
+const nightRateFields = {
+  /** Cheapest gross rate across the types free that night. */
+  lowestGross: vndAmountSchema.nullable(),
+  /** No room of any type is free this night. */
+  isSoldOut: z.boolean(),
+  /**
+   * A stay may not *begin* on this night, though it may run through it.
+   * Amadeus renders this as its own named cell state — "Check-out only" —
+   * rather than as a generic unavailability, which is what lets a guest
+   * learn the rule instead of only being blocked by it.
+   */
+  isClosedToArrival: z.boolean(),
+  /** Nights a stay beginning on this date must run for. 1 means no rule. */
+  minimumStay: z.number().int().min(1),
+};
+
+const PRICE_MATCHES_AVAILABILITY = {
+  message: "a sold-out night carries no price, and a free night must carry one",
+  path: ["lowestGross"],
+};
+
+function priceMatchesAvailability(night: {
+  isSoldOut: boolean;
+  lowestGross: bigint | null;
+}): boolean {
+  return night.isSoldOut === (night.lowestGross === null);
+}
+
 export const nightRateSchema = z
-  .object({
-    date: stayDateSchema,
-    /** Cheapest gross rate across the types free that night. */
-    lowestGross: vndAmountSchema.nullable(),
-    /** No room of any type is free this night. */
-    isSoldOut: z.boolean(),
-    /**
-     * A stay may not *begin* on this night, though it may run through it.
-     * Amadeus renders this as its own named cell state — "Check-out only" —
-     * rather than as a generic unavailability, which is what lets a guest
-     * learn the rule instead of only being blocked by it.
-     */
-    isClosedToArrival: z.boolean(),
-    /** Nights a stay beginning on this date must run for. 1 means no rule. */
-    minimumStay: z.number().int().min(1),
-  })
-  .refine((night) => night.isSoldOut === (night.lowestGross === null), {
-    message:
-      "a sold-out night carries no price, and a free night must carry one",
-    path: ["lowestGross"],
-  });
+  .object({ date: stayDateSchema, ...nightRateFields })
+  .refine(priceMatchesAvailability, PRICE_MATCHES_AVAILABILITY);
 
 export type NightRate = z.output<typeof nightRateSchema>;
+
+/**
+ * The same night as it crosses the wire — the date as ISO text.
+ *
+ * A response cannot declare the codec: validating a handler's output means
+ * *decoding* it, and the decoded `CalendarDate` is what would then be
+ * serialised — an object of loose numbers where the client expects nine
+ * characters. `stay-date.ts` makes the argument at length. The application type
+ * above is unchanged; this is what the contract puts on the wire, and the
+ * controller performs the one conversion between them.
+ */
+export const wireNightRateSchema = z
+  .object({ date: isoStayDateSchema, ...nightRateFields })
+  .refine(priceMatchesAvailability, PRICE_MATCHES_AVAILABILITY);
 
 /**
  * A month of nights for one plan.
@@ -107,6 +143,12 @@ export const rateCalendarSchema = z.object({
 });
 
 export type RateCalendar = z.output<typeof rateCalendarSchema>;
+
+/** The same grid as it crosses the wire — see {@link wireNightRateSchema}. */
+export const wireRateCalendarSchema = z.object({
+  plan: ratePlanCodeSchema,
+  nights: z.array(wireNightRateSchema),
+});
 
 /**
  * What one room type costs for a chosen range, and whether it can be sold.
