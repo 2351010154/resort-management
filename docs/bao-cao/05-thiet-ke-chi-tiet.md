@@ -1,5 +1,14 @@
 # Chương 5 — Thiết kế chi tiết
 
+> ⛔ **OUTDATED / KHÔNG TIN CẬY — đánh dấu 2026-08-01.** Toàn bộ `docs/bao-cao/`
+> đã trôi khỏi mã nguồn và tài liệu canonical. Không trích dẫn tệp này làm nguồn,
+> không sửa mã hay tài liệu theo nó, không coi nó là bằng chứng đã triển khai.
+> Lấy sự thật từ [`docs/README.md`](../README.md) (bản đồ thẩm quyền) rồi tới mã
+> nguồn, test, schema và workflow CI. Chỉ viết lại chương này khi đang chủ động
+> biên soạn báo cáo, và chỉ bằng bằng chứng đọc trực tiếp.
+> *(EN: this coursework report is stale and untrusted — do not use it as a source
+> of truth for the codebase.)*
+
 ## 5.1 Năm bất biến
 
 Năm điều dưới đây được nướng vào lược đồ từ ngày đầu. Chúng không phải quy ước

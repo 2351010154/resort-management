@@ -314,8 +314,11 @@ Written as the system is built, not assembled at the end.
 The architecture documents are authored **ahead** of the code that enforces them: change
 the document first, then the implementation.
 
-[`docs/bao-cao/`](docs/bao-cao/README.md) is the Vietnamese coursework report — nine
-chapters assembled from the documents above. It is a consumer of truth, never a source.
+[`docs/bao-cao/`](docs/bao-cao/README.md) is the Vietnamese coursework report,
+assembled from the documents above. It is a consumer of truth, never a source —
+and as of **2026-08-01 it is outdated and untrusted**. Do not read it to learn how
+the system works, do not cite it, and do not change code to match it or its
+diagrams.
 
 > [!TIP]
 > Markdown under `plans/` is versionable stateful evidence, not the live tracker.
