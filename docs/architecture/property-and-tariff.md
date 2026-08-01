@@ -4,16 +4,16 @@ Authority for seed data, the rate calendar, the cancellation calculation and the
 folio's charge lines. Change this file first, then the code.
 
 **Status:** proposed defaults. Mariva is *defined* here, not measured — there is
-no building, so **every value in §1–§6 is ⚑**: the developer's call, revisable
+no building, so **every value in §1–§7 is ⚑**: the developer's call, revisable
 at no cost until the code reads it. No count is quoted, because the file is
 provisional in whole rather than in named rows. That is the difference from
 [`rbac-matrix.md`](rbac-matrix.md) and
 [`booking-state-machine.md`](booking-state-machine.md), where the surrounding
 design is settled and only listed rows are open.
 
-**§7 is the exception and it is not ⚑.** Four inputs are somebody else's
+**§8 is the exception and it is not ⚑.** Four inputs are somebody else's
 answer, they are time-sensitive, and they are never fixed in this file or any
-other — they are configuration. Read §7 before writing a tax calculation or a
+other — they are configuration. Read §8 before writing a tax calculation or a
 retention rule.
 
 Supersedes backlog decisions `D1`, `D3`, `D4` and the structural half of `D2`
@@ -50,7 +50,7 @@ covers when it does not.
 **"Beds sleep" is not "max occupancy".** The columns describe physical capacity;
 they do not settle the commercial rule for a party above included occupancy.
 The owner still has to decide when an extra bed is mandatory and whether its
-service line stacks with or replaces the extra-person charge (§8).
+service line stacks with or replaces the extra-person charge (§9).
 
 When an extra bed is charged, it posts to the folio as a **service item**, never
 as a rate modifier. The unresolved question is whether that line is mandatory
@@ -59,9 +59,53 @@ and cumulative, not how it is represented.
 The last four columns were added when `/booking` was built: a room card that says
 nothing concrete is five near-identical blocks, and
 [`design-foundations.md`](design-foundations.md) §6 forbids a component inventing a
-hotel fact. They are ⚑ like the rest of §1–§6 — the developer's call until the
+hotel fact. They are ⚑ like the rest of §1–§7 — the developer's call until the
 database holds them — and `apps/web/features/booking/lib/room-types.ts` is the one
 place the code reads them from.
+
+### What each type says for itself
+
+Two sentences per type, and they exist for the same reason the four columns above
+do: the room step gives one chosen room a plate of its own, and a plate holding a
+name and a cancellation clause is a plate that has not said what the room is.
+§6's rule is that a component may not invent a hotel fact — not that the property
+may not state one. This is the property stating one, here, where it can be
+changed by an owner rather than by a stylesheet.
+
+The register is §6's: short declaratives, concrete before evocative, and the
+second sentence turns toward the reader. Nothing here quotes a number that is not
+already a row above, so a size or a bed can be corrected in one place.
+
+| Type | What it says |
+|---|---|
+| Superior | The courtyard side of the building, and the quiet one. A queen bed, a desk at the window, and room enough for two. |
+| Deluxe | Six square metres more than the Superior, facing the garden. A king bed, and a chair you will actually sit in. |
+| Premier | A king bed and a single, on the city side. The room a family of three stops having to negotiate. |
+| Junior Suite | A corner room, so the light moves across it through the day. The sitting area is its own room in all but name. |
+| Panorama Suite | The largest room in the house, facing the sea, with two queen beds. It is the one people come back for. |
+
+### In every room
+
+Twelve lines, identical across the five types, which is why they are one list here
+and not a column on the table above. A type that ever differs takes an override
+row at that point and not before — five copies of the same twelve lines is five
+places to forget.
+
+⚑ like the rest of §1–§7.
+
+| | | |
+|---|---|---|
+| Air conditioning | Rain shower | Kettle, tea and coffee |
+| Desk and reading light | Premium toiletries | Still water |
+| In-room safe | Hairdryer | Wi-Fi |
+| Daily housekeeping | Robes and slippers | Smart TV |
+
+**This list was once deleted for being the wrong list, and the objection stands.**
+A property that prints "Wi-Fi" as a *feature* is telling you it might not have had
+it. So the room step prints these as what is in the room and never as what is
+special about it: no heading selling them, no icons, no column of ticks — a plain
+run of lines under a rule, at the smallest weight on the plate. What distinguishes
+one type from another is the table above, and that is where the eye is sent.
 
 ## 2. The operating clock
 
@@ -122,7 +166,7 @@ Extra person is charged per night, and only up to the type's max occupancy in
 §1. Occupancy above the maximum is not a price, it is a rejection.
 
 This does **not** decide the extra-bed rule. Until the owner answers the question
-in §8, a quote must not assume that an extra-person charge either includes an
+in §9, a quote must not assume that an extra-person charge either includes an
 extra bed or automatically stacks with one.
 
 **Extra person: 600,000 ₫ per night, gross.** ⚑ Proposed. The rate the bands above
@@ -163,7 +207,7 @@ is why that document's §7 says the grid is not a state-machine question.
 
 ## 5. Charges and the tax model — structure only
 
-The structural half of `D2`. Rates live in §7.
+The structural half of `D2`. Rates live in §8.
 
 | Fact | Value |
 |---|---|
@@ -184,7 +228,7 @@ Rounding is presentation-only for a reason: rounding inside a calculation makes
 which is unprovable rather than merely wrong.
 
 The tax **class** is structure and is decided here. The **rate** attached to a
-class is not. See §7.
+class is not. See §8.
 
 ## 6. Service catalog — seeded thin
 
@@ -208,7 +252,32 @@ quotes them.
 Thin on purpose: `P3-SVC` needs the posting path proven, not a real menu. Items
 are data, so the catalog grows without a migration.
 
-## 7. Never a constant
+## 7. Loyalty and tiers
+
+The structure is the PRD's (`FR-GST-04`, `FR-GST-05`): tier derived nightly,
+points accrual-only, no redemption engine. The values are ⚑ proposed here and
+live as system-configuration rows editable by `ADMIN` — like §8's inputs in
+storage, unlike them in ownership: these are the developer's call until the
+owner tunes them, and tuning one is a data edit, not a deploy.
+
+| Value | Proposed | Why this value |
+|---|---|---|
+| Earn rate | **1 point per 10,000 ₫ of net room revenue** | Net — the room charge before VAT and service charge, service items excluded — so a §8 tax answer cannot silently change what a stay earns |
+| Accrual moment | folio close | A cancelled or no-show booking never closes a folio, so it earns nothing and no clawback logic needs to exist |
+| Tier ladder | Member → Silver → Gold | Three levels; Vietnamese small-hotel practice is a flat percentage per tier, not point redemption |
+| Silver | 2 stays **or** 15,000,000 ₫ net room revenue, trailing 12 months | Reachable by a twice-a-year guest — a first milestone almost nobody reaches is a program nobody uses |
+| Gold | 4 stays **or** 40,000,000 ₫, trailing 12 months | |
+| Member discount | Silver 5% · Gold 10%, applied as a promotions rate modifier (`FR-PRC-03`) | Rides the existing pricing path; never a folio adjustment |
+| Fixed perks | Silver: late checkout to 14:00 when the room is unsold. Gold: that, plus upgrade at check-in when available and a welcome amenity | Only perks a 40-room house can honor on a full night — a printed perk that gets withheld costs more goodwill than no perk at all |
+| Expiry | points earned in year `Y` expire 31 December of `Y+1` | A fixed calendar date needs no rolling-inactivity job |
+
+Tier is recomputed at business-date rollover from the trailing window and is
+never hand-set; a change writes an audit row (`FR-GST-04`). The earn rate is
+decided now, before any redemption exists, because it defines what a point
+*is*: reseeding balances after guests already hold them is a support incident,
+not a data edit.
+
+## 8. Never a constant
 
 Four inputs are not the developer's and not this document's. They are
 **system-configuration rows**, seeded from environment at boot, editable by
@@ -231,7 +300,7 @@ The same argument applies to `N`. A hardcoded retention window either deletes
 records the law requires kept, or keeps ID scans past the window `R3#6` asserts
 is empty.
 
-## 8. Still open
+## 9. Still open
 
 | Question | Whose | Tracked as |
 |---|---|---|
@@ -239,7 +308,8 @@ is empty.
 | Service prices | mine, six of eight still ⚑ unset — data | §6 |
 | Room sizes, bedding and aspects | mine, ⚑ proposed for `/booking` — data | §1 |
 | Extra-person and breakfast rates | mine, ⚑ proposed for `/booking` — data | §3, §6 |
+| Loyalty earn rate, tier thresholds, perks and expiry | mine, ⚑ proposed — config | §7 |
 | When an extra bed is mandatory, and whether its service line stacks with or replaces the extra-person charge | owner — no pricing path may infer this from bed capacity | §1, §3, §6; [SCRUM-87](https://hungphat2018-1785053353783.atlassian.net/browse/SCRUM-87) |
 | Whether minimum-stay and closed-to-arrival are a **public** contract | mine — §3 lists them under admin **Rates** only, and the guest calendar's restricted-cell state depends on reading them from `/booking` | §3 |
-| The four §7 inputs | accountant, lawyer — written answers required | `D2`, `M0-05` |
+| The four §8 inputs | accountant, lawyer — written answers required | `D2`, `M0-05` |
 | Diagram notation | professor | `D8`; [SCRUM-16](https://hungphat2018-1785053353783.atlassian.net/browse/SCRUM-16) |

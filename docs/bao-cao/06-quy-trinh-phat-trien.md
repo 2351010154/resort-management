@@ -100,7 +100,7 @@ lần đặt phòng thật đầu tiên là sai thứ tự.
 | `D2b` | **Đầu vào thuế** — thuế suất, thời hạn ưu đãi, **VAT có tính trên phí phục vụ không** | Kế toán | Mọi tổng tiền | **Mở; là cấu hình.** Chờ câu trả lời bằng văn bản |
 | `D2c` | **Thời hạn lưu trữ `N` và lưu trữ CCCD ở Singapore** | Luật sư | Lifecycle và dữ liệu lưu trú | **Mở; là cấu hình.** Chờ tư vấn bằng văn bản |
 | `D3` | **Lưới huỷ / no-show** | Chủ đầu tư | Huỷ, hoàn tiền | **Đã có mặc định đề xuất** → `property-and-tariff.md` §4 |
-| `D4` | **Cơ cấu giá lúc khai trương** | Chủ đầu tư | Báo giá | **Mặc định giá đã có; còn mở** quy tắc khi nào giường phụ bắt buộc và phí giường phụ cộng dồn hay thay thế phí người thêm (`property-and-tariff.md` §8) |
+| `D4` | **Cơ cấu giá lúc khai trương** | Chủ đầu tư | Báo giá | **Mặc định giá đã có; còn mở** quy tắc khi nào giường phụ bắt buộc và phí giường phụ cộng dồn hay thay thế phí người thêm (`property-and-tariff.md` §9) |
 | `D5` | Nội dung ma trận RBAC | — | `P0-AUTH-*` | ✅ **Xong** → `rbac-matrix.md`, 6 dòng ⚑ chờ ký duyệt |
 | `D6` | Bảng chuyển trạng thái booking | — | `P2-SM-*` | ✅ **Xong** → `booking-state-machine.md`, **2** dòng ⚑ chờ ký duyệt |
 | `D7` | Danh mục dịch vụ | Chủ đầu tư | Folio và vận hành | **Đã có seed mỏng đề xuất** → `property-and-tariff.md` §6 |

@@ -4,8 +4,8 @@ What Mariva must do, for whom, and how each requirement is accepted — stated a
 product altitude, one level above the architecture files and one level below
 nothing. This file owns the **requirement statements, their IDs, the assumption
 registry and the brief traceability matrix**. It does not own design facts (the
-`architecture/` files do), status (`plans/backlog.md` does), or ticket
-granularity (also the backlog). Where a requirement here disagrees with an
+`architecture/` files do), status, or ticket granularity (both belong to the
+execution authority named in [`README.md`](README.md)). Where a requirement here disagrees with an
 architecture file about a design fact, the architecture file is right and the
 requirement is stale — fix it here.
 
@@ -68,6 +68,11 @@ Written to shut down scope drift while the PRD's blank corners whisper.
   expensive deferral in the project.
 - **No PDF invoice engine.** The legal invoice is the e-invoice provider's
   output.
+- **No points redemption engine.** Loyalty points accrue (`FR-GST-05`) but are
+  spent nowhere in v1 — a reward is a manager-issued promotion (`FR-PRC-03`).
+  Redemption, breakage liability and reversal logic wait until real usage
+  earns them; the accrual ledger is already ledger-shaped, so adding them
+  later is an extension, not a rewrite.
 - **Guests book a room *type*, never a numbered room.** Room 301 is chosen at
   check-in.
 - **No UI test-coverage target.** The test budget goes where defects cost
@@ -83,8 +88,8 @@ Written to shut down scope drift while the PRD's blank corners whisper.
 Grouped by the fourteen API domain modules
 ([`architecture/repository-structure.md`](architecture/repository-structure.md)
 §Domain modules), which are the product's feature map. `Lands` names the
-milestone per [`orientation.md`](orientation.md) §5; status per story lives in
-`plans/backlog.md` and wins.
+milestone per the legend in §10; status per story lives in the execution
+authority named in [`README.md`](README.md) and wins.
 
 ### 4.1 `auth` — two realms
 
@@ -101,15 +106,17 @@ milestone per [`orientation.md`](orientation.md) §5; status per story lives in
 |---|---|---|---|
 | `FR-IDN-01` | Five staff roles plus the separate `GUEST` principal/realm are enforced by a fail-closed capability guard over the RBAC matrix; a route with no capability declaration is unreachable for everyone | Data-driven test iterates every matrix row asserting every allowed and every denied principal; anonymous → 401, wrong realm → 403 | M2 ✅ |
 | `FR-IDN-02` | Staff account management (`ADMIN` only), with a CLI bootstrap for the first admin | `GET/POST /identity/staff-accounts` behind the guard; `staff:create` CLI exists because the first `ADMIN` cannot come from an API requiring one | M2 ✅ |
-| `FR-IDN-03` | System configuration — VAT rate and applicability window, whether the VAT base includes service charge, retention floor `N`, business-date rollover, gateway credentials — is data, editable by `ADMIN` without a deploy | No tax rate, tax-base rule or retention period compiled anywhere in the tree ([`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) §7). Cites `ASM-01`, `ASM-02` | M6/M8 |
+| `FR-IDN-03` | System configuration — VAT rate and applicability window, whether the VAT base includes service charge, retention floor `N`, business-date rollover, gateway credentials — is data, editable by `ADMIN` without a deploy | No tax rate, tax-base rule or retention period compiled anywhere in the tree ([`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) §8). Cites `ASM-01`, `ASM-02` | M6/M8 |
 
 ### 4.3 `guest` — profiles and personal data
 
 | ID | Requirement | Acceptance criteria | Lands |
 |---|---|---|---|
-| `FR-GST-01` | Guest profile: personal data, VIP tier, loyalty points, stay history — always scoped to the requester's own record | Ownership checked in the handler; role alone never grants access | M7 |
+| `FR-GST-01` | Guest profile: personal data, VIP tier (derived — `FR-GST-04`), loyalty points (`FR-GST-05`), stay history — always scoped to the requester's own record | Ownership checked in the handler; role alone never grants access | M7 |
 | `FR-GST-02` | ID scans upload to a private bucket; viewing is a short-TTL signed URL issued after the role check, issuance audit-logged; **no manual delete path exists** — a lifecycle rule enforces retention and a job only verifies it | 0 scans older than `N` days after checkout (NFR-08). Cites `ASM-02` | M7 |
 | `FR-GST-03` | CCCD numbers are masked by default; unmasking is a distinct capability, audit-logged per call | Per [`architecture/rbac-matrix.md`](architecture/rbac-matrix.md) §3 Guest personal data | M4 |
+| `FR-GST-04` | VIP tier is a **derived value**, never hand-set: computed from rolling-12-month stay count or net room revenue against configured thresholds (`FR-IDN-03`-style config, editable without deploy; ⚑ defaults in [`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) §7), recomputed at business-date rollover; tier perks are fixed non-monetary benefits (late checkout, upgrade when available, welcome amenity) plus a member discount applied through the promotions path (`FR-PRC-03`) | Net room revenue **excludes VAT and service charge**, so a change to the `ASM-01` tax config cannot silently move tier boundaries; a tier change writes an audit row; tier matches recomputation from booking and folio history, asserted by test | M7/M9 |
+| `FR-GST-05` | Loyalty points are real and **accrual-only in v1**: one append-only ledger row per closed folio, earned per configured unit of net room revenue (⚑ defaults in [`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) §7), posted at **folio close** — never at booking or payment, so a cancelled or no-show booking structurally accrues nothing; points expire at a fixed configured calendar date; balance = Σ ledger rows, never a mutable counter | Accrual is idempotent per folio by unique constraint — the `FR-PAY-03` pattern; accrual reads the final settled folio total, so an early departure or discretionary refund cannot overstate points; no redemption endpoint exists (non-goal) | M7 |
 
 ### 4.4 `inventory` — rooms and the correctness core
 
@@ -128,7 +135,7 @@ milestone per [`orientation.md`](orientation.md) §5; status per story lives in
 | `FR-PRC-01` | Three rate plans (`STANDARD`, `NONREF`, `BB`) priced off a per-type per-date rate calendar; seasons are names over data, never hardcoded ranges | Per [`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) §3; `BB`'s breakfast posts as its own folio line | M3 |
 | `FR-PRC-02` | Stay restrictions — min/max stay, closed-to-arrival, closed-to-departure — reject at **query** time, not at booking time | One test per restriction | M3 |
 | `FR-PRC-03` | Promotions and discounts as rate modifiers | Brief bullet *giảm giá, khuyến mãi* covered | M3 |
-| `FR-PRC-04` | Child and extra-person pricing per the age bands, charged cheapest-heads-first above included occupancy, never above the type maximum | Per [`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) §3. The owner must still decide when an extra bed is mandatory and whether its service charge stacks with or replaces the extra-person charge; no quote may assume that rule (§8; [SCRUM-87](https://hungphat2018-1785053353783.atlassian.net/browse/SCRUM-87)) | M3 |
+| `FR-PRC-04` | Child and extra-person pricing per the age bands, charged cheapest-heads-first above included occupancy, never above the type maximum | Per [`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) §3. The owner must still decide when an extra bed is mandatory and whether its service charge stacks with or replaces the extra-person charge; no quote may assume that rule (§9; [SCRUM-87](https://hungphat2018-1785053353783.atlassian.net/browse/SCRUM-87)) | M3 |
 
 ### 4.6 `booking` — lifecycle and front desk
 
@@ -230,7 +237,7 @@ milestone per [`orientation.md`](orientation.md) §5; status per story lives in
 Every ⚑ mark in the architecture files is a developer default written down so
 it stops being a blocker: the whole of
 [`architecture/property-and-tariff.md`](architecture/property-and-tariff.md)
-§1–§6, **six** RBAC decisions
+§1–§7, **six** RBAC decisions
 ([`architecture/rbac-matrix.md`](architecture/rbac-matrix.md) §5), **two**
 state-machine decisions
 ([`architecture/booking-state-machine.md`](architecture/booking-state-machine.md)
@@ -257,13 +264,14 @@ None of them blocks M2 or M3.
 The coursework brief, restated verifiably in
 [`bao-cao/02-phan-tich-yeu-cau.md`](bao-cao/02-phan-tich-yeu-cau.md) §2.1, each
 bullet closed by at least one requirement here. The bullet → issue-key mapping
-is `plans/backlog.md` §10; this table adds the requirement layer between them.
+lives in the execution authority named in [`README.md`](README.md); this table
+adds the requirement layer between them.
 
 | # | Brief bullet | Closed by | Lands |
 |---|---|---|---|
 | 1 | RBAC ≥ 3 levels | `FR-IDN-01`, `FR-AUTH-01` | M2 ✅ |
 | 2 | Room types and attributes | `FR-INV-01` | M3 |
-| 3 | Guest accounts | `FR-AUTH-02`, `FR-GST-01` | M2/M7 |
+| 3 | Guest accounts | `FR-AUTH-02`, `FR-GST-01`, `FR-GST-04`, `FR-GST-05` | M2/M7 |
 | 4 | Post-stay feedback | `FR-FBK-01` | M7 |
 | 5 | Availability display | `FR-INV-03` | M3 |
 | 6 | Search | `FR-BOOK-05` | M4 |
@@ -283,3 +291,27 @@ state, follow the execution authority named in [`README.md`](README.md). For
 release claims, inspect the owning source, tests, schemas, workflows and
 generated artifacts; a planned milestone or accepted architecture is not proof
 that a requirement has shipped.
+
+## 10. Milestone legend
+
+The `Lands` column, the non-goals and the assumption registry name delivery
+milestones. The names and their scope are durable vocabulary and are defined
+here; ordering detail, dates and completion state belong to the execution
+authority named in [`README.md`](README.md).
+
+| Milestone | Scope |
+|---|---|
+| `M0` | Paperwork and procurement — external answers and credentials, each on its own trigger |
+| `M1` | Web migration |
+| `M2` | Foundations — auth realms, identity guard, payment port |
+| `M3` | Inventory and availability — the correctness core |
+| `M4` | Booking lifecycle and front desk |
+| `M5` | Assignment optimizer — optional, does not block the spine |
+| `M6` | Folio, payments, invoicing |
+| `M6.5` | MoMo — only if measured VNPay-only abandonment demands it |
+| `M7` | Guest booking engine — production gate `G2` lands here |
+| `M8` | Operations — shifts, thu chi, Excel export |
+| `M9` | Reporting — night audit, snapshots, KPI reports |
+| `M9.5` | Overbooking — only after real no-show data exists |
+| `M10` | Hardening |
+| `M11` | OTA channel manager — deferred |
