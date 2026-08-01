@@ -1,91 +1,87 @@
 "use client";
 
-// The rooms, in two registers: what the guest can take, and what they cannot.
+// The rooms, as a list of rooms — one column of short rows on the plate.
 //
-// `ROOM_TYPES`' own order is preserved *within* each group — ascending by
-// maximum occupancy then by price. Five items do not need a sort control, and a
-// stable order is the thing that lets a guest compare one fact down a column.
+// **The row stopped being the room.** Round 3 spent the full width of the page
+// on a photographic band per type and opened a panel under it; the picture was
+// the argument and the panel was where the facts went. That was right when the
+// list was the whole screen. It is not the whole screen any more: the room the
+// guest is on *is* the screen — it is the ground this plate is laid on, at the
+// size of the window — so a second, smaller photograph of it in the row is the
+// same picture twice, and the row's job is now to be *comparable*: five names,
+// five sets of facts, five prices, all at the same x, short enough that the eye
+// runs down them.
 //
-// The partition itself is `stay-quote.ts`' — presentation over data that already
-// exists, and pure, so the rule that decides what a guest sees is testable
-// without a browser.
+// So the thumbnail is a thumbnail. It tells the rows apart at a glance and
+// nothing more; the ground does the looking.
+//
+// **One selected room, and selecting is the whole interaction.** There is no
+// disclosure to open and no second press to commit — the list is a radio group,
+// the selected room is what the stage shows, and `Continue` at the foot of the
+// stage is the only thing that moves the guest on. `ROOM_TYPES`' own order is
+// preserved, ascending by maximum occupancy then by price, which is what lets
+// one fact be compared down one column.
+//
+// Radios rather than buttons with `aria-pressed`, and it is not a detail: a
+// radio group is the one control the platform already knows is "exactly one of
+// these", so arrow keys move the selection, the group takes one tab stop instead
+// of five, and a screen reader announces "2 of 5" without being told to. The
+// grouping is the shared `name` alone — a `role="radiogroup"` on the `<ul>`
+// would take the list role away from an element whose children are `<li>`, and
+// the count a list announces is worth keeping.
 
 import type { RoomTypeCode, RoomTypeOffer } from "@mariva/shared";
 import { m, useReducedMotion } from "motion/react";
+import { useId } from "react";
 import { cardListMotion } from "@/features/booking/lib/booking-motion";
-import { sizeBarFills } from "@/features/booking/lib/room-measure";
-import type {
-  Party,
-  RoomTypePartition,
-} from "@/features/booking/lib/stay-quote";
-import { DemotedRows } from "./demoted-rows";
-import { RoomTypeCard } from "./room-type-card";
+import type { RoomType } from "@/features/booking/lib/room-types";
 import styles from "./room-type-list.module.css";
+import { RoomTypeRow } from "./room-type-row";
 
 export function RoomTypeList({
-  partition,
+  types,
   offers,
-  party,
-  nights,
-  chosen,
-  holdNoteId,
-  onChoose,
-  onLookCloser,
+  selected,
+  onSelect,
 }: {
-  readonly partition: RoomTypePartition;
+  /** The types a guest can actually take, in the list's fixed order. */
+  readonly types: readonly RoomType[];
   readonly offers: readonly RoomTypeOffer[];
-  readonly party: Party;
-  readonly nights: number;
-  readonly chosen: RoomTypeCode | null;
-  readonly holdNoteId: string;
-  readonly onChoose: (code: RoomTypeCode) => void;
-  readonly onLookCloser: (code: RoomTypeCode) => void;
+  readonly selected: RoomTypeCode | null;
+  readonly onSelect: (code: RoomTypeCode) => void;
 }) {
   const reduced = useReducedMotion();
+  // One name for the group, unique per mount, so two lists could never share a
+  // selection if this screen ever grew a second one.
+  const group = useId();
   const byCode = new Map(offers.map((offer) => [offer.code, offer]));
 
-  // Normalised over the types this list draws a bar for, never over
-  // `ROOM_TYPES`. A bar measured against a room the guest cannot have is a bar
-  // measured against nothing.
-  const fills = sizeBarFills(partition.takeable);
-
   return (
-    <>
-      <m.ul
-        animate="animate"
-        className={styles.list}
-        // Under reduced motion they all render at once rather than cascading:
-        // §9's rule that the reduced path is its own composition, not the same
-        // one held still. A stagger cut to nothing is five cards appearing in
-        // five frames.
-        initial={reduced ? "animate" : "initial"}
-        variants={cardListMotion}
-      >
-        {partition.takeable.map((type) => {
-          const offer = byCode.get(type.code);
-          if (!offer) return null;
+    <m.ul
+      animate="animate"
+      className={styles.list}
+      // Under reduced motion they all render at once rather than cascading:
+      // §9's rule that the reduced path is its own composition, not the same one
+      // held still. A stagger cut to nothing is five rows appearing in five
+      // frames.
+      initial={reduced ? "animate" : "initial"}
+      variants={cardListMotion}
+    >
+      {types.map((type) => {
+        const offer = byCode.get(type.code);
+        if (!offer) return null;
 
-          return (
-            <RoomTypeCard
-              holdNoteId={holdNoteId}
-              isChosen={chosen === type.code}
-              key={type.code}
-              nights={nights}
-              offer={offer}
-              onChoose={() => onChoose(type.code)}
-              onLookCloser={() => onLookCloser(type.code)}
-              sizeFill={fills.get(type.code) ?? 0}
-              type={type}
-            />
-          );
-        })}
-      </m.ul>
-
-      <DemotedRows
-        party={party}
-        soldOut={partition.soldOut}
-        tooSmall={partition.tooSmall}
-      />
-    </>
+        return (
+          <RoomTypeRow
+            group={group}
+            isSelected={selected === type.code}
+            key={type.code}
+            offer={offer}
+            onSelect={() => onSelect(type.code)}
+            type={type}
+          />
+        );
+      })}
+    </m.ul>
   );
 }

@@ -30,21 +30,9 @@
   color: var(--ink);
 }
 
-/* The sentence that stands in for a lede — see the component. It sits at the top
-   of the control and is the only thing on the screen that speaks when a rule is
-   broken. */
-.status {
-  font-size: var(--text-base);
-  line-height: 1.6;
-  color: var(--stone-deep);
-  max-width: 34rem;
-  min-height: 1.6em; /* Holds its line while it is empty of a violation. */
-}
-
 .months {
   display: grid;
   gap: var(--space-3);
-  margin-top: var(--space-3);
 }
 
 /* Two months side by side only once there is room for two 7-column grids at the
@@ -53,13 +41,35 @@
  *
  * **A container query, not a media query.** It was `@media (min-width: 45rem)`,
  * and that was correct for exactly as long as the calendar spanned the window.
- * It does not any more: the stay panel takes 30% of the screen back, so at 1280
- * the window is 80rem while this grid has 45.2rem — a media query answers the
- * question nobody is asking. The containment is declared on `.calendar` above.
+ * It does not any more: the stay panel takes a column of the plate back and the
+ * rail takes another, so at 1280 the window is 80rem while this grid has 44 —
+ * a media query answers the question nobody is asking. The containment is
+ * declared on `.calendar` above.
+ *
+ * **43rem is where two grids fit; 45 was where they breathe.** Two seven-column
+ * months at the 44px floor are 616px, and a --space-3 rule between them makes
+ * 648 — so 688 is honest, and the 720 this used to ask for was holding the
+ * comfortable gutter as though it were the cell floor. The difference is a real
+ * screen: at 1280, with a rail on one side and the stay on the other, this
+ * column is 44rem, and the old threshold stacked twelve weeks of grid down a
+ * page that had the room to lay them out. The wider gutter comes back at 52rem,
+ * where it costs nothing.
  */
-@container (min-width: 45rem) {
+/* **The months stop growing at 30rem each, and the plate keeps the rest.**
+ * `1fr 1fr` was right while the calendar was the column. With a plate the width
+ * of the page and no panel open yet it is not: two `1fr` months are 600px each,
+ * a seven-column grid at an 85px pitch, and a date is then a lonely numeral in a
+ * lot of air. 30rem is a 68px cell, which is the pitch the comp draws at, and
+ * what is left over is the width the stay panel arrives into. */
+@container (min-width: 43rem) {
   .months {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(2, minmax(0, 30rem));
+    justify-content: start;
+  }
+}
+
+@container (min-width: 52rem) {
+  .months {
     gap: var(--space-4);
   }
 }
@@ -208,13 +218,35 @@
   font-variant-numeric: tabular-nums;
   line-height: 1;
   border-radius: 50%;
+  /* The transform is the press — see below — and it is the only one of the three
+     that runs short. The two colours keep the grid's own 0.4s, because a disc
+     that changed colour this fast would flicker across a row of seven under a
+     moving pointer. */
   transition:
     background-color 0.4s var(--ease-ui),
-    color 0.4s var(--ease-ui);
+    color 0.4s var(--ease-ui),
+    transform 0.16s var(--ease-ui);
 }
 
 .day:hover:not([aria-disabled="true"]) .dayNumber {
   background: rgb(var(--umber-rgb) / 0.06);
+}
+
+/* **The most-pressed control in the funnel, answering the press.**
+ *
+ * A guest picks two of these to get anywhere, and until now the only thing that
+ * happened under the finger was a wash arriving over 0.4s — on a night that is
+ * *refused* it was the same wash, arriving at the same speed, saying nothing
+ * about the refusal. The disc giving under the press is immediate and it is the
+ * cell's own confirmation that the press landed, separate from what the press
+ * then turns out to mean.
+ *
+ * `:not([aria-disabled])` is the whole of that separation: a night outside the
+ * priced window, or before today, does not move. There is no cheaper way to say
+ * "not that one" than a control that does not respond to being pressed, and the
+ * status line above the grid says why a moment later. */
+.day:active:not([aria-disabled="true"]) .dayNumber {
+  transform: scale(0.9);
 }
 
 /* The ring goes round the disc, not round the cell. A square outline inset into a
@@ -225,7 +257,13 @@
   outline: none;
 }
 
-.day:focus-visible .dayNumber {
+/* And it is drawn for the keyboard only, which is what `:focus-visible` alone
+   could not deliver. React Aria presses a date without letting the browser focus
+   it and then focuses the cell itself; Chrome grants `:focus-visible` to that
+   programmatic focus, so a date pressed with a mouse came away ringed in amber
+   over the bare disc the comp draws. `data-modality` is the answer to "which
+   hand" — see `useKeyboardModality` in `stay-calendar.tsx`. */
+.calendar[data-modality="keyboard"] .day:focus-visible .dayNumber {
   outline: 2px solid var(--dusk-amber);
   outline-offset: 2px;
 }
@@ -303,19 +341,13 @@
 
 /* ---- The band along the bottom ----------------------------------------- */
 
-.foot {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-1) var(--space-3);
-  margin-top: var(--space-3);
-}
-
+/* The key to the cells, and nothing else — the rest of what used to hang here is
+   under the plate now, in `funnel-foot.module.css`. */
 .legend {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-1) var(--space-3);
+  margin-top: var(--space-3);
   list-style: none;
   font-size: var(--text-xs);
   color: var(--stone);
@@ -353,59 +385,6 @@
   );
 }
 
-/* Everything else that qualifies the grid, one press away. */
-.about {
-  font-size: var(--text-xs);
-  color: var(--stone);
-}
-
-.aboutSummary {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  min-height: 2.75rem; /* 44px, even on a summary. */
-  cursor: pointer;
-  list-style: none; /* Firefox's own marker. */
-  transition: color 0.4s var(--ease-ui);
-}
-
-.aboutSummary::-webkit-details-marker {
-  display: none;
-}
-
-/* The caret, drawn rather than typed, so it lands where it is put on every face. */
-.aboutSummary::after {
-  content: "";
-  width: 0.4rem;
-  height: 0.4rem;
-  border-right: 1px solid currentcolor;
-  border-bottom: 1px solid currentcolor;
-  transform: translateY(-1px) rotate(45deg);
-  transition: transform 0.4s var(--ease-ui);
-}
-
-.about[open] .aboutSummary::after {
-  transform: translateY(1px) rotate(-135deg);
-}
-
-.aboutSummary:hover {
-  color: var(--stone-deep);
-}
-
-.aboutSummary:focus-visible {
-  outline: 2px solid var(--dusk-amber);
-  outline-offset: 2px;
-}
-
-.aboutBody {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  padding-bottom: var(--space-2);
-  max-width: 32rem;
-  line-height: 1.6;
-}
-
 /* Reduced motion is a composition, not a frozen frame — §9. The global
    kill-switch would cut these transitions to 0.01ms, which across fourteen cells
    under a moving pointer is a flicker rather than a hover. So the disc and the
@@ -416,5 +395,14 @@
   .range_inside::before,
   .range_end::before {
     transition: none;
+  }
+
+  /* And the press does not shrink the disc — under the kill-switch it would not
+     shrink so much as *teleport* smaller and back, which is the flicker the
+     paragraph above is avoiding, at the size of a fingertip. The press is still
+     answered: the hover wash and the chosen disc are both immediate here, which
+     is the same acknowledgement without the travel. */
+  .day:active:not([aria-disabled="true"]) .dayNumber {
+    transform: none;
   }
 }

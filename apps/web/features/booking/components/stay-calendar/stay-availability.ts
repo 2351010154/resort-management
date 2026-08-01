@@ -50,9 +50,9 @@ function nightsBetween(from: CalendarDate, to: CalendarDate): number {
  *   generic unavailability, because a guest who reads "check-out only" learns the
  *   rule and a guest who reads "unavailable" only learns they were blocked.
  *
- * - **Anchored — "may a stay that began on the anchor end here?"** Not on or
- *   before the arrival, not shorter than that arrival's minimum, and no sold-out
- *   night in between.
+ * - **Anchored — "may a stay that began on the anchor end here?"** Not before the
+ *   arrival, not shorter than that arrival's minimum, and no sold-out night in
+ *   between. The arrival itself is the exception, and see below for why.
  *
  * The departure date is deliberately exempt from the night-level flags. A
  * departure buys no night — `stay-date.ts`'s half-open range is the same fact —
@@ -66,7 +66,19 @@ export function unpickableReason(
   anchor: CalendarDate | null,
 ): UnpickableReason | null {
   if (anchor) {
-    if (date.compare(anchor) <= 0) return { kind: "before-arrival" };
+    // **The arrival stays pickable while it is the anchor, and that is the way
+    // out of a half-made selection.** React Aria will not press a cell this
+    // function calls unavailable — `useCalendarCell` passes `isSelectable` to
+    // `usePress` as `isDisabled` — so calling the anchor unavailable did not
+    // merely grey it. It sealed the only exit: a guest who pressed the wrong day
+    // could not press it again, and could not press any earlier day either,
+    // because every date before the anchor is unavailable too. The one way back
+    // was the Escape key, which is not an affordance anybody can see.
+    //
+    // So the anchor answers "may a stay end here?" with yes, and the nought-night
+    // range that press produces is read by `stay-calendar.tsx` as "start over".
+    if (date.compare(anchor) === 0) return null;
+    if (date.compare(anchor) < 0) return { kind: "before-arrival" };
 
     const arrival = nightAt(rules, anchor);
     const wanted = nightsBetween(anchor, date);

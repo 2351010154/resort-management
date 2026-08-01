@@ -1,0 +1,125 @@
+/* The photograph, the wash over it, and the palette everything standing on it
+ * inherits.
+ *
+ * `--night` under the picture rather than ivory: the image is fetched, and for
+ * the frame or two before it decodes the type above it is already light. On
+ * ivory that is white on cream — unreadable, and exactly the flash a guest on a
+ * slow connection sees. On night it is the finished composition with the
+ * photograph missing.
+ */
+
+.hero {
+  position: relative;
+  /* A stacking context of its own, so the scrim can sit over the picture without
+     the plate below needing a z-index to clear either of them. */
+  isolation: isolate;
+  background: var(--night);
+  color: var(--ivory);
+
+  /* The measure the bar drops for this ground. On ivory the funnel holds a
+     60rem column so its type lands on the calendar's own verticals; over a
+     full-bleed photograph there is no column to line up with, and a wordmark
+     centred in a 60rem box on a 1670px band reads as an inset panel. The frame
+     is therefore the band itself, and the gutter is the page's margin — the same
+     margin the plate below stands on, which is the alignment that matters here. */
+  --funnel-frame: 100%;
+  --funnel-gutter: var(--page-gutter);
+
+  /* Left, not centred. The comp stacks bar, steps and heading on one vertical
+     down the left of the frame; centred steps over a left-aligned title is two
+     compositions in one band. */
+  --funnel-steps-align: flex-start;
+
+  /* The light-on-dark palette, handed to `FunnelNav` and `StepRail` — see the
+     component. Each of these is a fallback in their own stylesheets, so the
+     rooms step is untouched by anything declared here.
+     0.78 rather than 1 on the quiet ink: full-strength ivory on a photograph
+     makes a caps run the brightest thing in the frame, and the frame is the
+     picture. */
+  --funnel-ink: var(--ivory);
+  --funnel-quiet: rgb(var(--ivory-rgb) / 0.78);
+  --funnel-hairline: rgb(var(--ivory-rgb) / 0.28);
+  --funnel-ahead: rgb(var(--ivory-rgb) / 0.45);
+  --funnel-disc-ground: var(--ivory);
+  --funnel-disc-ink: var(--ink);
+}
+
+.photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Below centre. The crop is 2:1 and the band is wider than that at every size,
+     so the window travels vertically — and what has to stay in it is the door and
+     the loungers, which sit under the roofline. */
+  object-position: 50% 58%;
+}
+
+/* Two washes, argued in the component. The first darkens the corner the type
+   stands in and lets the far side of the frame keep its own light; the second
+   settles the top edge under the bar and the bottom edge where the plate
+   arrives, so neither seam is a hard line across a photograph. */
+.scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      100deg,
+      rgb(var(--night-rgb) / 0.78) 0%,
+      rgb(var(--night-rgb) / 0.54) 32%,
+      rgb(var(--night-rgb) / 0.18) 64%,
+      rgb(var(--night-rgb) / 0.06) 100%
+    ),
+    linear-gradient(
+      to bottom,
+      rgb(var(--night-rgb) / 0.4) 0%,
+      rgb(var(--night-rgb) / 0) 26%,
+      rgb(var(--night-rgb) / 0) 58%,
+      rgb(var(--night-rgb) / 0.34) 100%
+    );
+}
+
+/* **On a phone the wash is flatter and stronger, and it is measured rather than
+ * guessed.** The two gradients above darken a corner and leave the far side of
+ * the frame its light, which works while the head is a column down one side of a
+ * wide band. At 375 the head is the whole width: the title runs into the lit
+ * wall on the right of the frame, and the lightest pixel under the status line
+ * measured 3.86:1 against it — under the 4.5:1 floor, on the one line that has
+ * to be read to use the screen. So the diagonal goes and a single wash takes its
+ * place. The picture loses some depth; the sentence becomes legible.
+ */
+@media (max-width: 48rem) {
+  .scrim {
+    background: linear-gradient(
+      to bottom,
+      rgb(var(--night-rgb) / 0.7) 0%,
+      rgb(var(--night-rgb) / 0.58) 50%,
+      rgb(var(--night-rgb) / 0.7) 100%
+    );
+  }
+}
+
+/* What stands on the band. The height is here rather than on `.hero` so the
+ * picture is always exactly as tall as its own content — a `min-height` on the
+ * outer element and `inset: 0` on the photograph would agree until the day the
+ * head wrapped onto another line.
+ *
+ * The floor clears the plate's overlap: the last line of the head has to sit
+ * above the card, not behind its top edge.
+ */
+.inner {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: clamp(21rem, 38vw, 30rem);
+  padding-bottom: calc(var(--space-4) + var(--plate-lift));
+}
+
+@media (max-width: 48rem) {
+  .inner {
+    min-height: 0;
+    padding-bottom: calc(var(--space-3) + var(--plate-lift));
+  }
+}

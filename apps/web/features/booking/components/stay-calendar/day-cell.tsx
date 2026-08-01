@@ -137,12 +137,15 @@ export function DayCell({
         )
       : "";
 
-  // The way out of a chosen stay, said on the cell that is the way out. It costs
-  // the screen nothing — the status line carries the same sentence for a sighted
-  // guest — and without it the affordance is invisible to anyone who cannot see the
-  // filled disc they would be pressing again.
+  // The way out, said on the cell that is the way out — under a whole stay, and
+  // under a half-made one where the anchor is the only date a guest can still
+  // press. It costs the screen nothing — the status line carries the same
+  // sentence for a sighted guest — and without it the affordance is invisible to
+  // anyone who cannot see the filled disc they would be pressing again.
   const undoText =
-    position === "start" && state.value ? "Press again to start over." : "";
+    isAnchor || (position === "start" && state.value)
+      ? "Press again to start over."
+      : "";
 
   const label = [buttonProps["aria-label"], reasonText, undoText]
     .filter(Boolean)

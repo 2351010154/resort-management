@@ -13,14 +13,28 @@
 // **The dates step ends with the stay written down.** Round 2 answered the
 // guest's second date press by replacing the entire screen with a price list,
 // with no moment in between where what they had just chosen was stated back. So
-// a complete range now opens the stay panel beside the calendar — 70 / 30, one
-// animated property, see `booking-screen.module.css` — and the guest presses on
-// from there. The calendar stays mounted and selectable throughout, because the
-// likeliest response to reading your dates back is to change one of them.
+// a complete range now opens the stay panel beside the calendar — one animated
+// property, see `dates-stage.module.css` — and the guest presses on from there.
+// The calendar stays mounted and selectable throughout, because the likeliest
+// response to reading your dates back is to change one of them.
 //
 // That panel is **not** a third view, and `booking-view.ts` says why: it is the
 // same screen wider, so it must not change the key `AnimatePresence` swaps on, or
 // the calendar would be rebuilt under a guest who had only just finished using it.
+//
+// **The two steps no longer share a frame, and this file no longer holds one.**
+// It held a bar, a step rail and a two-column stage that both views were poured
+// into. Each step composes itself now — `dates-stage.tsx` and the block below —
+// and what stays here is what belongs to neither: the search, the quote, and the
+// three things that outlive a step swap.
+//
+// Both steps stand on a photograph, and that is the point rather than a
+// coincidence: the dates step's head stands on a picture of the property with
+// the calendar laid over its bottom edge, and the room step's picture *is* the
+// room, edge to edge, with the list and the price laid on it. What they do not
+// share is a geometry — one is a band with a plate under it and a foot below
+// both, the other is a window with plates in its corners — and a frame that had
+// to be either would be a frame with a `step` running through every rule in it.
 //
 // **Which view is open is derived, never stored.** It follows from what the URL
 // holds — a complete range, and the step that range is at. A `useState` beside
@@ -51,8 +65,14 @@ import {
   useReducedMotion,
 } from "motion/react";
 import { useSearchParams } from "next/navigation";
-import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
-import { stillMotion, viewMotion } from "@/features/booking/lib/booking-motion";
+import { type ReactNode, useCallback, useMemo, useState } from "react";
+import {
+  plateMotion,
+  stepMotion,
+  stillMotion,
+  stillPlateMotion,
+  viewMotion,
+} from "@/features/booking/lib/booking-motion";
 import {
   readBookingSearch,
   writeBookingSearch,
@@ -76,29 +96,36 @@ import {
   nightsInRange,
   type Party,
   partitionRoomTypes,
-  partySize,
   quoteStay,
   stayNights,
 } from "@/features/booking/lib/stay-quote";
 import styles from "./booking-screen.module.css";
+import { ConciergeNote } from "./concierge-note/concierge-note";
+import { DatesStage } from "./dates-stage/dates-stage";
 import { FunnelNav } from "./funnel-nav/funnel-nav";
 import { NoAvailability } from "./no-availability/no-availability";
-import { RoomSheet } from "./room-sheet/room-sheet";
+import { RoomGround } from "./room-ground/room-ground";
+import { RoomStage } from "./room-stage/room-stage";
 import { RoomsView } from "./rooms-view/rooms-view";
-import { StayPanel } from "./stay-panel/stay-panel";
 import { StepRail } from "./step-rail/step-rail";
-import { SummaryBar } from "./summary-bar/summary-bar";
-import { WhenView } from "./when-view/when-view";
 
 /**
- * Days of calendar to price at once.
+ * How far ahead the property sells, in nights from today.
  *
- * Four months: the two on screen plus two ahead, so the nearest-free-dates search
- * has somewhere to look and paging forward does not wait on anything. Every night
- * in it is 31 numbers per plan, not 155 — the calendar shows the lowest price
- * across all five types, which is what keeps the payload the size of a month.
+ * **It is the calendar's bound as well as the price window, and that is the
+ * point.** This was four months — the two months on screen plus two ahead, sized
+ * for the nearest-free-dates search — while nothing stopped the guest paging the
+ * grid past it. Four presses forward drew a normal-looking calendar in which
+ * every night was unpriced and therefore every cell refused the press, with
+ * nothing on the screen saying why. A window the guest can leave is not a window.
+ *
+ * So it is a year, which is the window a hotel takes bookings in, and
+ * `maxDate` below hands the same figure to the grid so the pager stops where the
+ * property does. Every night in it is 31 numbers per plan, not 155 — the calendar
+ * shows the lowest price across all five types, which is what keeps a year of
+ * nights the size of a few months of anything else.
  */
-const PRICED_DAYS = 124;
+const BOOKING_HORIZON_DAYS = 365;
 
 export function BookingScreen() {
   const params = useSearchParams();
@@ -108,8 +135,7 @@ export function BookingScreen() {
     [params],
   );
 
-  const [chosen, setChosen] = useState<RoomTypeCode | null>(null);
-  const [looking, setLooking] = useState<RoomTypeCode | null>(null);
+  const [picked, setPicked] = useState<RoomTypeCode | null>(null);
   const [nextStep, setNextStep] = useState<string | null>(null);
 
   // Today in the property's zone, never the browser's. A guest in Seoul at 00:30
@@ -117,8 +143,18 @@ export function BookingScreen() {
   // fail at the API and look like a bug on the screen.
   const minDate = useMemo(() => propertyToday(), []);
 
+  // The morning after the last night that can be sold, which is a day past the
+  // last night priced: a departure buys no night, so the guest must be able to
+  // leave on it. As an *arrival* it is still refused — there is no rate for it —
+  // and `stay-availability.ts` answers both questions from the same index.
+  const maxDate = useMemo(
+    () => minDate.add({ days: BOOKING_HORIZON_DAYS }),
+    [minDate],
+  );
+
   const nights = useMemo(
-    () => indexNights(monthOfNights(minDate, PRICED_DAYS, search.plan)),
+    () =>
+      indexNights(monthOfNights(minDate, BOOKING_HORIZON_DAYS, search.plan)),
     [minDate, search.plan],
   );
 
@@ -176,7 +212,7 @@ export function BookingScreen() {
       // A new range invalidates the room already picked: the price it was picked at
       // no longer exists. Silently keeping it is how a guest continues to a step
       // quoting a different number than the one they agreed to.
-      setChosen(null);
+      setPicked(null);
       // And it puts the guest back on the dates step, which is where they are
       // standing anyway — the calendar is only on screen there. Written out
       // rather than left to merge, because the one caller that changes a range
@@ -188,7 +224,7 @@ export function BookingScreen() {
 
   const onPartyChange = useCallback(
     (party: Party) => {
-      setChosen(null);
+      setPicked(null);
       commit({ party });
     },
     [commit],
@@ -225,7 +261,7 @@ export function BookingScreen() {
   // they have already made.
   const onPickAlternative = useCallback(
     (range: StayRange) => {
-      setChosen(null);
+      setPicked(null);
       commit({ range, step: "rooms" });
     },
     [commit],
@@ -233,7 +269,6 @@ export function BookingScreen() {
 
   const view = bookingView(search.range, search.step);
   const panelOpen = isStayPanelOpen(search.range, search.step);
-  const chosenOffer = offers.find((offer) => offer.code === chosen) ?? null;
 
   // What the guest can take, and what they cannot. Derived once here rather than
   // twice, because the screen and the list both need the same answer: the list
@@ -243,51 +278,140 @@ export function BookingScreen() {
     [offers, search.party],
   );
 
-  // The room the sheet is showing, held one beat past the close.
+  // Which room is on the stage — **derived, so it cannot be wrong.**
   //
-  // `looking` is the open flag and goes null the moment the guest closes the
-  // sheet — but the sheet has to animate out, and a panel whose contents vanish
-  // on the first frame of its own exit reads as a crash. So the last room looked
-  // at is kept, and the sheet renders it until it has finished leaving.
-  const lastLooked = useRef<RoomTypeCode | null>(null);
-  if (looking) lastLooked.current = looking;
-  const sheetCode = looking ?? lastLooked.current;
-  const sheetType = sheetCode ? roomType(sheetCode) : null;
-  const sheetOffer = offers.find((offer) => offer.code === sheetCode) ?? null;
+  // The room is the ground of the screen and it is never empty: the guest
+  // arrives on the first room the list can offer and moves along it from there.
+  // That leaves one way for the state to go stale — a room picked and then
+  // priced out by a change of dates or party — and this is why the answer is
+  // computed rather than stored. `setPicked(null)` is already called on both of
+  // those changes; this is the second line of defence, and it means no effect
+  // anywhere has to keep a `useState` in step with a list that re-derives on
+  // every render.
+  //
+  // The first room is the smallest and the cheapest, which is the only default
+  // that cannot be read as the screen selling to the guest.
+  const selected =
+    partition.takeable.find((type) => type.code === picked)?.code ??
+    partition.takeable[0]?.code ??
+    null;
+  const selectedOffer = offers.find((offer) => offer.code === selected) ?? null;
+  const selectedType = selected ? roomType(selected) : null;
 
-  // The two views, and View B's own empty state. Built as a value rather than
-  // nested in the tree below, because the branch is three-way and a nested
-  // ternary in JSX is the shape that hides the third case.
+  // **The dates step returns here, before the room step's frame is built.**
   //
-  // The heading is inside the branch rather than above it, for two reasons: it
-  // then crossfades with the view it names instead of switching a beat early,
-  // and the empty state can carry its own — `no-availability.tsx` states the
-  // fact in one sentence, and a generic title above that sentence would be a
-  // heading contradicting the page under it.
-  // The `range === null` half of the first test is redundant against `view` —
-  // `bookingView` cannot answer "rooms" without a range — and it is written out so
-  // the two branches below are narrowed by the compiler rather than by a
-  // non-null assertion. A `!` here would be the one place this file asked to be
-  // trusted about an invariant it has already stated in prose.
-  let content: ReactNode;
+  // It used to be a view poured into the same two-column stage as the room list,
+  // under the same bar and the same step rail. It is not that any more: it opens
+  // on a photograph of the property with its head standing on the picture and a
+  // plate laid over the picture's bottom edge, and its bands are sized to that
+  // — a hero with a card under it and the small print below both, against the
+  // room step's window full of plates. A frame that had to be either would be a
+  // frame with a `step` running through every rule in it.
+  //
+  // So the two steps compose themselves and share the search rather than a
+  // layout — `dates-stage.tsx` is the whole of this one. **The cost was the
+  // crossfade between them**, which had been `AnimatePresence` swapping one view
+  // inside a frame that stayed put. There is no frame that stays put now, and a
+  // page that dissolves into a different page is a transition pretending two
+  // compositions are one — so the step swap was a cut.
+  //
+  // **It is no longer a cut, and the paragraph above is still true.** What was
+  // wrong with the cut was never that it failed to dissolve; it is that it gave
+  // the guest no beat at all between two full-window compositions that share no
+  // element, which reads as the screen being replaced out from under the press
+  // rather than as an answer to it. What is here instead is not a crossfade and
+  // must not become one: the outgoing step fades to the screen's own ground and
+  // is *unmounted*, and only then is the next one built and its plates raised
+  // into place. At no frame are both compositions on screen, which is the
+  // property the cut was protecting. See `stepMotion`.
+  //
+  // `LazyMotion` used to be absent on this branch, because nothing under it was
+  // a Motion component. The step's own arrival is one, so the provider moved up
+  // to wrap both branches — `strict` still holds, and the one thing that travels
+  // inside the step, the stay panel's column, is still a CSS transition on a
+  // registered property rather than anything Motion touches.
+  //
+  // The `range === null` half of the test is redundant against `view` —
+  // `bookingView` cannot answer "rooms" without a range — and it is written out
+  // so everything below is narrowed by the compiler rather than by a non-null
+  // assertion. A `!` there would be the one place this file asked to be trusted
+  // about an invariant it has already stated in prose.
+  // **The two steps' shared wrapper, written once and returned by both.**
+  //
+  // It is a function rather than two copies because the copies have to be
+  // *identical* for this to work at all: React reconciles by type and position,
+  // so an `AnimatePresence` at the same position in both branches is the same
+  // instance across the swap, and it sees its child's key change from "dates" to
+  // "rooms" rather than being torn down and rebuilt. Two hand-written wrappers
+  // that drifted by one element would silently become two `AnimatePresence`
+  // trees, each mounting and unmounting its own child with nothing in between —
+  // which is the cut this exists to remove, back again and harder to see.
+  //
+  // `mode="wait"` is the whole shape of the swap: the outgoing step fades to the
+  // screen's ground and is unmounted *before* the incoming one is built. That
+  // matters beyond taste — the two steps have different scroll behaviour and
+  // different palettes on the same bar, and a frame with both mounted would be a
+  // frame with two `<h1>`s in it.
+  //
+  // `initial={false}`, so a guest arriving on a link does not watch the funnel
+  // fade in over the content already arriving inside it.
+  //
+  // `LazyMotion` now wraps both branches, where it used to wrap only the rooms.
+  // The dates step has a Motion component at its root as of the step swap, and
+  // `strict` keeps the rule that made it cheap: `m` everywhere, never `motion.*`.
+  const funnel = (step: ReactNode) => (
+    <LazyMotion features={domAnimation} strict>
+      {/* `I18nProvider` with a stated locale, not the browser's. `useLocale`
+          otherwise reads `navigator.language`, which decides the first day of the
+          week and how a date is spelled — so the same range renders as a
+          different grid on two guests' phones and a visual baseline could never
+          be stable. en-GB starts the week on Monday and writes "10 August 2026",
+          which is what the copy assumes. */}
+      <I18nProvider locale="en-GB">
+        <AnimatePresence initial={false} mode="wait">
+          {step}
+        </AnimatePresence>
+      </I18nProvider>
+    </LazyMotion>
+  );
+
   if (view === "when" || search.range === null) {
-    content = (
-      <>
-        {/* No lede on this view. The calendar's own status sentence sits directly
-            under the title and says the same thing a static line would have —
-            except that it can also say the range once there is one, and why a
-            selection was refused when it is. Two lines saying "choose your dates"
-            is one line too many. */}
-        <ViewHead title="Your nights" />
-        <WhenView
+    return funnel(
+      <m.main
+        animate="animate"
+        className={styles.screen}
+        exit="exit"
+        initial="initial"
+        key="dates"
+        variants={reduced ? stillMotion : stepMotion}
+      >
+        <DatesStage
+          maxDate={maxDate}
           minDate={minDate}
           nights={nights}
+          onContinue={onContinue}
+          onPartyChange={onPartyChange}
           onRangeChange={onRangeChange}
+          panelOpen={panelOpen}
+          party={search.party}
           range={search.range}
+          stayLength={stayLength}
         />
-      </>
+      </m.main>,
     );
-  } else if (offers.length > 0 && partition.takeable.length === 0) {
+  }
+
+  // The room step and its own empty state. Built as a value rather than nested in
+  // the tree below, because a ternary in JSX is the shape that hides a case.
+  //
+  // The heading is inside the branch rather than above it: the empty state
+  // carries its own — `no-availability.tsx` states the fact in one sentence, and
+  // a generic title above that sentence would be a heading contradicting the page
+  // under it — and the rooms view's heading is the first line of a rail beside
+  // the list rather than a banner over it (`rooms-view.tsx`). One `<h1>` either
+  // way, which is the property that matters.
+  let content: ReactNode;
+  if (offers.length > 0 && partition.takeable.length === 0) {
     // Nothing the guest can take — sold out, too small, or some of each. The
     // view is replaced rather than shown as eight caps-labelled lines of what
     // they cannot have, which is a wall and not an answer.
@@ -301,161 +425,148 @@ export function BookingScreen() {
     );
   } else {
     content = (
-      <>
-        <ViewHead
-          lede="Every price includes VAT and service."
-          title="Your room"
-        />
-        <RoomsView
-          chosen={chosen}
-          nights={stayLength}
-          offers={offers}
-          onChangeDates={onChangeDates}
-          onChoose={setChosen}
-          onLookCloser={setLooking}
-          partition={partition}
-          party={search.party}
-          range={search.range}
-        />
-      </>
+      <RoomsView
+        offers={offers}
+        onChangeDates={onChangeDates}
+        onSelect={setPicked}
+        partition={partition}
+        party={search.party}
+        range={search.range}
+        selected={selected}
+      />
     );
   }
 
-  return (
-    // Two providers, and each one is a decision about weight.
-    //
-    // `LazyMotion` with `domAnimation`, and the `m` component at every call site
-    // instead of `motion.*`. `motion.div` bundles every feature Motion has — layout
-    // projection, drag, scroll, SVG path morphing — because the component cannot
-    // know which a page will use. This funnel animates opacity and transform and
-    // nothing else. `strict` makes that enforceable: a `motion.*` component
-    // anywhere inside throws rather than quietly pulling the full bundle back in.
-    //
-    // `I18nProvider` with a stated locale, not the browser's. `useLocale` otherwise
-    // reads `navigator.language`, which decides the first day of the week and how a
-    // date is spelled — so the same range renders as a different grid on two
-    // guests' phones and a visual baseline could never be stable. en-GB starts the
-    // week on Monday and writes "10 August 2026", which is what the copy assumes.
-    <LazyMotion features={domAnimation} strict>
-      <I18nProvider locale="en-GB">
-        {/* `data-panel` is the whole state machine as far as the stylesheet is
-            concerned, and it is on the screen rather than the stage so the plate's
-            width and the section beside it are set from one place. */}
-        <main
-          className={styles.screen}
-          data-panel={panelOpen ? "open" : "shut"}
-        >
-          <div className={styles.stage}>
-            {/* The left section, and the bar is inside it.
-                The bar used to span the window from `page.tsx`, which made the
-                plate read as a box hung under a header. It is a column of the page,
-                so the bar belongs to the column beside it and narrows with it. The
-                cost is that the bar is client-side now and paints a beat later
-                instead of with the document — a `<header>`, two links and a mask,
-                against a composition that only works this way. */}
-            <div className={styles.left}>
-              <FunnelNav />
-              <StepRail current={view} onBack={onChangeDates} />
+  // Whether there is a room to put on the stage at all.
+  //
+  // `selectedType` rather than the step is the test, and the difference is the
+  // empty state: this branch is also where a range with nothing takeable in it
+  // lands, and `NoAvailability` wants the whole width with no plate beside it.
+  const staged = selectedType !== null && selectedOffer !== null;
 
-              {/* `mode="wait"` so the outgoing view is gone before the incoming one
-                  mounts: at no frame are both decisions in the tree. `initial={false}`
-                  so a guest arriving on a link does not watch the whole screen fade
-                  in over the room cascade that is already arriving inside it. */}
-              <div className={styles.views}>
-                <AnimatePresence initial={false} mode="wait">
-                  <m.div
-                    animate="animate"
-                    exit="exit"
-                    initial="initial"
-                    key={view}
-                    variants={reduced ? stillMotion : viewMotion}
-                  >
-                    {content}
-                  </m.div>
-                </AnimatePresence>
-              </div>
+  return funnel(
+    // `data-panel` is the whole state machine as far as the stylesheet is
+    // concerned, and it is on the screen rather than on a plate because every
+    // plate's ground, palette and place in the grid answer to it — including the
+    // bar's, which is ivory over the photograph and ink without one.
+    //
+    // The variants here are the step's own arrival and departure; the two plates
+    // below carry the rise, staggered by this element. See `stepMotion`.
+    <m.main
+      animate="animate"
+      className={styles.screen}
+      data-panel={staged ? "rooms" : "shut"}
+      exit="exit"
+      initial="initial"
+      key="rooms"
+      variants={reduced ? stillMotion : stepMotion}
+    >
+      <div className={styles.frame}>
+        {/* The bar, over the photograph. It used to span the window from
+            `page.tsx`, then moved inside the list's column so its wordmark
+            landed on the heading's vertical. The column has become a plate
+            laid on a picture, and a bar inside a plate is a header on a
+            card — so it is back to the width of the window, standing on the
+            room, on the same margin every plate below it stands on. */}
+        <FunnelNav />
+
+        {/* The room, edge to edge, behind everything.
+            **Not keyed by the room, and that is the fix rather than an
+            oversight.** It was, so that changing rooms would reset the walk to
+            the new room's lead — and a key change is a remount, which took the
+            outgoing photograph out of the DOM in the same frame the incoming one
+            arrived and turned the largest element on the screen into a cut. The
+            reset is `room-ground.tsx`'s own now, the component stays mounted for
+            the life of the step, and both ways of changing the picture — walking
+            frames, and picking another room — go through one dissolve. */}
+        {selectedType === null ? null : <RoomGround type={selectedType} />}
+
+        <div className={styles.plates}>
+          {/* The list plate: where the guest is, what they answered, the
+              five rooms, and a person if none of it helped.
+
+              A plate of the arriving step, so it rises rather than appearing —
+              and it is the first of the two, because it is where the guest is
+              reading. */}
+          <m.div
+            className={styles.rail}
+            variants={reduced ? stillPlateMotion : plateMotion}
+          >
+            <StepRail current={view} onBack={onChangeDates} />
+
+            {/* `mode="wait"` so the outgoing view is gone before the incoming one
+                mounts: at no frame are both decisions in the tree. `initial={false}`
+                so a guest arriving on a link does not watch the whole screen fade
+                in over the room cascade that is already arriving inside it. */}
+            <div className={styles.views}>
+              <AnimatePresence initial={false} mode="wait">
+                <m.div
+                  animate="animate"
+                  exit="exit"
+                  initial="initial"
+                  key={view}
+                  variants={reduced ? stillMotion : viewMotion}
+                >
+                  {content}
+                </m.div>
+              </AnimatePresence>
             </div>
 
-            {/* Mounted in both readings and clipped to nothing in one of them.
-                `inert` is what makes that safe: a collapsed column is zero pixels
-                wide, and a stepper inside it would otherwise still be in the tab
-                order — a guest tabbing past the calendar would land on controls
-                they cannot see. */}
-            <aside className={styles.panel} inert={!panelOpen}>
-              <StayPanel
-                nights={stayLength}
-                onContinue={onContinue}
-                onPartyChange={onPartyChange}
-                party={search.party}
-                range={search.range}
-              />
-            </aside>
-          </div>
+            <ConciergeNote />
+          </m.div>
 
-          {/* Where the funnel stops today, said out loud.
-              `Continue` should post to the booking module, take a hold, and route
-              to `/booking/<hold>/details`. That module is M7 and none of it exists
-              — so the button reports the truth rather than navigating to a 404 or,
-              worse, appearing to hold a room it has not held. */}
-          {nextStep ? (
-            <p className={styles.nextStep} role="status">
-              {nextStep}
-            </p>
+          {/* What the property says about the room, and what it costs.
+              Absent rather than clipped when there is nothing to stage: the
+              plates are placed in a grid the empty state re-lays anyway, so
+              there is no column left holding zero pixels of tab order —
+              which is what `inert` was guarding against while the stage was
+              a collapsing track.
+
+              **Two jobs, and neither of them may put a box between this element
+              and the plate.** This element arrives with the step — the second of
+              the stagger, and transform only. The *room inside it* being
+              replaced, which is what happens every time a guest presses another
+              row, is `room-stage.tsx`'s own fade, on its own root.
+
+              An earlier cut put that fade on a wrapper here, and it cost two
+              things at once: the plate the peek fades is this element, and
+              Motion writes what it animates to the inline style, which beats the
+              stylesheet — so a wrapper carrying `opacity: 1` sat between the
+              hidden plate and the room and reported itself as visible. That is
+              also exactly what `check-booking-screen.mjs` reads, by walking up
+              one level from `[data-room-stage]`. One div in the wrong place
+              broke a composition rule and the check that guards it. */}
+          {selectedType && selectedOffer ? (
+            <m.div
+              className={styles.stage}
+              variants={reduced ? stillPlateMotion : plateMotion}
+            >
+              <AnimatePresence initial={false} mode="wait">
+                {/* Where the funnel stops today, said out loud, in the line
+                    under the button that was pressed. `Continue` should post to
+                    the booking module, take a hold, and route to
+                    `/booking/<hold>/details`. That module is M7 and none of it
+                    exists — so the button reports the truth rather than
+                    navigating to a 404 or, worse, appearing to hold a room it
+                    has not held. */}
+                <RoomStage
+                  key={selectedType.code}
+                  nights={stayLength}
+                  note={nextStep}
+                  offer={selectedOffer}
+                  onContinue={() =>
+                    setNextStep(
+                      "The next step opens when payments are connected. Nothing is held and nothing is charged.",
+                    )
+                  }
+                  plan={search.plan}
+                  type={selectedType}
+                />
+              </AnimatePresence>
+            </m.div>
           ) : null}
-
-          <SummaryBar
-            guests={partySize(search.party)}
-            nights={stayLength}
-            offer={chosenOffer}
-            onContinue={() =>
-              setNextStep(
-                "Your room is chosen. The next step opens when payments are connected — nothing is held and nothing is charged yet.",
-              )
-            }
-          />
-
-          {/* Look closer. Choosing from inside it closes it, because the guest
-              has answered the question the sheet was opened to answer. */}
-          <RoomSheet
-            isChosen={chosen === sheetCode}
-            isOpen={looking !== null}
-            offer={sheetOffer}
-            onChoose={() => {
-              if (sheetCode) setChosen(sheetCode);
-              setLooking(null);
-            }}
-            onClose={() => setLooking(null)}
-            plan={search.plan}
-            type={sheetType}
-          />
-
-          {/* The bar is fixed, so the last card needs room to clear it. */}
-          {chosenOffer ? <div className={styles.barSpacer} /> : null}
-        </main>
-      </I18nProvider>
-    </LazyMotion>
-  );
-}
-
-/**
- * A view's title and its one qualifying line.
- *
- * One `<h1>` per view and never two on the page at once, because only one view is
- * ever mounted — which is the property that lets the heading live down here in
- * the branch instead of above it.
- */
-function ViewHead({
-  title,
-  lede,
-}: {
-  readonly title: string;
-  /** Omitted where the view already has a line that says it better. */
-  readonly lede?: string;
-}) {
-  return (
-    <header className={styles.head}>
-      <h1 className={`${styles.title} font-display`}>{title}</h1>
-      {lede ? <p className={styles.lede}>{lede}</p> : null}
-    </header>
+        </div>
+      </div>
+    </m.main>,
   );
 }

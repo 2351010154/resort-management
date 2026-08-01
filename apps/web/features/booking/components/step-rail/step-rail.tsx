@@ -29,8 +29,13 @@ export function StepRail({
   onBack,
 }: {
   readonly current: BookingView;
-  /** Back to the dates step, keeping the range. Only reachable from step two. */
-  readonly onBack: () => void;
+  /**
+   * Back to the dates step, keeping the range. **Only reachable from step two**,
+   * which is why it is optional: on the dates step there is nothing behind the
+   * guest, step one renders as a `<span>` rather than a button, and a handler
+   * passed in there would be one that can never fire.
+   */
+  readonly onBack?: () => void;
 }) {
   const onRooms = current === "rooms";
 

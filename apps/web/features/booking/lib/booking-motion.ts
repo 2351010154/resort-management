@@ -66,8 +66,37 @@ export const EASE_UI_EXIT_POINTS = [0.32, 0, 0.67, 0] as const;
 /** A shorter exit than entrance: leaving should not be dwelt on. */
 const DUR_UI_EXIT = 0.4;
 
+/**
+ * The gap between one step's composition and the next.
+ *
+ * Short on purpose, and the shortest duration in this file. The step swap is not
+ * a transition between two states of one screen — the two steps have no frame in
+ * common, and `booking-screen.tsx` argues at length that dissolving one page into
+ * a different page pretends they are one composition. What this buys instead is
+ * that the outgoing step is *gone* before the incoming one starts, so the eye is
+ * handed the ground for a moment rather than a jump cut. Long enough not to be a
+ * cut, short enough that nobody waits for it.
+ */
+const DUR_STEP_EXIT = 0.18;
+
+/**
+ * A room replacing another on the two plates at the foot of the room step.
+ *
+ * Faster than `enter`/`leave`, because these run under `mode="wait"` — the
+ * outgoing plate has to be gone before the incoming one mounts, so the guest
+ * waits for the sum rather than the longer of the two. 0.15 + 0.3 lands at 0.45,
+ * which is inside the 0.5 the photograph behind them takes to dissolve: the
+ * reading settles as the room finishes arriving, rather than after it.
+ */
+const DUR_SWAP_OUT = 0.15;
+const DUR_SWAP_IN = 0.3;
+
 const enter = { duration: DUR_UI, ease: EASE_UI_POINTS } as const;
 const leave = { duration: DUR_UI_EXIT, ease: EASE_UI_EXIT_POINTS } as const;
+const stepLeave = {
+  duration: DUR_STEP_EXIT,
+  ease: EASE_UI_EXIT_POINTS,
+} as const;
 
 /**
  * A full-height sheet, entering from the bottom edge.
@@ -89,11 +118,21 @@ export const scrimMotion = {
   exit: { opacity: 0, transition: leave },
 } as const;
 
-/** The fixed summary bar, arriving once a room is chosen. */
-export const summaryBarMotion = {
-  initial: { y: "100%" },
-  animate: { y: "0%", transition: enter },
-  exit: { y: "100%", transition: leave },
+/**
+ * One photograph of a room replacing another on the stage.
+ *
+ * **Opacity alone, and nothing else may be added to it.** A frame that slides is
+ * a slideshow, and a slideshow of a hotel room is marketing; a frame that
+ * dissolves is the same room, looked at again. Both frames are in the layer for
+ * the length of the cross-fade — the outgoing one leaves on the same duration
+ * the incoming one arrives on, rather than the shorter exit the sheets take,
+ * because a dissolve where one side moves faster than the other shows the ground
+ * through the middle of it.
+ */
+export const frameMotion = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1, transition: enter },
+  exit: { opacity: 0, transition: enter },
 } as const;
 
 /**
@@ -140,6 +179,99 @@ export const viewMotion = {
   initial: { opacity: 0, y: 8 },
   animate: { opacity: 1, y: 0, transition: enter },
   exit: { opacity: 0, transition: leave },
+} as const;
+
+/**
+ * One whole step of the funnel replacing the other.
+ *
+ * **Opacity only, and no travel at all on this element.** The step is not a view
+ * inside a frame — it is the bar, the photograph, the plates and the foot, the
+ * entire window — and a composition that size sliding anywhere is the page
+ * transition `booking-screen.tsx` refuses. What it does instead is leave: the
+ * outgoing step fades to the screen's own ground over `DUR_STEP_EXIT`, and under
+ * `mode="wait"` it is unmounted before the next one is built. The guest gets a
+ * beat of ivory rather than a jump.
+ *
+ * The arrival is carried by the plates below, not here — `plateMotion`, which
+ * this staggers. `delayChildren` is deliberately zero: the fade out has already
+ * happened by the time this runs, so a further wait before anything appears
+ * would be dead air the guest reads as slowness.
+ */
+export const stepMotion = {
+  initial: { opacity: 0 },
+  animate: {
+    opacity: 1,
+    transition: { ...enter, staggerChildren: STAGGER_CASCADE },
+  },
+  exit: { opacity: 0, transition: stepLeave },
+} as const;
+
+/**
+ * One plate of an arriving step, rising into place.
+ *
+ * The 8px is the same rise `viewMotion` uses and it is the only travel in the
+ * step swap: the plates are what the guest reads, so they are what arrives, and
+ * the photograph behind them is simply already there. Staggered by their parent
+ * so the column and the room's price do not land on the same frame — two plates
+ * appearing together read as one box, and they are not one box.
+ *
+ * **Transform only, and the omission of opacity is load-bearing.** Two reasons,
+ * either of which alone would be enough:
+ *
+ * - The plates are already fading, because `stepMotion` fades the whole step
+ *   they are in. Fading them again inside a fading parent multiplies the two
+ *   curves, and what that draws is a plate that stays muddy for most of its
+ *   arrival and then arrives all at once at the end.
+ * - `booking-screen.module.css` lifts these same two plates off the photograph
+ *   when the guest reaches for the gallery — the "peek" — and it does it with
+ *   `opacity` in a stylesheet. Motion writes what it animates to the element's
+ *   *inline* style, which beats a class rule outright. An opacity here would
+ *   leave `opacity: 1` on the element for good and the peek would silently stop
+ *   working, with nothing failing anywhere to say so.
+ */
+export const plateMotion = {
+  initial: { y: 8 },
+  animate: { y: 0, transition: enter },
+} as const;
+
+/**
+ * `plateMotion` at rest, for `useReducedMotion`.
+ *
+ * Not `stillMotion`, for the second reason above: that variant asserts an
+ * opacity, and asserting one on these two elements is exactly what breaks the
+ * peek. A guest who has asked for less motion has not asked for the plates to
+ * stop getting out of the way of the photograph.
+ */
+export const stillPlateMotion = {
+  initial: { y: 0 },
+  animate: { y: 0, transition: { duration: 0 } },
+} as const;
+
+/**
+ * The room's plates, when the guest picks a different room.
+ *
+ * **This exists because the loudest change on the step used to have no motion
+ * in it at all.** Picking a room re-pointed the photograph, the name, the two
+ * sentences, the four facts and the total — the whole window — and every one of
+ * them cut in the same frame while the list they were picked from faded. The
+ * ground dissolves now (`frameMotion`, and see `room-ground.tsx` for why it
+ * stopped remounting), and this is its counterpart on the reading.
+ *
+ * No travel: the plates stay exactly where they are and their contents are
+ * replaced. A plate that slid would say the guest had gone somewhere, and they
+ * have not — they are looking at the same corner of the same screen, at a
+ * different room.
+ */
+export const roomSwapMotion = {
+  initial: { opacity: 0 },
+  animate: {
+    opacity: 1,
+    transition: { duration: DUR_SWAP_IN, ease: EASE_UI_POINTS },
+  },
+  exit: {
+    opacity: 0,
+    transition: { duration: DUR_SWAP_OUT, ease: EASE_UI_EXIT_POINTS },
+  },
 } as const;
 
 /**
