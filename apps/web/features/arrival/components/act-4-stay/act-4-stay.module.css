@@ -1,0 +1,644 @@
+/* Act 4 — Stay. Three movements on one vertical scrollbar: a dark horizontal
+   corridor, an arch that opens onto daylight, and a receding deck of rooms.
+   z-scale: media 0 / copy 20 / seam fades 30 (nav owns 100). */
+
+/* The chapter's own floor. Movement III paints nothing of its own — it rides on
+   the threshold's pinned footage — so the act carries a dark base underneath in
+   case that pin is not there to cover it. */
+.act {
+  position: relative;
+  background: var(--night);
+}
+
+/* ============================ I. Corridor ============================ */
+
+.corridor {
+  position: relative;
+  background: var(--ink);
+  color: var(--ivory);
+}
+
+.corridorStage {
+  position: relative;
+  height: 100vh;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+}
+
+/* Head of the chapter, riding above the track on the dark ground. */
+.chapterMark {
+  position: absolute;
+  top: clamp(var(--space-3), 12vh, 8rem);
+  left: 6vw;
+  z-index: 20;
+  color: var(--sand);
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.track {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-inline: 6vw;
+  will-change: transform;
+}
+
+.panel {
+  position: relative;
+  flex: none;
+  width: var(--w);
+  height: 78vh;
+  overflow: hidden;
+  background: var(--umber);
+}
+
+/* The photo sits wider than its panel so the 6.3% counter-translation always
+   has overflow to travel into — never a bare edge. */
+.panelMedia {
+  position: absolute;
+  inset: 0;
+  will-change: transform;
+}
+
+.panelMedia img {
+  width: 116%;
+  height: 100%;
+  margin-left: -8%;
+  object-fit: cover;
+}
+
+/* Sinks the foot of every photo so the caption always has contrast to sit on. */
+.panelScrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgb(var(--night-rgb) / 0.32) 0%,
+    rgb(var(--night-rgb) / 0) 34%,
+    rgb(var(--night-rgb) / 0) 52%,
+    rgb(var(--night-rgb) / 0.72) 100%
+  );
+}
+
+/* Wider than the panel on purpose: the panel edge clips it, so the line reads
+   out as the panel crosses the viewport. */
+.panelHeadline {
+  position: absolute;
+  left: var(--space-3);
+  bottom: 22%;
+  z-index: 20;
+  white-space: nowrap;
+  font-size: clamp(3rem, 7.5vw, 6.5rem);
+  line-height: 0.92;
+  color: var(--ivory);
+}
+
+.panelCaption {
+  position: absolute;
+  left: var(--space-3);
+  bottom: 14%;
+  z-index: 20;
+  color: var(--sand);
+}
+
+/* Tone panels carry the register instead of an image. */
+.tonePanel {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--stone-deep);
+}
+
+.toneQuiet {
+  background: var(--umber);
+}
+
+.toneLine {
+  font-size: var(--text-display-sm);
+  line-height: 1.12;
+  color: var(--ivory);
+  white-space: pre-line;
+}
+
+.toneKicker {
+  color: var(--sand);
+}
+
+/* Foot of the corridor stage: the honest signal that the page still scrolls. */
+.corridorFoot {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: clamp(1.25rem, 4vh, 2.5rem);
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  pointer-events: none;
+  color: var(--sand);
+}
+
+/* oryzo dashline motif: the rule is dashed, the fill is solid. */
+.footRule {
+  position: relative;
+  width: min(22rem, 40vw);
+  height: 1px;
+  background: repeating-linear-gradient(
+    90deg,
+    currentColor 0 2px,
+    transparent 2px 5px
+  );
+  opacity: 0.45;
+}
+
+.footRuleFill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 100%;
+  background: var(--ivory);
+  transform: scaleX(0);
+  transform-origin: left center;
+}
+
+/* ============================ II. Threshold ============================ */
+
+.threshold {
+  position: relative;
+  background: var(--ink);
+}
+
+/* Both pinned stages carry an explicit z-index. Pinning makes them `fixed`
+   with no stacking order of their own, and the Invitation act is a positioned
+   section later in the document — without these it climbs over the door and
+   the deck as it rises, cutting the frame off from the bottom up. */
+.thresholdStage {
+  position: relative;
+  z-index: 1;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--ink);
+}
+
+/* Each arch is a full-viewport media layer clipped to its own opening. Growing
+   the clip therefore reveals more of an already full-bleed frame — the media
+   never scales. That is the whole trick of the reference. */
+.arch {
+  position: absolute;
+  inset: 0;
+  will-change: clip-path, transform, opacity;
+  clip-path: inset(
+    var(--t) var(--r) var(--b) var(--l) round var(--rad) var(--rad) 0 0
+  );
+}
+
+.arch video,
+.arch img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Warms the footage toward the corridor it emerges from. */
+.archTint {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgb(var(--umber-rgb) / 0.28),
+    rgb(var(--ink-rgb) / 0.12) 45%,
+    rgb(var(--ink-rgb) / 0.55)
+  );
+  mix-blend-mode: multiply;
+}
+
+/* Sinks the open door far enough for Movement III's ivory copy and its
+   photographic cards to read on it, without flattening the movement out of it.
+   It lives on this stage because this stage is what stays pinned under the
+   rooms — a scrim on their own stage would slide in with a visible edge. */
+.doorScrim {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  opacity: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      ellipse at 50% 40%,
+      rgb(var(--night-rgb) / 0.3) 0%,
+      rgb(var(--night-rgb) / 0.72) 100%
+    ),
+    linear-gradient(
+      to bottom,
+      rgb(var(--ink-rgb) / 0.6),
+      rgb(var(--night-rgb) / 0.48) 46%,
+      rgb(var(--night-rgb) / 0.78)
+    );
+}
+
+/* ============================ III. Rooms ============================ */
+
+/* The ground here is Movement II's door, still open and still running: the
+   threshold stage stays pinned underneath this whole movement. Every layer of
+   Movement III therefore has to stay transparent — an opaque background on the
+   section or the stage would paint straight over the footage, since this
+   section sits after the threshold in the DOM. */
+.rooms {
+  position: relative;
+  background: transparent;
+  color: var(--ivory);
+}
+
+/* This section keeps its natural flow position, which is a full viewport below
+   the end of the threshold's scrub. That viewport is the deck's entrance: the
+   door has finished opening and finished sinking by the time the stage's top
+   edge reaches the bottom of the frame, and the whole of the approach is the
+   cards riding up over the open door until the stage pins. Nothing dissolves —
+   the deck is already composed when it enters, and scrolling is what reveals
+   it. The stage paints no ground of its own, so there is no sheet rising with
+   it, only the photographs. */
+.roomsStage {
+  position: relative;
+  z-index: 2;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* One half of the movement: its cards and the ground under them, and nothing
+   else. The registers are not in here — see `.roomsList`. `--card-w` is the
+   card's size at the exit end of the cascade, written from JS because the frame
+   it belongs to is measured there; depth is applied on top of it as a scale.
+   The z-index is what makes it a stacking context, which keeps the deck's
+   per-card z-indices inside the half instead of competing with the registers
+   for the top of the stage. */
+.cascade {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  --card-w: 40vw;
+  will-change: clip-path;
+}
+
+/* The two clips are complements of one wipe edge — day keeps everything ahead
+   of it, night everything behind it. Night starts with nothing. */
+.cascadeDay {
+  clip-path: inset(0 0 0 0);
+}
+
+.cascadeNight {
+  clip-path: inset(0 100% 0 0);
+}
+
+/* The ground each half plays on. Day and night used to differ only in which six
+   photographs loaded — same grade, same ground — so the wipe crossed between
+   two frames that looked alike and the "other half" never arrived. This is the
+   half's own light, and it lives inside the cascade so the wipe's clip carries
+   it for free.
+
+   Semi-transparent by necessity: the open door from movement II is still
+   running underneath, and an opaque layer here paints straight over it.
+
+   Feathered at the leading edge. This stage slides a whole viewport up the
+   frame before it pins, so the wash's own top edge travels across the open door
+   as a hard horizontal line — the same seam the door scrim was moved off this
+   stage to avoid. The wash cannot follow it there: the wipe has to carry it, so
+   it has to stay inside the clip. Spread over a fifth of the frame instead,
+   there is no edge left to read — the wash is a few percent of lift at its
+   strongest, and that much of it per viewport-fifth is a gradient, not a join. */
+.cascade::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  mask-image: linear-gradient(to bottom, transparent, rgb(0 0 0 / 1) 22%);
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    rgb(0 0 0 / 1) 22%
+  );
+}
+
+/* Warm and lifted, thrown from the side the day list stands on. */
+.cascadeDay::before {
+  background:
+    radial-gradient(
+      120% 80% at 12% 45%,
+      rgb(var(--dusk-amber-rgb) / 0.2),
+      transparent 62%
+    ),
+    linear-gradient(
+      105deg,
+      rgb(var(--dusk-amber-rgb) / 0.12),
+      rgb(var(--umber-rgb) / 0.1) 60%,
+      transparent
+    );
+}
+
+/* Cool and dropped. The deepening sits over the exit corner, away from the
+   upper-right vanishing point: put on that corner it lands exactly where the
+   far cards spawn, and a card that is small, still fading in and graded down
+   has nothing left to give a fourth multiplication. */
+.cascadeNight::before {
+  background:
+    radial-gradient(
+      110% 75% at 22% 78%,
+      rgb(var(--night-rgb) / 0.42),
+      transparent 68%
+    ),
+    linear-gradient(
+      255deg,
+      color-mix(in srgb, var(--ocean) 14%, transparent),
+      rgb(var(--night-rgb) / 0.22) 60%,
+      transparent
+    );
+}
+
+/* The rotateY the cursor field applies is only visible with a perspective on
+   the deck; without one the cards just skew. The z-index only has to beat the
+   wash above — `perspective` already makes this a stacking context, so the
+   per-card z-indices stay contained either way. */
+.deck {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  perspective: 1400px;
+}
+
+/* The card is the frame — no caption rides with it. Per-card copy would scale
+   with the depth and be unreadable at the far end; `.hoverCaption` is parked
+   under the card in stage coordinates instead, at one size. */
+.card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  --dim: 0.26;
+  /* Each card takes its own photograph's shape, so nothing is cropped, and its
+     width is the frame's quote scaled to hold the area across shapes — both
+     figures are written on the element by the markup, from the same helper the
+     ticker positions the box with. The fallbacks are the old fixed card, for a
+     node that somehow reaches paint before its style does. */
+  width: calc(var(--card-w) * var(--card-fit, 1));
+  aspect-ratio: var(--card-ar, 3 / 2);
+  overflow: hidden;
+  background: var(--umber);
+  /* Overlapping plates on a dark ground merged into one mass — you could not
+     tell where one photograph ended. The tight contact shadow draws the near
+     plate against the one behind it; the hairline catches the light the room
+     throws. Both are specified at exit size and scale down with the card, which
+     is what a real plate's shadow does as it recedes. */
+  box-shadow:
+    0 0.4rem 1.2rem rgb(var(--night-rgb) / 0.85),
+    0 1.5rem 5rem rgb(var(--night-rgb) / 0.5),
+    inset 0 0 0 1.5px rgb(var(--ivory-rgb) / 0.11);
+  /* The deck is hit-tested in the ticker against the boxes it just drew: the
+     nodes parked past SPAN keep their last transform and would otherwise take
+     the pointer from the cards that are actually on screen. */
+  pointer-events: none;
+  will-change: transform, opacity;
+  transform-origin: center center;
+}
+
+.card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Every card sits under a scrim; the hovered one loses it as it slides out, and
+   that is the whole of "and then it gets brighter". A scrim rather than an
+   animated `filter` because this is one paint over a rectangle — a filter on a
+   transformed element re-rasterises the layer every frame the scale changes,
+   and the scale changes on every frame here. `--dim` is written by the ticker
+   and only when it has actually moved. */
+.card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgb(var(--night-rgb) / var(--dim));
+}
+
+/* The grade that makes a half its own time of day. Static per element — a
+   filter that never changes is one paint, unlike the transform beside it.
+   Night is drained rather than dimmed: these photographs are already dark, and
+   the brightness it took to separate the halves on paper turned them to mud on
+   screen. The wash above supplies the cool; the grade takes out the warmth that
+   would fight it. */
+.cascadeDay .card img {
+  filter: brightness(1.14) saturate(1.08) contrast(1.02);
+}
+
+.cascadeNight .card img {
+  filter: brightness(0.88) saturate(0.72) contrast(1.08);
+}
+
+/* Day on the left, night on the right, on the side its cascade recedes toward —
+   the cards spawn behind the list and grow away from it. Each entry dims to a
+   whisper except the one currently in the focus slot.
+
+   Above *both* cascades and a sibling of them rather than a child of one:
+   inside its own half it was clipped by the wipe, and it also sat under the
+   other half's whole subtree, so day's names went dark beneath night's cards
+   long before night's names came up. The ticker owns its opacity — the wipe
+   takes it away as the edge crosses its column, and the pointer takes it away
+   while a card is pulled out over the ground it stands on. */
+.roomsList {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 400;
+  display: flex;
+  flex-direction: column;
+  gap: 1.15rem;
+  pointer-events: none;
+  text-shadow: 0 1px 22px rgb(var(--night-rgb) / 0.9);
+}
+
+.listDay {
+  left: 5vw;
+  text-align: left;
+}
+
+/* Starts down, like its cascade's clip does — the ticker brings it up as the
+   edge reaches the column. Without this the two share the frame until the first
+   tick, which at phone width is one strip and both of them on it. */
+.listNight {
+  right: 5vw;
+  text-align: right;
+  opacity: 0;
+}
+
+.listTitle {
+  font-size: var(--text-lg);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--dusk-amber);
+  margin-bottom: var(--space-1);
+}
+
+.listItem {
+  transition:
+    opacity 0.45s var(--ease-ui),
+    color 0.45s var(--ease-ui);
+  opacity: 0.3;
+  color: var(--sand);
+}
+
+.listItem[data-focus="true"] {
+  opacity: 1;
+  color: var(--ivory);
+}
+
+.listItemName {
+  font-size: var(--text-lg);
+  line-height: 1.15;
+}
+
+/* One size, in stage coordinates, parked under whichever card the pointer is
+   on. Never inside the deck: there the depth scale would size the type, which
+   is the reason the old design put the names off to the side in the first
+   place. */
+.hoverCaption {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 420;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.28s var(--ease-ui);
+  white-space: nowrap;
+  color: var(--ivory);
+  text-shadow: 0 1px 18px rgb(var(--night-rgb) / 0.95);
+  will-change: transform, opacity;
+}
+
+/* There is deliberately no element drawn on the wipe's edge. A soft band
+   travelling with it was tried and read as a blurred vertical smear across the
+   frame; what carries the crossing instead is the two halves' own light, which
+   is now different enough that the hard clip boundary is legible on its own.
+   The edge stays exactly what it is — one sharp cut between two clips. */
+
+/* Seam into Act 5 (Invitation). The whole frame, not a bottom gradient: this
+   closes over a deck that is still full and lands on exactly the value Act 5
+   opens on, so the handover is one continuous dark rather than a cut. */
+.tailFade {
+  position: absolute;
+  inset: 0;
+  z-index: 500;
+  pointer-events: none;
+  opacity: 0;
+  background: var(--night);
+}
+
+/* Only the reduced-motion grid still pairs a caption with an image. */
+.cardMeta {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: 0.75rem;
+  color: var(--sand);
+}
+
+/* ============================ Reduced motion / narrow ============================ */
+
+/* No pins mount under reduced motion, so each movement has to stand as a static
+   composition rather than a frozen frame of an animation. */
+.staticCorridor,
+.staticRooms {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4) 6vw;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+}
+
+/* Nothing is pinned here, so the rooms grid has to carry the dark ground the
+   open door would otherwise be holding. */
+.staticRooms {
+  background: var(--night);
+  color: var(--ivory);
+}
+
+/* Each figure has to reserve its own caption space. A stretched `height: 100%`
+   on the image leaves the caption overflowing onto the row beneath it. */
+.staticCorridor figure,
+.staticRooms figure {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 0;
+}
+
+.staticCorridor img,
+.staticRooms img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+
+.staticThreshold {
+  position: relative;
+  height: 70vh;
+  overflow: hidden;
+}
+
+.staticThreshold img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+@media (max-width: 767px) {
+  .panel {
+    height: 62vh;
+  }
+
+  .panelHeadline {
+    font-size: clamp(2.25rem, 12vw, 3.5rem);
+    left: var(--space-2);
+  }
+
+  .panelCaption,
+  .tonePanel {
+    padding-inline: var(--space-2);
+  }
+
+  .panelCaption {
+    left: var(--space-2);
+  }
+
+  .chapterMark {
+    left: var(--space-2);
+  }
+
+  /* The lists would collide with the cascade at phone width; they stack under
+     the head instead and only the focused entry is shown. */
+  .roomsList {
+    top: auto;
+    bottom: clamp(var(--space-3), 8vh, 5rem);
+    left: var(--space-2);
+    right: var(--space-2);
+    transform: none;
+    align-items: center;
+    text-align: center;
+  }
+
+  .listItem[data-focus="false"] {
+    display: none;
+  }
+
+  /* Both lists sit on the same strip at this width, so their titles would stack
+     on each other — and only one half is ever uncovered under it. Nothing is
+     needed for the lists themselves: the ticker fades day out before night
+     comes up, and the two windows do not overlap. */
+  .listTitle {
+    display: none;
+  }
+}

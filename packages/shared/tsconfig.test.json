@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true
+  },
+
+  // The specs `tsconfig.json` excludes from the build. A test that stops
+  // compiling is a test that stopped being checked, and nothing else would
+  // notice — the same reason `apps/api` carries this file.
+  "include": ["src/**/*.ts"],
+  "exclude": ["dist", "node_modules"]
+}

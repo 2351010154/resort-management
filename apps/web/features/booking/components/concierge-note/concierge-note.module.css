@@ -1,0 +1,206 @@
+/* The concierge block, at the foot of the list plate.
+ *
+ * It sits below the list's own scroll rather than inside it — see `.foot` in
+ * `booking-screen.module.css`. A guest four rows down still has the number in
+ * front of them, which is the only state in which it is worth the space: an exit
+ * that scrolls away is an exit for people who did not need it.
+ *
+ * A hairline above, a glyph beside it, and no ground of its own. It is still the
+ * last paragraph of the plate rather than a card — a box around it would make it
+ * a second offer competing with the five above — but it is no longer *shaped*
+ * like the paragraphs above it, and that is the point of the mark: the five rows
+ * are things to choose between, and this is the one line on the plate that is a
+ * person to ask instead.
+ */
+
+/* Glyph, then the three lines it marks. The same two-track shape the room's
+   facts use in `room-stage.module.css`, so the two icon columns on this step
+   read as one set rather than two decisions.
+
+   `start`, not `centre`: the sentence wraps to two lines in a narrow rail, and a
+   centred glyph would then float against the middle of a block whose first line
+   is the one it belongs to.
+
+   The air above is --space-2 rather than --space-1. This is the last block of
+   the plate and the hairline is what separates it from five rows of choices; at
+   half that it read as a caption on the last row rather than as the thing after
+   the list. */
+.note {
+  display: grid;
+  grid-template-columns: 1.75rem minmax(0, 1fr);
+  gap: 0.625rem;
+  align-items: start;
+  padding-top: var(--space-2);
+  border-top: 1px solid rgb(var(--umber-rgb) / 0.15);
+}
+
+/* A CSS mask over `currentColor` — see the note in `room-stage.tsx` for why this
+   is not an `<img>`.
+ *
+ * **The size came down and the drawing changed, and the second is what fixed
+ * it.** It was set at 1.75rem on the argument that a headset with a bubble and
+ * three dots in it goes to mush at twenty pixels. It went to mush at twenty-eight
+ * as well: the bubble was a filled shape with three holes punched through it, and
+ * no size this block can spare makes that read as a drawing rather than as a
+ * blot. What the extra weight did buy was a mark heavier than every glyph on the
+ * room's plate, standing over the quietest block on the step. So the bubble is
+ * stroked now, at the weight of the headset around it, and the mark is back to
+ * the scale of the facts' glyphs.
+ *
+ * **The box is the drawing's own shape, not a square.** A headset is wider than
+ * it is tall, and `contain` inside a square box scales it to fit the *height* it
+ * does not use — which is what made it read as small as well as muddy. The
+ * viewBox is cropped to the ink and the box carries its ratio, so the glyph is
+ * as large as the column allows.
+ *
+ * --stone-deep rather than --stone: the facts' glyphs sit beside a term that
+ * names them, so they can fall back to furniture. This one is the only thing
+ * marking the block, and at the lighter weight it read as a smudge.
+ *
+ * **The disc is what carries the mark now that the type around it is smaller.**
+ * A bare glyph beside a 10px caps run and a 12px sentence is one more small
+ * grey thing in a column of them; a tinted circle is a different *kind* of
+ * object, which is the distinction this block exists to draw — five rooms to
+ * choose between, and one person to ask instead. The tint is --umber at the
+ * weight the plate's own hairlines take, so it reads as a ground rather than as
+ * a filled control asking to be pressed.
+ */
+.icon {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  color: var(--stone-deep);
+  background: rgb(var(--umber-rgb) / 0.07);
+  border-radius: 50%;
+}
+
+/* The drawing inside the disc. The box is the glyph's own shape, not a square:
+   a headset is wider than it is tall, and `contain` inside a square box scales
+   it to fit the height it does not use. */
+.icon::before {
+  content: "";
+  width: 1.0625rem;
+  aspect-ratio: 4 / 3;
+  background: currentColor;
+  mask-image: url("/images/booking/icons/concierge.svg");
+  mask-repeat: no-repeat;
+  mask-size: contain;
+  mask-position: center;
+  -webkit-mask-image: url("/images/booking/icons/concierge.svg");
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  -webkit-mask-position: center;
+}
+
+.lines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.term {
+  font-size: var(--plate-xs, var(--text-xs));
+  color: var(--stone);
+}
+
+/* The sentence and the control on one row, the control at the far end of it.
+ *
+ * `flex-end` rather than `baseline`: the sentence wraps to two lines in a rail
+ * this narrow, and a baseline rule would hang the link off the *first* of them
+ * — level with the middle of the paragraph, which is where nothing belongs. It
+ * sits on the last line instead, in the space the wrap leaves, which is where
+ * the comp draws it.
+ *
+ * It wraps, because at the stacked width the sentence has the measure of the
+ * page and there is no gap at the end of it to put a control in. */
+.body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.25rem var(--space-1);
+}
+
+.line {
+  /* **The basis is a fraction, and that is what puts the control beside the
+     sentence rather than under it.** At `auto` the paragraph asks for the width
+     it would take unwrapped — one line, near the whole column — and the link
+     has nowhere to go but the next row, which is the layout this replaced. A
+     basis of a little over half asks the sentence to wrap first and then lets
+     it grow into whatever the link leaves, so the pair lands as the comp draws
+     it: two short lines with the way to act on them at the end of the second. */
+  flex: 1 1 55%;
+  min-width: 0;
+  font-size: var(--plate-sm, var(--text-sm));
+  line-height: 1.5;
+  color: var(--stone-deep);
+}
+
+/* The control, so it is ink and it is ruled — the one thing in this block a
+   guest acts on, and the one line of the plate that is a person rather than a
+   room.
+ *
+ * **At the block's own size, not a step above it.** It was set at --text-base
+ * with a 44px tap box under the sentence, which made the last paragraph of the
+ * plate louder and taller than the five rooms it follows — a footnote drawn at
+ * the scale of a heading. The tint on the disc and the rule under these words
+ * are what mark it now, and neither costs height.
+ *
+ * The rule hugs the words: it sits directly under them at the distance an
+ * underline sits, rather than a half-line below on the floor of a box. */
+.call {
+  flex: none;
+  padding-bottom: 0.1875rem;
+  font-size: var(--plate-sm, var(--text-sm));
+  line-height: 1.5;
+  color: var(--ink);
+  white-space: nowrap;
+  border-bottom: 1px solid var(--stone);
+  transition: border-color 0.4s var(--ease-ui);
+}
+
+.call:hover {
+  border-bottom-color: var(--umber);
+}
+
+.call:focus-visible {
+  outline: 2px solid var(--dusk-amber);
+  outline-offset: 4px;
+}
+
+/* The last of the air the plate gives back when the window is short — see the
+   short-window block in `booking-screen.module.css` for the trade and why the
+   hairline's own separation is the cheapest half-rem on the plate. */
+@media (min-width: 78rem) and (max-height: 50rem) {
+  .note {
+    padding-top: var(--space-1);
+  }
+}
+
+/* ---- Narrow -------------------------------------------------------------- */
+
+/* **The tap box comes back below the stack width, and that is not a hedge.**
+ *
+ * Beside the photograph this is a phrase at the end of a sentence on a plate a
+ * quarter of the window wide, read with a pointer. Stacked, it is a `tel:` link
+ * on a phone — the one control on the step that leaves the site, on the device
+ * most likely to press it — and 18px of ruled text is not something a thumb can
+ * be asked to hit. So the row unwraps, the link drops to its own line, and it
+ * takes the funnel's 44px floor back.
+ *
+ * `flex-end` with a stated padding rather than centring: the rule stays where
+ * an underline goes and the rest of the floor is spent as air above it. */
+@media (max-width: 77.999rem) {
+  .body {
+    display: block;
+  }
+
+  .call {
+    display: inline-flex;
+    align-items: flex-end;
+    min-height: 2.75rem;
+    padding-bottom: 0.375rem;
+  }
+}

@@ -1,0 +1,120 @@
+{
+  "SUPERIOR": [
+    {
+      "slug": "superior-1",
+      "file": "icons and rooms/rooms/suite-bedroom-lattice-screen-taupe/668e6204150d5540524414.jpg"
+    },
+    {
+      "slug": "superior-2",
+      "file": "icons and rooms/rooms/suite-bedroom-lattice-screen-taupe/668e61d10e5e5629933354.jpg"
+    },
+    {
+      "slug": "superior-3",
+      "file": "icons and rooms/rooms/suite-bedroom-lattice-screen-taupe/668e6289f0644241802481.jpg"
+    },
+    {
+      "slug": "superior-4",
+      "file": "icons and rooms/rooms/suite-bedroom-lattice-screen-taupe/668e621e7fe55166327380.jpg"
+    },
+    {
+      "slug": "superior-5",
+      "file": "icons and rooms/rooms/suite-bathroom-dark-wood-oval-tub/67ec1658e1580491531886.jpg"
+    }
+  ],
+  "DELUXE": [
+    {
+      "slug": "deluxe-1",
+      "file": "icons and rooms/rooms/suite-dining-room/668e6269dc076213734275.jpg"
+    },
+    {
+      "slug": "deluxe-2",
+      "file": "icons and rooms/rooms/modern-nyc-bedroom-neutral/696e20d3d2f32728716266.jpg"
+    },
+    {
+      "slug": "deluxe-3",
+      "file": "icons and rooms/rooms/suite-bedroom-lattice-screen-taupe/668e621e5eaf6465807114.jpg"
+    },
+    {
+      "slug": "deluxe-4",
+      "file": "icons and rooms/rooms/suite-bathroom-marble-freestanding-tub/668e61d08c3be070224326.jpg"
+    },
+    {
+      "slug": "deluxe-5",
+      "file": "icons and rooms/rooms/suite-bathroom-marble-freestanding-tub/668e61d0c0958344178187.jpg"
+    }
+  ],
+  "PREMIER": [
+    {
+      "slug": "premier-1",
+      "file": "icons and rooms/rooms/suite-bathroom-dark-wood-oval-tub/67ec1658c52c1705397303.jpg"
+    },
+    {
+      "slug": "premier-2",
+      "file": "icons and rooms/rooms/suite-bedroom-fireplace-city-view/668e62541ea6d697640043.jpg"
+    },
+    {
+      "slug": "premier-3",
+      "file": "icons and rooms/rooms/suite-dressing-room-driftwood-art/67ec15e37fabb666655005.jpg"
+    },
+    {
+      "slug": "premier-4",
+      "file": "icons and rooms/rooms/suite-living-room-lounge-seating/668e62a6e20e1530266040.jpg"
+    },
+    {
+      "slug": "premier-5",
+      "file": "icons and rooms/rooms/suite-bedroom-lattice-screen-taupe/668e6204549d7152344747.jpg"
+    }
+  ],
+  "JUNIOR_SUITE": [
+    {
+      "slug": "junior-suite-1",
+      "file": "icons and rooms/rooms/suite-bedroom-central-park-view/689b49fb3f9a8399123297.jpg"
+    },
+    {
+      "slug": "junior-suite-2",
+      "file": "icons and rooms/rooms/suite-bedroom-central-park-view/67ec165564f59946957049.jpg"
+    },
+    {
+      "slug": "junior-suite-3",
+      "file": "icons and rooms/rooms/suite-living-room-lounge-seating/668e62a7098e3500557468.jpg"
+    },
+    {
+      "slug": "junior-suite-4",
+      "file": "icons and rooms/rooms/suite-bedroom-fireplace-city-view/668e6254606e4426844695.jpg"
+    },
+    {
+      "slug": "junior-suite-5",
+      "file": "icons and rooms/rooms/suite-bedroom-fireplace-city-view/668e6254cb3bb140875800.jpg"
+    },
+    {
+      "slug": "junior-suite-6",
+      "file": "icons and rooms/rooms/suite-dressing-room-driftwood-art/67ec15e35b0c6755295044.jpg"
+    }
+  ],
+  "PANORAMA_SUITE": [
+    {
+      "slug": "panorama-suite-1",
+      "file": "icons and rooms/rooms/suite-living-room-lounge-seating/668e62a721618926203625.jpg"
+    },
+    {
+      "slug": "panorama-suite-2",
+      "file": "icons and rooms/rooms/modern-nyc-living-room-neutral/696e20d31c38f512283428.jpg"
+    },
+    {
+      "slug": "panorama-suite-3",
+      "file": "icons and rooms/rooms/suite-living-room-lounge-seating/668e62a763ff8516890537.jpg"
+    },
+    {
+      "slug": "panorama-suite-4",
+      "file": "icons and rooms/rooms/suite-dressing-room-driftwood-art/67ec15e32f9e3827561863.jpg"
+    },
+    {
+      "slug": "panorama-suite-5",
+      "file": "icons and rooms/rooms/suite-office-den/668e626a31f42060755918.jpg"
+    },
+    {
+      "slug": "panorama-suite-6",
+      "file": "icons and rooms/rooms/suite-office-den/668e626a173d4447337924.jpg"
+    }
+  ]
+}

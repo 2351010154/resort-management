@@ -1,10 +1,12 @@
-# Dependencies and build output
-/node_modules
-/.next
-/out
-/build
-/dist
-/coverage
+# Dependencies and build output. Unanchored: every workspace under apps/ and
+# packages/ produces its own.
+node_modules/
+.next/
+.turbo/
+out/
+build/
+dist/
+coverage/
 next-env.d.ts
 *.tsbuildinfo
 
@@ -17,7 +19,8 @@ next-env.d.ts
 .vscode/
 .idea/
 
-# Project planning artifacts
+# Project planning artifacts. Jira owns delivery state; these are local
+# decomposition aids, regenerable from docs/product-requirements.md.
 /plans/
 
 # Python / local runtime artifacts
@@ -37,3 +40,19 @@ __pycache__/
 # macOS / Windows noise
 .DS_Store
 Thumbs.db
+
+# Visual regression baseline screenshots (generated, large binaries)
+apps/web/tests/visual-baseline/
+
+# Asset-pipeline scripts that read a source library outside the repo. They cut
+# and encode what ships under public/, so their output is versioned and they are
+# not: a clone cannot run them, and a hardcoded path to one machine's Downloads
+# folder is a false promise that it can. The curation maps beside them stay
+# tracked — which frame became which slug is the part worth keeping.
+apps/web/scripts/encode-arrival-video.mjs
+apps/web/scripts/encode-intro-horizon.mjs
+apps/web/scripts/encode-intro-video-tiles.mjs
+apps/web/scripts/encode-threshold-video.mjs
+apps/web/scripts/measure-room-comp.mjs
+apps/web/scripts/prepare-arrival-images.mjs
+apps/web/scripts/prepare-room-images.mjs

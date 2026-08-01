@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": true,
+
+    // `rootDir: src` belongs to the build, which emits from src and only src.
+    // This program is wider than that and emits nothing, so the constraint is
+    // lifted rather than worked around by moving files.
+    "rootDir": "."
+  },
+
+  // Everything the build excludes, plus the config files that are TypeScript in
+  // their own right. A test that stops compiling is a test that stopped being
+  // checked, and nothing else would notice.
+  "include": [
+    "src/**/*.ts",
+    "test/**/*.ts",
+    "vitest.config.ts",
+    "drizzle.config.ts"
+  ],
+  "exclude": ["dist", "node_modules"]
+}

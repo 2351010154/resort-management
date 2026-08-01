@@ -1,33 +1,24 @@
 {
-  "name": "mariva-landing",
-  "version": "0.1.0",
+  "name": "mariva",
+  "version": "0.0.0",
   "private": true,
-  "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint"
+  "packageManager": "pnpm@11.1.2",
+  "engines": {
+    "node": ">=24.0.0"
   },
-  "dependencies": {
-    "@react-three/drei": "9.114.3",
-    "@react-three/fiber": "8.17.10",
-    "gsap": "3.13.0",
-    "lenis": "1.1.17",
-    "next": "^14.2.35",
-    "react": "18.3.1",
-    "react-dom": "18.3.1",
-    "three": "0.169.0",
-    "zustand": "4.5.5"
+  "scripts": {
+    "prepare": "lefthook install",
+    "backlog:view": "node scripts/backlog-view.mjs",
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "biome lint . && pnpm --filter @mariva/web lint:css",
+    "format": "biome format --write .",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test"
   },
   "devDependencies": {
-    "@types/node": "20.16.11",
-    "@types/react": "18.3.11",
-    "@types/react-dom": "18.3.0",
-    "@types/three": "0.169.0",
-    "eslint": "^8.57.1",
-    "eslint-config-next": "^14.2.35",
-    "playwright": "^1.61.1",
-    "potrace": "^2.1.8",
-    "typescript": "5.6.3"
+    "@biomejs/biome": "2.5.5",
+    "lefthook": "2.1.10",
+    "turbo": "2.10.7"
   }
 }

@@ -1,0 +1,172 @@
+/* Concierge nav — three phases (top / scrolled / island) + podium hover.
+   Themed by [data-theme="light"|"dark"] set from activeAct.
+
+   The bar has no ground of its own. It carried a frosted tint through the
+   scrolled phase until 2026-07-27 — a translucent plate with a blur behind it,
+   feathered at its lower edge so it would not end on a hard line. Feathering
+   the edge was treating the symptom: the plate is a rectangle laid over the page
+   wherever the page behind it is not flat, and Act 2 made that plain, because a
+   panel there is darkened as the next one climbs over it and the plate stayed
+   lit across the top of it. Nothing was going to reconcile those two.
+
+   So the type is the only thing the bar puts on the page, and the one thing that
+   adapts is its colour: ink on a light ground, ivory on a dark one. The open
+   menu is the exception below — there the bar is the head of a sheet, and the
+   sheet is a surface. */
+
+.bar {
+  position: fixed;
+  inset: 0 0 auto 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  color: var(--ink);
+  transition:
+    color 0.5s var(--ease-ui),
+    padding 0.5s var(--ease-ui);
+}
+
+/* The sheet's head, and the only ground the bar ever has. Its own layer rather
+   than a background on the bar, so it can fade with the phase while the type
+   above it does not move, and `visibility` keeps it out of paint entirely for
+   the two phases that have no sheet open. */
+.bar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    opacity 0.5s var(--ease-ui),
+    visibility 0.5s var(--ease-ui);
+}
+
+.bar[data-theme="dark"] {
+  color: var(--ivory);
+}
+
+.bar[data-phase="scrolled"],
+.bar[data-phase="island"] {
+  padding: calc(var(--space-1) * 1.5) var(--space-3);
+}
+
+/* Island phase: the bar is the head of the open sheet, so it takes the panel's
+   own tint — two different darks stacked read as a seam across the top of the
+   panel. Keep in sync with `.panel` in dynamic-island-menu.module.css. This is
+   the one phase with a ground, and it is the sheet's rather than the bar's: the
+   menu is a surface the reader has asked for, not a plate over the page. */
+.bar[data-phase="island"]::before {
+  opacity: 1;
+  visibility: visible;
+  background-color: rgba(28, 25, 21, 0.94);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+/* brand: wordmark <-> monogram crossfade via CSS masks (currentColor theming) */
+.brand {
+  position: relative;
+  display: block;
+  height: 28px;
+  flex: 0 0 auto;
+}
+
+.wordmark,
+.monogram {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: currentColor;
+  transition: opacity 0.5s var(--ease-ui);
+  mask-repeat: no-repeat;
+  mask-size: contain;
+  mask-position: left center;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  -webkit-mask-position: left center;
+}
+
+.wordmark {
+  width: 165px;
+  mask-image: url("/brand/mariva-wordmark.svg");
+  -webkit-mask-image: url("/brand/mariva-wordmark.svg");
+}
+
+.monogram {
+  width: 37px;
+  mask-image: url("/brand/mariva-monogram.svg");
+  -webkit-mask-image: url("/brand/mariva-monogram.svg");
+  opacity: 0;
+}
+
+.bar[data-phase="scrolled"] .wordmark,
+.bar[data-phase="island"] .wordmark {
+  opacity: 0;
+}
+
+.bar[data-phase="scrolled"] .monogram,
+.bar[data-phase="island"] .monogram {
+  opacity: 1;
+}
+
+.links {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+/* podium hover: stacked label copies slide inside a clip box that hugs the
+   text line, so the duplicate never shows through the pill padding */
+.link {
+  position: relative;
+  display: block;
+  padding: 0.45em 0.9em;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  transition: border-color 0.4s var(--ease-ui);
+}
+
+.linkClip {
+  display: block;
+  position: relative;
+  overflow: hidden;
+}
+
+.linkInner {
+  position: relative;
+  display: block;
+  transition: transform 0.4s var(--ease-ui);
+}
+
+.linkInner::after {
+  content: attr(data-label);
+  position: absolute;
+  left: 0;
+  top: 100%;
+}
+
+.link:hover .linkInner,
+.link:focus-visible .linkInner {
+  transform: translateY(-100%);
+}
+
+.link[data-active="true"] {
+  border-color: currentColor;
+}
+
+.menuButton {
+  composes: link;
+  border-color: currentColor;
+}
+
+/* mobile: links collapse behind the menu button */
+@media (max-width: 767px) {
+  .links {
+    display: none;
+  }
+}

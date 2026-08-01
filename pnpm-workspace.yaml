@@ -1,0 +1,37 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# pnpm blocks dependency install scripts by default; each one has to be named.
+allowBuilds:
+  # Fetches the browser binaries the capture scripts in apps/web/scripts drive.
+  playwright: true
+  # Vitest transpiles with esbuild, which cannot emit `emitDecoratorMetadata` —
+  # the metadata Nest's DI reads constructor parameter types out of. So the API's
+  # tests are transformed by SWC instead, and its install script is what links
+  # the platform-native binary that does the transforming.
+  "@swc/core": true
+  # drizzle-kit bundles esbuild to compile drizzle.config.ts and the schema on
+  # the fly. Its install script links the platform binary; unlinked, every
+  # drizzle-kit command fails before it reads the config.
+  esbuild: true
+  # Next 15 brings sharp in for image optimisation. The arrival serves plain
+  # <img>, so nothing reaches it today, but pnpm refuses to finish an install
+  # that leaves a build script unanswered, and sharp's only unpacks a prebuilt
+  # binary. Saying no here would fail CI rather than save anything.
+  sharp: true
+  # The npm package is a shim; its install script is what puts the platform
+  # binary on disk. Unlinked, `lefthook install` has nothing to run and the
+  # commit hook silently never exists.
+  lefthook: true
+
+# React Three Fiber's own .d.ts files reference React's types — the JSX element
+# names on one side, CanvasProps extending React.HTMLAttributes on the other —
+# but it never declared @types/react, so pnpm's isolated layout never gives it
+# one and TypeScript's upward search for node_modules/@types finds nothing.
+# skipLibCheck hides the resulting damage inside fiber and reports it at the
+# call sites instead. Declaring the peer it is missing is the fix.
+packageExtensions:
+  "@react-three/fiber":
+    peerDependencies:
+      "@types/react": "*"

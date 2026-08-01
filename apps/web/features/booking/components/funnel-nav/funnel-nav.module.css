@@ -1,0 +1,112 @@
+/* The funnel's bar. Type on the page, with one rule under it.
+ *
+ * No ground of its own, and no padding of its own either: it is the first row of
+ * whatever holds it, so that thing's gutter is its gutter and the wordmark lands
+ * on the same vertical as the heading below it. That alignment is the whole
+ * reason the bar moved inside the column.
+ *
+ * **It serves two grounds now, and neither is hard-coded here.** On the rooms
+ * step it is ink on ivory; on the dates step it stands on a photograph and has
+ * to be ivory on night. Every colour below is therefore a `--funnel-*` custom
+ * property with the ivory-ground value as its fallback, so this file *is* the
+ * ivory reading and `booking-hero.module.css` overrides four numbers for the
+ * dark one. The alternative was a `tone` prop and two branches in here kept
+ * level by hand.
+ */
+
+/* The ink is set here rather than inherited, and that is the fix for a bar that
+   went dark on a dark ground. The wordmark below is `currentcolor`, so whatever
+   this element resolves to is what the mark is painted in. On the dates step the
+   hero happens to set `color: var(--ivory)` on the band, so the mark was right by
+   inheritance; on the rooms step nothing does — the bar stands on the room's own
+   photograph inside a screen whose colour is `--ink` — so the mark came out ink
+   on night while the link beside it was correctly ivory. Reading `--funnel-ink`
+   is the same contract every other colour in this file holds, so the mark now
+   answers to the ground it is standing on rather than to whoever wraps it. */
+.bar {
+  color: var(--funnel-ink, var(--ink));
+  border-bottom: 1px solid var(--funnel-hairline, rgb(var(--umber-rgb) / 0.12));
+}
+
+/* The same measure the steps and the views hold — `--funnel-measure` and
+   `--funnel-gutter` are declared once on the screen root in
+   `booking-screen.module.css`, and the pattern is repeated rather than the values,
+   so the bar's type lands on the heading's vertical.
+
+   `--funnel-frame` is the escape, and the hero takes it: over a full-bleed
+   photograph there is no 60rem column to line up with, so the frame is the band
+   and the gutter is the page's margin. */
+.inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  max-width: var(
+    --funnel-frame,
+    calc(var(--funnel-measure) + 2 * var(--funnel-gutter))
+  );
+  margin-inline: auto;
+  padding-inline: var(--funnel-gutter);
+  min-height: 5rem; /* 80px — slim: a bar, not a header. Measured off the comp. */
+}
+
+.brand {
+  display: block;
+  height: 22px;
+  flex: 0 0 auto;
+}
+
+/* Masked rather than drawn, so the mark is the text colour it inherits. The width
+   is the wordmark's own ratio at this height — the concierge bar sets the same
+   file at 165×28. */
+.wordmark {
+  display: block;
+  width: 130px;
+  height: 100%;
+  background: currentcolor;
+  mask-image: url("/brand/mariva-wordmark.svg");
+  mask-repeat: no-repeat;
+  mask-size: contain;
+  mask-position: left center;
+  -webkit-mask-image: url("/brand/mariva-wordmark.svg");
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  -webkit-mask-position: left center;
+}
+
+.brand:focus-visible {
+  outline: 2px solid var(--dusk-amber);
+  outline-offset: 6px;
+}
+
+.link {
+  display: flex;
+  align-items: center;
+  min-height: 2.75rem; /* 44px — the tap floor the whole funnel is set to. */
+  color: var(--funnel-quiet, var(--stone));
+  transition: color 0.4s var(--ease-ui);
+}
+
+.link:hover {
+  color: var(--funnel-ink, var(--ink));
+}
+
+.link:focus-visible {
+  outline: 2px solid var(--dusk-amber);
+  outline-offset: 4px;
+}
+
+@media (max-width: 40rem) {
+  .inner {
+    min-height: 4rem;
+  }
+
+  .brand {
+    height: 18px;
+  }
+
+  .wordmark {
+    width: 106px;
+  }
+}

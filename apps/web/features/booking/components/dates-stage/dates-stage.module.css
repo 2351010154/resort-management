@@ -1,0 +1,319 @@
+/* The head on the photograph, and the plate under it. */
+
+/* The step's two measures, in one place because three bands read them and none
+ * of the three is inside another.
+ *
+ * **The gutter is a page margin, not a column.** The funnel's other measure —
+ * `--funnel-measure`, a 60rem block centred in the window — is what the room
+ * step is set to, and it is the wrong instrument here: a photograph that stops
+ * short of the window is a picture in a frame, and the plate under it is set
+ * from the same two edges. 5vw is the comp's own margin, measured at its width
+ * and clamped so a phone keeps a thumb's width and a 2560px window does not open
+ * a 128px trough down each side.
+ *
+ * **The lift is the overlap**, and it is declared here rather than on the plate
+ * because the picture has to know it too: the band clears its own floor by this
+ * much, or the last line of the head sits behind the card that arrives over it.
+ */
+.step {
+  --page-gutter: clamp(var(--space-2), 5vw, var(--space-4));
+  --plate-lift: var(--space-3);
+}
+
+@media (max-width: 48rem) {
+  .step {
+    --plate-lift: var(--space-2);
+  }
+}
+
+/* ---- The head ------------------------------------------------------------ */
+
+/* Sat on the band's floor rather than centred in it: the title reads off the
+   bottom edge of the picture, where the plate then arrives. The gutter is the
+   page's, so the title stands on the same vertical as the plate's left edge. */
+.head {
+  padding: var(--space-4) var(--page-gutter) 0;
+}
+
+/* Bigger than the room step's heading, and capped below the arrival's.
+ *
+ * `--text-display-sm` is the size a title takes when it stands on the page with
+ * the control directly under it; this one stands on a 30rem photograph, and at
+ * 44px it read as a caption on a picture rather than as the head of a step.
+ * `--text-display` is the arrival's size and tops out at 72px, which on a band
+ * this shallow is a word taking a third of the frame. The `min()` keeps the
+ * token's whole ramp — 40px on a phone, where the clamp is already below the cap
+ * — and stops it where the band does. */
+.title {
+  margin-top: var(--space-2);
+  font-size: min(var(--text-display), 3.75rem);
+  line-height: 1.05;
+  color: var(--ivory);
+}
+
+/* The calendar's own sentence, printed here — see the component. It holds its
+   line while it is short, so a violation arriving does not lift the plate. */
+.status {
+  margin-top: var(--space-1);
+  font-size: var(--text-base);
+  line-height: 1.6;
+  /* Not full-strength ivory: it reads a step quieter than the title, and 0.82 is
+     as quiet as it goes and still clears the floor. Measured against the
+     *lightest* pixel of the photograph behind the line rather than its average —
+     6.9:1 at 1670, 6.5:1 at 375, where the scrim is flatter and stronger for
+     exactly this reason (`booking-hero.module.css`). */
+  color: rgb(var(--ivory-rgb) / 0.82);
+  max-width: 34rem;
+  min-height: 1.6em;
+}
+
+/* ---- The plate ----------------------------------------------------------- */
+
+/* The card, laid over the photograph's bottom edge.
+ *
+ * **The corners are cut, and the keyline follows them.** A border cannot: a
+ * `clip-path` clips the border with everything else, so the chamfer would eat
+ * four corners of the rule and leave four gaps. So the outline is drawn as two
+ * clipped layers — a filled chamfer in the hairline colour, and the plate's own
+ * ground one pixel inside it — which leaves a hairline ring that turns every
+ * corner exactly where the card's own edge does.
+ *
+ * `container: plate` is what the rail and the panel answer to. Not a media
+ * query: the plate is the window less two gutters less its own padding, so the
+ * viewport is never the number that decides whether three columns fit.
+ */
+.plate {
+  position: relative;
+  container: plate / inline-size;
+  margin: calc(-1 * var(--plate-lift)) var(--page-gutter) 0;
+  padding: var(--space-3);
+  background: var(--ivory);
+
+  --notch: 1.25rem;
+  --keyline: 0.5rem;
+
+  clip-path: polygon(
+    var(--notch) 0,
+    calc(100% - var(--notch)) 0,
+    100% var(--notch),
+    100% calc(100% - var(--notch)),
+    calc(100% - var(--notch)) 100%,
+    var(--notch) 100%,
+    0 calc(100% - var(--notch)),
+    0 var(--notch)
+  );
+}
+
+.plate::before,
+.plate::after {
+  content: "";
+  position: absolute;
+  --inner-notch: calc(var(--notch) - var(--keyline));
+
+  clip-path: polygon(
+    var(--inner-notch) 0,
+    calc(100% - var(--inner-notch)) 0,
+    100% var(--inner-notch),
+    100% calc(100% - var(--inner-notch)),
+    calc(100% - var(--inner-notch)) 100%,
+    var(--inner-notch) 100%,
+    0 calc(100% - var(--inner-notch)),
+    0 var(--inner-notch)
+  );
+}
+
+.plate::before {
+  inset: var(--keyline);
+  background: rgb(var(--umber-rgb) / 0.18);
+}
+
+.plate::after {
+  inset: calc(var(--keyline) + 1px);
+  background: var(--ivory);
+}
+
+/* ---- The three columns --------------------------------------------------- */
+
+/* The one property that animates between the plate's two readings.
+ *
+ * **A registered length, not `grid-template-columns`.** Track lists interpolate
+ * in current browsers, but only where the two lists match track for track, and
+ * the failure mode when they do not is a jump with no warning. A registered
+ * `<length>` cannot fail that way: it is a number, the browser tweens numbers,
+ * and the grid re-resolves each frame from the result. It also means the
+ * collapsed state is genuinely nothing — the panel is absent, not a narrow rail
+ * pretending to be.
+ *
+ * A length rather than the percentage this used to be, because the panel now
+ * shares the row with a rail: a share of the plate is a different number of
+ * pixels depending on whether the rail is in the row, and the calendar between
+ * them is the one column that must not drop below two months' width.
+ */
+@property --dates-panel-share {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+.stage {
+  --dates-panel-share: 0px;
+
+  position: relative; /* Over the keyline the plate draws behind it. */
+  z-index: 1;
+  display: grid;
+  gap: var(--space-3);
+  /* `minmax(0, 1fr)` rather than `1fr`, or the calendar's own minimum content
+     width would stop the middle track from ever giving anything back. */
+  grid-template-columns: minmax(0, 1fr) var(--dates-panel-share);
+  grid-template-areas:
+    "calendar panel"
+    "rail     panel";
+  align-items: start;
+  transition: --dates-panel-share 0.5s var(--ease-ui);
+}
+
+/* Reduced motion is a composition, not a frozen frame — §9. The global
+   kill-switch would cut the tween to 0.01ms, which is a full-width calendar
+   snapping narrower on a date press. Both readings are complete and correct
+   compositions, so the honest answer is that the panel is simply *there*, with
+   no width travelling at all. */
+@media (prefers-reduced-motion: reduce) {
+  .stage {
+    transition: none;
+  }
+}
+
+.rail {
+  grid-area: rail;
+  min-width: 0;
+}
+
+.calendar {
+  grid-area: calendar;
+  min-width: 0;
+}
+
+/* Clipped rather than hidden, so its contents can be set at their final measure
+   and revealed instead of re-flowing on every frame of the opening. `inert` in
+   the markup keeps the collapsed state out of the tab order; `overflow: hidden`
+   only stops it being seen. */
+.panel {
+  grid-area: panel;
+  overflow: hidden;
+  min-width: 0;
+  padding-inline: var(--space-2);
+  /* A section of the card, divided rather than filled. The warm second ground
+     this column used to carry was right while it ran the height of the window
+     and wrong inside a plate: two fills in one card read as a card with a box
+     stuck to it, and the fill would also have painted over the keyline. */
+  border-left: 1px solid rgb(var(--umber-rgb) / 0.14);
+}
+
+/* **The collapsed panel has to give its padding and its rule back too, or it is
+   not collapsed.** `box-sizing: border-box` cannot shrink a box below its own
+   padding, so a zero-width track with --space-2 each side is still a 33px
+   column — and 33px past the right edge of the plate, because the tracks beside
+   it have already taken every pixel. The inline padding therefore rides the same
+   state the width does, and it is inside `overflow: hidden`, so nothing reflows
+   on the way through. */
+.plate[data-stay="shut"] .panel {
+  padding-inline: 0;
+  border-left-color: transparent;
+}
+
+.plate[data-stay="open"] .stage {
+  /* 20rem of contents plus the column's own padding — the measure
+     "CHECK IN → CHECK OUT" needs as two columns at --text-base without either
+     date wrapping, measured at en-GB. */
+  --dates-panel-share: clamp(22rem, 26vw, 26rem);
+}
+
+.panel > * {
+  min-width: 20rem;
+}
+
+/* Three across, once all three genuinely fit.
+ *
+ * 82rem is derived rather than picked, and every term in it is a number some
+ * other file owns: 14rem of rail, 43rem of two side-by-side months
+ * (`stay-calendar.module.css`), a 22rem panel, and the two --space-3 insets
+ * between them. Below it the rail drops under the calendar, where it is a strip
+ * rather than a column — the alternative is a grid squeezed under two months'
+ * width, and the grid is the reason the guest is here.
+ *
+ * The gap goes to zero and the columns carry their own inset instead, because
+ * the divisions in this reading are hairlines: a rule needs a column edge to sit
+ * on, and a grid gap has no edge.
+ */
+@container plate (min-width: 82rem) {
+  .stage {
+    gap: 0;
+    grid-template-columns: 14rem minmax(0, 1fr) var(--dates-panel-share);
+    grid-template-areas: "rail calendar panel";
+  }
+
+  .plate[data-stay="open"] .stage {
+    --dates-panel-share: 22rem;
+  }
+
+  .rail {
+    padding-right: var(--space-3);
+    border-right: 1px solid rgb(var(--umber-rgb) / 0.14);
+  }
+
+  .calendar {
+    padding-left: var(--space-3);
+  }
+}
+
+/* One column, and the reading order is the order the guest needs it in: the
+ * grid, then the stay it produced, then the card about the booking.
+ *
+ * 78rem is the same number the funnel has always stacked at — below it the
+ * calendar and a panel beside it cannot both be comfortable.
+ */
+@media (max-width: 77.999rem) {
+  .stage {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "calendar"
+      "panel"
+      "rail";
+  }
+
+  /* No width to animate at this size, so the panel is present or it is not. A
+     zero-width collapsed block would still take a row of space. */
+  .plate[data-stay="shut"] .panel {
+    display: none;
+  }
+
+  .panel {
+    padding-inline: 0;
+    padding-top: var(--space-3);
+    border-left: none;
+    border-top: 1px solid rgb(var(--umber-rgb) / 0.14);
+  }
+
+  /* Stacked, the panel has the whole plate to fill, and it should not take it: a
+     56px button 1000px wide and two dates at opposite ends of the screen are the
+     same panel with the relationships pulled out of it. */
+  .panel > * {
+    min-width: 0;
+    max-width: 34rem;
+  }
+}
+
+@media (max-width: 48rem) {
+  .head {
+    padding-top: var(--space-3);
+  }
+
+  .plate {
+    padding: var(--space-2);
+    --notch: 1rem;
+  }
+
+  .stage {
+    gap: var(--space-2);
+  }
+}

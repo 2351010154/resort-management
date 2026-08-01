@@ -1,0 +1,24 @@
+# Commit-time gate. Two jobs, in the order a failure is cheapest to read:
+# formatting is rewritten in place and re-staged, then the types are checked.
+#
+# Linting is not here on purpose. `biome lint` is CI's gate and takes seconds,
+# but a lint failure at commit time is a failure with nothing staged to fix it
+# — the hook would reject the commit and leave the author to find the file
+# themselves. Formatting is different: it has an unambiguous correct answer,
+# so the hook applies it rather than reporting it.
+
+pre-commit:
+  parallel: false
+  jobs:
+    - name: format
+      # Only what is being committed, and only the languages Biome owns.
+      glob: "*.{ts,tsx,js,jsx,mjs,cjs,css,json,jsonc}"
+      run: pnpm exec biome format --write --no-errors-on-unmatched {staged_files}
+      stage_fixed: true
+
+    - name: typecheck
+      # Not scopeable to staged files: a change to one module's types breaks
+      # its callers, and those are exactly the files not in this commit.
+      # Skipped when the commit touches no TypeScript at all.
+      glob: "*.{ts,tsx}"
+      run: pnpm run typecheck

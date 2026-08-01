@@ -1,0 +1,364 @@
+/* Act 7 — the turndown: dark stone panel, embossed monogram with scroll tilt,
+   quiet columns, giant clipped wordmark band. Top edge starts at Act 6's dark
+   (--night) so the seam out of the invitation is invisible, then warms one
+   step into stone. */
+
+.section {
+  position: relative;
+  min-height: 78vh;
+  background:
+/* warm stone bloom kept clear of the top edge — anything there reads as a
+       step against Act 6's --night and the seam reappears */
+    radial-gradient(
+      95% 55% at 50% 46%,
+      rgb(var(--dusk-amber-rgb) / 0.1) 0%,
+      transparent 60%
+    ),
+    /* stylelint-disable-next-line color-no-hex -- The far stop is the one step
+       of warming this panel does, measured against --night rather than chosen
+       from the palette. It exists only as the other end of this gradient. */
+    linear-gradient(var(--night) 0%, #141210 40vh);
+  color: var(--ivory);
+  overflow: hidden;
+  padding: var(--space-5) var(--space-3) 0;
+}
+
+.inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-4);
+  width: min(1200px, 100%);
+  margin: 0 auto;
+}
+
+/* embossed monogram: masked spans stacked — highlight + shadow offsets.
+   perspective sits on the wrapper so the tilt pivots on the mark itself. */
+.embossWrap {
+  perspective: 800px;
+}
+
+.emboss {
+  position: relative;
+  width: min(30vmin, 260px);
+  aspect-ratio: 340 / 260;
+  will-change: transform;
+  transform-style: preserve-3d;
+}
+
+.emboss span {
+  position: absolute;
+  inset: 0;
+  mask-image: url("/brand/mariva-monogram.svg");
+  mask-repeat: no-repeat;
+  mask-size: contain;
+  mask-position: center;
+  -webkit-mask-image: url("/brand/mariva-monogram.svg");
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  -webkit-mask-position: center;
+}
+
+/* Light falls from upper-left. The mark is a hairline glyph, so the bevel is
+   blurred sub-pixel offsets — hard offsets read as misregistered doubling, not
+   as pressed stone. */
+.embossShadow {
+  background: rgba(0, 0, 0, 0.85);
+  transform: translate(-1px, -1.5px);
+  filter: blur(1.5px);
+}
+
+.embossLight {
+  background: rgb(var(--ivory-rgb) / 0.22);
+  transform: translate(1px, 1.5px);
+  filter: blur(1px);
+}
+
+.embossFace {
+  /* stylelint-disable-next-line color-no-hex -- The face is stone under raking
+     light, not a surface in the palette: the two stops are the lit and shaded
+     sides of one bevel and only mean anything as a pair. Tokens for them would
+     exist for this one glyph. */
+  background: linear-gradient(160deg, #211d18 0%, #17130f 100%);
+}
+
+.emboss[data-intensity="deep"] .embossShadow {
+  /* The same shadow as above at full strength — written the same way so the
+     pair reads as one value turned up, which is what "deep" means here. */
+  background: rgba(0, 0, 0, 1);
+  transform: translate(-2px, -3px);
+  filter: blur(2.5px);
+}
+
+.emboss[data-intensity="deep"] .embossLight {
+  background: rgb(var(--ivory-rgb) / 0.5);
+  transform: translate(1.5px, 2.5px);
+  filter: blur(1.5px);
+}
+
+.emboss[data-intensity="deep"] .embossFace {
+  /* stylelint-disable-next-line color-no-hex -- Same bevel, lit harder: only
+     the near stop moves. See .embossFace. */
+  background: linear-gradient(160deg, #2b241c 0%, #17130f 100%);
+}
+
+/* columns left, letters right — the house's quiet business under the mark */
+.body {
+  display: flex;
+  width: 100%;
+  gap: var(--space-4);
+  justify-content: space-between;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.columns {
+  display: flex;
+  flex: 1 1 20rem;
+  max-width: 46%;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-width: 7rem;
+}
+
+.columnTitle {
+  color: var(--stone);
+  margin-bottom: var(--space-1);
+}
+
+.column a {
+  color: var(--sand);
+  font-size: var(--text-sm);
+  letter-spacing: 0.06em;
+  transition: color 0.5s var(--ease-ui);
+}
+
+.column a[href]:hover,
+.column a[href]:focus-visible {
+  color: var(--ivory);
+}
+
+.column a:focus-visible {
+  outline: 1px solid var(--ivory);
+  outline-offset: 4px;
+}
+
+/* Letters from Mariva (decorative) */
+.letters {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  width: min(24rem, 100%);
+}
+
+.lettersLabel {
+  color: var(--stone);
+}
+
+.lettersNote {
+  color: var(--sand);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  max-width: 30ch;
+}
+
+.lettersRow {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  margin-top: var(--space-1);
+  border-bottom: 1px solid rgb(var(--ivory-rgb) / 0.3);
+  transition: border-color 0.5s var(--ease-ui);
+}
+
+.lettersRow:focus-within {
+  border-color: rgb(var(--ivory-rgb) / 0.8);
+}
+
+.lettersRow[data-sent="true"] {
+  opacity: 0.4;
+}
+
+.lettersRow input {
+  flex: 1;
+  min-width: 0;
+  background: none;
+  border: none;
+  color: var(--ivory);
+  font: inherit;
+  font-size: var(--text-sm);
+  letter-spacing: 0.04em;
+  padding: 0.7em 0;
+  outline: none;
+}
+
+.lettersRow input::placeholder {
+  color: var(--stone);
+}
+
+.lettersRow button {
+  padding: 0 0.25rem 0 var(--space-1);
+  color: var(--sand);
+  transition:
+    transform 0.5s var(--ease-ui),
+    color 0.5s var(--ease-ui);
+}
+
+.lettersRow button:hover,
+.lettersRow button:focus-visible {
+  transform: translateX(4px);
+  color: var(--ivory);
+}
+
+.lettersRow button:focus-visible {
+  outline: 1px solid var(--ivory);
+  outline-offset: 4px;
+}
+
+.confirmation {
+  color: var(--dusk-amber);
+  font-size: var(--text-sm);
+  letter-spacing: 0.06em;
+  min-height: 1.4em;
+}
+
+.smallPrint {
+  width: 100%;
+  padding-top: var(--space-3);
+  border-top: 1px solid rgb(var(--ivory-rgb) / 0.1);
+  color: var(--stone);
+  font-size: var(--text-xs);
+  letter-spacing: 0.1em;
+  text-align: center;
+}
+
+/* The reveal band (wolverine finale cue). The band is a window: `clip-path`
+   clips its subtree but is not a containing block for it, so the layer inside
+   stays fixed to the viewport while the window grows over it — the frame never
+   moves, the page just stops covering it.
+
+   Full-bleed, so it breaks out of the section's own gutters. */
+.reveal {
+  position: relative;
+  width: 100vw;
+  margin: var(--space-4) 0 0 calc(50% - 50vw);
+  /* Tall enough that the name is clear of the window's own top edge well before
+     the page runs out of scroll — at half this the mark is still cut in two. */
+  height: 70vh;
+  clip-path: inset(0);
+}
+
+.revealLayer {
+  position: fixed;
+  inset: 0;
+}
+
+.revealImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.16);
+  will-change: transform;
+}
+
+/* Enough weight for the mark to hold at any crop of the frame, without closing
+   the photograph down to a texture. */
+.revealScrim {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgb(var(--night-rgb) / 0.5) 0%,
+    rgb(var(--night-rgb) / 0.28) 55%,
+    rgb(var(--night-rgb) / 0.62) 100%
+  );
+}
+
+/* Sits low in the layer — where the band's own top edge has already passed it,
+   so the name is lit from the first frames of the reveal and holds that spot on
+   the screen to the end of the page. Centring lives on the rail, not on the
+   mark: the mark's own transform is the scrub's to write. */
+.revealMark {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 62%;
+  transform: translateY(-50%);
+  display: flex;
+  justify-content: center;
+}
+
+.revealWordmark {
+  width: min(88vw, 1400px);
+  aspect-ratio: 800 / 136;
+  background: var(--ivory);
+  mask-image: url("/brand/mariva-wordmark.svg");
+  mask-repeat: no-repeat;
+  mask-size: contain;
+  -webkit-mask-image: url("/brand/mariva-wordmark.svg");
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  will-change: transform, opacity;
+}
+
+/* Below ~900px the two-up row leaves the letters block stranded, so the footer
+   stacks and centres instead. */
+@media (max-width: 899px) {
+  .body {
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-4);
+  }
+
+  .columns {
+    /* `flex: 1 1 20rem` would become a 20rem *height* basis once this is a
+       column — reset it or the link block grows a 320px void beneath it. */
+    flex: none;
+    width: 100%;
+    max-width: none;
+    justify-content: center;
+    gap: clamp(var(--space-3), 14vw, var(--space-5));
+  }
+
+  .letters {
+    align-items: center;
+    text-align: center;
+  }
+}
+
+@media (max-width: 767px) {
+  .section {
+    padding-top: var(--space-4);
+  }
+
+  /* The mark is a fifth of the width it has on a desktop, so the same window
+     leaves it floating in photograph. */
+  .reveal {
+    height: 56vh;
+  }
+
+  .inner {
+    gap: var(--space-3);
+  }
+
+  .body {
+    gap: var(--space-3);
+  }
+
+  .lettersNote {
+    max-width: 26ch;
+  }
+}
+
+/* No scrub to settle the frame out of its over-scale, so it starts settled. */
+@media (prefers-reduced-motion: reduce) {
+  .revealImage {
+    transform: none;
+  }
+}
