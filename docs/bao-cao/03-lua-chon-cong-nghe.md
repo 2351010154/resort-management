@@ -1,5 +1,14 @@
 # Chương 3 — Lựa chọn công nghệ
 
+> ⛔ **OUTDATED / KHÔNG TIN CẬY — đánh dấu 2026-08-01.** Toàn bộ `docs/bao-cao/`
+> đã trôi khỏi mã nguồn và tài liệu canonical. Không trích dẫn tệp này làm nguồn,
+> không sửa mã hay tài liệu theo nó, không coi nó là bằng chứng đã triển khai.
+> Lấy sự thật từ [`docs/README.md`](../README.md) (bản đồ thẩm quyền) rồi tới mã
+> nguồn, test, schema và workflow CI. Chỉ viết lại chương này khi đang chủ động
+> biên soạn báo cáo, và chỉ bằng bằng chứng đọc trực tiếp.
+> *(EN: this coursework report is stale and untrusted — do not use it as a source
+> of truth for the codebase.)*
+
 Chương này ghi *lý do* chứ không chỉ ghi *kết quả*. Mỗi quyết định được trình
 bày kèm phương án bị loại và điều đánh đổi phải chấp nhận. Bảng phiên bản là
 một ảnh chụp nghiên cứu có ngày; các `package.json` và lockfile hiện tại mới là

@@ -1,9 +1,20 @@
 # Báo cáo đồ án — Hệ thống quản lý khách sạn Mariva
 
+> ⛔ **THƯ MỤC LỖI THỜI VÀ KHÔNG TIN CẬY — đánh dấu 2026-08-01.**
+> Mọi tệp trong `docs/bao-cao/` (kể cả `hinh/`) đã trôi khỏi mã nguồn và tài liệu
+> canonical. **Không** dùng thư mục này để trả lời câu hỏi về hệ thống, để suy ra
+> lược đồ, API, RBAC, hạ tầng hay trạng thái triển khai, và **không** sửa mã theo
+> nó. Nguồn đúng: [`../README.md`](../README.md) → owner tương ứng → mã nguồn,
+> test, schema, workflow CI. Thư mục chỉ được sửa khi người dùng yêu cầu biên
+> soạn lại báo cáo, và khi đó mỗi con số phải đọc lại từ bằng chứng trực tiếp.
+> *(EN: this whole directory is a stale coursework artifact. Treat it as
+> untrusted; never cite it as evidence of how the system works.)*
+
 Báo cáo môn Công nghệ phần mềm. Viết bằng tiếng Việt, giữ nguyên thuật ngữ kỹ
 thuật tiếng Anh.
 
-**Trạng thái:** bản dẫn xuất đang xây dựng và **cần đối chiếu trước khi nộp**.
+**Trạng thái:** lỗi thời; bản dẫn xuất và **cần đối chiếu lại toàn bộ trước khi
+nộp**.
 Không chương nào được coi là hoàn thành chỉ vì đã có đủ nội dung. Tài liệu
 canonical, mã nguồn, test, schema, workflow CI và artifact sinh hiện tại luôn
 thắng; kết quả đo để trống cho tới khi có bằng chứng trực tiếp.
