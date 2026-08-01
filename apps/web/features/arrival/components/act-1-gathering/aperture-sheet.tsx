@@ -13,9 +13,18 @@
 // for.
 
 import { useEffect, useRef } from "react";
-import { FOCUS_Y, loadMonogramGlyph, traceMonogram, type MonogramGlyph } from "@/features/arrival/lib/monogram-glyph";
+import {
+  FOCUS_Y,
+  loadMonogramGlyph,
+  traceMonogram,
+  type MonogramGlyph,
+} from "@/features/arrival/lib/monogram-glyph";
 import { APERTURE_UNITS, sceneUnitPx } from "./intro-camera-model";
-import { HORIZON_POSTER, horizonPlacement, horizonScreenY } from "./horizon-plate";
+import {
+  HORIZON_POSTER,
+  horizonPlacement,
+  horizonScreenY,
+} from "./horizon-plate";
 
 /**
  * The reflection, matched to the shader's: the same warm lift, and a reach and
@@ -25,11 +34,16 @@ import { HORIZON_POSTER, horizonPlacement, horizonScreenY } from "./horizon-plat
  */
 const REFLECT_TONE = "255, 230, 188";
 const REFLECT_REACH = 0.9;
-const REFLECT_STOPS: [number, number][] = [[0, 0.16], [0.34, 0.053], [1, 0]];
+const REFLECT_STOPS: [number, number][] = [
+  [0, 0.16],
+  [0.34, 0.053],
+  [1, 0],
+];
 
 export function ApertureSheet({ onReady }: { onReady?: () => void }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: onReady is a stable callback from the orchestrator and the assets load once — listing it would re-run the whole load on every parent render.
   useEffect(() => {
     let live = true;
     let glyph: MonogramGlyph | null = null;
@@ -48,7 +62,11 @@ export function ApertureSheet({ onReady }: { onReady?: () => void }) {
 
       const markPx = APERTURE_UNITS * sceneUnitPx(w, h);
       const box = horizonPlacement(
-        w, h, sea.naturalWidth, sea.naturalHeight, horizonScreenY(h, markPx),
+        w,
+        h,
+        sea.naturalWidth,
+        sea.naturalHeight,
+        horizonScreenY(h, markPx),
       );
       ctx.drawImage(sea, box.left, box.top, box.width, box.height);
 
@@ -72,7 +90,12 @@ export function ApertureSheet({ onReady }: { onReady?: () => void }) {
       mc.fillStyle = `rgb(${REFLECT_TONE})`;
       traceMonogram(mc, glyph, markPx);
       mc.restore();
-      const fade = mc.createLinearGradient(0, baseY, 0, baseY + REFLECT_REACH * markPx);
+      const fade = mc.createLinearGradient(
+        0,
+        baseY,
+        0,
+        baseY + REFLECT_REACH * markPx,
+      );
       for (const [at, alpha] of REFLECT_STOPS) {
         fade.addColorStop(at, `rgba(255, 255, 255, ${alpha})`);
       }
@@ -105,18 +128,19 @@ export function ApertureSheet({ onReady }: { onReady?: () => void }) {
     });
     const image = new Image();
     image.src = HORIZON_POSTER;
-    image.decode().then(() => {
-      sea = image;
-      ready();
-    }).catch(() => {});
+    image
+      .decode()
+      .then(() => {
+        sea = image;
+        ready();
+      })
+      .catch(() => {});
 
     window.addEventListener("resize", draw);
     return () => {
       live = false;
       window.removeEventListener("resize", draw);
     };
-    // onReady is a stable callback from the orchestrator; the assets load once
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

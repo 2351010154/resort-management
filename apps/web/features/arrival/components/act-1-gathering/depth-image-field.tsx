@@ -82,6 +82,7 @@ export function DepthImageField({
     return () => io.disconnect();
   }, [playing]);
 
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `playing` is not read in here, but it swaps the media inside each wrapper — the effect has to re-run to read the node list again.
   useEffect(() => {
     const root = rootRef.current;
     if (!root || still) return;
@@ -162,7 +163,6 @@ export function DepthImageField({
       gsap.ticker.remove(tick);
       window.removeEventListener("resize", onResize);
     };
-    // `playing` swaps the media inside each wrapper, so the node list is re-read
   }, [camera, still, playing]);
 
   const media: React.CSSProperties = {
