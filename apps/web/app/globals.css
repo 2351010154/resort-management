@@ -1,0 +1,74 @@
+/* The arrival's document defaults. The tokens every rule below reads —
+   palette, type scale, spacing rhythm — come from @mariva/tokens, which the
+   root layout imports ahead of this file; the eases come from
+   lib/motion-tokens.ts, which the same layout inlines. Neither is restated
+   here: a second copy of a token is a copy that can drift. */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: auto; /* Lenis owns smoothing */
+}
+
+body {
+  background: var(--ivory);
+  color: var(--ink);
+  /* Literata sits between DM Mono and the generic on purpose. DM Mono has no
+     Vietnamese coverage — no ₫ — so a price fell through to the system sans and
+     drew its currency mark small and off the baseline. Naming the house's other
+     face next means a glyph the mono lacks is still one of ours. See the note in
+     layout.tsx. */
+  font-family: var(--font-ui), var(--font-display), sans-serif;
+  font-weight: 300;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+img,
+video {
+  display: block;
+  max-width: 100%;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.font-display {
+  font-family: var(--font-display), serif;
+  font-weight: 300;
+}
+
+.caps-label {
+  font-family: var(--font-ui), sans-serif;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+  font-size: var(--text-xs);
+}
+
+/* Reduced motion: global kill-switch — scrub/scene animation must respect
+   this (Lenis provider already bails; CSS transitions collapse here). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

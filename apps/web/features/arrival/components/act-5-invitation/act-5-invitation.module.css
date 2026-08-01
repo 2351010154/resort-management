@@ -1,0 +1,295 @@
+/* Act 5 — the invitation: one held dusk frame, a small three-line address held
+   against the right edge, and the filled pill at the foot of the screen. */
+
+.section {
+  position: relative;
+  /* Act 4 hands over on this exact value, so the seam has nothing to bridge. */
+  background: var(--night);
+  color: var(--ivory);
+  /* One screen for Act 4's veil to wipe off the frame, one for the reading to be
+     held, one for the hand-over into the footer. */
+  height: 300vh;
+}
+
+.stage {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* The frame lives in its own clip so the breath never shows an edge. */
+.plate {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.plateImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Matches the settled beat in the component, so the first paint is the frame
+     as it will be read rather than a jump at the first scroll event. */
+  transform: scale(1.14);
+  will-change: transform;
+}
+
+/* Scrim instead of text-shadow: keeps the serif hairlines clean. Weighted to
+   the top for the address and to the foot for the reading, with the middle left
+   open so the pavilion still reads as lit. */
+.scrim {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      to bottom,
+      rgb(var(--night-rgb) / 0.72) 0%,
+      rgb(var(--night-rgb) / 0.34) 34%,
+      rgb(var(--night-rgb) / 0.28) 52%,
+      rgb(var(--night-rgb) / 0.78) 100%
+    ),
+    radial-gradient(
+      120% 80% at 50% 40%,
+      transparent 40%,
+      rgb(var(--night-rgb) / 0.45) 100%
+    );
+}
+
+.copy {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  /* The address is right-aligned; the pill keeps the centre of the foot, which
+     `.foot`'s own full width re-centres. */
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 13vh clamp(var(--space-3), 7vw, 7rem) 7vh;
+  text-align: right;
+}
+
+/* Held a little below the top edge: high enough to stay clear of the pill, low
+   enough that the roofline and the lit doorway are read before the words. */
+.address {
+  margin-top: 12vh;
+}
+
+.headline {
+  font-size: clamp(1.5rem, 2.6vw, 2.35rem);
+  line-height: 1.28;
+  letter-spacing: 0.005em;
+}
+
+.line[data-italic="true"] {
+  font-style: italic;
+}
+
+/* One hairline under the address — the only mark tying the words to the frame,
+   in place of the paragraph that used to fill the screen. */
+.rule {
+  display: block;
+  width: 3.25rem;
+  height: 1px;
+  margin-top: var(--space-2);
+  margin-left: auto;
+  background: rgba(240, 235, 226, 0.42);
+  visibility: hidden;
+  opacity: 0;
+}
+
+/* Each line rises out of its own clip — same reveal as Act 2's chapters. The
+   hidden state is written from JS (see the component), so reduced motion is left
+   with the address exactly as it reads once revealed. */
+.lineClip {
+  display: block;
+  overflow: hidden;
+  /* Literata's descenders are cropped by a clip drawn to the line box. */
+  padding-bottom: 0.06em;
+}
+
+.line {
+  display: block;
+}
+
+/* The act's reveal state lives on the foot rather than on the pill: the pill
+   owns how it looks, this owns when it arrives. */
+.foot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  width: 100%;
+  visibility: hidden;
+  opacity: 0;
+}
+
+/* Filled pill (wolverine finale cue): the one solid mark on the screen, so it
+   is unmistakably the way out of the ride — and the only lit thing on it, which
+   is this act's whole subject. The BorderGlow composition spent in this palette:
+   one warm colour rather than a mesh of three, a bloom that never goes out, and
+   a brighter arc the pointer drags around the rim (see border-glow-pill.tsx).
+
+   `isolation` keeps the two light layers adding to each other rather than to the
+   photograph behind them, so the pavilion stays a photograph. */
+.pill {
+  /* Written from the component on every pointer move. */
+  --edge-proximity: 0;
+  --cursor-angle: 45deg;
+  /* How far the light is allowed to spill onto the night ground. Must clear the
+     widest shadow below, or the arc's mask cuts the bloom off at a line. */
+  --glow-reach: 40px;
+
+  position: relative;
+  isolation: isolate;
+  display: inline-flex;
+  align-items: center;
+  padding: 1.15em 2.2em;
+  border-radius: 999px;
+  background: var(--ivory);
+  color: var(--ink);
+  transition: background-color 0.5s var(--ease-ui);
+}
+
+/* A whisper of the lamp in the fill itself, so the halo reads as light falling
+   on this pill rather than a ring hung behind it. The type does not move: what
+   answers the pointer is the light. */
+.pill:hover,
+.pill:focus-visible {
+  background: color-mix(in srgb, var(--ivory) 94%, var(--dusk-amber));
+}
+
+.pill:focus-visible {
+  outline: 1px solid var(--ivory);
+  outline-offset: 5px;
+}
+
+/* Caps tracking leaves one letter's worth of space after the last letter, which
+   pushed the label off the pill's centre once the arrow came out. */
+.pillLabel {
+  margin-right: calc(var(--tracking-caps) * -1);
+}
+
+/* The lamp at rest — the whole rim, no direction, never off. */
+.pill::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  box-shadow:
+    0 0 4px 1px rgb(var(--dusk-amber-rgb) / 0.3),
+    0 0 14px 1px rgb(var(--dusk-amber-rgb) / 0.2),
+    0 0 32px 3px rgb(var(--dusk-amber-rgb) / 0.12);
+  mix-blend-mode: plus-lighter;
+}
+
+/* The pointer's arc. The mask sits on this box, grown by the reach, because a
+   conic gradient is sized to the box it is set on: masked on the pill itself it
+   would tile across the bloom and light the wrong side. `no-repeat` is what
+   makes the area outside the box empty rather than another copy of the cone. */
+.pillArc {
+  position: absolute;
+  inset: calc(var(--glow-reach) * -1);
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  /* Lit core about ±18° either side of the cursor, feathered out by ±60°. */
+  /* stylelint-disable color-named -- `black` in a mask is not a colour, it is
+     the opaque end of the alpha channel. Nothing here paints black, and a token
+     would say the wrong thing about what these stops do. */
+  mask-image: conic-gradient(
+    from var(--cursor-angle) at center,
+    black 5%,
+    transparent 17%,
+    transparent 83%,
+    black 95%
+  );
+  mask-repeat: no-repeat;
+  -webkit-mask-image: conic-gradient(
+    from var(--cursor-angle) at center,
+    black 5%,
+    transparent 17%,
+    transparent 83%,
+    black 95%
+  );
+  /* stylelint-enable color-named */
+  -webkit-mask-repeat: no-repeat;
+  opacity: 0;
+  /* Adds to the resting bloom instead of stacking over it. A browser without
+     plus-lighter drops the declaration and composites normally, which is the
+     same picture a shade softer. */
+  mix-blend-mode: plus-lighter;
+  transition: opacity 0.5s var(--ease-ui);
+}
+
+/* Lit from anywhere on the pill, brightest as the pointer nears a cap or an
+   edge. A floor rather than the raw proximity, because the middle of a pill is
+   only ever ~24px from an edge and a control that goes dark under the cursor
+   reads as broken. Keyboard focus lands on the floor, at the resting angle. */
+.pill:hover .pillArc,
+.pill:focus-visible .pillArc {
+  opacity: calc(0.6 + 0.4 * var(--edge-proximity) / 100);
+}
+
+/* Inset back to the pill exactly: this is the box that casts the light, and an
+   outer shadow is clipped out of its own border box, so nothing lands on the
+   ivory. */
+.pillArc::before {
+  content: "";
+  position: absolute;
+  inset: var(--glow-reach);
+  border-radius: inherit;
+  /* Ivory for the bead on the rim itself — the pill's own edge catching the
+     light — and amber for everything past it, so the bloom is the pavilion's
+     lamps rather than a white ring. */
+  box-shadow:
+    0 0 0 2px rgb(var(--ivory-rgb) / 0.42),
+    0 0 8px 2px rgb(var(--dusk-amber-rgb) / 0.52),
+    0 0 18px 2px rgb(var(--dusk-amber-rgb) / 0.42),
+    0 0 32px 3px rgb(var(--dusk-amber-rgb) / 0.28),
+    0 0 52px 5px rgb(var(--dusk-amber-rgb) / 0.15);
+}
+
+@media (max-width: 767px) {
+  .copy {
+    padding: 15vh var(--space-2) 8vh;
+  }
+
+  .address {
+    margin-top: 8vh;
+  }
+
+  .headline {
+    font-size: clamp(1.35rem, 5.6vw, 1.75rem);
+  }
+}
+
+/* Nothing animates, so the act is one screen and the copy starts where the
+   reveal would have left it. */
+@media (prefers-reduced-motion: reduce) {
+  .section {
+    height: auto;
+  }
+
+  .stage {
+    position: relative;
+  }
+
+  .plateImage {
+    transform: none;
+  }
+
+  .rule,
+  .foot {
+    visibility: visible;
+    opacity: 1;
+  }
+
+  /* The arc is a chase, and there is nothing here to chase; the pill rests lit
+     on its bloom instead. Left in, the global kill-switch would snap it on and
+     off at 0.01ms on every pointer entry. */
+  .pillArc {
+    display: none;
+  }
+}

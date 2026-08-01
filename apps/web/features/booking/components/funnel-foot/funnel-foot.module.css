@@ -1,0 +1,128 @@
+/* The band under the plate. Three columns, and the first one is empty on
+ * purpose.
+ *
+ * The marks belong in the middle of the page — they are about the whole booking,
+ * not about the thing at either end of the row — and the disclosure belongs at
+ * the edge, where a guest looks for small print. An empty first track is what
+ * centres one against the other without a spacer element that says nothing.
+ */
+
+.foot {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--page-gutter) var(--space-4);
+  font-size: var(--text-xs);
+  color: var(--stone);
+}
+
+.marks {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.ornament {
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: none;
+  margin-right: 0.25rem;
+  background: currentcolor;
+  mask-image: url("/brand/mariva-monogram.svg");
+  mask-repeat: no-repeat;
+  mask-size: contain;
+  mask-position: center;
+  -webkit-mask-image: url("/brand/mariva-monogram.svg");
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  -webkit-mask-position: center;
+}
+
+.about {
+  grid-column: 3;
+  justify-self: end;
+  max-width: 32rem;
+}
+
+.summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem; /* 44px, even on a summary. */
+  cursor: pointer;
+  list-style: none; /* Firefox's own marker. */
+  transition: color 0.4s var(--ease-ui);
+}
+
+.summary::-webkit-details-marker {
+  display: none;
+}
+
+/* The caret, drawn rather than typed, so it lands where it is put on every face. */
+.summary::after {
+  content: "";
+  width: 0.4rem;
+  height: 0.4rem;
+  border-right: 1px solid currentcolor;
+  border-bottom: 1px solid currentcolor;
+  transform: translateY(-1px) rotate(45deg);
+  transition: transform 0.4s var(--ease-ui);
+}
+
+.about[open] .summary::after {
+  transform: translateY(1px) rotate(-135deg);
+}
+
+.summary:hover {
+  color: var(--stone-deep);
+}
+
+.summary:focus-visible {
+  outline: 2px solid var(--dusk-amber);
+  outline-offset: 2px;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  padding-bottom: var(--space-2);
+  line-height: 1.6;
+  text-align: right;
+}
+
+/* Stacked, the three-column trick has nothing to centre against, so the band
+   becomes two rows down the left. A disclosure right-aligned under a centred
+   sentence on a 375px screen is two alignments in four lines. */
+@media (max-width: 52rem) {
+  .foot {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: start;
+    gap: var(--space-1);
+    padding-bottom: var(--space-3);
+  }
+
+  .marks,
+  .about {
+    grid-column: 1;
+  }
+
+  .marks {
+    justify-content: flex-start;
+    text-align: left;
+  }
+
+  .about {
+    justify-self: start;
+  }
+
+  .body {
+    text-align: left;
+  }
+}

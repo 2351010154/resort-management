@@ -1,0 +1,18 @@
+/* View A.
+ *
+ * There is no sticky band here, and no guest controls either. A band exists to
+ * keep an answer on screen while the guest reads a list of things priced against
+ * it — and while this view is open there is no list. The calendar is the view, so
+ * it gets the column; the answer, once there is one, is stated in the panel beside
+ * it rather than in a strip above it.
+ *
+ * What is left is a wrapper, and it is worth keeping as one: `data-view` is how a
+ * test asks which of the screen's two questions is open, and the gap is the only
+ * thing standing between the heading above and the grid.
+ */
+
+.view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}

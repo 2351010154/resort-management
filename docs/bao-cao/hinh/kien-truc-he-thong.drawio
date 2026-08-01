@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mxfile host="drawio" version="31.0.2">
+  <diagram name="Kien truc he thong">
+    <mxGraphModel dx="1600" dy="1200" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1654" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <mxCell id="t1" value="Một API, ba consumer — mọi quy tắc nghiệp vụ tồn tại đúng một lần trong apps/api" style="text;html=1;align=left;verticalAlign=middle;fontSize=16;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="30" width="900" height="30" as="geometry" />
+        </mxCell>
+
+        <mxCell id="c1" value="&lt;b&gt;apps/web · (marketing)&lt;/b&gt;&#xa;Next.js 16 + React 19&#xa;three / gsap / lenis — 6 act&#xa;&lt;i&gt;tĩnh, không gọi API&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="80" y="100" width="320" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="c2" value="&lt;b&gt;apps/web · (booking)&lt;/b&gt;&#xa;Next.js 16 + React 19&#xa;phễu đặt phòng của khách&#xa;&lt;i&gt;0 byte three/gsap/lenis — CI budget&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="440" y="100" width="320" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="c3" value="&lt;b&gt;apps/admin&lt;/b&gt;&#xa;Next.js + Tailwind 4 + shadcn&#xa;lễ tân và quản lý&#xa;&lt;i&gt;bàn phím là chính, không WebGL&lt;/i&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;verticalAlign=middle;" vertex="1" parent="1">
+          <mxGeometry x="800" y="100" width="320" height="110" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p1" value="&lt;b&gt;packages/shared&lt;/b&gt;&#xa;zod 4 · @orpc/contract · drizzle-zod&#xa;StayDate (CalendarDate) · VndAmount (bigint)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="300" y="290" width="400" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="p2" value="&lt;b&gt;packages/api-client&lt;/b&gt;&#xa;@orpc/client · @orpc/tanstack-query&#xa;mọi response được parse qua schema của shared" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="800" y="290" width="400" height="90" as="geometry" />
+        </mxCell>
+
+        <mxCell id="api" value="apps/api — NestJS 11 · Express 5 · Fly.io region sin · &lt;i&gt;thành phần duy nhất được ghi vào database&lt;/i&gt;" style="swimlane;startSize=40;html=1;whiteSpace=wrap;fillColor=#fafafa;strokeColor=#333333;fontSize=14;fontStyle=1;horizontal=1;" vertex="1" parent="1">
+          <mxGeometry x="80" y="460" width="1230" height="400" as="geometry" />
+        </mxCell>
+        <mxCell id="m_common" value="&lt;b&gt;common&lt;/b&gt; — @Roles() guard · audit interceptor · exception filter · pipes" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;" vertex="1" parent="api">
+          <mxGeometry x="20" y="55" width="585" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="m_config" value="&lt;b&gt;config&lt;/b&gt; — env parse bằng zod tại thời điểm boot, sai là chết ngay" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=12;" vertex="1" parent="api">
+          <mxGeometry x="625" y="55" width="585" height="50" as="geometry" />
+        </mxCell>
+
+        <mxCell id="m1" value="identity" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=13;" vertex="1" parent="api">
+          <mxGeometry x="20" y="130" width="226" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="m2" value="auth" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=13;" vertex="1" parent="api">
+          <mxGeometry x="261" y="130" width="226" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="m3" value="guest" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;" vertex="1" parent="api">
+          <mxGeometry x="502" y="130" width="226" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="m4" value="inventory" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=13;fontStyle=1;" vertex="1" parent="api">
+          <mxGeometry x="743" y="130" width="226" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="m5" value="pricing" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=13;" vertex="1" parent="api">
+          <mxGeometry x="984" y="130" width="226" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="m6" value="booking" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=13;fontStyle=1;" vertex="1" parent="api">
+          <mxGeometry x="20" y="205" width="226" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="m7" value="housekeeping" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=13;" vertex="1" parent="api">
+          <mxGeometry x="261" y="205" width="226" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="m8" value="folio" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=13;fontStyle=1;" vertex="1" parent="api">
+          <mxGeometry x="502" y="205" width="226" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="m9" value="payment" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontSize=13;" vertex="1" parent="api">
+          <mxGeometry x="743" y="205" width="226" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="m10" value="operations" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=13;" vertex="1" parent="api">
+          <mxGeometry x="984" y="205" width="226" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="m11" value="reporting" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=13;" vertex="1" parent="api">
+          <mxGeometry x="20" y="280" width="226" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="m12" value="audit" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=13;" vertex="1" parent="api">
+          <mxGeometry x="261" y="280" width="226" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="m13" value="feedback" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;" vertex="1" parent="api">
+          <mxGeometry x="502" y="280" width="226" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="m14" value="notification" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=13;" vertex="1" parent="api">
+          <mxGeometry x="743" y="280" width="226" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="m15" value="&lt;b&gt;jobs&lt;/b&gt; — pg-boss&#xa;night audit · quét hạn ID scan" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;fontSize=12;" vertex="1" parent="api">
+          <mxGeometry x="984" y="280" width="226" height="60" as="geometry" />
+        </mxCell>
+
+        <mxCell id="m_note" value="&lt;i&gt;Một mô-đun là một thư mục. Bề mặt công khai của nó đúng bằng những gì NestJS module export — với tay vào bên trong mô-đun khác là cách một modular monolith biến thành mớ rối cần microservice để giải thích.&lt;/i&gt;" style="text;html=1;align=left;verticalAlign=middle;fontSize=12;fontColor=#555555;" vertex="1" parent="api">
+          <mxGeometry x="20" y="352" width="1190" height="36" as="geometry" />
+        </mxCell>
+
+        <mxCell id="db" value="&lt;b&gt;Postgres 17&lt;/b&gt; — Neon, aws-ap-southeast-1&#xa;&lt;i&gt;nơi các bất biến được thực thi&lt;/i&gt;&#xa;CHECK (sold_rooms &amp;lt;= total_rooms)&#xa;EXCLUDE USING gist (room_id =, stay_range &amp;amp;&amp;amp;)&#xa;Drizzle và pg-boss dùng chung một pool" style="shape=cylinder3;boundedLbl=1;backgroundOutline=1;size=18;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=13;" vertex="1" parent="1">
+          <mxGeometry x="520" y="940" width="420" height="150" as="geometry" />
+        </mxCell>
+
+        <mxCell id="x1" value="&lt;b&gt;VNPay&lt;/b&gt;&#xa;cổng thanh toán · IPN" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1370" y="460" width="250" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="x2" value="&lt;b&gt;Viettel S-Invoice&lt;/b&gt;&#xa;HĐĐT từ máy tính tiền · ký số HSM" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1370" y="542" width="250" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="x3" value="&lt;b&gt;Cloudflare R2&lt;/b&gt;&#xa;2 bucket: assets · id-scans (lifecycle)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1370" y="624" width="250" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="x4" value="&lt;b&gt;Resend&lt;/b&gt;&#xa;email giao dịch · SPF/DKIM/DMARC" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1370" y="706" width="250" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="x5" value="&lt;b&gt;Better Stack&lt;/b&gt;&#xa;uptime · heartbeat · error tracking" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="1370" y="788" width="250" height="70" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ec2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.25;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="c2" target="p2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ec3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.75;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="c3" target="p2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ep" value="suy ra kiểu từ contract" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;labelBackgroundColor=#ffffff;fontSize=12;" edge="1" parent="1" source="p2" target="p1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ep2" value="HTTPS · oRPC" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.8;entryY=0;entryDx=0;entryDy=0;labelBackgroundColor=#ffffff;fontSize=12;" edge="1" parent="1" source="p2" target="api">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ep1" value="hiện thực contract" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.3;entryY=0;entryDx=0;entryDy=0;labelBackgroundColor=#ffffff;fontSize=12;" edge="1" parent="1" source="p1" target="api">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edb" value="Drizzle · SQL migration viết tay" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;labelBackgroundColor=#ffffff;fontSize=12;" edge="1" parent="1" source="api" target="db">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="ex1" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.1;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;dashed=1;" edge="1" parent="1" source="api" target="x1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ex2" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;dashed=1;" edge="1" parent="1" source="api" target="x2">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ex3" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;dashed=1;" edge="1" parent="1" source="api" target="x3">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ex4" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.7;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;dashed=1;" edge="1" parent="1" source="api" target="x4">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="ex5" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.9;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;dashed=1;" edge="1" parent="1" source="api" target="x5">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="legend" value="Chú giải — nhóm mô-đun" style="rounded=0;whiteSpace=wrap;html=1;fillColor=none;strokeColor=#666666;verticalAlign=top;fontStyle=1;fontSize=13;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="80" y="940" width="380" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="lg1" value="" style="rounded=0;html=1;fillColor=#d5e8d4;strokeColor=#82b366;" vertex="1" parent="legend">
+          <mxGeometry x="12" y="34" width="30" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="lg1t" value="Lõi đúng đắn — buồng, giá, đặt phòng" style="text;html=1;align=left;verticalAlign=middle;fontSize=12;" vertex="1" parent="legend">
+          <mxGeometry x="52" y="32" width="320" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="lg2" value="" style="rounded=0;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;" vertex="1" parent="legend">
+          <mxGeometry x="12" y="58" width="30" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="lg2t" value="Tiền — sổ folio, thanh toán" style="text;html=1;align=left;verticalAlign=middle;fontSize=12;" vertex="1" parent="legend">
+          <mxGeometry x="52" y="56" width="320" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="lg3" value="" style="rounded=0;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;" vertex="1" parent="legend">
+          <mxGeometry x="12" y="82" width="30" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="lg3t" value="Danh tính và hợp đồng dữ liệu" style="text;html=1;align=left;verticalAlign=middle;fontSize=12;" vertex="1" parent="legend">
+          <mxGeometry x="52" y="80" width="320" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="lg4" value="" style="rounded=0;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;" vertex="1" parent="legend">
+          <mxGeometry x="12" y="106" width="30" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="lg4t" value="Bề mặt hướng khách" style="text;html=1;align=left;verticalAlign=middle;fontSize=12;" vertex="1" parent="legend">
+          <mxGeometry x="52" y="104" width="320" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="lg5" value="" style="rounded=0;html=1;fillColor=#fff2cc;strokeColor=#d6b656;" vertex="1" parent="legend">
+          <mxGeometry x="12" y="130" width="30" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="lg5t" value="Công việc nền (pg-boss)" style="text;html=1;align=left;verticalAlign=middle;fontSize=12;" vertex="1" parent="legend">
+          <mxGeometry x="52" y="128" width="320" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="lg6" value="" style="rounded=0;html=1;fillColor=#f5f5f5;strokeColor=#666666;" vertex="1" parent="legend">
+          <mxGeometry x="12" y="154" width="30" height="16" as="geometry" />
+        </mxCell>
+        <mxCell id="lg6t" value="Vận hành, báo cáo, hạ tầng chung" style="text;html=1;align=left;verticalAlign=middle;fontSize=12;" vertex="1" parent="legend">
+          <mxGeometry x="52" y="152" width="320" height="20" as="geometry" />
+        </mxCell>
+
+        <mxCell id="rule" value="&lt;b&gt;Quy tắc phụ thuộc&lt;/b&gt;&#xa;app/ → features/ → components/ui/ + lib/ → packages/*&#xa;Không bao giờ đi ngược. Một feature không import feature khác.&#xa;&#xa;&lt;b&gt;Không một route handler hay server action nào của Next.js&#xa;được chạm trực tiếp vào database&lt;/b&gt; — đó chính là thứ biến&#xa;một bộ não thành ba bộ não bất đồng." style="shape=note;whiteSpace=wrap;html=1;size=16;fillColor=#f5f5f5;strokeColor=#666666;align=left;verticalAlign=top;spacingLeft=8;spacingTop=4;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="990" y="940" width="400" height="150" as="geometry" />
+        </mxCell>
+
+        <mxCell id="dashnote" value="&lt;i&gt;— — —  bên thứ ba: mọi lệnh gọi chậm nằm trong pg-boss, không nằm trong một HTTP request&lt;/i&gt;" style="text;html=1;align=left;verticalAlign=middle;fontSize=12;fontColor=#555555;" vertex="1" parent="1">
+          <mxGeometry x="1370" y="875" width="280" height="50" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

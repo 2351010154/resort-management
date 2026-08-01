@@ -21,17 +21,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # .nvmrc is the single source of truth for the Node version. npm majors
-      # disagree on which optional dependencies belong in the lock file, so a
-      # runner on a different major would reject a lock generated locally.
+      # Reads the pnpm version from the root package.json `packageManager`
+      # field, so the lock file is always written by the version that wrote it
+      # locally. Must run before setup-node, which needs pnpm on PATH to cache.
+      - uses: pnpm/action-setup@v4
+
+      # .nvmrc is the single source of truth for the Node version.
       - uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-          cache: npm
+          cache: pnpm
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
-      - run: npm run lint
+      - run: pnpm run lint
 
-      # next build runs the TypeScript check as part of the build.
-      - run: npm run build
+      # Covers the workspaces that have no build step to type-check them. The
+      # Next app deliberately has no typecheck task of its own: tsc there would
+      # read .next/types, which next build rewrites underneath it.
+      - run: pnpm run typecheck
+
+      # next build runs the TypeScript check for the app as part of the build.
+      - run: pnpm run build

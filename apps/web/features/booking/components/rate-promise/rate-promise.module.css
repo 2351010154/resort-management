@@ -1,0 +1,76 @@
+/* The rail's one card. A hairline box on the plate, and nothing else.
+ *
+ * It is set a step quieter than the calendar beside it on purpose: this is the
+ * thing a guest reads once, before or after the decision, and never while making
+ * it. Ink type at the calendar's size would put it in competition with sixty
+ * numbers it is not about.
+ */
+
+.card {
+  padding: var(--space-2);
+  border: 1px solid rgb(var(--umber-rgb) / 0.16);
+  /* A shade off the plate rather than a second colour — the same six-unit
+     separation the funnel's two grounds already use. */
+  background: rgb(var(--umber-rgb) / 0.03);
+}
+
+.mark {
+  display: block;
+  width: 1.5rem;
+  height: 1.5rem;
+  color: var(--stone);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.title {
+  margin-top: var(--space-2);
+  color: var(--ink);
+}
+
+.line {
+  margin-top: var(--space-1);
+  font-size: var(--text-sm);
+  line-height: 1.65;
+  color: var(--stone-deep);
+}
+
+/* Under the calendar it is a strip, and a strip is one line high.
+ *
+ * Stacked as a block it would be a paragraph the width of the plate, which is a
+ * measure nobody finishes; stacked as two rows it was a title floating over the
+ * second of two columns. One row of four — mark, name, sentence, sentence —
+ * reads left to right the way the band under it does, and it is the same
+ * information in a shape that suits the space instead of fighting it. */
+@media (min-width: 40rem) {
+  .card {
+    display: grid;
+    grid-template-columns: auto auto minmax(0, 1fr) minmax(0, 1fr);
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+  }
+
+  .card .mark,
+  .card .title,
+  .card .line {
+    margin: 0;
+  }
+}
+
+/* Beside the calendar again — a column, in its own order, one line under the
+   other. The width is the plate's, not this file's: see `dates-stage`. */
+@container plate (min-width: 82rem) {
+  .card {
+    display: block;
+    padding: var(--space-2);
+  }
+
+  .card .title {
+    margin-top: var(--space-2);
+  }
+
+  .card .line {
+    margin-top: var(--space-1);
+  }
+}

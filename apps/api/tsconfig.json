@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig",
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023"],
+
+    // ESM, not the CommonJS a Nest scaffold produces by default. @orpc/* ships
+    // ESM only: under `moduleResolution: node10` TypeScript cannot see its
+    // types at all, and a CommonJS package importing it is TS1479. Measured in
+    // the G1 spike — docs/architecture/tech-stack.md §"Settled by spike".
+    // The cost is explicit .js extensions on relative imports.
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+
+    // Nest's DI reads constructor parameter types out of the metadata these two
+    // emit. Without emitDecoratorMetadata every injection needs an explicit
+    // @Inject, which is why esbuild-based runners (tsx) cannot host Nest.
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+
+    "outDir": "dist",
+    "rootDir": "src",
+    "sourceMap": true
+  },
+  "include": ["src/**/*.ts"],
+
+  // Specs sit beside what they test — repository-structure.md §apps/api — but
+  // they are not part of the deployed artifact. Excluded here and picked up by
+  // tsconfig.test.json instead, so `dist/` holds the application and nothing
+  // else while the tests still get typechecked.
+  "exclude": ["dist", "node_modules", "src/**/*.spec.ts"]
+}

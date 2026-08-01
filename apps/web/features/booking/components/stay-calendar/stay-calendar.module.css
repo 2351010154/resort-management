@@ -1,0 +1,408 @@
+/* The date control.
+ *
+ * Every colour is a token, every transition is 0.4s or 0.5s on var(--ease-ui):
+ * design-foundations.md §2, §5. Off-scale values are commented where they sit —
+ * the 44px tap floor, the row pitch, the disc, the range paint's geometry, the
+ * pager's offset onto the caption line, and the diagonal rule's angle.
+ *
+ * --ocean appears here for the first time in the repository. §2 reserved it for
+ * "an informational state, a selected date" and this is that: the nights of the
+ * stay are washed in it, and --dusk-amber stays unspent for the one primary
+ * action on the screen.
+ *
+ * **The shape of a chosen night is a disc, not a block.** With the price gone the
+ * cell holds one number, and filling a 58 × 48 cell edge to edge around it read as
+ * a slab of colour. The ground moved onto the number instead — one round box that
+ * hover, focus and the two ends of the stay all share — and the wash between the
+ * ends still bridges centre to centre, so the discs are the round caps of the band.
+ */
+
+.calendar {
+  /* The grid inside answers to *this* width, not the window's. The stay panel
+     takes 30% of the screen back when it opens, so the two are no longer the same
+     number and everything below that used to read the window now reads here.
+     Declared on the calendar rather than on the column that holds it, so the
+     control is correct wherever it is placed. */
+  container-type: inline-size;
+
+  display: flex;
+  flex-direction: column;
+  color: var(--ink);
+}
+
+.months {
+  display: grid;
+  gap: var(--space-3);
+}
+
+/* Two months side by side only once there is room for two 7-column grids at the
+   44px floor. Below that they stack and the guest scrolls — never two months
+   squeezed narrower than their own cells.
+ *
+ * **A container query, not a media query.** It was `@media (min-width: 45rem)`,
+ * and that was correct for exactly as long as the calendar spanned the window.
+ * It does not any more: the stay panel takes a column of the plate back and the
+ * rail takes another, so at 1280 the window is 80rem while this grid has 44 —
+ * a media query answers the question nobody is asking. The containment is
+ * declared on `.calendar` above.
+ *
+ * **43rem is where two grids fit; 45 was where they breathe.** Two seven-column
+ * months at the 44px floor are 616px, and a --space-3 rule between them makes
+ * 648 — so 688 is honest, and the 720 this used to ask for was holding the
+ * comfortable gutter as though it were the cell floor. The difference is a real
+ * screen: at 1280, with a rail on one side and the stay on the other, this
+ * column is 44rem, and the old threshold stacked twelve weeks of grid down a
+ * page that had the room to lay them out. The wider gutter comes back at 52rem,
+ * where it costs nothing.
+ */
+/* **The months stop growing at 30rem each, and the plate keeps the rest.**
+ * `1fr 1fr` was right while the calendar was the column. With a plate the width
+ * of the page and no panel open yet it is not: two `1fr` months are 600px each,
+ * a seven-column grid at an 85px pitch, and a date is then a lonely numeral in a
+ * lot of air. 30rem is a 68px cell, which is the pitch the comp draws at, and
+ * what is left over is the width the stay panel arrives into. */
+@container (min-width: 43rem) {
+  .months {
+    grid-template-columns: repeat(2, minmax(0, 30rem));
+    justify-content: start;
+  }
+}
+
+@container (min-width: 52rem) {
+  .months {
+    gap: var(--space-4);
+  }
+}
+
+/* The month, and the one control that pages it. */
+.monthBlock {
+  position: relative;
+}
+
+.month {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.monthCaption {
+  padding-bottom: var(--space-3);
+  color: var(--ink);
+  text-align: left;
+}
+
+/* On the caption's line, at the outer edge of the calendar: `‹` off the left of
+   the first month, `›` off the right of the second. The 44px target is pulled up
+   by half its own overhang so its centre lands on a 1rem caption line —
+   (2.75rem − 1rem) / 2. */
+.pager {
+  position: absolute;
+  top: -0.875rem;
+  width: 2.75rem;
+  height: 2.75rem;
+  display: grid;
+  place-items: center;
+  font-size: var(--text-lg);
+  line-height: 1;
+  color: var(--stone);
+  transition: color 0.4s var(--ease-ui);
+}
+
+.pager[data-side="start"] {
+  left: -0.75rem; /* Hangs the glyph off the grid's first column, not into it. */
+}
+
+.pager[data-side="end"] {
+  right: -0.75rem;
+}
+
+.pager:hover:not(:disabled) {
+  color: var(--ink);
+}
+
+.pager:disabled {
+  cursor: default;
+  color: var(--sand);
+}
+
+.pager:focus-visible {
+  outline: 2px solid var(--dusk-amber);
+  outline-offset: 2px;
+}
+
+.weekday {
+  padding-bottom: var(--space-2);
+  font-family: var(--font-ui), sans-serif;
+  font-size: var(--text-xs);
+  font-weight: 300;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--stone);
+}
+
+.cell,
+.cellOutside {
+  position: relative;
+  padding: 0;
+  /* The paint has to reach the cell edges to bridge the gap between two nights,
+     so the cell carries no padding and the button inside it carries the inset. */
+  height: 2.75rem; /* 44px — the floor, measured off cal.com at 375px. */
+}
+
+/* Air, once the column can spare it. 44px is the smallest target that survives a
+   thumb; it was never the right row pitch for a grid with 900px to spend, and the
+   comp this screen was set from is mostly space. */
+@container (min-width: 45rem) {
+  .cell,
+  .cellOutside {
+    height: 3rem;
+  }
+}
+
+/* The range paint.
+ *
+ * A pseudo-element on the <td>, never a focusable element of its own — a separate
+ * element would double the tab order and the count of days would stop matching
+ * what is announced.
+ *
+ * It runs from the middle of the arrival cell to the middle of the departure
+ * cell, which is the whole point: a stay is nights, not days. Two nights paints
+ * two filled gaps between three cells rather than three filled boxes. This is the
+ * commonest off-by-one in hotel calendars and it is the same half-open convention
+ * packages/shared/stay-date.ts is built on. */
+.range_start::before,
+.range_inside::before,
+.range_end::before {
+  content: "";
+  position: absolute;
+  /* Inset to the disc's own height, so the band is the bar between two round caps
+     rather than a full-height stripe behind them. */
+  top: 50%;
+  height: 2.5rem;
+  transform: translateY(-50%);
+  left: 0;
+  right: 0;
+  background: rgb(var(--ocean-rgb) / 0.18);
+  transition: background-color 0.4s var(--ease-ui);
+}
+
+.range_start::before {
+  left: 50%;
+}
+
+.range_end::before {
+  right: 50%;
+}
+
+.day {
+  position: relative;
+  z-index: 1; /* Above the range paint, so the number stays legible on the wash. */
+  width: 100%;
+  height: 100%;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  display: grid;
+  place-items: center;
+  color: var(--ink);
+}
+
+/* The disc. One round box behind the number, and the only thing that changes
+   colour in a cell. 2.5rem sits inside the 3rem row with a hair of space, so two
+   chosen weeks do not touch across rows. */
+.dayNumber {
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  font-size: var(--text-base);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  border-radius: 50%;
+  /* The transform is the press — see below — and it is the only one of the three
+     that runs short. The two colours keep the grid's own 0.4s, because a disc
+     that changed colour this fast would flicker across a row of seven under a
+     moving pointer. */
+  transition:
+    background-color 0.4s var(--ease-ui),
+    color 0.4s var(--ease-ui),
+    transform 0.16s var(--ease-ui);
+}
+
+.day:hover:not([aria-disabled="true"]) .dayNumber {
+  background: rgb(var(--umber-rgb) / 0.06);
+}
+
+/* **The most-pressed control in the funnel, answering the press.**
+ *
+ * A guest picks two of these to get anywhere, and until now the only thing that
+ * happened under the finger was a wash arriving over 0.4s — on a night that is
+ * *refused* it was the same wash, arriving at the same speed, saying nothing
+ * about the refusal. The disc giving under the press is immediate and it is the
+ * cell's own confirmation that the press landed, separate from what the press
+ * then turns out to mean.
+ *
+ * `:not([aria-disabled])` is the whole of that separation: a night outside the
+ * priced window, or before today, does not move. There is no cheaper way to say
+ * "not that one" than a control that does not respond to being pressed, and the
+ * status line above the grid says why a moment later. */
+.day:active:not([aria-disabled="true"]) .dayNumber {
+  transform: scale(0.9);
+}
+
+/* The ring goes round the disc, not round the cell. A square outline inset into a
+   58 × 48 cell drew a box around a circle, which read as two shapes disagreeing —
+   and an `outline` on a rounded element follows its radius, so the ring is the disc
+   one step out. */
+.day:focus-visible {
+  outline: none;
+}
+
+/* And it is drawn for the keyboard only, which is what `:focus-visible` alone
+   could not deliver. React Aria presses a date without letting the browser focus
+   it and then focuses the cell itself; Chrome grants `:focus-visible` to that
+   programmatic focus, so a date pressed with a mouse came away ringed in amber
+   over the bare disc the comp draws. `data-modality` is the answer to "which
+   hand" — see `useKeyboardModality` in `stay-calendar.tsx`. */
+.calendar[data-modality="keyboard"] .day:focus-visible .dayNumber {
+  outline: 2px solid var(--dusk-amber);
+  outline-offset: 2px;
+}
+
+/* Focus without the ring, for a pointer user mid-drag — React Aria moves the
+   roving tabindex on hover, and a ring following the mouse reads as a fault. */
+.dayFocused:not(:focus-visible) .dayNumber {
+  background: rgb(var(--umber-rgb) / 0.06);
+}
+
+/* A date before today. Truly disabled and out of the tab order, which is right:
+   there is no rule to explain, and nothing a guest can do about last week. */
+.dayPast {
+  cursor: default;
+  color: var(--sand);
+}
+
+/* Unpickable, but reachable. aria-disabled rather than disabled, so a keyboard
+   guest lands on the date and hears why it is gone — cal.com's real `disabled` is
+   what makes its unavailable days unexplainable. */
+.dayUnpickable {
+  cursor: default;
+}
+
+/* Sold out: a diagonal rule across the cell, plus a dimmed number. Two signals,
+   neither of them colour alone. The number stays above 4.5:1 on ivory because the
+   cell is focusable and a focusable cell has to be readable. */
+.daySoldOut {
+  color: var(--stone);
+}
+
+.daySoldOut::before {
+  content: "";
+  position: absolute;
+  inset: 25%;
+  /* A hairline through the cell. 1.5px rather than 1px so it survives a
+     fractional device pixel ratio, which is where a 1px diagonal disappears. */
+  background: linear-gradient(
+    to top right,
+    transparent calc(50% - 0.75px),
+    rgb(var(--stone-deep-rgb) / 0.55) calc(50% - 0.75px),
+    rgb(var(--stone-deep-rgb) / 0.55) calc(50% + 0.75px),
+    transparent calc(50% + 0.75px)
+  );
+}
+
+/* Arrival closed: a corner wedge, top left, where a stay would begin. A different
+   shape from the sold-out rule rather than a different colour, so the two states
+   are told apart with the page in greyscale. The night is still for sale — just
+   not as a first night. */
+.dayClosedToArrival::before {
+  content: "";
+  position: absolute;
+  top: 0.25rem;
+  left: 0.25rem;
+  width: 0;
+  height: 0;
+  border-top: 0.375rem solid var(--stone-deep);
+  border-right: 0.375rem solid transparent;
+}
+
+/* The two ends of the stay. A solid disc, so the endpoints read as endpoints and
+   not as two more washed cells. */
+.dayArrival .dayNumber,
+.dayDeparture .dayNumber,
+.cellAnchor .day .dayNumber {
+  background: var(--ocean);
+  color: var(--ink);
+}
+
+.dayArrival:hover .dayNumber,
+.dayDeparture:hover .dayNumber {
+  background: var(--ocean);
+}
+
+/* ---- The band along the bottom ----------------------------------------- */
+
+/* The key to the cells, and nothing else — the rest of what used to hang here is
+   under the plate now, in `funnel-foot.module.css`. */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-3);
+  margin-top: var(--space-3);
+  list-style: none;
+  font-size: var(--text-xs);
+  color: var(--stone);
+}
+
+.legend li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem; /* Mark to its own word: tighter than --space-1 pairs them. */
+}
+
+.legendSoldOut::before,
+.legendClosed::before {
+  content: "";
+  width: 0.75rem;
+  height: 0.75rem;
+  flex: none;
+}
+
+.legendSoldOut::before {
+  background: linear-gradient(
+    to top right,
+    transparent calc(50% - 0.5px),
+    rgb(var(--stone-deep-rgb) / 0.55) calc(50% - 0.5px),
+    rgb(var(--stone-deep-rgb) / 0.55) calc(50% + 0.5px),
+    transparent calc(50% + 0.5px)
+  );
+}
+
+.legendClosed::before {
+  background: linear-gradient(
+    to bottom right,
+    var(--stone-deep) 0 35%,
+    transparent 35%
+  );
+}
+
+/* Reduced motion is a composition, not a frozen frame — §9. The global
+   kill-switch would cut these transitions to 0.01ms, which across fourteen cells
+   under a moving pointer is a flicker rather than a hover. So the disc and the
+   range paint simply do not transition here; they are on or off. */
+@media (prefers-reduced-motion: reduce) {
+  .dayNumber,
+  .range_start::before,
+  .range_inside::before,
+  .range_end::before {
+    transition: none;
+  }
+
+  /* And the press does not shrink the disc — under the kill-switch it would not
+     shrink so much as *teleport* smaller and back, which is the flicker the
+     paragraph above is avoiding, at the size of a fingertip. The press is still
+     answered: the hover wash and the chosen disc are both immediate here, which
+     is the same acknowledgement without the travel. */
+  .day:active:not([aria-disabled="true"]) .dayNumber {
+    transform: none;
+  }
+}

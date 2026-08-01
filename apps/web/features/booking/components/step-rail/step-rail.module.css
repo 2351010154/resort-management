@@ -1,0 +1,138 @@
+/* The two steps, centred over both views.
+ *
+ * Three states, told apart by weight rather than by colour alone: the step the
+ * guest is on has a filled disc and ink type, the step behind it a hairline disc
+ * and stone type, the step ahead the same hairline at a lighter weight. A guest
+ * reading the page in greyscale gets the same three.
+ */
+
+/* Where it sits depends on the ground, and neither ground is hard-coded here —
+   same `--funnel-*` contract the bar uses, with the ivory reading as the
+   fallbacks. On ivory the rail is centred over the column it heads; over the
+   hero's photograph it stands on the same left vertical as the bar above it and
+   the title below, because a centred rail over a left-aligned title is two
+   compositions in one band.
+
+   The air above and below is the comp's: the steps float between the bar and the
+   heading rather than sitting on either. --space-1 rather than --space-3, which
+   is still air on both sides and is 3rem the list plate spends on the fifth room
+   instead — it holds all five at rest now, and this was the cheapest of the
+   places that height could come from. The steps are two short words and a rule;
+   they read as floating on much less air than they were given.
+
+   That is the reading where the rail heads a page, which is what the dates step
+   gives it. On the room step it heads a plate whose own inset is already the
+   air above, so the caller overrides it — same `--funnel-*` contract the palette
+   uses, ivory reading as the fallback. */
+.rail {
+  display: flex;
+  justify-content: var(--funnel-steps-align, center);
+  padding: var(--funnel-steps-pad, var(--space-1) 0);
+}
+
+.steps {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  list-style: none;
+}
+
+.step {
+  display: flex;
+}
+
+.control {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem; /* Disc to its own label: tighter than --space-1 pairs them. */
+  min-height: 2.75rem; /* 44px, whether or not this one is a button. */
+  color: var(--funnel-quiet, var(--stone));
+  transition: color 0.4s var(--ease-ui);
+}
+
+.disc {
+  width: 1.75rem; /* 28px — a numeral in a ring, not a button. */
+  height: 1.75rem;
+  flex: none;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-ui), sans-serif;
+  font-size: var(--text-xs);
+  line-height: 1;
+  border: 1px solid currentcolor;
+  border-radius: 50%;
+  transition:
+    color 0.4s var(--ease-ui),
+    background-color 0.4s var(--ease-ui),
+    border-color 0.4s var(--ease-ui);
+}
+
+.label {
+  white-space: nowrap;
+}
+
+/* The label's size, overridable for the same reason the palette is: this rail
+   heads a page on the dates step and a quarter-width plate on the room step,
+   and `.caps-label`'s --text-xs is sized for the first of those. Two short caps
+   runs, two discs and a connector at the page's scale do not fit across a plate
+   this narrow — what that draws is "YOUR ROO", cut off at the plate's edge.
+
+   `.control .label` rather than `.label`, so this beats the global class it is
+   set beside rather than depending on which stylesheet the bundler emits last.
+   The fallback is the page reading, which is what the dates step gets. */
+.control .label {
+  font-size: var(--funnel-steps-type, var(--text-xs));
+}
+
+/* Here. The one filled shape on the rail — and on the photograph it is filled
+   the other way up, ivory disc with ink in it, because a disc of ink on a dark
+   frame is a hole rather than a marker. */
+.step[data-state="current"] .control {
+  color: var(--funnel-ink, var(--ink));
+}
+
+.step[data-state="current"] .disc {
+  color: var(--funnel-disc-ink, var(--ivory));
+  background: var(--funnel-disc-ground, var(--ink));
+  border-color: var(--funnel-disc-ground, var(--ink));
+}
+
+/* Behind. A control, and it says so on hover. */
+.step[data-state="done"] .control {
+  color: var(--funnel-quiet, var(--stone-deep));
+}
+
+.step[data-state="done"] button:hover {
+  color: var(--funnel-ink, var(--ink));
+}
+
+.step[data-state="done"] button:hover .disc {
+  border-color: var(--funnel-ink, var(--ink));
+}
+
+.step[data-state="done"] button:focus-visible {
+  outline: 2px solid var(--dusk-amber);
+  outline-offset: 4px;
+}
+
+/* Ahead. Present, so the guest knows the funnel is two steps and not five. */
+.step[data-state="ahead"] .control {
+  color: var(--funnel-ahead, var(--sand));
+}
+
+/* The connector, at the height of the type rather than the discs. Its width is
+   measured to sit inside the rail without pushing either label off centre, at
+   375 and at 1670 — and it is the first thing the rail gives back when it heads
+   a plate instead of a page, because it is the one part of the rail that is
+   neither a word nor a marker. */
+.rule {
+  width: var(--funnel-steps-rule, clamp(2rem, 8vw, 6rem));
+  height: 1px;
+  background: var(--funnel-hairline, rgb(var(--umber-rgb) / 0.18));
+}
+
+@media (max-width: 40rem) {
+  .rail {
+    padding: var(--space-2) 0;
+  }
+}
