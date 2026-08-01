@@ -132,19 +132,32 @@
   margin-bottom: var(--space-1);
 }
 
-.column a {
+/* The destinations are buttons and the decorative entries are plain text, so
+   both are stripped back to the one line of type the column is. Only the
+   buttons lift on hover and take a focus ring — the text has nothing to go to
+   and is not a focus stop. */
+.columnLink,
+.columnText {
   color: var(--sand);
   font-size: var(--text-sm);
   letter-spacing: 0.06em;
   transition: color 0.5s var(--ease-ui);
 }
 
-.column a[href]:hover,
-.column a[href]:focus-visible {
+/* `globals.css` already strips a button's font, colour, background and border;
+   what it leaves is the padding and the centred text a link never had. */
+.columnLink {
+  appearance: none;
+  padding: 0;
+  text-align: left;
+}
+
+.columnLink:hover,
+.columnLink:focus-visible {
   color: var(--ivory);
 }
 
-.column a:focus-visible {
+.columnLink:focus-visible {
   outline: 1px solid var(--ivory);
   outline-offset: 4px;
 }
