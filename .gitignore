@@ -24,8 +24,10 @@ next-env.d.ts
 .agentkit/
 .copilot/
 
-# Project planning artifacts
+# Project planning artifacts. Jira owns delivery state; these are local
+# decomposition aids, regenerable from docs/product-requirements.md.
 /plans/
+/.taskmaster/
 
 # Python / local runtime artifacts
 venv/
