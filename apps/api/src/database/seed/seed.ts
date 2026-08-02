@@ -29,7 +29,12 @@
 // nobody holds.
 
 import { randomUUID } from "node:crypto";
-import { type CalendarDate, parseDate, today } from "@internationalized/date";
+import {
+  type CalendarDate,
+  getDayOfWeek,
+  parseDate,
+  today,
+} from "@internationalized/date";
 import { faker } from "@faker-js/faker/locale/vi";
 import { PROPERTY_TIME_ZONE, type VndAmount } from "@mariva/shared";
 import { sql } from "drizzle-orm";
@@ -471,9 +476,22 @@ function buildRestrictions(
   return rows;
 }
 
-/** §3: a Friday or Saturday night prices as weekend. */
+/**
+ * §3: a Friday or Saturday night prices as weekend.
+ *
+ * Read off the calendar date, never through an instant. `toDate(zone).getDay()`
+ * builds the right moment and then resolves it in whatever zone the *process*
+ * runs in — 17:00 the previous day once that is UTC, which is the runner and
+ * the deployed host both. The uplift would land on Thursday and Friday there
+ * and on Friday and Saturday on a developer's machine in Ho Chi Minh City, and
+ * the rates written would differ by where the seed was run from.
+ *
+ * `en-US` for the locale because its week begins on Sunday, which makes 5 and 6
+ * Friday and Saturday. It is a statement about the numbering below, not about
+ * the property's language.
+ */
 function isWeekendNight(date: CalendarDate): boolean {
-  const day = date.toDate(PROPERTY_TIME_ZONE).getDay();
+  const day = getDayOfWeek(date, "en-US");
 
   return day === 5 || day === 6;
 }
