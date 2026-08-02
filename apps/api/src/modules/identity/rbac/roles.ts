@@ -57,7 +57,36 @@ export const GRANTS = ["full", "read", "conditional", "denied"] as const;
 
 export type Grant = (typeof GRANTS)[number];
 
-/** True when the guard lets the request through. See {@link Grant}. */
-export function grants(grant: Grant): boolean {
-  return grant !== "denied";
+/**
+ * What a route does with the capability it names.
+ *
+ * The matrix grants authority over a *row*, and a row is wider than a route:
+ * "Rate plans, rate calendar, promotions" is one row that a receptionist may
+ * look at and a manager may change. Two routes, one capability, and the
+ * difference between them is this.
+ */
+export const CAPABILITY_ACTIONS = ["read", "write"] as const;
+
+export type CapabilityAction = (typeof CAPABILITY_ACTIONS)[number];
+
+/**
+ * Whether a grant lets a route through.
+ *
+ * `read` is the only grant that turns on the action, and that is what the 👁 in
+ * the document means: the row is visible to this role and its write paths are
+ * not. Without this comparison a receptionist holding 👁 over the rate calendar
+ * could POST a new price, because the guard would only ever have asked whether
+ * the grant was `denied`.
+ *
+ * `conditional` satisfies a write. It is not a lesser grant — it is a full one
+ * whose scope the guard cannot see (this guest's booking, this receptionist's
+ * shift), and the handler still owes that check. Reading it as read-only would
+ * refuse a receptionist their own cash drawer.
+ */
+export function permits(grant: Grant, action: CapabilityAction): boolean {
+  if (grant === "denied") {
+    return false;
+  }
+
+  return action === "read" || grant !== "read";
 }
