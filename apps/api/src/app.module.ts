@@ -7,6 +7,7 @@ import { DatabaseModule } from "./database/database.module.js";
 import { HealthModule } from "./health/health.module.js";
 import { AuthModule } from "./modules/auth/auth.module.js";
 import { IdentityModule } from "./modules/identity/identity.module.js";
+import { InventoryModule } from "./modules/inventory/inventory.module.js";
 import { NotificationModule } from "./modules/notification/notification.module.js";
 
 // The header a load balancer or an upstream service may already have stamped.
@@ -89,6 +90,11 @@ const CORRELATION_HEADER = "x-request-id";
     NotificationModule,
     IdentityModule,
     AuthModule,
+
+    // After `AuthModule`, because every route it registers is governed by the
+    // guard that module installs — including the two availability routes, whose
+    // matrix row is the one that lets a stranger through.
+    InventoryModule,
   ],
 })
 export class AppModule {}

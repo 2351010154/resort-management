@@ -8,6 +8,7 @@
     "build": "tsc",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
+    "db:seed": "tsc && node dist/database/seed/seed.script.js",
     "dev": "nest start --watch",
     "start": "node dist/main.js",
     "test": "vitest run",
@@ -16,6 +17,7 @@
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json"
   },
   "dependencies": {
+    "@internationalized/date": "^3.12.2",
     "@mariva/shared": "workspace:*",
     "@nestjs/common": "11.1.28",
     "@nestjs/core": "11.1.28",
@@ -39,6 +41,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@faker-js/faker": "^10.5.0",
     "@nestjs/cli": "11.0.24",
     "@nestjs/testing": "11.1.28",
     "@orpc/contract": "1.14.10",

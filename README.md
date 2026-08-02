@@ -259,7 +259,7 @@ The API's own commands — migrations, the Nest watch loop, the first-admin scri
 | Typecheck | `tsc` per workspace | CI |
 | Build | `next build`, `tsc` | CI. The Next app's type check happens inside its build |
 | Unit + integration | Vitest 4 | Per workspace |
-| Visual baseline | Playwright | `apps/web/tests/visual-baseline/`, desktop and mobile |
+| Visual baseline | Playwright | `apps/web/tests/visual-baseline/`, desktop and mobile. Local — the baseline is untracked, so capture it before you can compare against it |
 
 CI runs on every pull request and push to `main`: install with a frozen lockfile, then
 lint → typecheck → build, with in-flight runs superseded per branch.

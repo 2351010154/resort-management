@@ -22,6 +22,9 @@ importers:
 
   apps/api:
     dependencies:
+      '@internationalized/date':
+        specifier: ^3.12.2
+        version: 3.12.2
       '@mariva/shared':
         specifier: workspace:*
         version: link:../../packages/shared
@@ -86,6 +89,9 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@faker-js/faker':
+        specifier: ^10.5.0
+        version: 10.5.0
       '@nestjs/cli':
         specifier: 11.0.24
         version: 11.0.24(@swc/core@1.15.4)(@types/node@24.13.3)(esbuild@0.28.1)
@@ -961,6 +967,10 @@ packages:
     engines: {node: '>=18'}
     cpu: [x64]
     os: [win32]
+
+  '@faker-js/faker@10.5.0':
+    resolution: {integrity: sha512-bsxD8WLS5lIj7aaoCx1YJkktqYj5vlBUE6HWzu2Q51ksrGJ0H737ECCKlFU7Yf8Br45z9t99frBp/J7kzbMPAg==}
+    engines: {node: ^20.19.0 || ^22.13.0 || ^23.5.0 || >=24.0.0, npm: '>=10'}
 
   '@formatjs/ecma402-abstract@2.3.6':
     resolution: {integrity: sha512-HJnTFeRM2kVFVr5gr5kH1XP6K0JcJtE7Lzvtr3FS/so5f1kpsqqqxy5JF+FRaO6H2qmcMfAUIox7AJteieRtVw==}
@@ -5171,6 +5181,8 @@ snapshots:
 
   '@esbuild/win32-x64@0.28.1':
     optional: true
+
+  '@faker-js/faker@10.5.0': {}
 
   '@formatjs/ecma402-abstract@2.3.6':
     dependencies:

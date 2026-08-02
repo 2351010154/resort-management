@@ -15,6 +15,20 @@
       "when": 1785065220215,
       "tag": "0001_auth_realms",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1785575113434,
+      "tag": "0002_inventory_core",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1785576730538,
+      "tag": "0003_pricing_core",
+      "breakpoints": true
     }
   ]
 }
