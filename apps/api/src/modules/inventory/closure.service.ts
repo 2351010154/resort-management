@@ -34,6 +34,7 @@ import {
   roomAssignment,
   typeInventory,
 } from "../../database/schema/inventory.js";
+import { sqlStateOf } from "./sql-state.js";
 
 /** Postgres' SQLSTATE for the two refusals this service expects. */
 const EXCLUSION_VIOLATION = "23P01";
@@ -220,24 +221,4 @@ function nightsBetween(checkIn: StayDate, checkOut: StayDate): number {
   }
 
   return nights;
-}
-
-/**
- * The SQLSTATE out of a thrown error.
- *
- * Drizzle wraps the driver's error in one of its own, so the code sits on a
- * cause one or more levels down. The chain is walked rather than assumed to be
- * one deep — the day a layer is added, this should still read the code rather
- * than start returning `undefined` and turning every conflict into a 500.
- */
-function sqlStateOf(error: unknown): string | undefined {
-  for (let current = error; current instanceof Error; current = current.cause) {
-    const { code } = current as Error & { code?: unknown };
-
-    if (typeof code === "string") {
-      return code;
-    }
-  }
-
-  return undefined;
 }
