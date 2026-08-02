@@ -23,6 +23,40 @@ export const vndAmountSchema = z.bigint();
 
 export type VndAmount = z.infer<typeof vndAmountSchema>;
 
+/**
+ * The wire form: the same integer as decimal text. "1850000".
+ *
+ * Text and not a JSON number, and the reason is the range this type was chosen
+ * for. A room rate fits in a double; a folio total in đồng need not, and a
+ * number that silently loses its last digits is worse than one that never
+ * arrives. Serialisers agree — the one under the contract already writes a
+ * `bigint` out this way, which is why an amount is read back with `BigInt(…)`
+ * on the far side.
+ */
+export const vndAmountTextSchema = z
+  .string()
+  .regex(/^-?\d+$/, "expected a whole number of đồng");
+
+/**
+ * An amount arriving in a request, decoded from that text.
+ *
+ * A *response* declares {@link vndAmountSchema} and this asymmetry is the same
+ * one `stay-date.ts` sets out at length. Validating a handler's output means
+ * checking what the handler produced — a `bigint`, which the serialiser then
+ * writes as text on its own. Validating an input means checking what arrived,
+ * which is text, and `z.bigint()` rejects it. So a request takes this and a
+ * response takes the native schema, and the one conversion between them is
+ * declared here rather than remembered at each call site.
+ */
+export const vndAmountInputSchema = z.codec(
+  vndAmountTextSchema,
+  vndAmountSchema,
+  {
+    decode: (value) => BigInt(value),
+    encode: (amount) => amount.toString(),
+  },
+);
+
 const vndFormatter = new Intl.NumberFormat("vi-VN", {
   style: "currency",
   currency: PROPERTY_CURRENCY,
