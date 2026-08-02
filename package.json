@@ -11,7 +11,7 @@
     "backlog:view": "node scripts/backlog-view.mjs",
     "dev": "turbo run dev",
     "build": "turbo run build",
-    "lint": "biome lint . && pnpm --filter @mariva/web lint:css",
+    "lint": "biome lint --error-on-warnings . && pnpm --filter @mariva/web lint:css",
     "format": "biome format --write .",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test"

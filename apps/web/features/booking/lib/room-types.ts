@@ -58,8 +58,13 @@ export interface RoomType {
  * §3 charges an extra person per night above it and up to `maxOccupancy`, and a
  * per-type value would imply the property varies what "the rate" covers when it
  * does not.
+ *
+ * Re-exported rather than declared, so this file stays the one import the funnel
+ * reaches for while the value itself sits in `@mariva/shared` beside the type
+ * codes. The API prices against the same number; a second copy here is how a
+ * quoted stay and a posted folio come to disagree by one extra person.
  */
-export const INCLUDED_OCCUPANCY = 2;
+export { INCLUDED_OCCUPANCY } from "@mariva/shared";
 
 export const ROOM_TYPES: readonly RoomType[] = [
   {

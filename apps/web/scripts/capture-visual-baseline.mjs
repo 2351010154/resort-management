@@ -18,11 +18,11 @@
 // Run it against a production server. `next dev` recompiles between captures
 // and mounts the dev overlay, neither of which survives a byte comparison.
 //
-// Unlike its neighbours, this one's output is committed. They write to
-// plans/, which is ignored, because a filmstrip is a planning artifact that
-// is read once and thrown away. A baseline is a fixture: the comparison is
-// worth nothing unless the images it compares against are the ones in the
-// tree, so they live under the app.
+// The output is untracked, like its neighbours', but for a different reason.
+// A filmstrip is a planning artifact read once and thrown away. These frames
+// are a fixture — except a fixture only means something between two captures
+// on the same machine, so a committed one is a 27 MB file nobody else can
+// compare against. Capture the merge base, capture the branch, diff those.
 //
 // Usage: node apps/web/scripts/capture-visual-baseline.mjs [baseUrl] [outDir]
 //   default baseUrl http://localhost:3000

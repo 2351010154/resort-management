@@ -28,6 +28,17 @@
   color: var(--sand);
 }
 
+/* Both of these scroll the page with lenis rather than navigating, and the
+   acts carry no id to link to, so they are buttons. `globals.css` already
+   strips a button's font, colour, background and border; what it leaves is the
+   padding and the centred text a link never had. */
+.viewLink,
+.card {
+  appearance: none;
+  padding: 0;
+  text-align: left;
+}
+
 .viewLink {
   display: inline-block;
   margin-top: var(--space-2);

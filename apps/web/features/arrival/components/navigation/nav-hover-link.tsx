@@ -10,7 +10,7 @@ import { DUR_SCENE } from "@/lib/motion-tokens";
 import styles from "./navigation.module.css";
 
 // Matches expo.out for Lenis' easing-function API.
-const easeOutExpo = (t: number) => (t === 1 ? 1 : 1 - Math.pow(2, -10 * t));
+const easeOutExpo = (t: number) => (t === 1 ? 1 : 1 - 2 ** (-10 * t));
 
 export function scrollToAct(
   lenis: ReturnType<typeof useLenis>,
@@ -64,20 +64,19 @@ export function NavHoverLink({
   const activeAct = useArrivalActStore((s) => s.activeAct);
 
   return (
-    <a
-      href={`#act-${act}`}
+    // A button, not a link: the acts carry no id, so `#act-2` would be an
+    // address that goes nowhere. This scrolls the page rather than navigating.
+    <button
+      type="button"
       className={`${styles.link} caps-label`}
       data-active={activeAct === act}
-      onClick={(e) => {
-        e.preventDefault();
-        scrollToAct(lenis, act, onNavigate);
-      }}
+      onClick={() => scrollToAct(lenis, act, onNavigate)}
     >
       <span className={styles.linkClip}>
         <span className={styles.linkInner} data-label={label}>
           {label}
         </span>
       </span>
-    </a>
+    </button>
   );
 }

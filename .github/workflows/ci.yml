@@ -18,6 +18,38 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+
+    # The API's suite applies the committed migrations and then tries to write
+    # rows the property could not honour, so it needs a database and not a
+    # double. `NFR-01` is a claim about fifty concurrent bookings against one
+    # last room, and row locks and CHECK constraints are the only things that
+    # settle it — proving that on a developer's machine and not here would be
+    # proving it where a regression cannot fail the build.
+    #
+    # The official image carries the contrib modules, so migration 0000 can
+    # enable `btree_gist` and the exclusion constraint over it exists. Without
+    # the extension the migration fails outright, which is the loud failure to
+    # want.
+    #
+    # Published on 5433 because that is the port `apps/api/.env.test` names
+    # locally: one connection string, the same in both places.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: mariva_test
+          # No password. The port is reachable only from this runner, the
+          # database holds nothing but fixtures, and a password written into a
+          # workflow file guards nothing while looking like a secret.
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d mariva_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
     steps:
       - uses: actions/checkout@v4
 
@@ -40,6 +72,31 @@ jobs:
       # Next app deliberately has no typecheck task of its own: tsc there would
       # read .next/types, which next build rewrites underneath it.
       - run: pnpm run typecheck
+
+      # Every .env is git-ignored, so the file the API's vitest config loads has
+      # to be written here. It is not copied from .env.example: that file is
+      # documentation for a developer and names the *development* database,
+      # which is the one value a test run must never be pointed at.
+      #
+      # The two secrets are generated per run rather than stored. Nothing signed
+      # in one run is verified in another, so there is no value to keep — and a
+      # fixed string committed to a workflow file is a credential in the
+      # repository whether or not it currently protects anything.
+      - name: Point the API test suite at the service container
+        run: |
+          {
+            echo "DATABASE_URL=postgres://postgres@localhost:5433/mariva_test"
+            echo "BETTER_AUTH_SECRET=$(openssl rand -base64 32)"
+            echo "STAFF_JWT_SECRET=$(openssl rand -base64 32)"
+            echo "NODE_ENV=test"
+            echo "LOG_LEVEL=silent"
+          } > apps/api/.env.test
+
+      # Every workspace now, the API's included. Its suite used to be filtered
+      # out here for want of a database on the runner; the service above is that
+      # database, and `FR-INV-02`'s fifty-simultaneous-guests proof is only
+      # worth having where it can fail the build.
+      - run: pnpm run test
 
       # next build runs the TypeScript check for the app as part of the build.
       - run: pnpm run build

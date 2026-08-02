@@ -129,6 +129,10 @@
   border-radius: 999px;
   border: 1px solid transparent;
   transition: border-color 0.4s var(--ease-ui);
+  /* It is a button — the acts have no id to link to — so the two things a
+     button brings that an anchor does not are taken back off. */
+  appearance: none;
+  text-align: inherit;
 }
 
 .linkClip {
