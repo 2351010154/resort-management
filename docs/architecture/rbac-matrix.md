@@ -51,6 +51,16 @@ token on a guest route is 403. Not 401 — the token is valid, the realm is wron
   written reason and is used by exactly two kinds of route: the ones that issue
   a session (staff sign-in, refresh, sign-out, and everything Better Auth
   mounts) and the liveness probe, which has no subject.
+- **👁 is enforced, not documentation.** A row is wider than a route — "Rate
+  plans, rate calendar, promotions" is one row a receptionist may look at and a
+  manager may change — so a route declares which of the two it is:
+  `@RequiresCapability("pricing.rate-plans", "read")` beside a bare
+  `@RequiresCapability("pricing.rate-plans")`, which is a write. A 👁 grant
+  reaching a write route is a 403. The second argument defaults to `write`
+  because that is the safe half of forgetting it: a read route left at the
+  default refuses a 👁 role and gets reported, where the other default would
+  hand one a write path silently. ⚠ satisfies a write — it is a full grant whose
+  scope the guard cannot see, and the handler still owes that check.
 - **`ADMIN` ⊇ `MANAGER`.** ⚑ §5 decision 6. Admin adds user management, system config and
   operational plumbing on top of every manager permission. At one property with
   one owner, forcing an account switch to void an invoice is friction that gets
@@ -175,9 +185,11 @@ route → 403; staff token → guest route → 403.
 
 **Discharged**, and more strictly than written: `access.guard.spec.ts` asserts
 *every* denied role on every row, not one of them, because the table names them
-all and checking one of six is a choice with nothing to recommend it. Both
-cross-realm directions are asserted over the full set of rows that admit only
-one realm. The subject of that suite is the guard with the two realms stubbed at
+all and checking one of six is a choice with nothing to recommend it. Every row
+is also put to the guard twice, as a route that reads it and as a route that
+writes it, so each 👁 in §3 is asserted to pass the first and be refused the
+second. Both cross-realm directions are asserted over the full set of rows that
+admit only one realm. The subject of that suite is the guard with the two realms stubbed at
 the point where they produce a principal; `test/auth.e2e-spec.ts` covers the
 other half — real passwords, real tokens, real cookies, real Postgres — over
 the routes that exist so far.
