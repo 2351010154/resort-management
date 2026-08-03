@@ -51,6 +51,15 @@ happen. Schemas live there; both sides infer.
 type, while the capability matrix remains API policy under
 `apps/api/src/modules/identity/rbac/`.
 
+**A pricing rule both sides apply is shared too, and it is the one kind of
+behaviour that belongs there.** `packages/shared/src/occupancy-pricing.ts` holds
+the extra-person and child bands because the API quotes against them and the
+funnel shows a total before the round trip — two implementations of one band is
+a card and an invoice free to disagree. The API's use of it is authoritative;
+the funnel's is what lets a price appear without waiting. Nothing else in
+`packages/shared` computes: a rule earns its way in by being applied on both
+sides of the network, not by being useful twice.
+
 **Invariants live in the database.** Overlap and oversell are prevented by
 constraints in `apps/api/src/database/migrations/`, not by service-layer checks.
 Application code may not be the last line of defence for money or inventory.

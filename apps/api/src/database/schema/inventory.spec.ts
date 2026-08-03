@@ -152,6 +152,54 @@ describe("the two inventory layers", () => {
   });
 });
 
+describe("what each table hangs off", () => {
+  it("points a room at its type and an assignment at its room", () => {
+    // Drizzle resolves a reference lazily, so one aimed at the wrong table
+    // typechecks and stays wrong until a migration is generated against a
+    // database somebody has already filled — at which point the fix is a data
+    // migration rather than an edit.
+    expect(parentOf(room)).toEqual({
+      table: "room_type",
+      from: ["room_type_id"],
+      to: ["id"],
+    });
+    expect(parentOf(roomAssignment)).toEqual({
+      table: "room",
+      from: ["room_id"],
+      to: ["id"],
+    });
+  });
+
+  it("counts inventory against a type rather than against a room", () => {
+    // The two layers answer different questions — the header of inventory.ts
+    // makes the argument. A counter keyed on a room would be `room_assignment`
+    // written twice, and it could not refuse the forty-first sale of forty
+    // rooms without visiting every one of them.
+    expect(parentOf(typeInventory)).toEqual({
+      table: "room_type",
+      from: ["room_type_id"],
+      to: ["id"],
+    });
+  });
+});
+
+/** The one table a table references, and the columns joining them. */
+function parentOf(table: Parameters<typeof getTableConfig>[0]) {
+  const [foreignKey, ...rest] = getTableConfig(table).foreignKeys;
+
+  // A second key would make the assertion read only the first and pass while
+  // saying nothing about the other.
+  expect(rest).toHaveLength(0);
+
+  const reference = foreignKey!.reference();
+
+  return {
+    table: getTableConfig(reference.foreignTable).name,
+    from: reference.columns.map((column) => column.name),
+    to: reference.foreignColumns.map((column) => column.name),
+  };
+}
+
 /** The declared index of that name, or undefined if nothing declares it. */
 function indexNamed(table: Parameters<typeof getTableConfig>[0], name: string) {
   return getTableConfig(table).indexes.find(

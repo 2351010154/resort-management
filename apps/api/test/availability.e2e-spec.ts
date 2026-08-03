@@ -26,8 +26,14 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { AppModule } from "../src/app.module.js";
 import { type Database, DRIZZLE } from "../src/database/database.module.js";
 import { roomType, typeInventory } from "../src/database/schema/inventory.js";
-import { stayRestriction } from "../src/database/schema/pricing.js";
-import { ROOM_TYPES } from "../src/database/seed/property.js";
+import {
+  propertyTariff,
+  stayRestriction,
+} from "../src/database/schema/pricing.js";
+import {
+  EXTRA_PERSON_PER_NIGHT_GROSS,
+  ROOM_TYPES,
+} from "../src/database/seed/property.js";
 import { seedDatabase } from "../src/database/seed/seed.js";
 
 // A pinned month, so a night named here is the same night on every run. March
@@ -126,13 +132,27 @@ interface Offer {
   extraBedPerNightGross: string | null;
 }
 
-async function search(query: Record<string, string | number>): Promise<{
-  plan: string;
-  offers: Offer[];
-}> {
+type StayOfferResponse = { plan: string; offers: Offer[] };
+
+async function search(
+  query: Record<string, string | number | number[]>,
+): Promise<StayOfferResponse> {
   const response = await http().get("/availability").query(query).expect(200);
 
   return response.body;
+}
+
+/** One type's authoritative stay total, as an amount rather than as text. */
+function totalFor(response: StayOfferResponse, code: string): bigint {
+  return BigInt(
+    response.offers.find((offer) => offer.code === code)!.stayTotalGross,
+  );
+}
+
+function availableCodes(response: StayOfferResponse): string[] {
+  return response.offers
+    .filter((offer) => offer.isAvailable)
+    .map((offer) => offer.code);
 }
 
 describe("the availability search", () => {
@@ -217,13 +237,13 @@ describe("the availability search", () => {
       checkIn: TUESDAY,
       checkOut: WEDNESDAY,
       plan: "BB",
-      occupancy: 1,
+      adults: 1,
     });
     const double = await search({
       checkIn: TUESDAY,
       checkOut: WEDNESDAY,
       plan: "BB",
-      occupancy: 2,
+      adults: 2,
     });
 
     const one = BigInt(
@@ -267,12 +287,197 @@ describe("the availability search", () => {
     const { offers } = await search({
       checkIn: TUESDAY,
       checkOut: WEDNESDAY,
-      occupancy: 4,
+      adults: 4,
     });
 
     expect(
       offers.filter((offer) => offer.isAvailable).map((offer) => offer.code),
     ).toEqual([PANORAMA.code]);
+  });
+
+  it("charges a third adult the extra-person rate for every night", async () => {
+    // §3: the charge is per night, and it rides on top of the room rather than
+    // replacing part of it.
+    const couple = await search({
+      checkIn: WEDNESDAY,
+      checkOut: FRIDAY,
+      adults: 2,
+    });
+    const three = await search({
+      checkIn: WEDNESDAY,
+      checkOut: FRIDAY,
+      adults: 3,
+    });
+
+    expect(totalFor(three, PANORAMA.code) - totalFor(couple, PANORAMA.code)).toBe(
+      EXTRA_PERSON_PER_NIGHT_GROSS * 2n,
+    );
+  });
+
+  it("charges a 6-to-11 child half the extra-person rate", async () => {
+    const withChild = await search({
+      checkIn: TUESDAY,
+      checkOut: WEDNESDAY,
+      adults: 2,
+      childAges: 9,
+    });
+    const couple = await search({
+      checkIn: TUESDAY,
+      checkOut: WEDNESDAY,
+      adults: 2,
+    });
+
+    expect(
+      totalFor(withChild, PANORAMA.code) - totalFor(couple, PANORAMA.code),
+    ).toBe(EXTRA_PERSON_PER_NIGHT_GROSS / 2n);
+  });
+
+  it("charges nothing for an under-6 and still counts them against the maximum", async () => {
+    // §3's free band is about the price, never about the ceiling: a toddler
+    // sleeping in existing bedding occupies the room they are sleeping in.
+    const couple = await search({
+      checkIn: TUESDAY,
+      checkOut: WEDNESDAY,
+      adults: 2,
+    });
+    const withToddler = await search({
+      checkIn: TUESDAY,
+      checkOut: WEDNESDAY,
+      adults: 2,
+      childAges: 3,
+    });
+
+    expect(totalFor(withToddler, "SUPERIOR")).toBe(totalFor(couple, "SUPERIOR"));
+
+    // The Superior sleeps two, so the third head — free or not — puts it out.
+    expect(availableCodes(couple)).toContain("SUPERIOR");
+    expect(availableCodes(withToddler)).not.toContain("SUPERIOR");
+  });
+
+  it("counts the cheapest heads as the extra ones", async () => {
+    // §3: two adults and a nine-year-old pay one half-rate extra person, not
+    // one full one. Charging an adult instead would make the same family cost
+    // more for having brought the child.
+    const family = await search({
+      checkIn: TUESDAY,
+      checkOut: WEDNESDAY,
+      adults: 2,
+      childAges: 9,
+    });
+    const threeAdults = await search({
+      checkIn: TUESDAY,
+      checkOut: WEDNESDAY,
+      adults: 3,
+    });
+
+    expect(totalFor(family, PANORAMA.code)).toBeLessThan(
+      totalFor(threeAdults, PANORAMA.code),
+    );
+  });
+
+  it("takes several children as a repeated query parameter", async () => {
+    // The wire form spelled out rather than left to the client's serialiser:
+    // one `childAges` per child, which is what a query string can carry
+    // without inventing a nesting convention. Two children beyond the rate —
+    // the toddler is free and the nine-year-old is half, so a family of four
+    // pays for exactly half a head.
+    const response = await http()
+      .get(
+        `/availability?checkIn=${TUESDAY}&checkOut=${WEDNESDAY}&adults=2&childAges=9&childAges=3`,
+      )
+      .expect(200);
+
+    const { offers } = response.body as StayOfferResponse;
+    const couple = await search({
+      checkIn: TUESDAY,
+      checkOut: WEDNESDAY,
+      adults: 2,
+    });
+
+    const family = BigInt(
+      offers.find((offer) => offer.code === PANORAMA.code)!.stayTotalGross,
+    );
+
+    expect(family - totalFor(couple, PANORAMA.code)).toBe(
+      EXTRA_PERSON_PER_NIGHT_GROSS / 2n,
+    );
+  });
+
+  it("does not charge breakfast for an under-6 under BB", async () => {
+    // The one assumption in the ladder — §3 does not say what a small child
+    // eats, and the under-6 line is the nearest rule the property has.
+    const couple = await search({
+      checkIn: TUESDAY,
+      checkOut: WEDNESDAY,
+      plan: "BB",
+      adults: 2,
+    });
+    const withToddler = await search({
+      checkIn: TUESDAY,
+      checkOut: WEDNESDAY,
+      plan: "BB",
+      adults: 2,
+      childAges: 3,
+    });
+
+    expect(totalFor(withToddler, PANORAMA.code)).toBe(
+      totalFor(couple, PANORAMA.code),
+    );
+  });
+
+  it("does not discount the extra person under NONREF", async () => {
+    // §3's "`STANDARD` − 10%" is a statement about the room rate. Discounting
+    // the extra person too would take ten percent off a bed the rate never
+    // included.
+    const standard = await search({
+      checkIn: TUESDAY,
+      checkOut: WEDNESDAY,
+      adults: 3,
+    });
+    const nonref = await search({
+      checkIn: TUESDAY,
+      checkOut: WEDNESDAY,
+      plan: "NONREF",
+      adults: 3,
+    });
+
+    const room = totalFor(standard, PANORAMA.code) - EXTRA_PERSON_PER_NIGHT_GROSS;
+
+    expect(totalFor(nonref, PANORAMA.code)).toBe(
+      (room * 90n) / 100n + EXTRA_PERSON_PER_NIGHT_GROSS,
+    );
+  });
+
+  it("refuses to quote a third head when the property has set no tariff", async () => {
+    // The opposite fallback to a missing rate plan, which prices as the
+    // calendar does. Here zero *is* the discount: quoting a third bed at
+    // nothing would sell it for free and read in a report as a reduction
+    // somebody granted. A party the rate already covers is unaffected, so a
+    // search for two does not fail over a tariff it never needed.
+    await db.execute(sql`delete from ${propertyTariff}`);
+
+    try {
+      await http()
+        .get("/availability")
+        .query({ checkIn: TUESDAY, checkOut: WEDNESDAY, adults: 3 })
+        .expect(500);
+
+      await http()
+        .get("/availability")
+        .query({ checkIn: TUESDAY, checkOut: WEDNESDAY, adults: 2 })
+        .expect(200);
+    } finally {
+      await db.insert(propertyTariff).values({
+        extraPersonPerNightGross: EXTRA_PERSON_PER_NIGHT_GROSS,
+      });
+    }
+  });
+
+  it("refuses an age no child has", async () => {
+    await http()
+      .get("/availability")
+      .query({ checkIn: TUESDAY, checkOut: WEDNESDAY, childAges: 40 })
+      .expect(400);
   });
 
   it("quotes no extra-bed price, because nobody has decided when one is charged", async () => {
@@ -561,7 +766,7 @@ describe("NFR-03 — the availability budget", () => {
           checkIn: checkIn.toString(),
           checkOut: checkIn.add({ days: 3 }).toString(),
           plan: "BB",
-          occupancy: 2,
+          adults: 2,
         })
         .expect(200);
 

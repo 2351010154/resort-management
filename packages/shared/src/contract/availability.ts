@@ -29,11 +29,46 @@ import { stayDateSchema } from "../stay-date.js";
 const LARGEST_PLAUSIBLE_PARTY = 10;
 
 /**
+ * The oldest age that may arrive as a child.
+ *
+ * §3 charges 12 and over as an adult, so an age above that band changes no
+ * price — but it is still the honest way to describe a fifteen-year-old, and a
+ * schema that refused one would push the funnel into filing them as an adult.
+ * Eighteen and over is not a child in any sense the property means.
+ */
+const OLDEST_CHILD_AGE = 17;
+
+/**
+ * The ages travelling as children, as they arrive in a query string.
+ *
+ * Ages and not a count, because `FR-PRC-04` prices children in three bands and
+ * a count cannot say which — this is the field that makes the ladder possible
+ * to apply on the server at all.
+ *
+ * A single `childAges=9` arrives as a bare string rather than as an array of
+ * one, so it is lifted into one here. Doing it in the schema rather than at the
+ * handler is what keeps one guest's child and two guests' children the same
+ * shape by the time anything prices them.
+ */
+const childAgesQuery = z.preprocess(
+  (ages) => (ages === undefined ? [] : Array.isArray(ages) ? ages : [ages]),
+  z
+    .array(z.coerce.number().int().min(0).max(OLDEST_CHILD_AGE))
+    .max(LARGEST_PLAUSIBLE_PARTY),
+);
+
+/**
  * The query behind "what can I book, and for how much".
  *
- * `occupancy` is the number of heads the rate must cover. It filters types
- * whose maximum it exceeds, because §3 makes occupancy above the maximum a
- * rejection and not a price.
+ * The party is `adults` plus `childAges` rather than one head count. §3 prices
+ * a third head by age — free under 6, half from 6 to 11, in full from 12 — and
+ * a number alone cannot carry that, so a bare `occupancy` could only ever have
+ * quoted every child as an adult.
+ *
+ * The total still filters types whose maximum it exceeds, because §3 makes
+ * occupancy above the maximum a rejection and not a price. A child under 6 is
+ * free and is nonetheless a head against that ceiling: the band decides what a
+ * guest costs, never whether the room holds them.
  */
 export const stayOfferQuery = z
   .object({
@@ -42,17 +77,27 @@ export const stayOfferQuery = z
     // The plan is what the prices are quoted under, so it defaults to the one
     // the other two are derived from rather than to nothing.
     plan: ratePlanCodeSchema.default("STANDARD"),
-    occupancy: z.coerce
+    // At least one, because a stay nobody sleeps in is not a search. The
+    // default is the occupancy the rate covers — §1's included two.
+    adults: z.coerce
       .number()
       .int()
       .min(1)
       .max(LARGEST_PLAUSIBLE_PARTY)
       .default(2),
+    childAges: childAgesQuery,
   })
   .refine((query) => query.checkIn.compare(query.checkOut) < 0, {
     message: "checkOut must fall after checkIn",
     path: ["checkOut"],
-  });
+  })
+  .refine(
+    (query) => query.adults + query.childAges.length <= LARGEST_PLAUSIBLE_PARTY,
+    {
+      message: `a party of more than ${LARGEST_PLAUSIBLE_PARTY} is not a search`,
+      path: ["childAges"],
+    },
+  );
 
 /** A month of nights, for the grid the funnel opens on. */
 export const rateCalendarQuery = z.object({
