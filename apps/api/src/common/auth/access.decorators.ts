@@ -10,6 +10,7 @@ import {
   SetMetadata,
 } from "@nestjs/common";
 import type { CapabilityKey } from "../../modules/identity/rbac/matrix.js";
+import type { CapabilityAction } from "../../modules/identity/rbac/roles.js";
 import {
   ACCESS_DECISION,
   type AccessDecision,
@@ -19,15 +20,34 @@ import {
 
 export const CAPABILITY_KEY = "mariva:capability";
 
+/** Which row governs a route, and what the route does with it. */
+export interface CapabilityRequirement {
+  readonly key: CapabilityKey;
+  readonly action: CapabilityAction;
+}
+
 /**
  * Declares which matrix row governs this route.
  *
- * The argument is typed against the matrix, so a capability that does not exist
- * — or one renamed in the matrix and not here — is a compile error rather than
- * a route that quietly authorises nobody.
+ * The first argument is typed against the matrix, so a capability that does not
+ * exist — or one renamed in the matrix and not here — is a compile error rather
+ * than a route that quietly authorises nobody.
+ *
+ * The second says whether the route reads the row or changes it, and it
+ * defaults to `write` because that is the safe half of forgetting it. A write
+ * route left at the default is enforced strictly; a read route left at the
+ * default refuses a role holding 👁 and shows up as a 403 somebody reports. The
+ * other default would have the omission hand a read-only role a write path and
+ * say nothing.
  */
-export const RequiresCapability = (capability: CapabilityKey) =>
-  SetMetadata(CAPABILITY_KEY, capability);
+export const RequiresCapability = (
+  capability: CapabilityKey,
+  action: CapabilityAction = "write",
+) =>
+  SetMetadata<string, CapabilityRequirement>(CAPABILITY_KEY, {
+    key: capability,
+    action,
+  });
 
 export const UNGUARDED_KEY = "mariva:unguarded";
 

@@ -11,8 +11,9 @@
 // No Nest application is booted — `inventory-storage.e2e-spec.ts` gives the
 // reason and it holds here: the subject is one service and the database
 // underneath it, and an HTTP stack around them would only add ways for a
-// failure to mean something else. The service is a class with one dependency,
-// so it is constructed with one.
+// failure to mean something else. The service holds no dependency at all: it
+// takes the executor it writes through, so this file opens the transaction the
+// way a controller does, one per movement.
 //
 // The pool is this file's own and is sized above the concurrency it drives.
 // The application's pool is ten connections wide by design, and borrowing it
@@ -33,6 +34,7 @@ import * as schema from "../src/database/schema/index.js";
 import { roomType, typeInventory } from "../src/database/schema/inventory.js";
 import { seedDatabase } from "../src/database/seed/seed.js";
 import {
+  type InventoryMovement,
   InventoryService,
   type StayInventory,
 } from "../src/modules/inventory/inventory.service.js";
@@ -72,7 +74,7 @@ beforeAll(async () => {
   // a number nobody can predict.
   await seedDatabase(db, { from: SEED_FROM, bookings: 0 });
 
-  inventory = new InventoryService(db);
+  inventory = new InventoryService();
 });
 
 afterAll(async () => {
@@ -90,7 +92,7 @@ describe("the last room of a type", () => {
 
     const outcomes = await Promise.allSettled(
       Array.from({ length: SIMULTANEOUS_GUESTS }, () =>
-        inventory.reserve(stay("DELUXE", NIGHT, NEXT_DAY)),
+        reserve(stay("DELUXE", NIGHT, NEXT_DAY)),
       ),
     );
 
@@ -138,7 +140,7 @@ describe("a stay the property cannot sell in full", () => {
     const before = await countersOn("PREMIER", NIGHTS);
 
     await expect(
-      inventory.reserve(stay("PREMIER", CHECK_IN, CHECK_OUT)),
+      reserve(stay("PREMIER", CHECK_IN, CHECK_OUT)),
     ).rejects.toMatchObject({ code: "CONFLICT", status: 409 });
 
     expect(await countersOn("PREMIER", NIGHTS)).toEqual(before);
@@ -152,7 +154,7 @@ describe("a stay across nights the property has not opened", () => {
     // nights that happen to have rows would sell a stay the property cannot
     // honour the moment those dates are opened.
     await expect(
-      inventory.reserve(stay("DELUXE", "2028-05-30", "2028-06-03")),
+      reserve(stay("DELUXE", "2028-05-30", "2028-06-03")),
     ).rejects.toMatchObject({ code: "CONFLICT", status: 409 });
 
     expect(await counterOn("DELUXE", "2028-05-30")).toEqual({
@@ -168,7 +170,7 @@ describe("a stay that is sold", () => {
   const NIGHTS = [CHECK_IN, "2027-11-03", "2027-11-04"];
 
   it("consumes one room on each of its nights", async () => {
-    const movement = await inventory.reserve(
+    const movement = await reserve(
       stay("DELUXE", CHECK_IN, CHECK_OUT),
     );
 
@@ -187,7 +189,7 @@ describe("a stay that is sold", () => {
   });
 
   it("gives the nights back when it is released", async () => {
-    await inventory.release(stay("DELUXE", CHECK_IN, CHECK_OUT));
+    await release(stay("DELUXE", CHECK_IN, CHECK_OUT));
 
     expect(await countersOn("DELUXE", NIGHTS)).toEqual(
       NIGHTS.map(() => ({ totalRooms: DELUXE_ROOMS, soldRooms: 0 })),
@@ -199,7 +201,7 @@ describe("a stay that is sold", () => {
     // otherwise leave the row reading as availability the property does not
     // have — the same oversell, arriving from the other direction.
     await expect(
-      inventory.release(stay("DELUXE", CHECK_IN, CHECK_OUT)),
+      release(stay("DELUXE", CHECK_IN, CHECK_OUT)),
     ).rejects.toMatchObject({ code: "CONFLICT", status: 409 });
 
     expect(await countersOn("DELUXE", NIGHTS)).toEqual(
@@ -220,7 +222,7 @@ describe("simultaneous multi-night stays", () => {
 
     const outcomes = await Promise.allSettled(
       Array.from({ length: GUESTS }, () =>
-        inventory.reserve(stay("JUNIOR_SUITE", CHECK_IN, CHECK_OUT)),
+        reserve(stay("JUNIOR_SUITE", CHECK_IN, CHECK_OUT)),
       ),
     );
 
@@ -245,13 +247,13 @@ describe("simultaneous multi-night stays", () => {
 describe("requests that are not about inventory at all", () => {
   it("refuses a stay of no nights", async () => {
     await expect(
-      inventory.reserve(stay("DELUXE", "2027-08-01", "2027-08-01")),
+      reserve(stay("DELUXE", "2027-08-01", "2027-08-01")),
     ).rejects.toMatchObject({ code: "BAD_REQUEST", status: 400 });
   });
 
   it("refuses a stay that ends before it begins", async () => {
     await expect(
-      inventory.reserve(stay("DELUXE", "2027-08-05", "2027-08-01")),
+      reserve(stay("DELUXE", "2027-08-05", "2027-08-01")),
     ).rejects.toMatchObject({ code: "BAD_REQUEST", status: 400 });
   });
 
@@ -262,6 +264,21 @@ describe("requests that are not about inventory at all", () => {
   // taken apart and put back. The branch is the same one `closure.service.ts`
   // has for an unknown room number, where a text column makes it testable.
 });
+
+/**
+ * One movement, in its own transaction.
+ *
+ * The boundary belongs to the caller now, and drawing it here is what keeps
+ * fifty simultaneous requests fifty simultaneous *transactions* — which is the
+ * only arrangement in which the row locks under test mean anything.
+ */
+async function reserve(request: StayInventory): Promise<InventoryMovement> {
+  return await db.transaction((exec) => inventory.reserve(exec, request));
+}
+
+async function release(request: StayInventory): Promise<InventoryMovement> {
+  return await db.transaction((exec) => inventory.release(exec, request));
+}
 
 /** The request shape, from the two strings a date is written as. */
 function stay(

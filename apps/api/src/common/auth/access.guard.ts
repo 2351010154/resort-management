@@ -16,11 +16,13 @@
 //   3. Resolve the caller. A bearer token goes to Passport, a cookie to Better
 //      Auth, and a request carrying both is treated as staff — one request, one
 //      realm, never a union of two.
-//   4. Look the caller's grant up in the matrix. `denied` is a 403 whether the
-//      caller is a guest on a staff route, a staff member on a guest route, or
-//      a receptionist reaching for a manager's endpoint. All three are the same
-//      sentence: this identity is not the wrong identity, it is the wrong
-//      authority.
+//   4. Look the caller's grant up in the matrix and compare it to what the
+//      route does with the row. `denied` is a 403 whether the caller is a guest
+//      on a staff route, a staff member on a guest route, or a receptionist
+//      reaching for a manager's endpoint. So is a 👁 grant on a route that
+//      writes — a row is wider than a route, and "may see the rate calendar" is
+//      not "may reprice it". All of them are the same sentence: this identity
+//      is not the wrong identity, it is the wrong authority.
 
 import {
   type CanActivate,
@@ -33,13 +35,15 @@ import { Reflector } from "@nestjs/core";
 import { AuthGuard } from "@nestjs/passport";
 import type { Request } from "express";
 import { isObservable, lastValueFrom } from "rxjs";
-import {
-  capability,
-  type CapabilityKey,
-} from "../../modules/identity/rbac/matrix.js";
+import { capability } from "../../modules/identity/rbac/matrix.js";
+import { permits } from "../../modules/identity/rbac/roles.js";
 import { GuestAuthService } from "../../modules/auth/guest/guest-auth.service.js";
 import { STAFF_JWT_STRATEGY } from "../../modules/auth/staff/staff-jwt.strategy.js";
-import { CAPABILITY_KEY, UNGUARDED_KEY } from "./access.decorators.js";
+import {
+  CAPABILITY_KEY,
+  type CapabilityRequirement,
+  UNGUARDED_KEY,
+} from "./access.decorators.js";
 import {
   ACCESS_DECISION,
   type Principal,
@@ -77,17 +81,17 @@ export class AccessGuard implements CanActivate {
       return true;
     }
 
-    const key = this.reflector.getAllAndOverride<CapabilityKey | undefined>(
-      CAPABILITY_KEY,
-      targets,
-    );
+    const required = this.reflector.getAllAndOverride<
+      CapabilityRequirement | undefined
+    >(CAPABILITY_KEY, targets);
 
-    if (!key) {
+    if (!required) {
       throw new ForbiddenException(
         "This route declares no capability, so nobody may reach it",
       );
     }
 
+    const key = required.key;
     const row = capability(key);
     const request = context.switchToHttp().getRequest<
       Request & RequestWithAccess
@@ -117,8 +121,16 @@ export class AccessGuard implements CanActivate {
 
     const grant = grantFor(row, principal);
 
-    if (grant === "denied") {
-      throw new ForbiddenException(`Not permitted: ${row.row}`);
+    if (!permits(grant, required.action)) {
+      // Two refusals, one status, and the sentence says which. A caller told
+      // only "not permitted" on a row their screen lists cannot tell an
+      // authority they will never have from one they hold at a lower level —
+      // and the second is the one worth escalating to a manager.
+      throw new ForbiddenException(
+        grant === "read"
+          ? `Read-only on: ${row.row}`
+          : `Not permitted: ${row.row}`,
+      );
     }
 
     request[ACCESS_DECISION] = { principal, capabilityKey: key, grant };
