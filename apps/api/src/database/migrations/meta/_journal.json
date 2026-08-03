@@ -43,6 +43,13 @@
       "when": 1785734332263,
       "tag": "0005_property_tariff",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1785747119317,
+      "tag": "0006_booking_core",
+      "breakpoints": true
     }
   ]
 }

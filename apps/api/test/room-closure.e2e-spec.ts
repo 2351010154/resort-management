@@ -21,6 +21,7 @@ import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AppModule } from "../src/app.module.js";
 import { type Database, DRIZZLE } from "../src/database/database.module.js";
+import { booking } from "../src/database/schema/booking.js";
 import {
   room,
   roomAssignment,
@@ -320,24 +321,43 @@ describe("closing a room", () => {
     // A guest's booking reaching this endpoint would release their room and
     // credit the property with inventory it has already sold. The predicate
     // that refuses it is `closure_reason is not null`, in the delete itself.
-    const [booking] = await db
+    const [room205] = await db
+      .select({ id: room.id, roomTypeId: room.roomTypeId })
+      .from(room)
+      .where(eq(room.number, "205"))
+      .limit(1);
+
+    // A real booking row and not an invented id: `room_assignment.booking_id`
+    // carries a foreign key since M4, and a hold naming a stay nobody took is
+    // exactly what it refuses.
+    const [sold] = await db
+      .insert(booking)
+      .values({
+        reference: "MRV-20270610-9001",
+        state: "CONFIRMED",
+        roomTypeId: room205!.roomTypeId,
+        checkInDate: CHECK_IN,
+        checkOutDate: CHECK_OUT,
+        ratePlanCode: "STANDARD",
+        adults: 2,
+        quotedStayTotalGross: 3_000_000n,
+        quotedPercentAdjustment: 0,
+        quotedExtraPersonPerNightGross: 600_000n,
+      })
+      .returning({ id: booking.id });
+
+    const [held] = await db
       .insert(roomAssignment)
       .values({
-        roomId: (
-          await db
-            .select({ id: room.id })
-            .from(room)
-            .where(eq(room.number, "205"))
-            .limit(1)
-        )[0]!.id,
-        bookingId: crypto.randomUUID(),
+        roomId: room205!.id,
+        bookingId: sold!.id,
         checkInDate: CHECK_IN,
         checkOutDate: CHECK_OUT,
       })
       .returning({ id: roomAssignment.id });
 
     await http()
-      .delete(`/inventory/room-closures/${booking!.id}`)
+      .delete(`/inventory/room-closures/${held!.id}`)
       .set("Authorization", `Bearer ${managerToken}`)
       .expect(404);
   });

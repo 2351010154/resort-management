@@ -234,9 +234,19 @@ export const roomAssignment = pgTable(
     // for a leaking pipe are the same fact to the exclusion constraint: neither
     // can be given to anybody else.
     //
-    // No foreign key, because there is no booking table to point at yet, and a
-    // reference to a table nobody has written is a migration that cannot apply.
-    // The key is added when there is something for it to reference.
+    // The key waited for a booking table to point at and now has one — but the
+    // reference is written by hand into `0006_booking_core.sql` rather than
+    // declared here, and the reason is the import graph. `booking.ts` reads the
+    // room type it is sold against and the rate plan it is priced on, so a
+    // reference in this direction would close a cycle through three modules,
+    // and the enum `booking.ts` calls at load time would then be undefined
+    // depending on which file a test imported first.
+    //
+    // The constraint itself is `ON DELETE no action`: a booking cannot be
+    // deleted out from under the room it is occupying, and an assignment cannot
+    // name a booking nobody took. `booking-storage.e2e-spec.ts` proves both
+    // against a real database, and `inventory.spec.ts` proves the line survived
+    // a regeneration — the same pair that guards the exclusion constraint below.
     bookingId: uuid("booking_id"),
     checkInDate: date("check_in_date", { mode: "string" }).notNull(),
     checkOutDate: date("check_out_date", { mode: "string" }).notNull(),
@@ -249,6 +259,10 @@ export const roomAssignment = pgTable(
     // exclusion constraint's own GiST index also leads with the room, but a
     // plain equality lookup is what a btree is for.
     index("room_assignment_room_id_idx").on(table.roomId),
+    // The other direction, and the one check-in, a room move and a release all
+    // start from: every room held for this booking. The foreign key above buys
+    // no index of its own — Postgres indexes the referenced side, not this one.
+    index("room_assignment_booking_id_idx").on(table.bookingId),
     // A stay of no nights is the one row the exclusion constraint cannot
     // refuse: `daterange('2026-08-05', '2026-08-05', '[)')` is empty, and an
     // empty range overlaps nothing at all. Such a row would sit in the table
