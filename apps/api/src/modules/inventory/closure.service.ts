@@ -25,10 +25,10 @@
 // only version that is true under concurrency.
 
 import type { StayDate } from "@mariva/shared";
-import { Inject, Injectable } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { ORPCError } from "@orpc/nest";
 import { and, eq, gte, isNotNull, lt, sql } from "drizzle-orm";
-import { type Database, DRIZZLE } from "../../database/database.module.js";
+import type { DbExecutor } from "../../database/database.module.js";
 import {
   room,
   roomAssignment,
@@ -51,73 +51,79 @@ export interface RoomClosure {
 
 @Injectable()
 export class ClosureService {
-  constructor(@Inject(DRIZZLE) private readonly db: Database) {}
-
-  async close(input: {
-    roomNumber: string;
-    checkIn: StayDate;
-    checkOut: StayDate;
-    reason: string;
-  }): Promise<RoomClosure> {
+  /**
+   * Withdraws a room from sale across a range.
+   *
+   * The executor is the caller's, and required — `database.module.ts` says why
+   * a write may not open its own. Both halves of a closure still happen or
+   * neither does; what changed is who draws the boundary around them.
+   */
+  async close(
+    exec: DbExecutor,
+    input: {
+      roomNumber: string;
+      checkIn: StayDate;
+      checkOut: StayDate;
+      reason: string;
+    },
+  ): Promise<RoomClosure> {
     const checkIn = input.checkIn.toString();
     const checkOut = input.checkOut.toString();
 
     try {
-      return await this.db.transaction(async (tx) => {
-        const [held] = await tx
-          .select({ id: room.id, roomTypeId: room.roomTypeId })
-          .from(room)
-          .where(eq(room.number, input.roomNumber))
-          .limit(1);
+      const [held] = await exec
+        .select({ id: room.id, roomTypeId: room.roomTypeId })
+        .from(room)
+        .where(eq(room.number, input.roomNumber))
+        .limit(1);
 
-        if (!held) {
-          throw new ORPCError("NOT_FOUND", {
-            message: `No room numbered ${input.roomNumber}`,
-          });
-        }
+      if (!held) {
+        throw new ORPCError("NOT_FOUND", {
+          message: `No room numbered ${input.roomNumber}`,
+        });
+      }
 
-        const [closure] = await tx
-          .insert(roomAssignment)
-          .values({
-            roomId: held.id,
-            checkInDate: checkIn,
-            checkOutDate: checkOut,
-            closureReason: input.reason,
-          })
-          .returning({ id: roomAssignment.id });
+      const [closure] = await exec
+        .insert(roomAssignment)
+        .values({
+          roomId: held.id,
+          checkInDate: checkIn,
+          checkOutDate: checkOut,
+          closureReason: input.reason,
+        })
+        .returning({ id: roomAssignment.id });
 
-        const withdrawn = await tx
-          .update(typeInventory)
-          .set({ totalRooms: sql`${typeInventory.totalRooms} - 1` })
-          .where(
-            and(
-              eq(typeInventory.roomTypeId, held.roomTypeId),
-              gte(typeInventory.stayDate, checkIn),
-              lt(typeInventory.stayDate, checkOut),
-            ),
-          )
-          .returning({ id: typeInventory.id });
+      const withdrawn = await exec
+        .update(typeInventory)
+        .set({ totalRooms: sql`${typeInventory.totalRooms} - 1` })
+        .where(
+          and(
+            eq(typeInventory.roomTypeId, held.roomTypeId),
+            gte(typeInventory.stayDate, checkIn),
+            lt(typeInventory.stayDate, checkOut),
+          ),
+        )
+        .returning({ id: typeInventory.id });
 
-        // Every night of the range must have had a row to decrement. A night
-        // the property never opened for sale has no counter, and silently
-        // holding the room across it would leave the two layers disagreeing
-        // the moment that date is opened — the room held, the counter full.
-        if (withdrawn.length !== nightsBetween(input.checkIn, input.checkOut)) {
-          throw new ORPCError("CONFLICT", {
-            message:
-              "The range includes nights that are not open for sale — open the calendar for them first",
-          });
-        }
+      // Every night of the range must have had a row to decrement. A night
+      // the property never opened for sale has no counter, and silently
+      // holding the room across it would leave the two layers disagreeing
+      // the moment that date is opened — the room held, the counter full.
+      if (withdrawn.length !== nightsBetween(input.checkIn, input.checkOut)) {
+        throw new ORPCError("CONFLICT", {
+          message:
+            "The range includes nights that are not open for sale — open the calendar for them first",
+        });
+      }
 
-        return {
-          id: closure!.id,
-          roomNumber: input.roomNumber,
-          checkIn: input.checkIn,
-          checkOut: input.checkOut,
-          reason: input.reason,
-          nightsWithdrawn: withdrawn.length,
-        };
-      });
+      return {
+        id: closure!.id,
+        roomNumber: input.roomNumber,
+        checkIn: input.checkIn,
+        checkOut: input.checkOut,
+        reason: input.reason,
+        nightsWithdrawn: withdrawn.length,
+      };
     } catch (error) {
       throw this.asRefusal(error, input.roomNumber);
     }
@@ -132,51 +138,52 @@ export class ClosureService {
    * inventory it has already sold, which is the same oversell from the other
    * direction.
    */
-  async reopen(closureId: string): Promise<{
+  async reopen(
+    exec: DbExecutor,
+    closureId: string,
+  ): Promise<{
     id: string;
     nightsRestored: number;
   }> {
-    return await this.db.transaction(async (tx) => {
-      const [released] = await tx
-        .delete(roomAssignment)
-        .where(
-          and(
-            eq(roomAssignment.id, closureId),
-            isNotNull(roomAssignment.closureReason),
-          ),
-        )
-        .returning({
-          roomId: roomAssignment.roomId,
-          checkInDate: roomAssignment.checkInDate,
-          checkOutDate: roomAssignment.checkOutDate,
-        });
+    const [released] = await exec
+      .delete(roomAssignment)
+      .where(
+        and(
+          eq(roomAssignment.id, closureId),
+          isNotNull(roomAssignment.closureReason),
+        ),
+      )
+      .returning({
+        roomId: roomAssignment.roomId,
+        checkInDate: roomAssignment.checkInDate,
+        checkOutDate: roomAssignment.checkOutDate,
+      });
 
-      if (!released) {
-        throw new ORPCError("NOT_FOUND", {
-          message: "No closure with that id — a booking is not a closure",
-        });
-      }
+    if (!released) {
+      throw new ORPCError("NOT_FOUND", {
+        message: "No closure with that id — a booking is not a closure",
+      });
+    }
 
-      const [held] = await tx
-        .select({ roomTypeId: room.roomTypeId })
-        .from(room)
-        .where(eq(room.id, released.roomId))
-        .limit(1);
+    const [held] = await exec
+      .select({ roomTypeId: room.roomTypeId })
+      .from(room)
+      .where(eq(room.id, released.roomId))
+      .limit(1);
 
-      const restored = await tx
-        .update(typeInventory)
-        .set({ totalRooms: sql`${typeInventory.totalRooms} + 1` })
-        .where(
-          and(
-            eq(typeInventory.roomTypeId, held!.roomTypeId),
-            gte(typeInventory.stayDate, released.checkInDate),
-            lt(typeInventory.stayDate, released.checkOutDate),
-          ),
-        )
-        .returning({ id: typeInventory.id });
+    const restored = await exec
+      .update(typeInventory)
+      .set({ totalRooms: sql`${typeInventory.totalRooms} + 1` })
+      .where(
+        and(
+          eq(typeInventory.roomTypeId, held!.roomTypeId),
+          gte(typeInventory.stayDate, released.checkInDate),
+          lt(typeInventory.stayDate, released.checkOutDate),
+        ),
+      )
+      .returning({ id: typeInventory.id });
 
-      return { id: closureId, nightsRestored: restored.length };
-    });
+    return { id: closureId, nightsRestored: restored.length };
   }
 
   /**
