@@ -45,8 +45,37 @@ import {
 import { Inject, Injectable } from "@nestjs/common";
 import { type CalendarDate, parseDate } from "@internationalized/date";
 import { eq, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import { type Database, DRIZZLE } from "../../database/database.module.js";
-import { ratePlan } from "../../database/schema/pricing.js";
+import {
+  roomType,
+  typeInventory,
+} from "../../database/schema/inventory.js";
+import {
+  rateCalendar,
+  ratePlan,
+  stayRestriction,
+} from "../../database/schema/pricing.js";
+
+// The aggregates below are hand-written SQL, and their identifiers still come
+// from the schema objects.
+//
+// Two of these tables belong to `pricing`, and a column renamed there would
+// otherwise typecheck here and fail at runtime against a route a stranger can
+// call. Interpolating the objects makes the rename a build error in this file:
+// `alias()` renders as `"rate_calendar" "rc"` in the join and `"rc"."gross_per_night"`
+// everywhere the column is read, so the alias and the column it qualifies have
+// one source. The statement is otherwise unchanged — same joins, same grouping,
+// same plan.
+const rt = alias(roomType, "rt");
+const ti = alias(typeInventory, "ti");
+const rc = alias(rateCalendar, "rc");
+const sr = alias(stayRestriction, "sr");
+// The arrival night and the departure date are two reads of one table, so they
+// need two aliases — a minimum stay governs where a stay may begin, and
+// closed-to-departure where it may end.
+const arrival = alias(stayRestriction, "arrival");
+const departure = alias(stayRestriction, "departure");
 
 /**
  * A row shape Drizzle's `execute` will accept.
@@ -109,6 +138,8 @@ export class AvailabilityService {
   }): Promise<StayOffer> {
     const nights = nightCount({ checkIn: query.checkIn, checkOut: query.checkOut });
     const pricing = await this.planPricing(query.plan);
+    const checkIn = query.checkIn.toString();
+    const checkOut = query.checkOut.toString();
 
     // One statement rather than a query per type. The restriction joins read the
     // arrival night and the departure date only: a minimum stay and a
@@ -117,27 +148,27 @@ export class AvailabilityService {
     // rule a stay running across them can break.
     const { rows } = await this.db.execute<Row<TypeAggregate>>(sql`
       select
-        rt.code,
-        rt.max_occupancy,
-        min(ti.total_rooms - ti.sold_rooms) as fewest_free,
-        sum(rc.gross_per_night) as standard_total,
+        ${rt.code},
+        ${rt.maxOccupancy},
+        min(${ti.totalRooms} - ${ti.soldRooms}) as fewest_free,
+        sum(${rc.grossPerNight}) as standard_total,
         count(*) as nights_priced,
-        coalesce(bool_or(arrival.closed_to_arrival), false) as closed_to_arrival,
-        coalesce(bool_or(departure.closed_to_departure), false) as closed_to_departure,
-        coalesce(max(arrival.minimum_stay), 1) as minimum_stay,
-        max(arrival.maximum_stay) as maximum_stay
-      from room_type rt
-      join type_inventory ti on ti.room_type_id = rt.id
-      join rate_calendar rc
-        on rc.room_type_id = rt.id and rc.stay_date = ti.stay_date
-      left join stay_restriction arrival
-        on arrival.room_type_id = rt.id and arrival.stay_date = ${query.checkIn.toString()}
-      left join stay_restriction departure
-        on departure.room_type_id = rt.id and departure.stay_date = ${query.checkOut.toString()}
-      where ti.stay_date >= ${query.checkIn.toString()}
-        and ti.stay_date < ${query.checkOut.toString()}
-      group by rt.id, rt.code, rt.max_occupancy, rt.display_order
-      order by rt.display_order
+        coalesce(bool_or(${arrival.closedToArrival}), false) as closed_to_arrival,
+        coalesce(bool_or(${departure.closedToDeparture}), false) as closed_to_departure,
+        coalesce(max(${arrival.minimumStay}), 1) as minimum_stay,
+        max(${arrival.maximumStay}) as maximum_stay
+      from ${roomType} ${rt}
+      join ${typeInventory} ${ti} on ${ti.roomTypeId} = ${rt.id}
+      join ${rateCalendar} ${rc}
+        on ${rc.roomTypeId} = ${rt.id} and ${rc.stayDate} = ${ti.stayDate}
+      left join ${stayRestriction} ${arrival}
+        on ${arrival.roomTypeId} = ${rt.id} and ${arrival.stayDate} = ${checkIn}
+      left join ${stayRestriction} ${departure}
+        on ${departure.roomTypeId} = ${rt.id} and ${departure.stayDate} = ${checkOut}
+      where ${ti.stayDate} >= ${checkIn}
+        and ${ti.stayDate} < ${checkOut}
+      group by ${rt.id}, ${rt.code}, ${rt.maxOccupancy}, ${rt.displayOrder}
+      order by ${rt.displayOrder}
     `);
 
     const offers = rows
@@ -190,25 +221,25 @@ export class AvailabilityService {
 
     const { rows } = await this.db.execute<Row<NightAggregate>>(sql`
       select
-        ti.stay_date,
-        min(rc.gross_per_night) filter (where ti.total_rooms > ti.sold_rooms)
+        ${ti.stayDate},
+        min(${rc.grossPerNight}) filter (where ${ti.totalRooms} > ${ti.soldRooms})
           as lowest_gross,
-        count(*) filter (where ti.total_rooms > ti.sold_rooms) as free_types,
+        count(*) filter (where ${ti.totalRooms} > ${ti.soldRooms}) as free_types,
         count(*) filter (
-          where ti.total_rooms > ti.sold_rooms
-            and coalesce(sr.closed_to_arrival, false) = false
+          where ${ti.totalRooms} > ${ti.soldRooms}
+            and coalesce(${sr.closedToArrival}, false) = false
         ) as arrivable_types,
-        min(coalesce(sr.minimum_stay, 1)) filter (
-          where ti.total_rooms > ti.sold_rooms
-            and coalesce(sr.closed_to_arrival, false) = false
+        min(coalesce(${sr.minimumStay}, 1)) filter (
+          where ${ti.totalRooms} > ${ti.soldRooms}
+            and coalesce(${sr.closedToArrival}, false) = false
         ) as minimum_stay
-      from type_inventory ti
-      join rate_calendar rc
-        on rc.room_type_id = ti.room_type_id and rc.stay_date = ti.stay_date
-      left join stay_restriction sr
-        on sr.room_type_id = ti.room_type_id and sr.stay_date = ti.stay_date
-      where ti.stay_date >= ${first.firstDay} and ti.stay_date <= ${first.lastDay}
-      group by ti.stay_date
+      from ${typeInventory} ${ti}
+      join ${rateCalendar} ${rc}
+        on ${rc.roomTypeId} = ${ti.roomTypeId} and ${rc.stayDate} = ${ti.stayDate}
+      left join ${stayRestriction} ${sr}
+        on ${sr.roomTypeId} = ${ti.roomTypeId} and ${sr.stayDate} = ${ti.stayDate}
+      where ${ti.stayDate} >= ${first.firstDay} and ${ti.stayDate} <= ${first.lastDay}
+      group by ${ti.stayDate}
     `);
 
     const byDate = new Map(rows.map((row) => [row.stay_date, row]));
