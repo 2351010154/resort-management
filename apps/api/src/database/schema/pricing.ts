@@ -20,9 +20,16 @@
 // literals in a service they would be values a deploy changes, which is not
 // what the matrix says.
 //
+// Promotions (`FR-PRC-03`) are a rate modifier stacking on top of a plan, and
+// they are declared at the foot of this file. They are property-wide: no column
+// narrows one to a plan or a type, because nothing in the requirements asks for
+// a narrower one and §7's loyalty discount — the only consumer any document
+// names — applies to whatever the guest booked. Scoping is a migration on the
+// day a campaign needs it, and a nullable column nothing reads is worse than
+// its absence, because a reader cannot tell an unset scope from an unbuilt one.
+//
 // What is deliberately NOT here, because M3 does not price it:
 //
-// - **Promotions** (`FR-PRC-03`). A rate modifier stacking on top of a plan.
 // - **The extra-person ladder** (`FR-PRC-04`). §9 records that the owner has
 //   not decided when an extra bed is mandatory or whether its charge stacks
 //   with the extra-person one, and states that no pricing path may infer the
@@ -30,7 +37,7 @@
 // - **Season names.** They label rows in this table; until something renders a
 //   label there is nothing for the column to be read by.
 
-import { RATE_PLAN_CODES } from "@mariva/shared";
+import { LOYALTY_TIERS, PROMOTION_TYPES, RATE_PLAN_CODES } from "@mariva/shared";
 import { sql } from "drizzle-orm";
 import {
   bigint,
@@ -197,6 +204,99 @@ export const stayRestriction = pgTable(
   ],
 );
 
+/**
+ * Percentage or fixed đồng, from the same tuple the wire schema is built from.
+ */
+export const promotionTypeEnum = pgEnum("promotion_type", PROMOTION_TYPES);
+
+/**
+ * The two tiers §7 attaches a discount to.
+ *
+ * A Postgres type for a concept M3 cannot yet compute is deliberate: the tier a
+ * guest holds is `FR-GST-04`'s to derive, but the tier a promotion *requires*
+ * is a property decision §7 has already made, and storing it as text would let
+ * a later milestone match `'Gold'` against `'GOLD'` and find nothing.
+ */
+export const loyaltyTierEnum = pgEnum("loyalty_tier", LOYALTY_TIERS);
+
+/**
+ * A discount that modifies what a plan quotes — `FR-PRC-03`.
+ *
+ * Rows rather than code, for the reason `rate_plan` is rows: §7 sets the
+ * loyalty discounts at 5% and 10% and marks both ⚑ proposed, which makes them
+ * values somebody tunes rather than values a deploy changes.
+ *
+ * **A promotion only ever reduces.** The `CHECK` below refuses a positive
+ * value, so the sign is the same one `rate_plan.percent_adjustment` uses —
+ * negative moves the price down. A modifier that raised a price would be a
+ * surcharge, and a surcharge that arrived through the promotions path would
+ * quote a guest more than the calendar they were shown.
+ *
+ * `value` carries both forms because they are never both set: a `PERCENTAGE`
+ * row holds whole points and a `FIXED_AMOUNT` row holds whole đồng, and the
+ * constraint bounds each against its own scale. Two nullable columns would let
+ * a row set neither, which is a promotion that does nothing.
+ *
+ * Validity is a window and not a flag, so a campaign that ended stops applying
+ * without anybody remembering to switch it off. `isActive` is the separate
+ * question of whether a promotion inside its window should be offered at all —
+ * pulling a live campaign is one column, and deleting the row would take the
+ * history of what a past stay was quoted under with it.
+ */
+export const promotion = pgTable(
+  "promotion",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    // A human-typed handle — `LOYALTY_SILVER`, `EARLY_BIRD`. Not an enum: the
+    // three rate plans are a closed set the property argues about, promotions
+    // are a set it adds to, and a campaign should not need a migration.
+    code: text("code").notNull().unique(),
+    name: text("name").notNull(),
+    description: text("description"),
+    type: promotionTypeEnum("type").notNull(),
+    // Whole points when the type is PERCENTAGE, whole đồng when it is
+    // FIXED_AMOUNT. `bigint` because the đồng form shares the column and a
+    // fixed discount is priced on the same scale as the room rate.
+    value: bigint("value", { mode: "bigint" }).notNull(),
+    // Null at either end is an open-ended window — a loyalty discount has no
+    // start date and no end date, which is exactly what §7 describes.
+    validFrom: date("valid_from", { mode: "string" }),
+    validTo: date("valid_to", { mode: "string" }),
+    // "Stay 3 nights and save". Null is no length condition.
+    minNights: smallint("min_nights"),
+    // Null is open to everyone. Set, it is §7's Silver or Gold gate, and the
+    // milestone that derives a guest's tier is the one that reads it.
+    requiresLoyaltyTier: loyaltyTierEnum("requires_loyalty_tier"),
+    isActive: boolean("is_active").notNull().default(true),
+  },
+  (table) => [
+    // Each form bounded on its own scale, in one constraint because the bound
+    // that applies depends on the type. −100% is excluded along with 0: a night
+    // discounted to nothing is a comp, and `rate_calendar` already argues that
+    // a comp is a folio adjustment rather than a price.
+    check(
+      "promotion_value_reduces_within_its_scale",
+      sql`(${table.type} = 'PERCENTAGE' and ${table.value} between -99 and -1)
+        or (${table.type} = 'FIXED_AMOUNT' and ${table.value} < 0)`,
+    ),
+    // A window that closes before it opens applies on no date at all, which
+    // reads in a report as a campaign nobody took up.
+    check(
+      "promotion_window_opens_before_it_closes",
+      sql`${table.validFrom} is null or ${table.validTo} is null
+        or ${table.validTo} >= ${table.validFrom}`,
+    ),
+    // A minimum of zero nights is not a condition, and a negative one is a
+    // typo. Either would make the promotion apply to every stay while looking
+    // like it restricts one.
+    check(
+      "promotion_minimum_at_least_one_night",
+      sql`${table.minNights} is null or ${table.minNights} >= 1`,
+    ),
+  ],
+);
+
 export type RatePlanRow = typeof ratePlan.$inferSelect;
 export type RateCalendarRow = typeof rateCalendar.$inferSelect;
 export type StayRestrictionRow = typeof stayRestriction.$inferSelect;
+export type PromotionRow = typeof promotion.$inferSelect;
