@@ -36,7 +36,11 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { AppModule } from "../src/app.module.js";
 import { type Database, DRIZZLE } from "../src/database/database.module.js";
 import { roomType } from "../src/database/schema/inventory.js";
-import { rateCalendar, stayRestriction } from "../src/database/schema/pricing.js";
+import {
+  rateCalendar,
+  ratePlan,
+  stayRestriction,
+} from "../src/database/schema/pricing.js";
 import { seedDatabase } from "../src/database/seed/seed.js";
 import { StaffUserService } from "../src/modules/identity/staff-user.service.js";
 
@@ -244,6 +248,47 @@ describe("the rate plans", () => {
 
     expect(BigInt(response.body.breakfastPerPersonGross)).toBe(250_000n);
     expect(response.body.percentAdjustment).toBe(0);
+  });
+
+  it("answer a PATCH that names nothing with the plan as it stands", async () => {
+    // Not an error, and not an UPDATE either: Drizzle refuses an empty `set`,
+    // and a statement that writes nothing has no business taking a row lock.
+    const response = await as(manager)
+      .patch("/pricing/rate-plans/NONREF")
+      .send({})
+      .expect(200);
+
+    expect(response.body.code).toBe("NONREF");
+    expect(response.body.percentAdjustment).toBe(-10);
+  });
+
+  it("refuse to edit a plan the property has not laid down", async () => {
+    // The enum keeps an invented code off the wire, so the only way to reach
+    // this is a database migrated and never seeded — which is exactly when a
+    // silent zero-row write would be the worst answer.
+    await db.execute(sql`delete from ${ratePlan} where ${ratePlan.code} = 'NONREF'`);
+
+    try {
+      await as(manager)
+        .patch("/pricing/rate-plans/NONREF")
+        .send({ name: "Non-refundable" })
+        .expect(404);
+
+      // The same answer when the PATCH names no field: a plan that is not
+      // there cannot be read back either.
+      await as(manager)
+        .patch("/pricing/rate-plans/NONREF")
+        .send({})
+        .expect(404);
+    } finally {
+      await db.insert(ratePlan).values({
+        code: "NONREF",
+        name: "Non-refundable",
+        percentAdjustment: -10,
+        breakfastPerPersonGross: null,
+        displayOrder: 3,
+      });
+    }
   });
 
   it("tell an omitted breakfast from a cleared one", async () => {

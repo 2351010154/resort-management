@@ -49,5 +49,60 @@ export default defineConfig({
     // would truncate each other's fixtures mid-assertion — the isolation a
     // single shared Postgres cannot provide is bought here instead.
     fileParallelism: false,
+
+    // `NFR-10`: ≥85% on the modules that move money. UI coverage is
+    // deliberately untargeted, and so is everything else here — a number over
+    // the whole tree would be met by testing the easy half of it.
+    //
+    // On by default rather than behind its own script, because a threshold
+    // only holds a branch if the run that gates the branch measures it. The
+    // cost is a few seconds of instrumentation on a suite that already waits
+    // on Postgres.
+    coverage: {
+      // On for a plain `vitest run`, not only for `--coverage`. A threshold
+      // measured by a command CI does not run is a threshold nothing holds.
+      enabled: true,
+      provider: "v8",
+      reporter: ["text-summary", "json-summary"],
+
+      // Named rather than inferred from what the tests happened to load. A
+      // file nothing imports is 0% covered, and leaving it out of the
+      // denominator would let an untested service raise the average by being
+      // invisible.
+      include: [
+        "src/modules/inventory/**/*.ts",
+        "src/modules/pricing/**/*.ts",
+        "src/database/schema/inventory.ts",
+        "src/database/schema/pricing.ts",
+      ],
+
+      // Per directory rather than one number across all four globs. The point
+      // of `NFR-10` is that each of these holds its own line — a pooled figure
+      // lets a well-tested inventory module carry an untested pricing one.
+      //
+      // `folio` joins this list at `M6`. Its directory holds no code today,
+      // and a threshold over nothing passes vacuously while looking like a
+      // guarantee.
+      thresholds: {
+        "src/modules/inventory/**": {
+          lines: 85,
+          functions: 85,
+          branches: 85,
+          statements: 85,
+        },
+        "src/modules/pricing/**": {
+          lines: 85,
+          functions: 85,
+          branches: 85,
+          statements: 85,
+        },
+        "src/database/schema/{inventory,pricing}.ts": {
+          lines: 85,
+          functions: 85,
+          branches: 85,
+          statements: 85,
+        },
+      },
+    },
   },
 });

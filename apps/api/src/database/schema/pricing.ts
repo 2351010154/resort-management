@@ -28,12 +28,18 @@
 // day a campaign needs it, and a nullable column nothing reads is worse than
 // its absence, because a reader cannot tell an unset scope from an unbuilt one.
 //
+// The extra-person rate (`FR-PRC-04`) is at the foot of this file, and what it
+// is *not* is the point. §3's age bands are decided, so the rate they are
+// percentages of is a value the property tunes and therefore a row. §9's extra
+// *bed* is not decided — the owner still has to say when one is mandatory and
+// whether its charge stacks with or replaces the extra-person one — so there is
+// no extra-bed column here and no pricing path that could infer one from bed
+// capacity. The two questions read alike and only one of them has an answer.
+//
 // What is deliberately NOT here, because M3 does not price it:
 //
-// - **The extra-person ladder** (`FR-PRC-04`). §9 records that the owner has
-//   not decided when an extra bed is mandatory or whether its charge stacks
-//   with the extra-person one, and states that no pricing path may infer the
-//   rule from bed capacity. A column here would be that inference.
+// - **The extra-bed charge.** §6 makes it a service-catalog item and §9 leaves
+//   when it is charged unanswered. A column here would be that inference.
 // - **Season names.** They label rows in this table; until something renders a
 //   label there is nothing for the column to be read by.
 
@@ -296,7 +302,57 @@ export const promotion = pgTable(
   ],
 );
 
+/**
+ * The tariff figures that belong to the property rather than to a plan, a type
+ * or a date — `FR-PRC-04`.
+ *
+ * One row, and Postgres is what holds it to one: the primary key is a boolean
+ * a `CHECK` pins to `true`, so a second row collides with the first. A table
+ * that quietly grew a second row would make "the extra-person rate" a question
+ * about which row a query read first, and unlike `rate_calendar` there is no
+ * date or type to tell them apart.
+ *
+ * A table rather than a constant in the tree, for the reason `rate_plan` is a
+ * table: §9 files the extra-person rate as data the property has not settled
+ * (⚑ 600,000 ₫ proposed), and the RBAC matrix already gives a manager the
+ * config it is one of. Written as a literal in a service it would be a value a
+ * deploy changes, and retuning a price is not a release.
+ *
+ * A table rather than a column on `rate_plan`, because the charge does not vary
+ * by plan. Repeating one figure across three rows would have the schema claim
+ * the property prices a third head differently under `BB` — the same mistake §1
+ * avoided by stating included occupancy once instead of per type.
+ *
+ * It holds one column today and that is not an argument against it. The
+ * extra-bed price joins it the day the owner answers §9, and it is the row
+ * that will already be there rather than a migration written under time
+ * pressure at the point of sale.
+ */
+export const propertyTariff = pgTable(
+  "property_tariff",
+  {
+    // Not a uuid, deliberately — a surrogate key would let a second row exist
+    // and only a unique index on nothing could then stop it.
+    isTheProperty: boolean("is_the_property").primaryKey().default(true),
+    // ⚑ §3, proposed. Gross per night per head, and the figure the age bands
+    // are percentages *of* — without it none of them resolve to a number.
+    extraPersonPerNightGross: bigint("extra_person_per_night_gross", {
+      mode: "bigint",
+    }).notNull(),
+  },
+  (table) => [
+    check("property_tariff_holds_exactly_one_row", sql`${table.isTheProperty}`),
+    // Zero is not "the third head is free" — §3 already has a free band, and it
+    // is decided by age. A zero here would silently apply it to everyone.
+    check(
+      "property_tariff_extra_person_positive",
+      sql`${table.extraPersonPerNightGross} > 0`,
+    ),
+  ],
+);
+
 export type RatePlanRow = typeof ratePlan.$inferSelect;
+export type PropertyTariffRow = typeof propertyTariff.$inferSelect;
 export type RateCalendarRow = typeof rateCalendar.$inferSelect;
 export type StayRestrictionRow = typeof stayRestriction.$inferSelect;
 export type PromotionRow = typeof promotion.$inferSelect;

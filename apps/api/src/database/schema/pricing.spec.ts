@@ -12,8 +12,16 @@
 import { LOYALTY_TIERS, PROMOTION_TYPES } from "@mariva/shared";
 import { loyaltyTierSchema, promotionTypeSchema } from "@mariva/shared";
 import type { LoyaltyTier, PromotionType } from "@mariva/shared";
+import { getTableConfig } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
-import { loyaltyTierEnum, promotion, promotionTypeEnum } from "./pricing.js";
+import {
+  loyaltyTierEnum,
+  promotion,
+  promotionTypeEnum,
+  propertyTariff,
+  rateCalendar,
+  stayRestriction,
+} from "./pricing.js";
 
 describe("the promotion type codes", () => {
   it("are the same two in Postgres as on the wire", () => {
@@ -115,3 +123,88 @@ describe("the promotion table", () => {
     expect(columns).not.toContain("roomTypeId");
   });
 });
+
+describe("the property tariff", () => {
+  it("can hold only one row", () => {
+    // The extra-person rate is the property's, and it has no date and no type
+    // to tell two rows apart. A second row would make "the rate" a question
+    // about which one a query read first — so the primary key is a boolean and
+    // a CHECK pins it to `true`, which leaves Postgres nowhere to put a second.
+    const { checks, columns } = getTableConfig(propertyTariff);
+
+    expect(checks.map((check) => check.name)).toContain(
+      "property_tariff_holds_exactly_one_row",
+    );
+    expect(columns.filter((column) => column.primary).map((c) => c.name)).toEqual(
+      ["is_the_property"],
+    );
+  });
+
+  it("prices the extra person in whole đồng and refuses a free one", () => {
+    // §3 already has a free band and it is decided by age. A zero here would
+    // apply it to everybody without saying so.
+    const { checks } = getTableConfig(propertyTariff);
+
+    expect(propertyTariff.extraPersonPerNightGross.getSQLType()).toBe("bigint");
+    expect(propertyTariff.extraPersonPerNightGross.notNull).toBe(true);
+    expect(checks.map((check) => check.name)).toContain(
+      "property_tariff_extra_person_positive",
+    );
+  });
+
+  it("holds no extra-bed column, because nobody has decided when one is charged", () => {
+    // §9 leaves with the owner both when a bed is mandatory and whether its
+    // charge stacks with the extra-person one, and says no pricing path may
+    // infer the rule from bed capacity. A column here would be that inference,
+    // and it would be read long before anybody noticed it had been guessed.
+    const columns = Object.keys(propertyTariff);
+
+    // Asserted first, so the absence below cannot pass by reading an object
+    // that holds no column names at all.
+    expect(columns).toContain("extraPersonPerNightGross");
+    expect(columns).not.toContain("extraBedPerNightGross");
+  });
+});
+
+describe("what the pricing tables hang off", () => {
+  it("point their room type at room_type and nothing else", () => {
+    // A price and a restriction belong to a type, and the type is the
+    // inventory module's. Drizzle resolves the target lazily, so a reference
+    // aimed at the wrong table typechecks and only fails when a migration is
+    // generated against a database somebody has already filled.
+    expect(parentOf(rateCalendar)).toEqual({
+      table: "room_type",
+      from: ["room_type_id"],
+      to: ["id"],
+    });
+    expect(parentOf(stayRestriction)).toEqual({
+      table: "room_type",
+      from: ["room_type_id"],
+      to: ["id"],
+    });
+  });
+
+  it("leave the promotion and the tariff standing on their own", () => {
+    // Both are property-wide. A foreign key on either would be the scoping
+    // `pricing.ts` argues against — see the promotion table above.
+    expect(getTableConfig(promotion).foreignKeys).toHaveLength(0);
+    expect(getTableConfig(propertyTariff).foreignKeys).toHaveLength(0);
+  });
+});
+
+/** The one table a table references, and the columns joining them. */
+function parentOf(table: Parameters<typeof getTableConfig>[0]) {
+  const [foreignKey, ...rest] = getTableConfig(table).foreignKeys;
+
+  // A second key would make the assertion above read only the first and pass
+  // while saying nothing about the other.
+  expect(rest).toHaveLength(0);
+
+  const reference = foreignKey!.reference();
+
+  return {
+    table: getTableConfig(reference.foreignTable).name,
+    from: reference.columns.map((column) => column.name),
+    to: reference.foreignColumns.map((column) => column.name),
+  };
+}
