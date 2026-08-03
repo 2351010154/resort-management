@@ -50,6 +50,7 @@ import {
 import { sql } from "drizzle-orm";
 import type { Database } from "../database.module.js";
 import { booking, bookingNight } from "../schema/booking.js";
+import { registration } from "../schema/guest.js";
 import { guestUser } from "../schema/index.js";
 import {
   room,
@@ -123,10 +124,17 @@ export interface SeedOptions {
  * keeps the second.
  */
 async function wipe(db: Database): Promise<void> {
-  // Assignments first, then the nights, then the bookings they hang off: each
-  // step removes the rows that reference the next one, so no delete here needs
-  // a cascade to get past a key.
+  // Assignments first, then the registrations, then the nights, then the
+  // bookings all three hang off: each step removes the rows that reference the
+  // next one, so no delete here needs a cascade to get past a key.
+  //
+  // Every registration goes, without a filter deciding which. A registration
+  // names a booking and this wipes all of them, so there is no subset that
+  // could outlive the statement below. The guests those rows named are left
+  // where they are: a person is not owned by one stay, and the seed never
+  // wrote them.
   await db.execute(sql`delete from ${roomAssignment}`);
+  await db.execute(sql`delete from ${registration}`);
   await db.execute(sql`delete from ${bookingNight}`);
   await db.execute(sql`delete from ${booking}`);
   await db.execute(sql`delete from ${typeInventory}`);
