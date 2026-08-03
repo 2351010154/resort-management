@@ -47,12 +47,14 @@ import {
   typeInventory,
 } from "../schema/inventory.js";
 import {
+  propertyTariff,
   rateCalendar,
   ratePlan,
   stayRestriction,
 } from "../schema/pricing.js";
 import {
   CALENDAR_MONTHS,
+  EXTRA_PERSON_PER_NIGHT_GROSS,
   RATE_PLANS,
   ROOM_COUNT,
   ROOM_TYPES,
@@ -117,6 +119,7 @@ async function wipe(db: Database): Promise<void> {
   await db.execute(sql`delete from ${room}`);
   await db.execute(sql`delete from ${roomType}`);
   await db.execute(sql`delete from ${ratePlan}`);
+  await db.execute(sql`delete from ${propertyTariff}`);
   await db.execute(
     sql`delete from ${guestUser} where ${guestUser.email} like ${`%@${SEED_EMAIL_DOMAIN}`}`,
   );
@@ -146,6 +149,13 @@ export async function seedDatabase(
 
   const typeIds = await insertRoomTypes(db);
   const rooms = await insertRooms(db, typeIds);
+
+  // One row, and the table's own `CHECK` is what keeps it to one — see
+  // `schema/pricing.ts`. The seed states the figure rather than defaulting it,
+  // because a tariff nobody chose is a tariff nobody can be held to.
+  await db
+    .insert(propertyTariff)
+    .values({ extraPersonPerNightGross: EXTRA_PERSON_PER_NIGHT_GROSS });
 
   await db.insert(ratePlan).values(
     RATE_PLANS.map((plan) => ({

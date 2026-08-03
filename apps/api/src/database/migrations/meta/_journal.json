@@ -36,6 +36,13 @@
       "when": 1785731859768,
       "tag": "0004_promotions",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1785734332263,
+      "tag": "0005_property_tariff",
+      "breakpoints": true
     }
   ]
 }

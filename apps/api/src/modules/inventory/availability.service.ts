@@ -20,21 +20,30 @@
 // `isAvailable: false` beside it, so the funnel can grey a cell and say why
 // rather than hide a room and say nothing.
 //
+// The extra-person ladder (`FR-PRC-04`) is priced here, and it is priced by
+// `@mariva/shared` rather than by this file. §3's bands are the funnel's
+// arithmetic too, and a server that reimplemented them would be a quote and an
+// invoice free to disagree — so the module next to `INCLUDED_OCCUPANCY` owns
+// them and this service supplies the party and the rate.
+//
 // What this does NOT price, and deliberately:
 //
-// - **The extra-person charge** (`FR-PRC-04`). A party above the type's maximum
-//   is refused — §3 makes that a rejection and not a price — but a third head
-//   inside the maximum is quoted at the rate. §9 records that the owner has not
-//   settled whether an extra bed is mandatory or whether its charge stacks, and
-//   states that no pricing path may infer the rule from bed capacity.
-// - **`extraBedPerNightGross`**, for the same reason. §6 makes the extra bed a
-//   service-catalog item, and §9 leaves when it is charged unanswered. The
-//   field is nullable precisely so an offer can be quoted without asserting it.
+// - **`extraBedPerNightGross`**. §6 makes the extra bed a service-catalog item,
+//   and §9 leaves with the owner both when one is mandatory and whether its
+//   charge stacks with the extra-person one — stating that no pricing path may
+//   infer the rule from bed capacity. The field is nullable precisely so an
+//   offer can be quoted without asserting it. A party of three is quoted the
+//   same here whether or not the type needs a bed carried in, which is the only
+//   answer that does not assume the owner's.
 // - **Promotions** (`FR-PRC-03`).
 
 import {
+  breakfastHeads,
+  extraPersonPerNight,
   INCLUDED_OCCUPANCY,
   nightCount,
+  type Party,
+  partySize,
   type RateCalendar,
   type RatePlanCode,
   type RoomTypeCode,
@@ -52,6 +61,7 @@ import {
   typeInventory,
 } from "../../database/schema/inventory.js";
 import {
+  propertyTariff,
   rateCalendar,
   ratePlan,
   stayRestriction,
@@ -86,6 +96,15 @@ const departure = alias(stayRestriction, "departure");
  * and keeps the named fields checked.
  */
 type Row<TRow> = TRow & Record<string, unknown>;
+
+/**
+ * The party the rate covers, for the grid that has no party yet — §1.
+ *
+ * The month view is asked for before the guest has said who is travelling, so
+ * `BB` quotes breakfast for the included two and nobody is beyond the rate. The
+ * stay step re-quotes against the party they actually enter.
+ */
+const INCLUDED_PARTY: Party = { adults: INCLUDED_OCCUPANCY, children: [] };
 
 /** How a plan's price is derived from the calendar — `property-and-tariff.md` §3. */
 interface PlanPricing {
@@ -134,10 +153,20 @@ export class AvailabilityService {
     checkIn: StayDate;
     checkOut: StayDate;
     plan: RatePlanCode;
-    occupancy: number;
+    adults: number;
+    childAges: readonly number[];
   }): Promise<StayOffer> {
     const nights = nightCount({ checkIn: query.checkIn, checkOut: query.checkOut });
+    // The wire carries the party flat, because a query string has no nesting.
+    // It becomes the shape the bands are written against once, here, rather
+    // than at each of the three places below that ask something of it.
+    const party: Party = {
+      adults: query.adults,
+      children: query.childAges.map((age) => ({ age })),
+    };
+    const heads = partySize(party);
     const pricing = await this.planPricing(query.plan);
+    const extraPersonGross = await this.extraPersonRate(party);
     const checkIn = query.checkIn.toString();
     const checkOut = query.checkOut.toString();
 
@@ -178,7 +207,8 @@ export class AvailabilityService {
           BigInt(row.standard_total),
           pricing,
           nights,
-          query.occupancy,
+          party,
+          extraPersonGross,
         );
 
         return {
@@ -190,7 +220,11 @@ export class AvailabilityService {
           stayTotalGross,
           isAvailable:
             row.fewest_free > 0 &&
-            row.max_occupancy >= query.occupancy &&
+            // Every head, including the free ones. §3's bands decide what a
+            // guest costs; the type's maximum decides whether the room holds
+            // them, and an under-6 sleeping in existing bedding still occupies
+            // the room they are sleeping in.
+            row.max_occupancy >= heads &&
             !row.closed_to_arrival &&
             !row.closed_to_departure &&
             row.minimum_stay <= nights &&
@@ -263,7 +297,11 @@ export class AvailabilityService {
                   BigInt(night.lowest_gross),
                   pricing,
                   1,
-                  INCLUDED_OCCUPANCY,
+                  INCLUDED_PARTY,
+                  // Nobody is beyond the included two, so the rate is
+                  // multiplied by no heads. Reading the tariff to pass it here
+                  // would be a query for a number this call cannot use.
+                  0n,
                 ),
           isSoldOut,
           // A sold-out night is not also reported as closed to arrival. They
@@ -298,34 +336,70 @@ export class AvailabilityService {
   }
 
   /**
+   * The property's extra-person rate — §3, and the figure its bands are of.
+   *
+   * A missing row refuses, and refuses only for the parties it would have
+   * priced. This is the opposite fallback to {@link planPricing}'s, and for the
+   * same reason: there, quoting the calendar price is the safe direction
+   * because a missing plan must never invent a discount. Here, zero *is* the
+   * discount — it would sell a third bed for nothing and read in a report as a
+   * reduction somebody granted. A party the rate already covers is unaffected,
+   * so a search for two does not fail over a tariff it never needed.
+   */
+  private async extraPersonRate(party: Party): Promise<bigint> {
+    const [row] = await this.db
+      .select({ gross: propertyTariff.extraPersonPerNightGross })
+      .from(propertyTariff)
+      .limit(1);
+
+    if (row) return row.gross;
+
+    if (partySize(party) > INCLUDED_OCCUPANCY) {
+      throw new Error(
+        "property_tariff holds no row, so a party beyond the included occupancy has no extra-person rate to be priced at",
+      );
+    }
+
+    return 0n;
+  }
+
+  /**
    * `property-and-tariff.md` §3, as arithmetic: a percentage off the calendar
-   * price, then breakfast for the booked occupancy.
+   * price, then the heads the rate does not cover, then breakfast.
    *
    * Applied to the summed total rather than night by night. §5 forbids rounding
    * inside a calculation, and integer đồng means every division truncates —
    * doing it once at the end costs at most one đồng over the whole stay, where
-   * doing it per night costs one per night. Breakfast is added after the
-   * percentage because §3 makes `BB` "`STANDARD` + breakfast": the discount
-   * belongs to the room, and a plan that discounted the meal too would post a
-   * folio line that does not match the menu.
+   * doing it per night costs one per night.
+   *
+   * Both additions land *after* the percentage, and neither is discounted by
+   * it. §3 makes `BB` "`STANDARD` + breakfast" and `NONREF` "`STANDARD` − 10%",
+   * and both of those are statements about the room rate: a plan that took ten
+   * percent off the meal would post a folio line that does not match the menu,
+   * and one that took it off the extra person would discount a bed the room
+   * rate never included.
    */
   private applyPlan(
     standardTotal: bigint,
     pricing: PlanPricing,
     nights: number,
-    occupancy: number,
+    party: Party,
+    extraPersonPerNightGross: bigint,
   ): bigint {
     const adjusted =
       (standardTotal * BigInt(100 + pricing.percentAdjustment)) / 100n;
 
-    if (pricing.breakfastPerPersonGross === null) {
-      return adjusted;
-    }
+    const extraPeople =
+      extraPersonPerNight(party, extraPersonPerNightGross) * BigInt(nights);
 
-    return (
-      adjusted +
-      pricing.breakfastPerPersonGross * BigInt(occupancy) * BigInt(nights)
-    );
+    const breakfast =
+      pricing.breakfastPerPersonGross === null
+        ? 0n
+        : pricing.breakfastPerPersonGross *
+          BigInt(breakfastHeads(party)) *
+          BigInt(nights);
+
+    return adjusted + extraPeople + breakfast;
   }
 }
 

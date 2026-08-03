@@ -1,8 +1,9 @@
 // Turning a range, a party and a plan into the two numbers on a card.
 //
 // Every rule here is `docs/architecture/property-and-tariff.md`: §3 for the plan
-// arithmetic and the child bands, §5 for gross display and for rounding being
-// presentation-only. Nothing in this file rounds. The one function that does is
+// arithmetic, §5 for gross display and for rounding being presentation-only.
+// §3's child bands are applied here but no longer written here — see below.
+// Nothing in this file rounds. The one function that does is
 // `roundVndForDisplay` in `@mariva/shared`, called by the components that render
 // — because a total is the rounded sum of the nights and never the sum of the
 // rounded nights, and the only way to keep that true is to have no rounding
@@ -14,8 +15,12 @@
 // is the whole reason `money.ts` chose the type.
 
 import {
+  breakfastHeads,
+  extraPersonPerNight,
   type NightRate,
   nightCount,
+  type Party,
+  partySize,
   type RatePlanCode,
   type RoomTypeCode,
   type RoomTypeOffer,
@@ -23,67 +28,28 @@ import {
   type StayRange,
   type VndAmount,
 } from "@mariva/shared";
-import { INCLUDED_OCCUPANCY, ROOM_TYPES, type RoomType } from "./room-types";
+import { ROOM_TYPES, type RoomType } from "./room-types";
 
-/** A child, with the age that decides what they cost — `property-and-tariff` §3. */
-export interface Child {
-  readonly age: number;
-}
-
-export interface Party {
-  readonly adults: number;
-  readonly children: readonly Child[];
-}
-
-export function partySize({ adults, children }: Party): number {
-  return adults + children.length;
-}
+// The party type and §3's age bands come from `@mariva/shared` rather than from
+// this file. They used to live here, which was defensible while the screen was
+// the only thing that priced them; the API prices them now, and a band written
+// twice is a card and an invoice free to disagree by one half-rate head.
+//
+// Re-exported under the names this feature already imports, so the screen goes
+// on asking `stay-quote` for its party the way it always has.
+export type { Child, Party } from "@mariva/shared";
+export { partySize };
 
 /**
- * Extra-person charge for one night, for one party, before the plan.
+ * The ⚑ prices this screen quotes against while it runs on a fixture.
  *
- * §3's bands: under 6 free sharing existing bedding, 6–11 at half the
- * extra-person rate, 12 and over as an adult. The bands apply to whoever is
- * *beyond* the included occupancy, and the property charges the cheapest
- * qualifying heads last — a family of two adults and one nine-year-old pays one
- * half-rate extra person, not one full one.
+ * The property now stores two of the three — the extra person in
+ * `property_tariff`, breakfast on `rate_plan` — and the quote endpoint applies
+ * both. This interface is what the fixture supplies until the funnel reads that
+ * endpoint, at which point it goes with the fixture. The extra bed is the one
+ * figure nothing on the server will supply, because §9 has not decided when it
+ * is charged.
  */
-function extraPersonPerNight(party: Party, rates: TariffRates): VndAmount {
-  const beyond = partySize(party) - INCLUDED_OCCUPANCY;
-  if (beyond <= 0) return 0n;
-
-  // Cheapest heads counted as the extra ones: under-6s cost nothing, so they
-  // occupy the extra slots first and the adults stay inside the rate.
-  const heads = [
-    ...party.children.map((child) => child.age),
-    ...Array.from({ length: party.adults }, () => 30),
-  ].sort((left, right) => left - right);
-
-  return heads
-    .slice(0, beyond)
-    .reduce<VndAmount>((sum, age) => sum + headRate(age, rates), 0n);
-}
-
-function headRate(age: number, rates: TariffRates): VndAmount {
-  if (age < 6) return 0n;
-  if (age < 12) return rates.extraPersonPerNight / 2n;
-  return rates.extraPersonPerNight;
-}
-
-/**
- * Heads breakfast is charged for under `BB`.
- *
- * §3 says `BB` is "`STANDARD` + breakfast for the booked occupancy" and does not
- * say what a small child eats. The under-6 line in the same section is the
- * nearest rule the property has, so it carries: a child too young to be charged
- * for a bed is too young to be charged for breakfast. Stated here rather than
- * buried, because it is an assumption and not a quotation.
- */
-function breakfastHeads(party: Party): number {
-  return party.adults + party.children.filter((child) => child.age >= 6).length;
-}
-
-/** The ⚑ prices this screen needs and `property-and-tariff.md` leaves unset. */
 export interface TariffRates {
   readonly extraPersonPerNight: VndAmount;
   readonly breakfastPerPersonPerNight: VndAmount;
@@ -109,7 +75,9 @@ function nightGross(
       ? rates.breakfastPerPersonPerNight * BigInt(breakfastHeads(party))
       : 0n;
 
-  return room + breakfast + extraPersonPerNight(party, rates);
+  return (
+    room + breakfast + extraPersonPerNight(party, rates.extraPersonPerNight)
+  );
 }
 
 /** Nights the range sells — the departure date is not one of them. */

@@ -172,6 +172,12 @@ extra bed or automatically stacks with one.
 **Extra person: 600,000 ₫ per night, gross.** ⚑ Proposed. The rate the bands above
 are percentages *of*; without it none of them resolve to a number.
 
+The database holds it now — one row in `property_tariff`, written by the seed —
+so retuning it is a data edit rather than a change to this file. The figure is
+still the developer's call; what is settled is that a service no longer decides
+it. The bands themselves are priced by `@mariva/shared`, once, because the API
+quotes against them and the funnel does too.
+
 **The bands apply to whoever is beyond the included occupancy, cheapest heads
 first.** Two adults and a nine-year-old pay one half-rate extra person, not one
 full one — the child is the third head, not one of the two the rate covers.
@@ -307,7 +313,7 @@ is empty.
 | Season date ranges | mine, ⚑ unset — data, blocks nothing | §3 |
 | Service prices | mine, six of eight still ⚑ unset — data | §6 |
 | Room sizes, bedding and aspects | mine, ⚑ proposed for `/booking` — data | §1 |
-| Extra-person and breakfast rates | mine, ⚑ proposed for `/booking` — data | §3, §6 |
+| Extra-person and breakfast rates | mine, ⚑ proposed — now stored and editable, in `property_tariff` and `rate_plan` rather than in this file | §3, §6 |
 | Loyalty earn rate, tier thresholds, perks and expiry | mine, ⚑ proposed — config | §7 |
 | When an extra bed is mandatory, and whether its service line stacks with or replaces the extra-person charge | owner — no pricing path may infer this from bed capacity | §1, §3, §6; [SCRUM-87](https://hungphat2018-1785053353783.atlassian.net/browse/SCRUM-87) |
 | Whether minimum-stay and closed-to-arrival are a **public** contract | mine — §3 lists them under admin **Rates** only, and the guest calendar's restricted-cell state depends on reading them from `/booking` | §3 |

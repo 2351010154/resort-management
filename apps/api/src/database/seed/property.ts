@@ -165,6 +165,20 @@ export const RATE_PLANS: readonly RatePlanSeed[] = [
 ];
 
 /**
+ * The one tariff figure that belongs to the property rather than to a plan — §3.
+ *
+ * ⚑ Proposed, per night, gross, per head beyond the included two. It is the
+ * number §3's age bands are percentages *of*: without it, "50% of the
+ * extra-person rate" resolves to nothing.
+ *
+ * The extra *bed* price is not here and is not an oversight. §9 leaves with the
+ * owner both when a bed is mandatory and whether its charge stacks with this
+ * one, and a seeded figure would be this file answering a question it was told
+ * not to.
+ */
+export const EXTRA_PERSON_PER_NIGHT_GROSS: VndAmount = 600_000n;
+
+/**
  * What a Friday or Saturday night costs against a weeknight — §3.
  *
  * A multiplier the seed applies when it writes the rows, and never a rule the
