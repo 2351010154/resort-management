@@ -40,10 +40,10 @@ import {
   type RoomTypeCode,
   type StayDate,
 } from "@mariva/shared";
-import { Inject, Injectable } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { ORPCError } from "@orpc/nest";
 import { eq, type SQL, sql } from "drizzle-orm";
-import { type Database, DRIZZLE } from "../../database/database.module.js";
+import type { DbExecutor } from "../../database/database.module.js";
 import { roomType } from "../../database/schema/inventory.js";
 import { sqlStateOf } from "./sql-state.js";
 
@@ -85,8 +85,6 @@ const RESTORE: Direction = {
 
 @Injectable()
 export class InventoryService {
-  constructor(@Inject(DRIZZLE) private readonly db: Database) {}
-
   /**
    * Consumes one room of a type on every night of a stay, or none of them.
    *
@@ -94,9 +92,17 @@ export class InventoryService {
    * range, and when the range covers a night the property has not opened for
    * sale. Both are answers the desk resolves by choosing different dates, which
    * is what makes them conflicts rather than faults.
+   *
+   * The executor is the caller's, and required. `booking-state-machine.md` §3
+   * puts every caller of this inside a transition that also writes the booking
+   * — so the transaction is the transition's, and this joins it rather than
+   * opening one of its own beside it.
    */
-  async reserve(stay: StayInventory): Promise<InventoryMovement> {
-    return await this.move(stay, CONSUME);
+  async reserve(
+    exec: DbExecutor,
+    stay: StayInventory,
+  ): Promise<InventoryMovement> {
+    return await this.move(exec, stay, CONSUME);
   }
 
   /**
@@ -106,11 +112,15 @@ export class InventoryService {
    * the same inventory effect and different reason codes, so there is one
    * operation here and not two.
    */
-  async release(stay: StayInventory): Promise<InventoryMovement> {
-    return await this.move(stay, RESTORE);
+  async release(
+    exec: DbExecutor,
+    stay: StayInventory,
+  ): Promise<InventoryMovement> {
+    return await this.move(exec, stay, RESTORE);
   }
 
   private async move(
+    exec: DbExecutor,
     stay: StayInventory,
     direction: Direction,
   ): Promise<InventoryMovement> {
@@ -129,49 +139,47 @@ export class InventoryService {
     const checkOut = stay.checkOut.toString();
 
     try {
-      return await this.db.transaction(async (tx) => {
-        const [type] = await tx
-          .select({ id: roomType.id })
-          .from(roomType)
-          .where(eq(roomType.code, stay.roomType))
-          .limit(1);
+      const [type] = await exec
+        .select({ id: roomType.id })
+        .from(roomType)
+        .where(eq(roomType.code, stay.roomType))
+        .limit(1);
 
-        // Read before the write, and legitimately: this resolves a name into an
-        // id. It asks nothing about availability, so there is no answer here
-        // that a concurrent request can invalidate.
-        if (!type) {
-          throw new ORPCError("NOT_FOUND", {
-            message: `No room type coded ${stay.roomType}`,
-          });
-        }
+      // Read before the write, and legitimately: this resolves a name into an
+      // id. It asks nothing about availability, so there is no answer here
+      // that a concurrent request can invalidate.
+      if (!type) {
+        throw new ORPCError("NOT_FOUND", {
+          message: `No room type coded ${stay.roomType}`,
+        });
+      }
 
-        const moved = await tx.execute(sql`
-          update type_inventory
-             set sold_rooms = sold_rooms ${direction.by}
-           where id in (
-                   select id
-                     from type_inventory
-                    where room_type_id = ${type.id}
-                      and stay_date >= ${checkIn}
-                      and stay_date < ${checkOut}
-                    order by stay_date
-                      for update
-                 )
-          returning id
-        `);
+      const moved = await exec.execute(sql`
+        update type_inventory
+           set sold_rooms = sold_rooms ${direction.by}
+         where id in (
+                 select id
+                   from type_inventory
+                  where room_type_id = ${type.id}
+                    and stay_date >= ${checkIn}
+                    and stay_date < ${checkOut}
+                  order by stay_date
+                    for update
+               )
+        returning id
+      `);
 
-        // Every night of the range must have had a counter to move. A night the
-        // property never opened for sale has no row, and treating its absence
-        // as nothing to do would sell a stay across a date that is not on sale.
-        if (moved.rows.length !== nights) {
-          throw new ORPCError("CONFLICT", {
-            message:
-              "The stay includes nights that are not open for sale — open the calendar for them first",
-          });
-        }
+      // Every night of the range must have had a counter to move. A night the
+      // property never opened for sale has no row, and treating its absence
+      // as nothing to do would sell a stay across a date that is not on sale.
+      if (moved.rows.length !== nights) {
+        throw new ORPCError("CONFLICT", {
+          message:
+            "The stay includes nights that are not open for sale — open the calendar for them first",
+        });
+      }
 
-        return { ...stay, nights };
-      });
+      return { ...stay, nights };
     } catch (error) {
       throw this.asRefusal(error, direction);
     }

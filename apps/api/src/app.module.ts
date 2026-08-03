@@ -9,6 +9,7 @@ import { AuthModule } from "./modules/auth/auth.module.js";
 import { IdentityModule } from "./modules/identity/identity.module.js";
 import { InventoryModule } from "./modules/inventory/inventory.module.js";
 import { NotificationModule } from "./modules/notification/notification.module.js";
+import { PricingModule } from "./modules/pricing/pricing.module.js";
 
 // The header a load balancer or an upstream service may already have stamped.
 // Reusing it is what makes a correlation id correlate across two processes
@@ -95,6 +96,11 @@ const CORRELATION_HEADER = "x-request-id";
     // guard that module installs — including the two availability routes, whose
     // matrix row is the one that lets a stranger through.
     InventoryModule,
+
+    // After `InventoryModule` only to read in the order the two are built.
+    // Neither imports the other: availability reaches the rate calendar in SQL,
+    // which is a read across the boundary and not a dependency Nest resolves.
+    PricingModule,
   ],
 })
 export class AppModule {}

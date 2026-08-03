@@ -16,7 +16,7 @@
 
 import "reflect-metadata";
 
-import type { INestApplication } from "@nestjs/common";
+import type { ExecutionContext, INestApplication } from "@nestjs/common";
 import { Controller } from "@nestjs/common";
 import { APP_GUARD, Reflector } from "@nestjs/core";
 import { oc } from "@orpc/contract";
@@ -46,6 +46,13 @@ const fixture = {
   undeclared: oc
     .route({ method: "GET", path: "/fixture/undeclared" })
     .output(reached),
+  // The two halves of one row a receptionist holds 👁 over.
+  rateRead: oc
+    .route({ method: "GET", path: "/fixture/rates" })
+    .output(reached),
+  rateWrite: oc
+    .route({ method: "PUT", path: "/fixture/rates" })
+    .output(reached),
 };
 
 @Controller()
@@ -71,6 +78,23 @@ class FixtureController {
       () => ({ reached: true }) as const,
     );
   }
+
+  @RequiresCapability("pricing.rate-plans", "read")
+  @Implement(fixture.rateRead)
+  rateReadRoute() {
+    return implement(fixture.rateRead).handler(
+      () => ({ reached: true }) as const,
+    );
+  }
+
+  // No second argument, so this is a write — the strict default.
+  @RequiresCapability("pricing.rate-plans")
+  @Implement(fixture.rateWrite)
+  rateWriteRoute() {
+    return implement(fixture.rateWrite).handler(
+      () => ({ reached: true }) as const,
+    );
+  }
 }
 
 /** Boots the fixture app with the real guard and the realms stubbed at the one
@@ -83,7 +107,21 @@ async function appAs(caller: Principal | null): Promise<INestApplication> {
       Reflector,
       {
         provide: StaffJwtGuard,
-        useValue: { canActivate: () => true },
+        useValue: {
+          // Passport's whole contribution, in one line: the decoded principal
+          // goes on the request, and the guard reads it back from there and
+          // from nowhere else. Stubbing it here rather than signing a token
+          // keeps the subject of this file the guard and not the strategy.
+          canActivate: (context: ExecutionContext) => {
+            if (caller?.realm === "staff") {
+              Object.assign(context.switchToHttp().getRequest(), {
+                user: caller,
+              });
+            }
+
+            return true;
+          },
+        },
       },
       {
         provide: "GuestAuthService",
@@ -118,6 +156,19 @@ const GUEST: Principal = {
   emailVerified: true,
   sessionId: "session-1",
 };
+
+// 👁 over "Rate plans, rate calendar, promotions" — the row the read/write
+// split was built for.
+const RECEPTIONIST: Principal = {
+  realm: "staff",
+  userId: "staff-1",
+  email: "le.tan@mariva.vn",
+  role: "RECEPTIONIST",
+};
+
+/** A staff request is one carrying a bearer token; the stub above decodes it. */
+const asStaff = (agent: request.Test) =>
+  agent.set("authorization", "Bearer stub");
 
 describe("deny-by-default on oRPC routes", () => {
   let app: INestApplication | undefined;
@@ -157,6 +208,30 @@ describe("deny-by-default on oRPC routes", () => {
 
     const response = await request(app.getHttpServer()).get(
       "/fixture/undeclared",
+    );
+
+    expect(response.status).toBe(403);
+  });
+
+  // One row, two routes, two answers. The pair is what proves the read/write
+  // comparison is made where it has to be made — on a real request through a
+  // real interceptor, not only in the hand-built context of the sibling file.
+  it("lets a 👁 role read the row it may see", async () => {
+    app = await appAs(RECEPTIONIST);
+
+    const response = await asStaff(
+      request(app.getHttpServer()).get("/fixture/rates"),
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ reached: true });
+  });
+
+  it("refuses that same role the write route on the same row", async () => {
+    app = await appAs(RECEPTIONIST);
+
+    const response = await asStaff(
+      request(app.getHttpServer()).put("/fixture/rates"),
     );
 
     expect(response.status).toBe(403);

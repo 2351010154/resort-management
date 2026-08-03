@@ -7,6 +7,12 @@
 // test is the gap §4 names, and the only way to close it permanently is for the
 // test to enumerate the table rather than restate it.
 //
+// Every row is put to the guard twice, once as a route that reads it and once
+// as a route that writes it, because a grant is not a yes or a no. The 👁
+// column is a third answer and the only one that depends on which of the two a
+// route is; asserting a row only as a read would let a receptionist's view of
+// the rate calendar pass for permission to reprice it.
+//
 // The subject is the guard, not a route. Fifty-four capabilities do not have
 // fifty-four endpoints yet and most never will have exactly one; what decides
 // access is this class, so this class is what is put under test, with the
@@ -25,7 +31,13 @@ import {
   CAPABILITIES,
   type Capability,
 } from "../../modules/identity/rbac/matrix.js";
-import { STAFF_ROLES, type StaffRole } from "../../modules/identity/rbac/roles.js";
+import {
+  CAPABILITY_ACTIONS,
+  type CapabilityAction,
+  type Grant,
+  STAFF_ROLES,
+  type StaffRole,
+} from "../../modules/identity/rbac/roles.js";
 import { CAPABILITY_KEY, UNGUARDED_KEY } from "./access.decorators.js";
 import { AccessGuard, type StaffJwtGuard } from "./access.guard.js";
 import type { GuestAuthService } from "../../modules/auth/guest/guest-auth.service.js";
@@ -121,67 +133,109 @@ async function attempt(
   }
 }
 
-const reach = (caller: Caller, capability: Capability) =>
-  attempt(caller, { [CAPABILITY_KEY]: capability.key });
+const reach = (
+  caller: Caller,
+  capability: Capability,
+  action: CapabilityAction,
+) => attempt(caller, { [CAPABILITY_KEY]: { key: capability.key, action } });
+
+/** Every identity the matrix names on a row, beside the grant it holds. */
+function holdersOf(capability: Capability): {
+  name: string;
+  caller: Caller;
+  grant: Grant;
+}[] {
+  return [
+    { name: "GUEST", caller: GUEST, grant: capability.guest },
+    ...STAFF_ROLES.map((role) => ({
+      name: role,
+      caller: staffCaller(role),
+      grant: capability.staff[role],
+    })),
+  ];
+}
 
 describe("every row of the RBAC matrix", () => {
   for (const capability of CAPABILITIES) {
     describe(`${capability.section} — ${capability.row}`, () => {
-      const granted: { name: string; caller: Caller }[] = [];
-      const denied: { name: string; caller: Caller }[] = [];
-
-      (capability.guest === "denied" ? denied : granted).push({
-        name: "GUEST",
-        caller: GUEST,
-      });
-
-      for (const role of STAFF_ROLES) {
-        const target =
-          capability.staff[role] === "denied" ? denied : granted;
-
-        target.push({ name: role, caller: staffCaller(role) });
-      }
-
-      for (const { name, caller } of granted) {
-        it(`lets ${name} through`, async () => {
-          const outcome = await reach(caller, capability);
-
-          expect(outcome.allowed).toBe(true);
-          expect(outcome.request[ACCESS_DECISION]).toMatchObject({
-            capabilityKey: capability.key,
-            principal: caller,
-          });
-        });
-      }
+      const holders = holdersOf(capability);
 
       if (capability.unauthenticated) {
         // The one explicitly public row. §2 requires public routes to be
         // marked, and this is the mark: anyone reaches it, signed in or not.
         // Its role columns describe what a screen should offer, not a wall —
         // enforcing them would 403 a housekeeper on a page any stranger can
-        // load.
+        // load, and that bypass sits above the read/write comparison for the
+        // same reason.
         it("is reachable with no session at all", async () => {
-          const outcome = await reach(null, capability);
+          const outcome = await reach(null, capability, "read");
 
           expect(outcome.allowed).toBe(true);
         });
-      } else {
-        it("refuses an anonymous caller with 401", async () => {
-          const outcome = await reach(null, capability);
 
-          expect(outcome.status).toBe(401);
-        });
+        for (const { name, caller } of holders) {
+          it(`lets ${name} through whatever their column says`, async () => {
+            const outcome = await reach(caller, capability, "write");
 
+            expect(outcome.allowed).toBe(true);
+          });
+        }
+
+        return;
+      }
+
+      it("refuses an anonymous caller with 401", async () => {
+        const outcome = await reach(null, capability, "read");
+
+        expect(outcome.status).toBe(401);
+      });
+
+      for (const { name, caller, grant } of holders) {
         // §4's "at least one denied role gets a 403", strengthened to every
         // denied role — there is no reason to check one when the table names
-        // them all.
-        for (const { name, caller } of denied) {
-          it(`refuses ${name} with 403`, async () => {
-            const outcome = await reach(caller, capability);
+        // them all. Strengthened again to both actions: a row a role cannot
+        // read is not a row they may write.
+        if (grant === "denied") {
+          it(`refuses ${name} with 403, reading or writing`, async () => {
+            for (const action of CAPABILITY_ACTIONS) {
+              const outcome = await reach(caller, capability, action);
+
+              expect(outcome.status, action).toBe(403);
+            }
+          });
+
+          continue;
+        }
+
+        it(`lets ${name} read`, async () => {
+          const outcome = await reach(caller, capability, "read");
+
+          expect(outcome.allowed).toBe(true);
+          expect(outcome.request[ACCESS_DECISION]).toMatchObject({
+            capabilityKey: capability.key,
+            principal: caller,
+            grant,
+          });
+        });
+
+        // 👁 in the document. The row is visible to this role and the routes
+        // that change it are not — which is only true if the guard compares
+        // the grant to what the route does, and is what this line is for.
+        if (grant === "read") {
+          it(`refuses ${name} a write with 403`, async () => {
+            const outcome = await reach(caller, capability, "write");
 
             expect(outcome.status).toBe(403);
           });
+
+          continue;
         }
+
+        it(`lets ${name} write`, async () => {
+          const outcome = await reach(caller, capability, "write");
+
+          expect(outcome.allowed).toBe(true);
+        });
       }
     });
   }
@@ -206,7 +260,7 @@ describe("the two realms", () => {
 
   it("refuses a guest session on every staff-only capability with 403", async () => {
     for (const capability of staffOnly) {
-      const outcome = await reach(GUEST, capability);
+      const outcome = await reach(GUEST, capability, "read");
 
       expect(outcome.status, capability.key).toBe(403);
     }
@@ -215,7 +269,7 @@ describe("the two realms", () => {
   it("refuses a staff token on every guest-only capability with 403", async () => {
     for (const capability of guestOnly) {
       for (const role of STAFF_ROLES) {
-        const outcome = await reach(staffCaller(role), capability);
+        const outcome = await reach(staffCaller(role), capability, "read");
 
         expect(outcome.status, `${capability.key} / ${role}`).toBe(403);
       }
@@ -252,6 +306,27 @@ describe("deny by default", () => {
   });
 });
 
+describe("the read-only grants", () => {
+  // The per-row loop above would still pass if the matrix had no 👁 in it at
+  // all — every assertion about the split would simply never be generated. This
+  // is the line that fails when the last read grant is edited away, which is
+  // the moment the comparison in the guard stops being exercised by anything.
+  // Staff columns only, and the compiler agrees: no row gives the guest realm
+  // 👁. A guest either owns the record or does not, so their column is ✅, ⚠ or
+  // —, and a `row.guest === "read"` here is a comparison against a type that
+  // cannot hold it.
+  const readOnly = CAPABILITIES.filter(
+    (row) =>
+      !row.unauthenticated &&
+      STAFF_ROLES.some((role) => row.staff[role] === "read"),
+  );
+
+  it("exist in the matrix, on rows the guard actually enforces", () => {
+    expect(readOnly.map((row) => row.key)).toContain("pricing.rate-plans");
+    expect(readOnly.length).toBeGreaterThan(1);
+  });
+});
+
 describe("the conditional grants", () => {
   // A `conditional` row is granted by the guard and still owes an ownership or
   // scope check in the handler. The decision is handed on so the handler can
@@ -280,7 +355,11 @@ describe("the conditional grants", () => {
       }
 
       for (const caller of callers) {
-        const outcome = await reach(caller, capability);
+        // Asserted on a *write* route. `conditional` is a full grant whose
+        // scope the guard cannot see, not a lesser one — reading it as
+        // read-only would refuse a receptionist their own cash drawer, which
+        // is exactly what the row grants them.
+        const outcome = await reach(caller, capability, "write");
 
         expect(outcome.allowed, capability.key).toBe(true);
         expect(outcome.request[ACCESS_DECISION]).toMatchObject({

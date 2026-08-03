@@ -10,17 +10,28 @@ import { contract } from "@mariva/shared";
 import { Controller } from "@nestjs/common";
 import { Implement, implement } from "@orpc/nest";
 import { RequiresCapability } from "../../common/auth/access.decorators.js";
+import { TransactionRunner } from "../../database/transaction-runner.js";
 import { ClosureService } from "./closure.service.js";
 
+// The transaction is opened here because a request is the boundary a closure
+// happens in — there is nothing else to write alongside it. A booking is the
+// case that made the service take its executor rather than open one: its
+// transition writes inventory, a folio and a payment, and all four have to be
+// one commit.
 @Controller()
 export class ClosureController {
-  constructor(private readonly closures: ClosureService) {}
+  constructor(
+    private readonly closures: ClosureService,
+    private readonly transactions: TransactionRunner,
+  ) {}
 
   @RequiresCapability("inventory.close-room")
   @Implement(contract.inventory.closeRoom)
   closeRoom() {
     return implement(contract.inventory.closeRoom).handler(async ({ input }) => {
-      const closure = await this.closures.close(input);
+      const closure = await this.transactions.run((exec) =>
+        this.closures.close(exec, input),
+      );
 
       // `CalendarDate` inside, ISO text on the wire — the crossing
       // `stayDateSchema`'s codec declares, performed where the two meet.
@@ -36,7 +47,7 @@ export class ClosureController {
   @Implement(contract.inventory.reopenRoom)
   reopenRoom() {
     return implement(contract.inventory.reopenRoom).handler(({ input }) =>
-      this.closures.reopen(input.id),
+      this.transactions.run((exec) => this.closures.reopen(exec, input.id)),
     );
   }
 }

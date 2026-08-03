@@ -69,6 +69,40 @@ export const ratePlanCodeSchema = z.enum(RATE_PLAN_CODES);
 export type RatePlanCode = z.infer<typeof ratePlanCodeSchema>;
 
 /**
+ * How a promotion moves the price it modifies — `FR-PRC-03`.
+ *
+ * Two forms rather than one because they behave differently when the calendar
+ * moves underneath them. §7's loyalty discount is a percentage and should
+ * follow the room rate up; a campaign written as "200,000 ₫ off" should not.
+ * Expressing the second as a percentage would silently reprice it every time
+ * a season changes, which is the opposite of what the campaign promised.
+ */
+export const PROMOTION_TYPES = ["PERCENTAGE", "FIXED_AMOUNT"] as const;
+
+export const promotionTypeSchema = z.enum(PROMOTION_TYPES);
+
+export type PromotionType = z.infer<typeof promotionTypeSchema>;
+
+/**
+ * The two earning tiers — `property-and-tariff.md` §7.
+ *
+ * `Member` is deliberately absent. It is the tier every guest holds on their
+ * first booking and it carries no discount, so a promotion gated on it would be
+ * a promotion gated on nothing. The column that reads this tuple is null for
+ * "open to everyone", which is the same statement without a row to maintain.
+ *
+ * The tier itself is derived nightly by `FR-GST-04`, a later milestone. What
+ * lives here is only the requirement a promotion states — §7 fixes Silver at 5%
+ * and Gold at 10%, so those two rows are writable now and the milestone that
+ * computes a guest's tier supplies the other half of the match.
+ */
+export const LOYALTY_TIERS = ["SILVER", "GOLD"] as const;
+
+export const loyaltyTierSchema = z.enum(LOYALTY_TIERS);
+
+export type LoyaltyTier = z.infer<typeof loyaltyTierSchema>;
+
+/**
  * One night in the calendar, priced and restricted.
  *
  * `lowestGross` is the cheapest a night costs across every type that is still
