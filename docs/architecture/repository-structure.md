@@ -55,6 +55,12 @@ type, while the capability matrix remains API policy under
 constraints in `apps/api/src/database/migrations/`, not by service-layer checks.
 Application code may not be the last line of defence for money or inventory.
 
+**Reads may cross module boundaries in SQL; writes may not.** A module owns its
+writes and their invariants. A read-only query may join another module's tables
+when one statement is materially better than composing service calls — the
+availability aggregate depends on the joined schema, and must reference it
+through typed schema objects so drift fails the build.
+
 ## `apps/api` — NestJS
 
 ```
@@ -73,8 +79,23 @@ test/              e2e and the concurrency suite
 
 A module is a folder: `x.module.ts`, `x.controller.ts`, `x.service.ts`, `dto/`,
 and its `*.spec.ts` next to what it tests. **A module's public surface is what
-its NestJS module exports** — reaching into another module's internals is how a
-modular monolith becomes a tangle that needs microservices to explain itself.
+its NestJS module exports** — reaching into another module's internals to write
+is how a modular monolith becomes a tangle that needs microservices to explain
+itself. Reads are the stated exception, under the rule above.
+
+**There is no repository layer, and none is coming.** Drizzle is already the
+query builder, so a `*.repository.ts` over it would be a pass-through with a
+second name for every method. The invariants are in the database rather than in
+an abstraction over it, the migrations depend on `btree_gist`, `EXCLUDE` and
+`daterange`, and the suite is e2e against real Postgres — none of the three
+things a repository buys is on offer here. Queries shared between services
+graduate to a plain function beside them, the way `pricing/room-type-id.ts` and
+`inventory/sql-state.ts` did.
+
+A service does not open its own transaction. Writes take a required `DbExecutor`
+(`database/database.module.ts`) and the caller draws the boundary through
+`TransactionRunner`, because a booking has to consume inventory, post a folio
+line and record a payment in one commit.
 
 Schema files are centralised under `database/schema/` because migrations need a
 single entry point, but each file is owned by the module that names it.
