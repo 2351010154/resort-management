@@ -50,6 +50,13 @@
       "when": 1785747119317,
       "tag": "0006_booking_core",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1785750088129,
+      "tag": "0007_guest_core",
+      "breakpoints": true
     }
   ]
 }

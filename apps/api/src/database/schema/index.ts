@@ -19,6 +19,10 @@ export * from "./pricing.js";
 // `modules/booking`.
 export * from "./booking.js";
 
+// Who stayed and who read their ID number: the guest record, the registration
+// written at check-in, and the unmask audit trail. Owned by `modules/guest`.
+export * from "./guest.js";
+
 // The guest realm: Better Auth's four core tables. Their in-file names are
 // Better Auth's own (`user`, `session`, …) because its Drizzle adapter indexes
 // the schema object it is given by those keys. Everything outside
