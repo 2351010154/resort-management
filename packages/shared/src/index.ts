@@ -1,6 +1,7 @@
 // The contract every app reads from: schemas defined once, types inferred from
 // them, so API validation and frontend types cannot drift apart.
 
+export * from "./booking-state.js";
 export * from "./contract/index.js";
 export * from "./money.js";
 export * from "./occupancy-pricing.js";

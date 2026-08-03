@@ -150,6 +150,21 @@ describe("the two inventory layers", () => {
       `daterange("check_in_date", "check_out_date", '[)')`,
     );
   });
+
+  it("keep the booking key in the migration Drizzle did not write either", () => {
+    // The other hand-written constraint, added at M4 once there was a booking
+    // table to point at. Same exposure as the exclusion constraint above: a
+    // regeneration would drop it silently, and what a missing key allows is a
+    // room held for a booking that does not exist.
+    const migration = readFileSync(
+      new URL("../migrations/0006_booking_core.sql", import.meta.url),
+      "utf8",
+    );
+
+    expect(migration).toContain(
+      `ALTER TABLE "room_assignment" ADD CONSTRAINT "room_assignment_booking_id_booking_id_fk" FOREIGN KEY ("booking_id") REFERENCES "public"."booking"("id")`,
+    );
+  });
 });
 
 describe("what each table hangs off", () => {
@@ -158,16 +173,15 @@ describe("what each table hangs off", () => {
     // typechecks and stays wrong until a migration is generated against a
     // database somebody has already filled — at which point the fix is a data
     // migration rather than an edit.
-    expect(parentOf(room)).toEqual({
-      table: "room_type",
-      from: ["room_type_id"],
-      to: ["id"],
-    });
-    expect(parentOf(roomAssignment)).toEqual({
-      table: "room",
-      from: ["room_id"],
-      to: ["id"],
-    });
+    expect(parentsOf(room)).toEqual([
+      { table: "room_type", from: ["room_type_id"], to: ["id"] },
+    ]);
+    // One here and not two: the key to `booking` exists in the database but is
+    // written by hand into the migration, for the import-cycle reason
+    // inventory.ts gives at the column. The test below is what guards it.
+    expect(parentsOf(roomAssignment)).toEqual([
+      { table: "room", from: ["room_id"], to: ["id"] },
+    ]);
   });
 
   it("counts inventory against a type rather than against a room", () => {
@@ -175,29 +189,28 @@ describe("what each table hangs off", () => {
     // makes the argument. A counter keyed on a room would be `room_assignment`
     // written twice, and it could not refuse the forty-first sale of forty
     // rooms without visiting every one of them.
-    expect(parentOf(typeInventory)).toEqual({
-      table: "room_type",
-      from: ["room_type_id"],
-      to: ["id"],
-    });
+    expect(parentsOf(typeInventory)).toEqual([
+      { table: "room_type", from: ["room_type_id"], to: ["id"] },
+    ]);
   });
 });
 
-/** The one table a table references, and the columns joining them. */
-function parentOf(table: Parameters<typeof getTableConfig>[0]) {
-  const [foreignKey, ...rest] = getTableConfig(table).foreignKeys;
+/** Every table a table references, and the columns joining them.
+ *
+ *  Sorted by the table referenced, so an assertion describes which parents
+ *  exist rather than the order they happen to be declared in. */
+function parentsOf(table: Parameters<typeof getTableConfig>[0]) {
+  return getTableConfig(table)
+    .foreignKeys.map((foreignKey) => {
+      const reference = foreignKey.reference();
 
-  // A second key would make the assertion read only the first and pass while
-  // saying nothing about the other.
-  expect(rest).toHaveLength(0);
-
-  const reference = foreignKey!.reference();
-
-  return {
-    table: getTableConfig(reference.foreignTable).name,
-    from: reference.columns.map((column) => column.name),
-    to: reference.foreignColumns.map((column) => column.name),
-  };
+      return {
+        table: getTableConfig(reference.foreignTable).name,
+        from: reference.columns.map((column) => column.name),
+        to: reference.foreignColumns.map((column) => column.name),
+      };
+    })
+    .sort((left, right) => left.table.localeCompare(right.table));
 }
 
 /** The declared index of that name, or undefined if nothing declares it. */
