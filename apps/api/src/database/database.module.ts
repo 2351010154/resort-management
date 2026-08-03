@@ -7,6 +7,7 @@ import { InjectPinoLogger, type PinoLogger } from "nestjs-pino";
 import pg from "pg";
 import { ENV, type Env } from "../config/env.js";
 import * as schema from "./schema/index.js";
+import { TransactionRunner } from "./transaction-runner.js";
 
 /** DI token for the one `pg` pool in the process. */
 export const PG_POOL = Symbol("PG_POOL");
@@ -15,6 +16,22 @@ export const PG_POOL = Symbol("PG_POOL");
 export const DRIZZLE = Symbol("DRIZZLE");
 
 export type Database = NodePgDatabase<typeof schema>;
+
+/**
+ * What a write may be handed to run against: the client, or a transaction
+ * already open.
+ *
+ * A service that opens its own transaction is a service no other service can
+ * compose with — a booking that must consume inventory, post a folio line and
+ * record a payment atomically cannot do that if each of those opens its own.
+ * So a write takes its executor as a *required* argument and the caller decides
+ * the boundary. Required and never defaulted: a default would silently run the
+ * write outside the caller's transaction, which is the failure this exists to
+ * prevent and the one nothing would report.
+ */
+export type DbExecutor =
+  | Database
+  | Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 // Ten is sized for Fly's single always-on instance against Neon, not for
 // throughput: Neon caps connections per compute, and pg-boss will take its
@@ -50,8 +67,13 @@ const CONNECTION_TIMEOUT_MS = 5_000;
       useFactory: (pool: pg.Pool): Database =>
         drizzle({ client: pool, schema }),
     },
+    {
+      provide: TransactionRunner,
+      inject: [DRIZZLE],
+      useFactory: (db: Database) => new TransactionRunner(db),
+    },
   ],
-  exports: [PG_POOL, DRIZZLE],
+  exports: [PG_POOL, DRIZZLE, TransactionRunner],
 })
 export class DatabaseModule implements OnApplicationShutdown {
   constructor(
