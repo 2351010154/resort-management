@@ -43,6 +43,27 @@
       "when": 1785734332263,
       "tag": "0005_property_tariff",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1785747119317,
+      "tag": "0006_booking_core",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1785750088129,
+      "tag": "0007_guest_core",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1785814714509,
+      "tag": "0008_housekeeping_core",
+      "breakpoints": true
     }
   ]
 }

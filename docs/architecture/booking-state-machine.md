@@ -127,3 +127,33 @@ stateDiagram-v2
 Not a decision here: the no-show charge amount and the cancellation deadline
 grid. They are not state-machine questions, but the transitions above cannot be
 tested without them — tracked as `D3` in `plans/backlog.md` §1.
+
+## 8. What a booking stores about its price
+
+**Settled.** A booking freezes the price it was quoted; it never re-derives one.
+
+The inputs a price is computed from — the rate calendar, a plan's percentage,
+its breakfast figure, the property's extra-person rate — are all rows the RBAC
+matrix lets a manager edit. A booking recording only its dates, type and plan
+code would hold a *recipe*, and re-running that recipe after any of those moved
+answers with a number the guest never agreed to: a folio that contradicts the
+confirmation, a refund against a rate nobody saw, and `M9`'s ADR computed off
+today's tariff rather than the one that was sold.
+
+So `booking` carries the agreed stay total and the three inputs that produced
+it, and `booking_night` carries one row per night at the calendar price it was
+sold at. Two consequences worth stating:
+
+- The nights hold the **calendar** price, before the plan's percentage. §5 of
+  [`property-and-tariff.md`](property-and-tariff.md) forbids rounding inside a
+  calculation, and the pricing path honours it by summing the nights and
+  dividing once over the whole stay. A stored per-night *adjusted* figure would
+  divide per night, and the stored nights would then fail to sum to the stored
+  total by a few đồng.
+- A per-night figure is required rather than convenient. §4's grid charges "the
+  first night" and refunds "the remaining nights at 50%", and neither may be
+  approximated by dividing a total by a count when a weekend night costs more
+  than a Tuesday.
+
+Nothing above is a charge. `M4` computes cancellation, no-show and early-
+departure amounts and persists none of them; the folio that posts them is `M6`.
