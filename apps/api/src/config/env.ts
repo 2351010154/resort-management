@@ -78,6 +78,22 @@ export const envSchema = z.object({
     .min(0)
     .max(23)
     .default(4),
+
+  // How long a hold holds — `FR-BOOK-02`, which states outright that "the TTL
+  // length is configuration, not a constant".
+  //
+  // Fifteen minutes covers the funnel's guest-details and payment steps plus a
+  // gateway round trip, and it is the figure a property tunes when it finds
+  // guests timing out mid-payment or rooms sitting held behind abandoned carts.
+  // The floor is one minute rather than zero: a TTL of zero would have the
+  // sweep cancel every hold the instant it was taken, which is the funnel
+  // silently not working rather than a configuration anybody meant.
+  BOOKING_HOLD_TTL_MINUTES: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(1_440)
+    .default(15),
 })
   .refine((env) => env.BETTER_AUTH_SECRET !== env.STAFF_JWT_SECRET, {
     path: ["STAFF_JWT_SECRET"],

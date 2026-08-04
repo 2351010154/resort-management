@@ -6,6 +6,9 @@ import { ENV, type Env } from "./config/env.js";
 import { DatabaseModule } from "./database/database.module.js";
 import { HealthModule } from "./health/health.module.js";
 import { AuthModule } from "./modules/auth/auth.module.js";
+import { BookingModule } from "./modules/booking/booking.module.js";
+import { GuestModule } from "./modules/guest/guest.module.js";
+import { HousekeepingModule } from "./modules/housekeeping/housekeeping.module.js";
 import { IdentityModule } from "./modules/identity/identity.module.js";
 import { InventoryModule } from "./modules/inventory/inventory.module.js";
 import { NotificationModule } from "./modules/notification/notification.module.js";
@@ -101,6 +104,14 @@ const CORRELATION_HEADER = "x-request-id";
     // Neither imports the other: availability reaches the rate calendar in SQL,
     // which is a read across the boundary and not a dependency Nest resolves.
     PricingModule,
+
+    // M4. `BookingModule` genuinely depends on `InventoryModule` — every
+    // creating and cancelling transition ends in `InventoryService` — so it is
+    // listed after it. The other two do not: a room's condition and a guest's
+    // record are written beside a booking, never through it.
+    BookingModule,
+    HousekeepingModule,
+    GuestModule,
   ],
 })
 export class AppModule {}
