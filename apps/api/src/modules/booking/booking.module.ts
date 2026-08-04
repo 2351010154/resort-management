@@ -2,6 +2,8 @@ import { Module } from "@nestjs/common";
 import { InventoryModule } from "../inventory/inventory.module.js";
 import { BookingService } from "./booking.service.js";
 import { BusinessDateService } from "./business-date.service.js";
+import { FolioStubService } from "./ports/folio-stub.service.js";
+import { FOLIO_PORT } from "./ports/folio.port.js";
 import { StayQuoteService } from "./stay-quote.service.js";
 
 // The lifecycle state machine, holds, room assignment and cancellation —
@@ -27,9 +29,19 @@ import { StayQuoteService } from "./stay-quote.service.js";
 // No controller yet. The routes these transitions answer are a later task's, and
 // the transaction boundary they need is opened there — `database.module.ts` and
 // `closure.controller.ts` say why it belongs at the controller and not here.
+//
+// `FOLIO_PORT` is the one binding here that is expected to change. `M4` has no
+// ledger, so it points at the stub that reports every folio settled; `M6` points
+// it at the service that reads the real one, and nothing else in this module
+// moves. `ports/folio.port.ts` argues why the dependency runs in this direction.
 @Module({
   imports: [InventoryModule],
-  providers: [BookingService, BusinessDateService, StayQuoteService],
+  providers: [
+    BookingService,
+    BusinessDateService,
+    StayQuoteService,
+    { provide: FOLIO_PORT, useClass: FolioStubService },
+  ],
   exports: [BookingService, BusinessDateService],
 })
 export class BookingModule {}
