@@ -20,11 +20,13 @@
 // `isAvailable: false` beside it, so the funnel can grey a cell and say why
 // rather than hide a room and say nothing.
 //
-// The extra-person ladder (`FR-PRC-04`) is priced here, and it is priced by
-// `@mariva/shared` rather than by this file. §3's bands are the funnel's
-// arithmetic too, and a server that reimplemented them would be a quote and an
-// invoice free to disagree — so the module next to `INCLUDED_OCCUPANCY` owns
-// them and this service supplies the party and the rate.
+// The price itself is assembled by `@mariva/shared` rather than by this file.
+// §3's bands and the plan's percentage are the funnel's arithmetic too, and a
+// server that reimplemented them would be a quote and an invoice free to
+// disagree — so `stay-quote.ts` owns the order they apply in and this service
+// supplies the calendar sum, the party and the rates. `modules/booking` calls
+// the same function at the moment of sale, which is what stops a stay from
+// being shown one figure here and frozen at another there.
 //
 // What this does NOT price, and deliberately:
 //
@@ -38,8 +40,6 @@
 // - **Promotions** (`FR-PRC-03`).
 
 import {
-  breakfastHeads,
-  extraPersonPerNight,
   INCLUDED_OCCUPANCY,
   nightCount,
   type Party,
@@ -50,6 +50,7 @@ import {
   type RoomTypeOffer,
   type StayDate,
   type StayOffer,
+  stayTotalGross,
 } from "@mariva/shared";
 import { Inject, Injectable } from "@nestjs/common";
 import { type CalendarDate, parseDate } from "@internationalized/date";
@@ -203,21 +204,22 @@ export class AvailabilityService {
     const offers = rows
       .filter((row) => Number(row.nights_priced) === nights)
       .map((row): RoomTypeOffer => {
-        const stayTotalGross = this.applyPlan(
-          BigInt(row.standard_total),
-          pricing,
+        const total = stayTotalGross({
+          standardTotal: BigInt(row.standard_total),
+          percentAdjustment: pricing.percentAdjustment,
+          breakfastPerPersonGross: pricing.breakfastPerPersonGross,
+          extraPersonPerNightGross: extraPersonGross,
           nights,
           party,
-          extraPersonGross,
-        );
+        });
 
         return {
           code: row.code,
           // The average, and display only — `rate-calendar.ts` says why both
           // numbers cross the wire. The total is the authoritative figure and
           // is never derived from this one.
-          perNightGross: stayTotalGross / BigInt(nights),
-          stayTotalGross,
+          perNightGross: total / BigInt(nights),
+          stayTotalGross: total,
           isAvailable:
             row.fewest_free > 0 &&
             // Every head, including the free ones. §3's bands decide what a
@@ -293,16 +295,17 @@ export class AvailabilityService {
           lowestGross:
             isSoldOut || night?.lowest_gross == null
               ? null
-              : this.applyPlan(
-                  BigInt(night.lowest_gross),
-                  pricing,
-                  1,
-                  INCLUDED_PARTY,
+              : stayTotalGross({
+                  standardTotal: BigInt(night.lowest_gross),
+                  percentAdjustment: pricing.percentAdjustment,
+                  breakfastPerPersonGross: pricing.breakfastPerPersonGross,
                   // Nobody is beyond the included two, so the rate is
                   // multiplied by no heads. Reading the tariff to pass it here
                   // would be a query for a number this call cannot use.
-                  0n,
-                ),
+                  extraPersonPerNightGross: 0n,
+                  nights: 1,
+                  party: INCLUDED_PARTY,
+                }),
           isSoldOut,
           // A sold-out night is not also reported as closed to arrival. They
           // are separate cell states — `rate-calendar.ts` — and a night nobody
@@ -361,45 +364,6 @@ export class AvailabilityService {
     }
 
     return 0n;
-  }
-
-  /**
-   * `property-and-tariff.md` §3, as arithmetic: a percentage off the calendar
-   * price, then the heads the rate does not cover, then breakfast.
-   *
-   * Applied to the summed total rather than night by night. §5 forbids rounding
-   * inside a calculation, and integer đồng means every division truncates —
-   * doing it once at the end costs at most one đồng over the whole stay, where
-   * doing it per night costs one per night.
-   *
-   * Both additions land *after* the percentage, and neither is discounted by
-   * it. §3 makes `BB` "`STANDARD` + breakfast" and `NONREF` "`STANDARD` − 10%",
-   * and both of those are statements about the room rate: a plan that took ten
-   * percent off the meal would post a folio line that does not match the menu,
-   * and one that took it off the extra person would discount a bed the room
-   * rate never included.
-   */
-  private applyPlan(
-    standardTotal: bigint,
-    pricing: PlanPricing,
-    nights: number,
-    party: Party,
-    extraPersonPerNightGross: bigint,
-  ): bigint {
-    const adjusted =
-      (standardTotal * BigInt(100 + pricing.percentAdjustment)) / 100n;
-
-    const extraPeople =
-      extraPersonPerNight(party, extraPersonPerNightGross) * BigInt(nights);
-
-    const breakfast =
-      pricing.breakfastPerPersonGross === null
-        ? 0n
-        : pricing.breakfastPerPersonGross *
-          BigInt(breakfastHeads(party)) *
-          BigInt(nights);
-
-    return adjusted + extraPeople + breakfast;
   }
 }
 
