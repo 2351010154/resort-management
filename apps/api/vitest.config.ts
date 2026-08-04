@@ -71,6 +71,8 @@ export default defineConfig({
       // invisible.
       include: [
         "src/modules/booking/**/*.ts",
+        "src/modules/guest/**/*.ts",
+        "src/modules/housekeeping/**/*.ts",
         "src/modules/inventory/**/*.ts",
         "src/modules/pricing/**/*.ts",
         "src/database/schema/inventory.ts",
@@ -86,6 +88,24 @@ export default defineConfig({
       // guarantee.
       thresholds: {
         "src/modules/booking/**": {
+          lines: 85,
+          functions: 85,
+          branches: 85,
+          statements: 85,
+        },
+        // `guest` and `housekeeping` join the gate at the same floor. Neither
+        // moves money, so neither is named by `NFR-10` — they are here because
+        // the CCCD read path and the `OUT_OF_ORDER` rule are both places where a
+        // defect is silent: a mask that stops masking still returns a string,
+        // and a status change that reduced sellable inventory would surface as
+        // a property that is quietly less bookable.
+        "src/modules/guest/**": {
+          lines: 85,
+          functions: 85,
+          branches: 85,
+          statements: 85,
+        },
+        "src/modules/housekeeping/**": {
           lines: 85,
           functions: 85,
           branches: 85,
