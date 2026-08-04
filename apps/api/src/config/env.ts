@@ -95,6 +95,24 @@ export const envSchema = z.object({
     .max(1_440)
     .default(15),
 
+  // The two guard relaxations `booking-state-machine.md` §7 leaves to the owner.
+  // Both default to the blocked reading §7 assumes, and both are here rather
+  // than hardcoded because §7 records them as open: a property that decides the
+  // other way changes a line, not a guard.
+  //
+  // Off is the safe direction for each. Early check-in admits a guest to a room
+  // the night audit has not yet counted as sold to them; a dirty-room check-in
+  // hands over a room housekeeping has not released. Both are recoverable at a
+  // front desk and neither is recoverable from a log after the fact, so the
+  // decision is made once, in configuration, rather than per booking.
+  BOOKING_EARLY_CHECK_IN_ENABLED: z.stringbool().default(false),
+
+  // The `DIRTY` half of §7. `OUT_OF_ORDER` is **not** covered by it: that status
+  // means the room cannot be occupied at all — `housekeeping-status.ts` files it
+  // as a room condition and not a sales decision — and a flag that admitted a
+  // guest into it would be a different decision than the one §7 asks about.
+  BOOKING_DIRTY_ROOM_CHECK_IN_ENABLED: z.stringbool().default(false),
+
   // Whether this process runs the sweeps in `src/jobs` — the pg-boss workers
   // and the cron entries that wake them.
   //
