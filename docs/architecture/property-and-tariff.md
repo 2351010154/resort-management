@@ -203,6 +203,22 @@ different capability declaration — see
 | No-show — business date rolls past the arrival date | first night | 100% of stay |
 | Early departure | remaining nights at 50% | remaining nights at 100% |
 
+**Every cell is a penalty, not a settlement total.** The figure is what the
+booking owes *on top of* whatever the folio already carries, and that is why the
+last row is worded unlike the three above it. A cancellation and a no-show never
+reached `CHECKED_IN`, so no room-night has been posted and the penalty is the
+whole stay. An early departure has: the nights already slept were posted by the
+night audit as ordinary room charges — `booking-state-machine.md` §3 — and only
+the unspent nights are still open. So `NONREF`'s last cell charges the remaining
+nights rather than the stay. The two come to the same money, because the slept
+nights are already on the folio; charging the stay again would bill them twice,
+and a five-night guest leaving after the third night would be invoiced for
+eight.
+
+The same reading makes the two columns comparable. Both charge the unspent
+nights and differ only in the rate — 50% against 100% — where a cell that
+switched from a penalty to a total would make the columns mean different things.
+
 Waiving any cell is `MANAGER` or above, per `rbac-matrix.md` §5 decision 2. A
 receptionist cannot waive a penalty; that is the ⚑ row there, and this table is
 what it governs.
