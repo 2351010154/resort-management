@@ -34,7 +34,7 @@ import {
   roomAssignment,
   typeInventory,
 } from "../../database/schema/inventory.js";
-import { sqlStateOf } from "./sql-state.js";
+import { sqlStateOf } from "../../database/sql-state.js";
 
 /** Postgres' SQLSTATE for the two refusals this service expects. */
 const EXCLUSION_VIOLATION = "23P01";
