@@ -23,7 +23,7 @@
 import "reflect-metadata";
 
 import { parseDate } from "@internationalized/date";
-import type { RoomTypeCode } from "@mariva/shared";
+import type { RoomTypeCode, StayDate } from "@mariva/shared";
 import { and, eq, inArray } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
@@ -33,6 +33,7 @@ import type { Env } from "../src/config/env.js";
 import { booking, bookingNight } from "../src/database/schema/booking.js";
 import * as schema from "../src/database/schema/index.js";
 import { roomType, typeInventory } from "../src/database/schema/inventory.js";
+import { stayRestriction } from "../src/database/schema/pricing.js";
 import { seedDatabase } from "../src/database/seed/seed.js";
 import { InventoryService } from "../src/modules/inventory/inventory.service.js";
 import {
@@ -40,6 +41,7 @@ import {
   type Booking,
   type CreateBookingInput,
 } from "../src/modules/booking/booking.service.js";
+import { BusinessDateService } from "../src/modules/booking/business-date.service.js";
 import { isBookingReference } from "../src/modules/booking/reference-generator.js";
 import { StayQuoteService } from "../src/modules/booking/stay-quote.service.js";
 
@@ -55,6 +57,27 @@ const EXTRA_PERSON_PER_NIGHT = 600_000n;
 
 const HOLD_TTL_MINUTES = 15;
 const MS_PER_MINUTE = 60_000;
+const ROLLOVER_HOUR = 4;
+
+/**
+ * The property's day, stopped.
+ *
+ * A real `BusinessDateService` reads the wall clock, and every stay in this file
+ * is a date in 2027 or 2028 chosen to sit inside the seeded calendar. Asserting
+ * "an arrival before today is refused" and "an arrival today is taken" against
+ * the wall clock would mean either dates that fall out of the seeded range or a
+ * suite whose meaning changes as the calendar advances. The hour and the zone are
+ * still the real service's — only the instant it reads is fixed.
+ */
+class StoppedClock extends BusinessDateService {
+  constructor(private readonly today: StayDate) {
+    super({ BUSINESS_DATE_ROLLOVER_HOUR: ROLLOVER_HOUR } as Env);
+  }
+
+  override current(): StayDate {
+    return this.today;
+  }
+}
 
 let pool: pg.Pool;
 let db: ReturnType<typeof drizzle<typeof schema>>;
@@ -79,9 +102,15 @@ beforeAll(async () => {
 
   // Only the TTL is read, and it is read once. The rest of the environment is
   // not this service's to hold an opinion about.
+  //
+  // The property's day is stopped at the first night the seed prices, so every
+  // stay below arrives in its future and the arrival guard passes on its merits
+  // rather than on what today happens to be. Against the wall clock this whole
+  // file would begin failing once the calendar reached 2028.
   bookings = new BookingService(
     new InventoryService(),
     new StayQuoteService(),
+    new StoppedClock(SEED_FROM),
     { BOOKING_HOLD_TTL_MINUTES: HOLD_TTL_MINUTES } as Env,
   );
 });
@@ -409,6 +438,149 @@ describe("a stay the property cannot sell", () => {
   // `room_type_code` is a Postgres enum, so a code outside the five is refused
   // as a bad parameter before the lookup runs — the same branch
   // `inventory-reservation.e2e-spec.ts` leaves untested, for the same reason.
+});
+
+describe("a stay that arrives before the property's own day", () => {
+  // A Wednesday inside the seeded calendar, so the nights on either side of the
+  // business date are priced and open and the refusal below can only be the
+  // arrival guard's.
+  const TODAY = parseDate("2027-11-10");
+  const YESTERDAY = "2027-11-09";
+
+  let desk: BookingService;
+
+  beforeAll(() => {
+    desk = new BookingService(
+      new InventoryService(),
+      new StayQuoteService(),
+      new StoppedClock(TODAY),
+      { BOOKING_HOLD_TTL_MINUTES: HOLD_TTL_MINUTES } as Env,
+    );
+  });
+
+  it("is refused at the desk, and consumes nothing on the way out", async () => {
+    // The nights are real nights that have already happened. A booking written
+    // against them would consume inventory nobody can sell and would sit in the
+    // property's numbers as a room it never let.
+    const before = await soldOn("DELUXE", [YESTERDAY]);
+
+    await expect(
+      db.transaction((exec) =>
+        desk.createConfirmed(exec, stay("DELUXE", YESTERDAY, "2027-11-12")),
+      ),
+    ).rejects.toMatchObject({ code: "CONFLICT", status: 409 });
+
+    expect(await soldOn("DELUXE", [YESTERDAY])).toEqual(before);
+    expect(await bookingsStartingOn(YESTERDAY)).toBe(0);
+  });
+
+  it("is refused in the funnel too", async () => {
+    await expect(
+      db.transaction((exec) =>
+        desk.createHold(exec, stay("DELUXE", YESTERDAY, "2027-11-12")),
+      ),
+    ).rejects.toMatchObject({ code: "CONFLICT", status: 409 });
+
+    expect(await bookingsStartingOn(YESTERDAY)).toBe(0);
+  });
+
+  it("names the business date rather than the calendar", async () => {
+    // The distinction the message has to carry: this range *is* priced, so a
+    // refusal reading like the unpriced-calendar one would send the desk to
+    // publish rates for a date that has already gone.
+    await expect(
+      db.transaction((exec) =>
+        desk.createConfirmed(exec, stay("DELUXE", YESTERDAY, "2027-11-12")),
+      ),
+    ).rejects.toThrow(/before the business date/);
+  });
+
+  it("takes a stay arriving on the business date itself", async () => {
+    // The walk-in the property exists to serve. The guard is strictly-before for
+    // this reason, and an off-by-one here would close the front desk.
+    const sold = await db.transaction((exec) =>
+      desk.createConfirmed(exec, stay("DELUXE", TODAY.toString(), "2027-11-12")),
+    );
+
+    expect(sold.state).toBe("CONFIRMED");
+    expect(sold.checkIn.toString()).toBe(TODAY.toString());
+  });
+});
+
+describe("the stay restrictions the funnel obeys and the desk overrides", () => {
+  // Mid-week nights, so the seed's own weekend restrictions cannot be what any
+  // of these assertions is reading — `seed.ts` writes rows on Friday and
+  // Saturday nights only.
+  const MINIMUM_ARRIVAL = "2027-11-16";
+  const CLOSED_ARRIVAL = "2027-11-17";
+  const CLOSED_DEPARTURE = "2027-11-18";
+
+  beforeAll(async () => {
+    const [deluxe] = await db
+      .select({ id: roomType.id })
+      .from(roomType)
+      .where(eq(roomType.code, "DELUXE"));
+
+    await db
+      .insert(stayRestriction)
+      .values([
+        { roomTypeId: deluxe!.id, stayDate: MINIMUM_ARRIVAL, minimumStay: 3 },
+        { roomTypeId: deluxe!.id, stayDate: CLOSED_ARRIVAL, closedToArrival: true },
+        {
+          roomTypeId: deluxe!.id,
+          stayDate: CLOSED_DEPARTURE,
+          closedToDeparture: true,
+        },
+      ])
+      .onConflictDoNothing();
+  });
+
+  it("refuses a hold that runs shorter than the minimum stay", async () => {
+    await expect(
+      createHold(stay("DELUXE", MINIMUM_ARRIVAL, "2027-11-17")),
+    ).rejects.toMatchObject({ code: "CONFLICT", status: 409 });
+
+    expect(await bookingsStartingOn(MINIMUM_ARRIVAL)).toBe(0);
+  });
+
+  it("refuses a hold beginning on a date closed to arrivals", async () => {
+    await expect(
+      createHold(stay("DELUXE", CLOSED_ARRIVAL, "2027-11-20")),
+    ).rejects.toMatchObject({ code: "CONFLICT", status: 409 });
+
+    expect(await bookingsStartingOn(CLOSED_ARRIVAL)).toBe(0);
+  });
+
+  it("refuses a hold ending on a date closed to departures", async () => {
+    // The rule that governs the far end of the range, and the one a guard
+    // reading only the arrival night would silently not enforce.
+    await expect(
+      createHold(stay("DELUXE", "2027-11-15", CLOSED_DEPARTURE)),
+    ).rejects.toMatchObject({ code: "CONFLICT", status: 409 });
+
+    expect(await bookingsStartingOn("2027-11-15")).toBe(0);
+  });
+
+  it("takes a hold that satisfies the minimum", async () => {
+    // The same arrival date the first case refused, run long enough. Without
+    // this the three refusals above would also be satisfied by a guard that
+    // simply rejected every hold.
+    const held = await createHold(stay("DELUXE", MINIMUM_ARRIVAL, "2027-11-19"));
+
+    expect(held.state).toBe("HELD");
+  });
+
+  it("lets the front desk take the stay the funnel was refused", async () => {
+    // The whole of the split. A minimum stay is a commercial rule, and the desk
+    // overrides it for a regular or a booking already promised by telephone —
+    // where a party the room cannot sleep is refused on both paths, because no
+    // amount of authority makes a room bigger.
+    const sold = await createConfirmed(
+      stay("DELUXE", CLOSED_ARRIVAL, "2027-11-19"),
+    );
+
+    expect(sold.state).toBe("CONFIRMED");
+  });
 });
 
 /** One transition, in its own transaction — the boundary a controller draws. */
