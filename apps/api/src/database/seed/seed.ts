@@ -52,6 +52,7 @@ import type { Database } from "../database.module.js";
 import { booking, bookingNight } from "../schema/booking.js";
 import { registration } from "../schema/guest.js";
 import { guestUser } from "../schema/index.js";
+import { roomCondition } from "../schema/housekeeping.js";
 import {
   room,
   roomAssignment,
@@ -140,6 +141,9 @@ async function wipe(db: Database): Promise<void> {
   await db.execute(sql`delete from ${typeInventory}`);
   await db.execute(sql`delete from ${stayRestriction}`);
   await db.execute(sql`delete from ${rateCalendar}`);
+  // Before the rooms they name, for the same reason the assignments went before
+  // the bookings: each delete here clears the rows that reference the next.
+  await db.execute(sql`delete from ${roomCondition}`);
   await db.execute(sql`delete from ${room}`);
   await db.execute(sql`delete from ${roomType}`);
   await db.execute(sql`delete from ${ratePlan}`);
@@ -332,6 +336,16 @@ async function insertRooms(
     .insert(room)
     .values(rows.map(({ roomTypeCode: _ignored, ...values }) => values))
     .returning({ id: room.id, number: room.number });
+
+  // A room and its condition are written together, because a room without one
+  // is a room the check-in guard cannot answer for: `FR-HK-01` admits a guest
+  // into `CLEAN` or `INSPECTED`, and a missing row is neither. The status is
+  // left to default — a seeded property has had no stays yet, so every room is
+  // clean, and stating `CLEAN` here would be repeating the column's own default
+  // in a second place.
+  await db
+    .insert(roomCondition)
+    .values(inserted.map(({ id }) => ({ roomId: id })));
 
   const byNumber = new Map(inserted.map((row) => [row.number, row.id]));
 

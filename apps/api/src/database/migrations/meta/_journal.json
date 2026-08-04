@@ -57,6 +57,13 @@
       "when": 1785750088129,
       "tag": "0007_guest_core",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1785814714509,
+      "tag": "0008_housekeeping_core",
+      "breakpoints": true
     }
   ]
 }

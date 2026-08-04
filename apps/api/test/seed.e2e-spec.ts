@@ -15,6 +15,7 @@ import { migrate } from "drizzle-orm/node-postgres/migrator";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Database } from "../src/database/database.module.js";
+import { roomCondition } from "../src/database/schema/housekeeping.js";
 import * as schema from "../src/database/schema/index.js";
 import { guestUser } from "../src/database/schema/index.js";
 import {
@@ -99,6 +100,19 @@ describe("the property it builds", () => {
     for (const each of rooms) {
       expect(each.floor).toBe(Number(each.number[0]));
     }
+  });
+
+  it("gives every room a condition to be checked into", async () => {
+    // A seeded property whose rooms have no condition row is one no guest can be
+    // checked into: `FR-HK-01` admits `CLEAN` or `INSPECTED`, and an absent row
+    // is neither. Asserted here rather than left to the housekeeping service,
+    // because the gap would open in the seed and surface in the guard.
+    const conditions = await db.select().from(roomCondition);
+
+    expect(conditions).toHaveLength(ROOM_COUNT);
+    expect(new Set(conditions.map((each) => each.status))).toEqual(
+      new Set(["CLEAN"]),
+    );
   });
 
   it("gives each type exactly the rooms the mix allots it", async () => {
