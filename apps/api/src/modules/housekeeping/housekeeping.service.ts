@@ -45,7 +45,7 @@ import { eq, sql } from "drizzle-orm";
 import type { DbExecutor } from "../../database/database.module.js";
 import { roomCondition } from "../../database/schema/housekeeping.js";
 import { staffUser } from "../../database/schema/identity.js";
-import { room } from "../../database/schema/inventory.js";
+import { room, roomAssignment } from "../../database/schema/inventory.js";
 
 /** The three a cleaning round moves a room between — `FR-HK-01`. */
 export type RoomReadiness = Exclude<HousekeepingStatus, "OUT_OF_ORDER">;
@@ -240,13 +240,18 @@ export class HousekeepingService {
         // separate stays across the year would otherwise arrive as three tiles
         // of the same room, and collapsing them afterwards is work the database
         // stops doing the moment it finds one.
+        // The table and its columns are interpolated as schema objects rather
+        // than written as text, which is `availability.service.ts`'s convention
+        // and is there for one reason: a column renamed in `schema/inventory.ts`
+        // becomes a build error here instead of a subquery that typechecks and
+        // fails at runtime, on the board the housekeepers work from.
         isOccupied: sql<boolean>`exists (
           select 1
-            from room_assignment held
-           where held.room_id = ${room.id}
-             and held.booking_id is not null
-             and held.check_in_date <= ${date}
-             and held.check_out_date > ${date}
+            from ${roomAssignment}
+           where ${roomAssignment.roomId} = ${room.id}
+             and ${roomAssignment.bookingId} is not null
+             and ${roomAssignment.checkInDate} <= ${date}
+             and ${roomAssignment.checkOutDate} > ${date}
         )`,
       })
       .from(room)
