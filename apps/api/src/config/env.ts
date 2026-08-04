@@ -94,6 +94,23 @@ export const envSchema = z.object({
     .min(1)
     .max(1_440)
     .default(15),
+
+  // Whether this process runs the sweeps in `src/jobs` — the pg-boss workers
+  // and the cron entries that wake them.
+  //
+  // Left unset it follows `NODE_ENV`, on everywhere except `test`, and the
+  // default is derived rather than fixed because the two wrong values cost
+  // opposite things. Off in a deployed process is a hold that never expires and
+  // a room the property never gets back: silent, and visible only as a hotel
+  // that has quietly stopped selling. On under the test runner is a set of
+  // background workers polling — and writing to — the single Postgres every
+  // spec truncates, which turns a deterministic suite into an intermittent one.
+  //
+  // It is also how a second API instance is run without a second scheduler
+  // behind it. pg-boss coordinates its cron across instances, so two schedulers
+  // is not a correctness problem; it is a choice about which process does the
+  // work, and that choice belongs to whoever deploys it.
+  JOBS_SCHEDULER_ENABLED: z.stringbool().optional(),
 })
   .refine((env) => env.BETTER_AUTH_SECRET !== env.STAFF_JWT_SECRET, {
     path: ["STAFF_JWT_SECRET"],
@@ -122,7 +139,16 @@ export const envSchema = z.object({
       message:
         "is required in production — the login screen offers Google sign-in unconditionally",
     },
-  );
+  )
+  // Last, so every check above reads the environment exactly as it was written.
+  // The one derived value in this file lives here rather than in `.default()`
+  // because it is a default *about another variable*, and zod cannot express
+  // that on the field itself.
+  .transform((env) => ({
+    ...env,
+    JOBS_SCHEDULER_ENABLED:
+      env.JOBS_SCHEDULER_ENABLED ?? env.NODE_ENV !== "test",
+  }));
 
 export type Env = Readonly<z.infer<typeof envSchema>>;
 
