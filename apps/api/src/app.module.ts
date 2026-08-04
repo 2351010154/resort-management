@@ -5,6 +5,7 @@ import { ConfigModule } from "./config/config.module.js";
 import { ENV, type Env } from "./config/env.js";
 import { DatabaseModule } from "./database/database.module.js";
 import { HealthModule } from "./health/health.module.js";
+import { JobsModule } from "./jobs/jobs.module.js";
 import { AuthModule } from "./modules/auth/auth.module.js";
 import { BookingModule } from "./modules/booking/booking.module.js";
 import { GuestModule } from "./modules/guest/guest.module.js";
@@ -112,6 +113,12 @@ const CORRELATION_HEADER = "x-request-id";
     BookingModule,
     HousekeepingModule,
     GuestModule,
+
+    // Last, and after every module that could register a sweep. `JobsModule`
+    // starts pg-boss on `onApplicationBootstrap`, so anything it is meant to
+    // schedule has to have been provided by then — and its own trigger route is
+    // governed by the guard `AuthModule` installs, like every other route here.
+    JobsModule,
   ],
 })
 export class AppModule {}
