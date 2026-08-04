@@ -9,6 +9,7 @@
 import { availability } from "./availability.js";
 import { health } from "./health.js";
 import { inventory } from "./inventory.js";
+import { jobs } from "./jobs.js";
 import { pricing } from "./pricing.js";
 
 export const contract = {
@@ -16,6 +17,7 @@ export const contract = {
   availability,
   inventory,
   pricing,
+  jobs,
 };
 
 export type Contract = typeof contract;
@@ -24,6 +26,7 @@ export type Contract = typeof contract;
 // handed without inferring it back out of the router object.
 export { rateCalendarQuery, stayOfferQuery } from "./availability.js";
 export { closeRoomInput, roomClosureSchema } from "./inventory.js";
+export { jobRunSchema, triggerJobInput } from "./jobs.js";
 export {
   isUnrestricted,
   pricingRangeQuery,
