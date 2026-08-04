@@ -55,8 +55,10 @@ import {
 } from "../../database/schema/booking.js";
 import { roomType } from "../../database/schema/inventory.js";
 import { InventoryService } from "../inventory/inventory.service.js";
+import { BusinessDateService } from "./business-date.service.js";
 import { applyTransition } from "./state-machine.js";
 import { retryOnCollision } from "./reference-generator.js";
+import { assertFunnelMaySell } from "./stay-restriction-guard.js";
 import { StayQuoteService } from "./stay-quote.service.js";
 
 const MS_PER_MINUTE = 60_000;
@@ -113,6 +115,7 @@ export class BookingService {
   constructor(
     private readonly inventory: InventoryService,
     private readonly quotes: StayQuoteService,
+    private readonly businessDate: BusinessDateService,
     @Inject(ENV) private readonly env: Env,
   ) {}
 
@@ -122,11 +125,18 @@ export class BookingService {
    * `FR-BOOK-02` gives only the funnel this door. The nights are consumed in
    * full at this point and not at payment, because a hold that did not consume
    * them would be a room two guests could reach the payment step for.
+   *
+   * This is also the only door the property's stay restrictions close.
+   * `stay-restriction-guard.ts` argues the split at length: the funnel obeys the
+   * published minimum stay and the closed dates, and the desk below overrides
+   * them the way a desk does.
    */
   async createHold(
     exec: DbExecutor,
     input: CreateBookingInput,
   ): Promise<Booking> {
+    await assertFunnelMaySell(exec, input);
+
     return await this.create(exec, input, "HELD");
   }
 
@@ -136,6 +146,10 @@ export class BookingService {
    * A walk-in or a phone reservation is confirmed by the person taking it, so
    * there is nothing for a sweep to expire and
    * `booking_hold_expiry_exactly_when_held` refuses an expiry on it.
+   *
+   * Stay restrictions are deliberately not applied here — see `createHold`. What
+   * still binds this path is everything the property cannot physically do: the
+   * room type's occupancy, a priced calendar, and the arrival guard in `create`.
    */
   async createConfirmed(
     exec: DbExecutor,
@@ -212,6 +226,14 @@ export class BookingService {
       checkOut: parseDate(current.booking.checkOutDate),
     });
 
+    // Releasing the type's counter is the whole of the effect *today*, because
+    // nothing writes `room_assignment` yet. The moment something does, this
+    // cancellation has a second row to close: an assignment left behind holds
+    // its room against `room_assignment_no_double_booking`, so the room could be
+    // given to nobody else and would read as occupied on the housekeeping board
+    // for a stay that is not happening. The counter would say the room is free
+    // and the exclusion constraint would say it is taken.
+
     const [cancelled] = await exec
       .update(booking)
       .set({
@@ -252,6 +274,30 @@ export class BookingService {
     // `CHECKED_IN` is refused because a stay nobody booked has no inventory
     // behind it.
     applyTransition(null, state);
+
+    // A stay cannot begin before the property's own day — `property-and-tariff.md`
+    // §2 for what that day is, and `business-date.service.ts` for why it is not
+    // the calendar date. The seeded calendar prices a year ahead and says nothing
+    // about the past, so without this a request naming a date already gone would
+    // price, consume inventory on nights that have happened and write a real
+    // booking against them. Held, the sweep would clear it; confirmed, it would
+    // sit in the property's numbers as a room it never sold.
+    //
+    // Both creating paths, and the same date for each. §4's arrival window
+    // governs check-in and is a different guard on a different transition, so
+    // nothing downstream would catch this one.
+    //
+    // Arriving *today* is the walk-in this system exists to take, so the
+    // comparison is strictly-before and not before-or-equal. A back-dated
+    // correction is `M6`'s audited path and not a side effect of taking a
+    // booking.
+    const today = this.businessDate.current();
+
+    if (input.checkIn.compare(today) < 0) {
+      throw new ORPCError("CONFLICT", {
+        message: `A stay cannot arrive on ${input.checkIn.toString()}, which is before the business date ${today.toString()}`,
+      });
+    }
 
     const quote = await this.quotes.quote(exec, input);
 
