@@ -15,6 +15,19 @@ export * from "./inventory.js";
 // availability query prices against. Owned by `modules/pricing`.
 export * from "./pricing.js";
 
+// The stay itself: its state, its nights and the price it was sold at. Owned by
+// `modules/booking`.
+export * from "./booking.js";
+
+// Who stayed and who read their ID number: the guest record, the registration
+// written at check-in, and the unmask audit trail. Owned by `modules/guest`.
+export * from "./guest.js";
+
+// What state each room is in — clean, dirty, inspected or out of order — on an
+// axis of its own, independent of who is staying in it. Owned by
+// `modules/housekeeping`.
+export * from "./housekeeping.js";
+
 // The guest realm: Better Auth's four core tables. Their in-file names are
 // Better Auth's own (`user`, `session`, …) because its Drizzle adapter indexes
 // the schema object it is given by those keys. Everything outside

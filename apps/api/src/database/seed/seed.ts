@@ -13,14 +13,20 @@
 // sum to forty is a seed bug, and a seed that discovered that halfway through
 // would leave a half-built property behind to be diagnosed.
 //
-// **There is no booking table.** The six-state machine is `M4`, and
-// `room_assignment.booking_id` is deliberately foreign-key-less until there is
-// something for it to point at — `schema/inventory.ts` says so. So a synthetic
-// stay is written as what a stay *is* to this milestone: a hold on a physical
-// room that the exclusion constraint can see, and a matching increment of the
-// type's counter. That is exactly the pair a real booking will write at `M4`,
-// which is what makes the seeded data able to exercise the availability query
-// rather than merely occupy space in it.
+// A synthetic stay is written as three consistent facts, because that is what a
+// stay now is: a `CONFIRMED` booking carrying the price it was sold at, a hold
+// on a physical room that the exclusion constraint can see, and a matching
+// increment of the type's counter. The booking came last — `room_assignment`
+// held an invented id until there was a table for the key to point at — and now
+// that the key exists the id has to name a row that exists too.
+//
+// Every seeded booking is `STANDARD`, two adults, no children. Not because a
+// demo of one plan is interesting, but because a fixture that varied them would
+// be computing breakfast heads and age bands in a seed file — arithmetic that
+// belongs to `occupancy-pricing.ts` and is proved by its own tests, not by rows
+// nobody asserts against. The frozen quote below is still computed rather than
+// invented: it is the same sum over the same calendar the availability query
+// reads, so a seeded stay's stored price and its re-derived one agree.
 //
 // The two layers are written consistently by construction rather than by
 // arithmetic afterwards: a stay is only generated for a room that is free for
@@ -36,10 +42,17 @@ import {
   today,
 } from "@internationalized/date";
 import { faker } from "@faker-js/faker/locale/vi";
-import { PROPERTY_TIME_ZONE, type VndAmount } from "@mariva/shared";
+import {
+  INCLUDED_OCCUPANCY,
+  PROPERTY_TIME_ZONE,
+  type VndAmount,
+} from "@mariva/shared";
 import { sql } from "drizzle-orm";
 import type { Database } from "../database.module.js";
+import { booking, bookingNight } from "../schema/booking.js";
+import { registration } from "../schema/guest.js";
 import { guestUser } from "../schema/index.js";
+import { roomCondition } from "../schema/housekeeping.js";
 import {
   room,
   roomAssignment,
@@ -112,10 +125,25 @@ export interface SeedOptions {
  * keeps the second.
  */
 async function wipe(db: Database): Promise<void> {
+  // Assignments first, then the registrations, then the nights, then the
+  // bookings all three hang off: each step removes the rows that reference the
+  // next one, so no delete here needs a cascade to get past a key.
+  //
+  // Every registration goes, without a filter deciding which. A registration
+  // names a booking and this wipes all of them, so there is no subset that
+  // could outlive the statement below. The guests those rows named are left
+  // where they are: a person is not owned by one stay, and the seed never
+  // wrote them.
   await db.execute(sql`delete from ${roomAssignment}`);
+  await db.execute(sql`delete from ${registration}`);
+  await db.execute(sql`delete from ${bookingNight}`);
+  await db.execute(sql`delete from ${booking}`);
   await db.execute(sql`delete from ${typeInventory}`);
   await db.execute(sql`delete from ${stayRestriction}`);
   await db.execute(sql`delete from ${rateCalendar}`);
+  // Before the rooms they name, for the same reason the assignments went before
+  // the bookings: each delete here clears the rows that reference the next.
+  await db.execute(sql`delete from ${roomCondition}`);
   await db.execute(sql`delete from ${room}`);
   await db.execute(sql`delete from ${roomType}`);
   await db.execute(sql`delete from ${ratePlan}`);
@@ -167,11 +195,29 @@ export async function seedDatabase(
     })),
   );
 
+  // The calendar as a lookup as well as rows. A booking freezes the price it
+  // was sold at, and the only way that frozen figure can be trusted is for it to
+  // come from the very numbers written to `rate_calendar` rather than from a
+  // second pass that recomputes them and could differ.
+  const grossByTypeAndDate = new Map<string, VndAmount>(
+    ROOM_TYPES.flatMap((type) =>
+      nights.map(
+        (night) =>
+          [
+            `${type.code}|${night.toString()}`,
+            nightlyGross(type.baseGrossPerNight, night),
+          ] as const,
+      ),
+    ),
+  );
+
   const rates = ROOM_TYPES.flatMap((type) =>
     nights.map((night) => ({
       roomTypeId: typeIds.get(type.code)!,
       stayDate: night.toString(),
-      grossPerNight: nightlyGross(type.baseGrossPerNight, night),
+      grossPerNight: grossByTypeAndDate.get(
+        `${type.code}|${night.toString()}`,
+      )!,
     })),
   );
 
@@ -205,7 +251,7 @@ export async function seedDatabase(
   const restrictions = buildRestrictions(typeIds, nights);
   await insertInChunks(db, stayRestriction, restrictions);
 
-  await insertGuestsAndStays(db, stays);
+  await insertGuestsAndStays(db, stays, typeIds, grossByTypeAndDate);
 
   return {
     roomTypes: ROOM_TYPES.length,
@@ -290,6 +336,16 @@ async function insertRooms(
     .insert(room)
     .values(rows.map(({ roomTypeCode: _ignored, ...values }) => values))
     .returning({ id: room.id, number: room.number });
+
+  // A room and its condition are written together, because a room without one
+  // is a room the check-in guard cannot answer for: `FR-HK-01` admits a guest
+  // into `CLEAN` or `INSPECTED`, and a missing row is neither. The status is
+  // left to default — a seeded property has had no stays yet, so every room is
+  // clean, and stating `CLEAN` here would be repeating the column's own default
+  // in a second place.
+  await db
+    .insert(roomCondition)
+    .values(inserted.map(({ id }) => ({ roomId: id })));
 
   const byNumber = new Map(inserted.map((row) => [row.number, row.id]));
 
@@ -380,9 +436,9 @@ function placeOne(
     const name = faker.person.fullName();
 
     return {
-      // The id a booking row will carry at `M4`. Generated rather than left
-      // null, because a null there means "this hold is a closure" — and a
-      // synthetic guest's stay is not a closure.
+      // The booking this stay is, written here so the hold and the booking row
+      // share it. Never null: a null booking id means "this hold is a closure",
+      // and a synthetic guest's stay is not a closure.
       bookingId: randomUUID(),
       roomId: chosen.id,
       roomTypeCode: chosen.roomTypeCode,
@@ -400,17 +456,22 @@ function placeOne(
 }
 
 /**
- * Writes the guests and their holds.
+ * Writes the guests, their bookings and the holds those bookings placed.
  *
  * The guest rows go into Better Auth's own table because there is nowhere else
  * a person lives in this system, and a stay with no name behind it cannot
  * exercise a front-desk screen. They carry no credential: a seeded guest is
  * somebody the property has a record of, not somebody who can sign in, and
  * writing a password hash nobody chose would be a credential in a fixture.
+ *
+ * Order matters below and the foreign keys say why: the nights and the holds
+ * both name a booking, so the bookings are written first.
  */
 async function insertGuestsAndStays(
   db: Database,
   stays: readonly SyntheticStay[],
+  typeIds: Map<string, string>,
+  grossByTypeAndDate: Map<string, VndAmount>,
 ): Promise<void> {
   const guests = stays.map((stay) => ({
     id: randomUUID(),
@@ -420,6 +481,47 @@ async function insertGuestsAndStays(
   }));
 
   await insertInChunks(db, guestUser, guests);
+
+  const standard = RATE_PLANS.find((plan) => plan.code === "STANDARD")!;
+
+  await insertInChunks(
+    db,
+    booking,
+    stays.map((stay, ordinal) => ({
+      // The id `room_assignment` already carries. Stated rather than defaulted,
+      // because the hold and the booking were drawn together and a second
+      // generated id here would separate them.
+      id: stay.bookingId,
+      reference: seededReference(stay, ordinal),
+      // Confirmed and not held: a hold has a TTL, and a fixture full of
+      // bookings whose expiry has long passed is a calendar the first run of
+      // the sweep would empty.
+      state: "CONFIRMED" as const,
+      roomTypeId: typeIds.get(stay.roomTypeCode)!,
+      checkInDate: stay.checkIn,
+      checkOutDate: stay.checkOut,
+      ratePlanCode: standard.code,
+      // Two, which is the included occupancy — so no head in a seeded party is
+      // an extra one and the tariff below is frozen without being charged.
+      adults: INCLUDED_OCCUPANCY,
+      quotedStayTotalGross: quotedTotal(stay, grossByTypeAndDate, standard),
+      quotedPercentAdjustment: standard.percentAdjustment,
+      quotedBreakfastPerPersonGross: standard.breakfastPerPersonGross,
+      quotedExtraPersonPerNightGross: EXTRA_PERSON_PER_NIGHT_GROSS,
+    })),
+  );
+
+  await insertInChunks(
+    db,
+    bookingNight,
+    stays.flatMap((stay) =>
+      stay.nights.map((night) => ({
+        bookingId: stay.bookingId,
+        stayDate: night,
+        standardGross: grossByTypeAndDate.get(`${stay.roomTypeCode}|${night}`)!,
+      })),
+    ),
+  );
 
   await insertInChunks(
     db,
@@ -431,6 +533,42 @@ async function insertGuestsAndStays(
       checkOutDate: stay.checkOut,
     })),
   );
+}
+
+/**
+ * What the stay was sold for, by the arithmetic that sold it.
+ *
+ * The nights are summed before the plan's percentage is applied, and the
+ * division happens once over the whole stay — `property-and-tariff.md` §5, and
+ * the same order `availability.service.ts` applies it in. Dividing per night
+ * would leave the seeded total a few đồng from the total the funnel quotes for
+ * the identical stay, which is the drift the frozen columns exist to prevent
+ * appearing in a fixture.
+ */
+function quotedTotal(
+  stay: SyntheticStay,
+  grossByTypeAndDate: Map<string, VndAmount>,
+  plan: { readonly percentAdjustment: number },
+): VndAmount {
+  const nights = stay.nights.reduce(
+    (total, night) =>
+      total + grossByTypeAndDate.get(`${stay.roomTypeCode}|${night}`)!,
+    0n,
+  );
+
+  return (nights * BigInt(100 + plan.percentAdjustment)) / 100n;
+}
+
+/**
+ * The reference a seeded booking answers to.
+ *
+ * Deterministic from the arrival and the stay's ordinal, so a demo link keeps
+ * working across a reseed. The generator the API uses at runtime is `M4`'s and
+ * owns the format; this is a fixture writing something in its shape, not a
+ * second implementation of it — nothing reads a reference back apart.
+ */
+function seededReference(stay: SyntheticStay, ordinal: number): string {
+  return `MRV-${stay.checkIn.replaceAll("-", "")}-${String(ordinal).padStart(4, "0")}`;
 }
 
 /**
