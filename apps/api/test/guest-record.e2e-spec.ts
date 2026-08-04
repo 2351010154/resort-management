@@ -36,7 +36,7 @@ import {
   GuestService,
   type NewGuest,
 } from "../src/modules/guest/guest.service.js";
-import { sqlStateOf } from "../src/modules/inventory/sql-state.js";
+import { sqlStateOf } from "../src/database/sql-state.js";
 
 // A uuid the migrations guarantee nothing points at — every id here is
 // `defaultRandom()`, so this one names no row by construction.

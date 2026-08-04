@@ -45,7 +45,7 @@ import { ORPCError } from "@orpc/nest";
 import { eq, type SQL, sql } from "drizzle-orm";
 import type { DbExecutor } from "../../database/database.module.js";
 import { roomType } from "../../database/schema/inventory.js";
-import { sqlStateOf } from "./sql-state.js";
+import { sqlStateOf } from "../../database/sql-state.js";
 
 /** Postgres' SQLSTATE for the refusal this service expects. */
 const CHECK_VIOLATION = "23514";

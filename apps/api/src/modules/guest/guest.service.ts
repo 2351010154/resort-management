@@ -48,13 +48,7 @@ import {
   guest,
   type GuestRow,
 } from "../../database/schema/guest.js";
-// The inventory module's, and reused rather than copied: reading a SQLSTATE off
-// a wrapped driver error is one problem with one right answer, and a second
-// implementation of it would be a second thing to fix the day drizzle adds a
-// wrapper layer. It is a database concern rather than an inventory one and
-// would sit better under `src/database/`; moving it is a change to a file this
-// work does not own.
-import { sqlStateOf } from "../inventory/sql-state.js";
+import { sqlStateOf } from "../../database/sql-state.js";
 import { maskCccd } from "./cccd-mask.js";
 
 /** Postgres' SQLSTATEs for the two refusals this service expects. */

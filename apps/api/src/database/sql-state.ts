@@ -1,9 +1,16 @@
 // Reading Postgres' answer out of a thrown error.
 //
-// Every write in this module is deliberately unguarded: the invariants live in
-// the database, so the services here write the row and let a constraint refuse
-// it. That makes the SQLSTATE the return value of a failed write rather than a
+// Writes across this codebase are deliberately unguarded: the invariants live in
+// the database, so a service writes the row and lets a constraint refuse it.
+// That makes the SQLSTATE the return value of a failed write rather than a
 // diagnostic, and every service that writes needs to read it.
+//
+// It sits beside the executor rather than inside one of the modules that reads
+// it. Postgres' error codes are the database's vocabulary and not any one
+// module's — `guest`, `inventory` and everything that writes after them ask the
+// same question, and a helper owned by whichever module happened to need it
+// first would have the others importing across a boundary for a concern neither
+// of them owns.
 
 /**
  * The SQLSTATE out of a thrown error.
