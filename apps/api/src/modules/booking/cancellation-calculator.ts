@@ -92,14 +92,25 @@ export type ChargeBasis =
  *
  * A discriminated union rather than a flag and four optional fields, because
  * each row needs a different fact and only one of them: a cancellation needs the
- * moment it arrived, an early departure needs how many nights were spent, and a
- * no-show needs neither — the night audit already decided it by comparing
- * business dates, so there is nothing left here to re-decide.
+ * moment it arrived, an early departure needs how many nights are already
+ * posted, and a no-show needs neither — the night audit already decided it by
+ * comparing business dates, so there is nothing left here to re-decide.
  */
 export type PolicyEvent =
   | { readonly kind: "CANCELLATION"; readonly cancelledAt: Date }
   | { readonly kind: "NO_SHOW" }
-  | { readonly kind: "EARLY_DEPARTURE"; readonly nightsSpent: number };
+  | {
+      readonly kind: "EARLY_DEPARTURE";
+      /**
+       * Leading nights the night audit has already posted to the folio — not
+       * elapsed calendar nights, and never a date subtraction. The two agree on
+       * an ordinary stay and part on a late arrival, which reverses its no-show
+       * charge (`booking-state-machine.md` §3): that guest has a night behind
+       * them with nothing posted for it, and counting it here would leave the
+       * folio one night short. Count postings.
+       */
+      readonly nightsSpent: number;
+    };
 
 export interface PolicyChargeInput {
   readonly plan: RatePlanCode;
@@ -161,7 +172,7 @@ export function policyCharge({
 
     case "EARLY_DEPARTURE": {
       if (!Number.isInteger(event.nightsSpent) || event.nightsSpent < 0) {
-        throw new RangeError("nightsSpent is a count of nights already stayed");
+        throw new RangeError("nightsSpent is a count of nights already posted");
       }
 
       // Past the end of the stay this is empty, and zero is the right answer:
