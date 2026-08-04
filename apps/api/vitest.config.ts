@@ -73,6 +73,7 @@ export default defineConfig({
         "src/modules/booking/**/*.ts",
         "src/modules/guest/**/*.ts",
         "src/modules/housekeeping/**/*.ts",
+        "src/jobs/**/*.ts",
         "src/modules/inventory/**/*.ts",
         "src/modules/pricing/**/*.ts",
         "src/database/schema/inventory.ts",
@@ -106,6 +107,17 @@ export default defineConfig({
           statements: 85,
         },
         "src/modules/housekeeping/**": {
+          lines: 85,
+          functions: 85,
+          branches: 85,
+          statements: 85,
+        },
+        // The scheduler holds no domain rule, and is here for the one it does
+        // hold: a sweep that is not idempotent must be refused rather than
+        // discovered later in a counter that drifted. That check has no
+        // second line of defence, so it is held to the same floor as the
+        // modules whose invariants it protects.
+        "src/jobs/**": {
           lines: 85,
           functions: 85,
           branches: 85,
