@@ -60,6 +60,24 @@ export const envSchema = z.object({
   RESEND_API_KEY: z.string().min(1).optional(),
 
   MAIL_FROM: z.string().min(1).default("Mariva <no-reply@mariva.local>"),
+
+  // The hour the business date rolls over, in the property's own zone —
+  // docs/architecture/property-and-tariff.md §2. 04:00 by default, which is when
+  // the night audit runs and closes the date that just ended.
+  //
+  // Here rather than in `property_tariff`, and the reason is who may change it.
+  // `rbac-matrix.md` §3 files the business date under System config — `ADMIN`
+  // edits, `MANAGER` only looks — while `property_tariff` sits under the rates
+  // row a `MANAGER` owns, so a column there would widen the audience for it. The
+  // row `FR-IDN-03` describes is `M6`'s to build, and §8 says those rows are
+  // "seeded from environment at boot": this is that seed, arriving early because
+  // the business date is needed before the table that will hold it exists.
+  BUSINESS_DATE_ROLLOVER_HOUR: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(23)
+    .default(4),
 })
   .refine((env) => env.BETTER_AUTH_SECRET !== env.STAFF_JWT_SECRET, {
     path: ["STAFF_JWT_SECRET"],

@@ -70,6 +70,7 @@ export default defineConfig({
       // denominator would let an untested service raise the average by being
       // invisible.
       include: [
+        "src/modules/booking/**/*.ts",
         "src/modules/inventory/**/*.ts",
         "src/modules/pricing/**/*.ts",
         "src/database/schema/inventory.ts",
@@ -84,6 +85,12 @@ export default defineConfig({
       // and a threshold over nothing passes vacuously while looking like a
       // guarantee.
       thresholds: {
+        "src/modules/booking/**": {
+          lines: 85,
+          functions: 85,
+          branches: 85,
+          statements: 85,
+        },
         "src/modules/inventory/**": {
           lines: 85,
           functions: 85,
