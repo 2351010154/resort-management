@@ -8,3 +8,4 @@ export * from "./money.js";
 export * from "./occupancy-pricing.js";
 export * from "./rate-calendar.js";
 export * from "./stay-date.js";
+export * from "./stay-quote.js";
