@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { BookingModule } from "../modules/booking/booking.module.js";
 import { HoldExpirySweep } from "../modules/booking/hold-expiry-sweep.js";
+import { NoShowSweep } from "../modules/booking/no-show-sweep.js";
 import { JobRunner } from "./job-runner.service.js";
 import { JobScheduler } from "./job-scheduler.service.js";
 import { JobTriggerController } from "./job-trigger.controller.js";
@@ -19,8 +20,9 @@ import { SWEEP_JOBS, type SweepJob } from "./sweep-job.js";
 // the scheduled path asks what day it is — reading the rollover hour out of the
 // environment here instead would be a second implementation of the 04:00 rule,
 // and the two would agree right up until one of them was changed.
-// `BookingService` is what `HoldExpirySweep` cancels through, for the same kind
-// of reason, which `hold-expiry-sweep.ts` argues where it belongs.
+// `BookingService` is what `HoldExpirySweep` cancels through and what
+// `NoShowSweep` transitions through, for the same kind of reason, which each of
+// `hold-expiry-sweep.ts` and `no-show-sweep.ts` argues where it belongs.
 //
 // The sweep classes themselves are provided here rather than by the modules they
 // belong to. A sweep is only ever resolved through the registry below, so
@@ -41,12 +43,11 @@ import { SWEEP_JOBS, type SweepJob } from "./sweep-job.js";
       // the factory collects them in that order. Discovery by decorator scan
       // would save the line and cost the ability to read this file and know
       // what runs.
-      //
-      // The no-show sweep lands here as its own requirement is built.
-      inject: [HoldExpirySweep],
+      inject: [HoldExpirySweep, NoShowSweep],
       useFactory: (...jobs: SweepJob[]): readonly SweepJob[] => jobs,
     },
     HoldExpirySweep,
+    NoShowSweep,
     JobRunner,
     JobScheduler,
   ],
