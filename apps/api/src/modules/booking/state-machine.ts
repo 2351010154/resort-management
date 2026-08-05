@@ -60,7 +60,9 @@ export const LEGAL_TRANSITIONS: Readonly<
   CANCELLED: [],
   // A guest landing at 02:00 after the night audit ran is an ordinary event,
   // not a data-entry error. `MANAGER` only, and it fails if the room was
-  // resold — both of which are the service's to enforce, not this table's.
+  // resold — neither of which is this table's to enforce. The first is the
+  // `booking.reinstate-no-show` declaration on the route, the second is
+  // `room_assignment_no_double_booking` refusing the hold.
   NO_SHOW: ["CHECKED_IN"],
 };
 

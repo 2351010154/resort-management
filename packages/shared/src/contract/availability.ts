@@ -26,7 +26,11 @@ import { stayDateSchema } from "../stay-date.js";
 // ceiling is per type and lives in `room_type.max_occupancy` — §1 — where a
 // party above it yields no offer rather than a price (§3). This bound only
 // keeps an absurd number from reaching the query planner.
-const LARGEST_PLAUSIBLE_PARTY = 10;
+//
+// Exported because `booking.ts` bounds the same party. A booking is the search
+// made real, and the two disagreeing would let the funnel quote a party it could
+// not then book — or the reverse, which is worse.
+export const LARGEST_PLAUSIBLE_PARTY = 10;
 
 /**
  * The oldest age that may arrive as a child.
@@ -36,7 +40,7 @@ const LARGEST_PLAUSIBLE_PARTY = 10;
  * schema that refused one would push the funnel into filing them as an adult.
  * Eighteen and over is not a child in any sense the property means.
  */
-const OLDEST_CHILD_AGE = 17;
+export const OLDEST_CHILD_AGE = 17;
 
 /**
  * The ages travelling as children, as they arrive in a query string.

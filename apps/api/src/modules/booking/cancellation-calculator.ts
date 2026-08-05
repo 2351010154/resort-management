@@ -41,6 +41,7 @@ import {
   toZoned,
 } from "@internationalized/date";
 import {
+  type ChargeBasis,
   PROPERTY_TIME_ZONE,
   type RatePlanCode,
   type StayDate,
@@ -79,13 +80,13 @@ export function freeCancellationDeadline(checkInDate: StayDate): Date {
  * Returned alongside the amount because a folio line at `M6` has to say what it
  * is for, and re-deriving that from the number would be impossible: a free
  * cancellation and an early departure on the final night both come to zero.
+ *
+ * `@mariva/shared` owns the list, for the reason it owns the booking states and
+ * the refusal codes: two layers spell it — this calculator and the wire shape
+ * `contract/booking.ts` gives an early departure — and a local copy of five
+ * strings would compile.
  */
-export type ChargeBasis =
-  | "NONE"
-  | "FIRST_NIGHT"
-  | "FULL_STAY"
-  | "REMAINING_NIGHTS_HALF"
-  | "REMAINING_NIGHTS_FULL";
+export type { ChargeBasis };
 
 /**
  * What ended the stay.
