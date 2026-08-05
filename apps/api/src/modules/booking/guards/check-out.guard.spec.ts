@@ -3,10 +3,11 @@
 // desk, and §4 says "Balance ≠ 0" rather than "> 0" precisely so a check-out
 // cannot close over money the property is still holding.
 
+import type { CheckOutRefusal } from "@mariva/shared";
 import { ORPCError } from "@orpc/nest";
 import { describe, expect, it } from "vitest";
 import { FolioStubService } from "../ports/folio-stub.service.js";
-import { FOLIO_NOT_SETTLED, validateFolioSettled } from "./check-out.guard.js";
+import { validateFolioSettled } from "./check-out.guard.js";
 
 describe("the folio-settled guard", () => {
   it("admits a balanced folio", () => {
@@ -26,9 +27,9 @@ describe("the folio-settled guard", () => {
     }
 
     expect(thrown).toBeInstanceOf(ORPCError);
-    const orpc = thrown as ORPCError<string, { code: string }>;
+    const orpc = thrown as ORPCError<string, { code: CheckOutRefusal }>;
     expect(orpc.code).toBe("CONFLICT");
-    expect(orpc.data.code).toBe(FOLIO_NOT_SETTLED);
+    expect(orpc.data.code).toBe("FOLIO_NOT_SETTLED");
     // The desk is told the figure, not just that there is one.
     expect(orpc.message).toContain("balance");
   });

@@ -8,12 +8,15 @@
 // is precisely the thing worth a test.
 
 import { parseDate } from "@internationalized/date";
-import { type HousekeepingStatus, HOUSEKEEPING_STATUSES } from "@mariva/shared";
+import {
+  type CheckInRefusal,
+  type HousekeepingStatus,
+  HOUSEKEEPING_STATUSES,
+} from "@mariva/shared";
 import { ORPCError } from "@orpc/nest";
 import { describe, expect, it } from "vitest";
 import type { RoomAssignmentRow } from "../../../database/schema/inventory.js";
 import {
-  type CheckInRefusal,
   validateArrivalWindow,
   validateRoomAssigned,
   validateRoomReady,
@@ -119,20 +122,38 @@ describe("the room requirement", () => {
 });
 
 describe("the room-ready rule", () => {
-  const READY: readonly HousekeepingStatus[] = ["CLEAN", "INSPECTED"];
+  /**
+   * What the guard owes each room state with the ⚑ off — `null` where it admits
+   * the guest.
+   *
+   * A record over `HousekeepingStatus` and not a list of cases: a fifth status
+   * added to `HOUSEKEEPING_STATUSES` stops this file compiling until it says
+   * which answer that status earns, which is the silence the header refuses to
+   * allow. Both suites below walk the tuple and read their expectation here, so
+   * neither can drift from it.
+   */
+  const EXPECTED: Record<HousekeepingStatus, CheckInRefusal | null> = {
+    CLEAN: null,
+    INSPECTED: null,
+    DIRTY: "ROOM_NOT_READY",
+    // A fault is not a cleaning round. The desk moves the guest to another room
+    // rather than calling housekeeping and retrying this one, which is the whole
+    // reason this is a second refusal and not the one above.
+    OUT_OF_ORDER: "ROOM_OUT_OF_ORDER",
+  };
+
+  const READY = HOUSEKEEPING_STATUSES.filter((status) => !EXPECTED[status]);
+  const UNREADY = HOUSEKEEPING_STATUSES.filter((status) => EXPECTED[status]);
 
   it.each(READY)("admits a guest into a %s room", (status) => {
     expect(refusalOf(() => validateRoomReady(status, false))).toBeNull();
   });
 
-  it.each(HOUSEKEEPING_STATUSES.filter((s) => !READY.includes(s)))(
-    "refuses a %s room",
-    (status) => {
-      expect(refusalOf(() => validateRoomReady(status, false))).toBe(
-        "ROOM_NOT_READY",
-      );
-    },
-  );
+  it.each(UNREADY)("refuses a %s room", (status) => {
+    expect(refusalOf(() => validateRoomReady(status, false))).toBe(
+      EXPECTED[status],
+    );
+  });
 
   describe("with dirty-room check-in enabled — §7's second ⚑", () => {
     it("admits a guest into a DIRTY room", () => {
@@ -140,10 +161,11 @@ describe("the room-ready rule", () => {
     });
 
     // The flag answers §7's question, which is about a room that is merely not
-    // cleaned yet. A room with a fault in it is a different decision nobody made.
+    // cleaned yet. A room with a fault in it is a different decision nobody made,
+    // and it keeps the refusal that tells the desk to reassign.
     it("still refuses an OUT_OF_ORDER room", () => {
       expect(refusalOf(() => validateRoomReady("OUT_OF_ORDER", true))).toBe(
-        "ROOM_NOT_READY",
+        "ROOM_OUT_OF_ORDER",
       );
     });
 
