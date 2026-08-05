@@ -102,6 +102,7 @@ function deskAt(today: StayDate): BookingService {
       inventory,
       new StoppedClock(today),
       new StayQuoteService(),
+      new HousekeepingService(),
     ),
     new GuestService(),
     new HousekeepingService(),
