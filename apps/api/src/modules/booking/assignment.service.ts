@@ -1074,6 +1074,15 @@ export class AssignmentService {
    * already in vacates nothing — it splits the hold in two and leaves them
    * where they were — and dirtying it would put an occupied room on the board
    * as one to strip.
+   *
+   * Silent, too, over a room that is out of order — and this is the case the
+   * whole operation exists for. A fault reported mid-stay is *why* a guest is
+   * moved, and `setCondition` writes `DIRTY` with the note cleared, so handing
+   * the room back would erase both the status and the reason for it: the shower
+   * is still broken, and the board now shows a room one cleaning round away from
+   * taking the next guest. `housekeeping-status.ts` files `OUT_OF_ORDER` as a
+   * room that cannot be occupied at all rather than one that is not ready yet,
+   * and it stops being either only when somebody puts it back.
    */
   private async vacated(
     exec: DbExecutor,
@@ -1081,6 +1090,13 @@ export class AssignmentService {
     enteredRoomId: string,
   ): Promise<void> {
     if (left.row.roomId === enteredRoomId) return;
+
+    if (
+      (await this.housekeeping.statusOf(exec, left.row.roomId)) ===
+      "OUT_OF_ORDER"
+    ) {
+      return;
+    }
 
     await this.housekeeping.setCondition(exec, {
       roomNumber: left.roomNumber,

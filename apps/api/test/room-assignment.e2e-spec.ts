@@ -657,6 +657,36 @@ describe("moving a checked-in guest", () => {
     expect(await conditionOf("210")).toBeNull();
   });
 
+  it("leaves the fault on a room the guest was moved out of because of it", async () => {
+    // The case the hand-back is most likely to meet: a shower fails at 22:00,
+    // the desk withdraws the room and moves the guest. `setCondition` writes
+    // `DIRTY` with the note cleared, so dirtying here would take both the status
+    // and the reason with the guest — leaving a broken room one cleaning round
+    // away from the next arrival, and nobody sent to repair it.
+    const id = await bookingIn("CHECKED_IN");
+
+    await db.transaction(
+      async (tx) =>
+        await assignments.assign(tx, { bookingId: id, roomNumber: "209" }),
+    );
+
+    await db.transaction(
+      async (tx) =>
+        await new HousekeepingService().setOutOfOrder(tx, {
+          roomNumber: "209",
+          outOfOrder: true,
+          reason: "shower mixer leaking",
+        }),
+    );
+
+    await db.transaction(
+      async (tx) =>
+        await assignments.move(tx, { bookingId: id, roomNumber: "210" }),
+    );
+
+    expect(await conditionOf("209")).toBe("OUT_OF_ORDER");
+  });
+
   it("dirties nothing when the guest is moved into the room they are in", async () => {
     // The move splits the hold in two and leaves the guest exactly where they
     // were, so nothing was vacated. A board showing 209 as a room to strip

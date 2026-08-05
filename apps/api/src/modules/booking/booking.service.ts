@@ -772,10 +772,20 @@ export class BookingService {
           .where(eq(roomAssignment.id, held.row.id));
       }
 
-      await this.housekeeping.setCondition(exec, {
-        roomNumber: held.roomNumber,
-        status: "DIRTY",
-      });
+      // A fault outlasts the stay it was reported during. `setCondition` writes
+      // `DIRTY` with the note cleared, so handing back a room that was withdrawn
+      // mid-stay would erase both the status and the reason for it, and leave a
+      // room nobody has repaired one cleaning round away from the next arrival.
+      // `assignment.service.ts` refuses it on a room move for the same reason.
+      if (
+        (await this.housekeeping.statusOf(exec, held.row.roomId)) !==
+        "OUT_OF_ORDER"
+      ) {
+        await this.housekeeping.setCondition(exec, {
+          roomNumber: held.roomNumber,
+          status: "DIRTY",
+        });
+      }
     }
 
     const [departed] = await exec
