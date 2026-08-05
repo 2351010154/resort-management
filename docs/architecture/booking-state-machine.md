@@ -121,8 +121,8 @@ stateDiagram-v2
 
 1. **Early check-in** — allowed before the arrival date, or hard-blocked?
    Assumed blocked. `BOOKING_EARLY_CHECK_IN_ENABLED`, default off.
-2. **Check-in into a `DIRTY` room** — some properties permit it with a manager
-   override. Assumed blocked outright.
+2. **Check-in into a `DIRTY` room** — some properties permit it, one check-in at
+   a time, on a manager's override. Assumed blocked outright.
    `BOOKING_DIRTY_ROOM_CHECK_IN_ENABLED`, default off.
 
 Both flags exist as of the check-in guard and are declared in `config/env.ts`.
@@ -130,11 +130,24 @@ They are the switch, not the decision: the defaults above are still what this
 document assumes and not what an owner has chosen, and the flag is what makes
 choosing otherwise a line rather than a guard.
 
-The second flag relaxes `DIRTY` and **only** `DIRTY`. `OUT_OF_ORDER` is refused
-whatever it says, because `housekeeping-status.ts` files that status as a room
-that cannot be occupied at all rather than one that is not ready yet — a
+The second flag is a **stand-in, not the mechanism**. An override is granted per
+check-in, to a person, and recorded: `booking.check-in.override`, `MANAGER` and
+above, a capability separate from `booking.check-in` because `rbac-matrix.md` §2
+makes policy and override separate endpoints rather than one endpoint with a
+check inside it. A property-wide environment variable is none of those things —
+it says yes to every check-in at once and records nobody. `M4` ships it anyway
+because the capability has no row in that matrix's §3 and no table exists to
+write the approval into, which is the same missing pair that keeps §4's "no
+approved deferred settlement" clause out of the check-out guard. Both land when
+the audit record does.
+
+Whichever grants it, it relaxes `DIRTY` and **only** `DIRTY`. `OUT_OF_ORDER` is
+refused whatever it says, because `housekeeping-status.ts` files that status as a
+room that cannot be occupied at all rather than one that is not ready yet — a
 different question from the one asked here, and admitting a guest into a room
-with a fault in it is not an answer to this one.
+with a fault in it is not an answer to this one. The guard refuses the two with
+different codes, `ROOM_NOT_READY` and `ROOM_OUT_OF_ORDER`, so the desk can call
+housekeeping about the first and move the guest out of the second.
 
 Not a decision here: the no-show charge amount and the cancellation deadline
 grid. They are not state-machine questions, but the transitions above cannot be

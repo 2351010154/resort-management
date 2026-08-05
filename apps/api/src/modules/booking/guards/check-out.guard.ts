@@ -12,16 +12,12 @@
 // `M4`, nor a capability in `rbac-matrix.md` granting the approval. Writing the
 // clause now would mean inventing both. It belongs with the folio.
 
-import { formatVnd, type VndAmount } from "@mariva/shared";
+import {
+  type CheckOutRefusal,
+  formatVnd,
+  type VndAmount,
+} from "@mariva/shared";
 import { ORPCError } from "@orpc/nest";
-
-/**
- * Why a check-out was refused — the counterpart to `CHECK_IN_REFUSALS`, and one
- * value rather than a list because §4 files exactly one guard here.
- */
-export const FOLIO_NOT_SETTLED = "FOLIO_NOT_SETTLED" as const;
-
-export type CheckOutRefusal = typeof FOLIO_NOT_SETTLED;
 
 /**
  * Refuses a check-out over an unsettled folio.
@@ -31,12 +27,15 @@ export type CheckOutRefusal = typeof FOLIO_NOT_SETTLED;
  * check-out that walked past it would close the stay on money the property is
  * holding and the guest has left without. `money.ts` chose a signed amount for
  * exactly this.
+ *
+ * `CONFLICT` with the code in `data`, the shape the check-in guards beside it
+ * throw: the state pair is legal and it is the circumstances that refuse.
  */
 export function validateFolioSettled(balance: VndAmount): void {
   if (balance !== 0n) {
     throw new ORPCError("CONFLICT", {
       message: `The folio is not settled — the balance is ${formatVnd(balance)}`,
-      data: { code: FOLIO_NOT_SETTLED },
+      data: { code: "FOLIO_NOT_SETTLED" satisfies CheckOutRefusal },
     });
   }
 }
