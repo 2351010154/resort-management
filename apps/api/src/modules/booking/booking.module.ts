@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { InventoryModule } from "../inventory/inventory.module.js";
+import { AssignmentService } from "./assignment.service.js";
 import { BookingService } from "./booking.service.js";
 import { BusinessDateService } from "./business-date.service.js";
 import { FolioStubService } from "./ports/folio-stub.service.js";
@@ -37,11 +38,12 @@ import { StayQuoteService } from "./stay-quote.service.js";
 @Module({
   imports: [InventoryModule],
   providers: [
+    AssignmentService,
     BookingService,
     BusinessDateService,
     StayQuoteService,
     { provide: FOLIO_PORT, useClass: FolioStubService },
   ],
-  exports: [BookingService, BusinessDateService],
+  exports: [AssignmentService, BookingService, BusinessDateService],
 })
 export class BookingModule {}
