@@ -102,7 +102,12 @@ function deskAt(today: StayDate): BookingService {
     inventory,
     new StayQuoteService(),
     clock,
-    new AssignmentService(inventory, clock, new StayQuoteService()),
+    new AssignmentService(
+      inventory,
+      clock,
+      new StayQuoteService(),
+      new HousekeepingService(),
+    ),
     new GuestService(),
     new HousekeepingService(),
     new FolioStubService(),
@@ -116,6 +121,7 @@ function staysAt(today: StayDate): AssignmentService {
     new InventoryService(),
     new StoppedClock(today),
     new StayQuoteService(),
+    new HousekeepingService(),
   );
 }
 
@@ -197,6 +203,30 @@ async function inTheBuilding(
   await db.transaction(
     async (tx) =>
       await deskAt(ARRIVAL).checkIn(tx, {
+        bookingId: made.id,
+        guests: [A_GUEST],
+      }),
+  );
+
+  return made;
+}
+
+/**
+ * A stay written off overnight, whose guest turned up two days late.
+ *
+ * The one shape where the nights behind the guest and the nights the folio has
+ * posted for them part company — see the case at the foot of this file.
+ */
+async function reinstated(): Promise<{ id: string; total: VndAmount }> {
+  const made = await stayHolding(SUPERIOR);
+
+  await db.transaction(
+    async (tx) => await deskAt(ARRIVAL).markNoShow(tx, made.id),
+  );
+
+  await db.transaction(
+    async (tx) =>
+      await deskAt(TODAY).reinstate(tx, {
         bookingId: made.id,
         guests: [A_GUEST],
       }),
@@ -944,6 +974,50 @@ describe("a stay shortened and then lengthened again", () => {
     expect(await nightsOf(made.id)).toHaveLength(5);
     expect(await soldAcross("2027-06-10", "2027-06-15")).toEqual([
       1, 1, 1, 1, 1,
+    ]);
+  });
+});
+
+describe("a stay written off, reinstated, then cut short", () => {
+  it("charges the nights the new departure date leaves unslept", async () => {
+    // The `M4` answer, pinned so that `M6` changing it is a visible change
+    // rather than a silent one.
+    //
+    // `cancellation-calculator.ts` asks for `nightsSpent` as a count of nights
+    // the night audit has already *posted*, and says outright that it is "never
+    // a date subtraction" — the two agree on an ordinary stay and part on
+    // exactly this one. This guest has the 10th behind them as a no-show charge
+    // and the 11th behind them as a night nobody sold, so the folio has one
+    // posting where the calendar has two. `assignment.service.ts` passes the
+    // date subtraction because at `M4` there are no postings to count; when the
+    // ledger arrives, the count comes from it and this figure moves.
+    const made = await reinstated();
+
+    const cut = await db.transaction(
+      async (tx) =>
+        await staysAt(TODAY).shortenStay(tx, {
+          bookingId: made.id,
+          checkOut: parseDate("2027-06-13"),
+        }),
+    );
+
+    expect(cut.charge).toEqual({
+      amount: (await priceOf(made.id, "2027-06-13", "2027-06-15")) / 2n,
+      basis: "REMAINING_NIGHTS_HALF",
+    });
+
+    // Only the nights this stay actually held are given back. The 11th went
+    // back on sale when the audit ran and was never bought again, so the
+    // release covers the 13th and the 14th and nothing else.
+    expect(cut.nightsReleased).toBe(2);
+    expect(await soldAcross("2027-06-10", "2027-06-15")).toEqual([
+      1, 0, 1, 0, 0,
+    ]);
+
+    // The room follows, from the night the guest actually walked into it.
+    expect(await heldBy(made.id)).toEqual([
+      { number: SUPERIOR, checkInDate: "2027-06-10", checkOutDate: "2027-06-11" },
+      { number: SUPERIOR, checkInDate: "2027-06-12", checkOutDate: "2027-06-13" },
     ]);
   });
 });

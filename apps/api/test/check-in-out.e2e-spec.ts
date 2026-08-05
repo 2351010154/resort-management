@@ -111,7 +111,12 @@ function deskAt(today: StayDate, balance: VndAmount = 0n): BookingService {
     inventory,
     new StayQuoteService(),
     clock,
-    new AssignmentService(inventory, clock, new StayQuoteService()),
+    new AssignmentService(
+      inventory,
+      clock,
+      new StayQuoteService(),
+      new HousekeepingService(),
+    ),
     new GuestService(),
     new HousekeepingService(),
     new FolioOwing(balance),
@@ -125,6 +130,7 @@ function roomsAt(today: StayDate): AssignmentService {
     new InventoryService(),
     new StoppedClock(today),
     new StayQuoteService(),
+    new HousekeepingService(),
   );
 }
 

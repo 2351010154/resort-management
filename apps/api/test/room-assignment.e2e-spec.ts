@@ -35,6 +35,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Env } from "../src/config/env.js";
 import * as schema from "../src/database/schema/index.js";
 import { booking } from "../src/database/schema/booking.js";
+import { roomCondition } from "../src/database/schema/housekeeping.js";
 import {
   room,
   roomAssignment,
@@ -45,6 +46,7 @@ import { seedDatabase } from "../src/database/seed/seed.js";
 import { AssignmentService } from "../src/modules/booking/assignment.service.js";
 import { BusinessDateService } from "../src/modules/booking/business-date.service.js";
 import { StayQuoteService } from "../src/modules/booking/stay-quote.service.js";
+import { HousekeepingService } from "../src/modules/housekeeping/housekeeping.service.js";
 import { InventoryService } from "../src/modules/inventory/inventory.service.js";
 
 const SEED_FROM = parseDate("2027-06-01");
@@ -110,6 +112,7 @@ beforeAll(async () => {
     inventory,
     new StoppedClock(TODAY),
     new StayQuoteService(),
+    new HousekeepingService(),
   );
 });
 
@@ -123,6 +126,11 @@ beforeEach(async () => {
     sql`truncate room_assignment, booking restart identity cascade`,
   );
   await db.update(typeInventory).set({ soldRooms: 0 });
+  // A move hands the room the guest left back to housekeeping, so the condition
+  // rows are state this file writes and has to clear. Left behind, the case
+  // asserting that a move into the same room dirties nothing would read the
+  // `DIRTY` an earlier case put there and pass without the code doing anything.
+  await db.delete(roomCondition);
 });
 
 afterAll(async () => {
@@ -218,6 +226,18 @@ async function soldOn(code: RoomTypeCode, night: string): Promise<number> {
     .limit(1);
 
   return row!.soldRooms;
+}
+
+/** What the housekeeping board says about a room, or null when nothing does. */
+async function conditionOf(roomNumber: string): Promise<string | null> {
+  const [found] = await db
+    .select({ status: roomCondition.status })
+    .from(roomCondition)
+    .innerJoin(room, eq(room.id, roomCondition.roomId))
+    .where(eq(room.number, roomNumber))
+    .limit(1);
+
+  return found?.status ?? null;
 }
 
 /** The status of a refusal, or a failure naming what came back instead. */
@@ -612,6 +632,49 @@ describe("moving a checked-in guest", () => {
       { number: SUPERIOR, checkInDate: ARRIVAL, checkOutDate: DEPARTURE },
     ]);
   });
+
+  it("hands the room the guest left back to housekeeping", async () => {
+    // §3 gives check-out this effect and a mid-stay move is the same fact: the
+    // bed in 209 has been slept in and nobody is going back to it. Without the
+    // hand-back the room keeps the `CLEAN` that §4's room-ready guard demanded
+    // in order to admit this guest, the guard passes on it again, and the next
+    // arrival is checked into an unstripped bed.
+    const id = await bookingIn("CHECKED_IN");
+
+    await db.transaction(
+      async (tx) =>
+        await assignments.assign(tx, { bookingId: id, roomNumber: "209" }),
+    );
+
+    await db.transaction(
+      async (tx) =>
+        await assignments.move(tx, { bookingId: id, roomNumber: "210" }),
+    );
+
+    expect(await conditionOf("209")).toBe("DIRTY");
+    // The room they moved into is left alone — somebody is in it now, and
+    // housekeeping was not asked to judge it.
+    expect(await conditionOf("210")).toBeNull();
+  });
+
+  it("dirties nothing when the guest is moved into the room they are in", async () => {
+    // The move splits the hold in two and leaves the guest exactly where they
+    // were, so nothing was vacated. A board showing 209 as a room to strip
+    // would send a housekeeper into an occupied one.
+    const id = await bookingIn("CHECKED_IN");
+
+    await db.transaction(
+      async (tx) =>
+        await assignments.assign(tx, { bookingId: id, roomNumber: "209" }),
+    );
+
+    await db.transaction(
+      async (tx) =>
+        await assignments.move(tx, { bookingId: id, roomNumber: "209" }),
+    );
+
+    expect(await conditionOf("209")).toBeNull();
+  });
 });
 
 describe("changing the room type", () => {
@@ -842,5 +905,76 @@ describe("changing the room type", () => {
         ),
       ),
     ).toBe("CONFLICT");
+  });
+
+  it("hands back the room a checked-in guest is upgraded out of", async () => {
+    // An upgrade mid-stay vacates a room exactly as a move does, and the guest
+    // slept in it up to today — the row above proves the nights are kept, and
+    // this proves somebody is sent to strip the bed under them.
+    const id = await bookingIn("CHECKED_IN");
+
+    await db.transaction(
+      async (tx) =>
+        await assignments.assign(tx, { bookingId: id, roomNumber: "206" }),
+    );
+
+    await db.transaction(
+      async (tx) =>
+        await assignments.changeRoomType(tx, {
+          bookingId: id,
+          roomType: "DELUXE",
+          roomNumber: "305",
+        }),
+    );
+
+    expect(await conditionOf("206")).toBe("DIRTY");
+  });
+
+  it("leaves the room clean when the guest has not arrived to dirty it", async () => {
+    // An upgrade decided the week before moves a key nobody has collected. The
+    // old row is deleted rather than closed because it would cover no night, and
+    // that is the same fact: nobody has been in 206, so nobody is sent to it.
+    const id = await bookingIn("CONFIRMED");
+
+    await db.transaction(
+      async (tx) =>
+        await assignments.assign(tx, { bookingId: id, roomNumber: "206" }),
+    );
+
+    await db.transaction(
+      async (tx) =>
+        await assignments.changeRoomType(tx, {
+          bookingId: id,
+          roomType: "DELUXE",
+          roomNumber: "305",
+        }),
+    );
+
+    expect(await conditionOf("206")).toBeNull();
+  });
+
+  it("refuses a room named for a booking that is holding none", async () => {
+    // The mirror of the refusal above. §5 files putting a booking into a room as
+    // its own operation with its own capability, so a type change that also
+    // assigned would perform it under this one's authority — and answering
+    // politely while dropping the room would report a key nobody was given.
+    const id = await bookingIn("CONFIRMED");
+
+    expect(
+      await refusalOf(
+        db.transaction(
+          async (tx) =>
+            await assignments.changeRoomType(tx, {
+              bookingId: id,
+              roomType: "DELUXE",
+              roomNumber: DELUXE,
+            }),
+        ),
+      ),
+    ).toBe("BAD_REQUEST");
+
+    // And the type is where it was: the refusal came before either counter.
+    expect(await soldOn("SUPERIOR", NIGHT)).toBe(1);
+    expect(await soldOn("DELUXE", NIGHT)).toBe(0);
   });
 });

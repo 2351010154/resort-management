@@ -35,6 +35,13 @@
 // and only the caller can draw a boundary around all of it. The
 // `TransactionRunner` sits at the controller.
 //
+// **It hands back the room a guest leaves.** A move and a checked-in upgrade
+// both end with somebody having slept in a room nobody is going back to, and §3
+// gives check-out that same effect for that same reason. The room goes to
+// `DIRTY`, attributed to nobody. Left out, the vacated room keeps the `CLEAN`
+// that §4's guard demanded to admit the guest in the first place, and the guard
+// passes on it again for the next arrival.
+//
 // **It does not reprice.** §5 files "Change rate" as a separate operation with
 // its own capability, and `rbac-matrix.md` gives it to `MANAGER` because pricing
 // below the plan is a commercial decision. So a Superior upgraded to a Deluxe
@@ -68,6 +75,7 @@ import {
   roomType,
 } from "../../database/schema/inventory.js";
 import { sqlStateOf } from "../../database/sql-state.js";
+import { HousekeepingService } from "../housekeeping/housekeeping.service.js";
 import { InventoryService } from "../inventory/inventory.service.js";
 import { BusinessDateService } from "./business-date.service.js";
 import { type PolicyCharge, policyCharge } from "./cancellation-calculator.js";
@@ -157,6 +165,7 @@ export class AssignmentService {
     private readonly inventory: InventoryService,
     private readonly businessDate: BusinessDateService,
     private readonly quotes: StayQuoteService,
+    private readonly housekeeping: HousekeepingService,
   ) {}
 
   /**
@@ -277,6 +286,8 @@ export class AssignmentService {
         .where(eq(roomAssignment.id, current.assignment.row.id));
     }
 
+    await this.vacated(exec, current.assignment, target.id);
+
     return await this.hold(exec, {
       bookingId: input.bookingId,
       roomId: target.id,
@@ -365,6 +376,19 @@ export class AssignmentService {
       });
     }
 
+    // The inverse, refused for the symmetry rather than in spite of it. §5 files
+    // putting a booking into a room as "assign / reassign room", a separate
+    // operation with its own capability, and a type change that also assigned
+    // would be that operation performed under this one's authority. Answering
+    // politely and dropping the room silently is the worse alternative: the
+    // caller is told the change succeeded and is not told the key it named was
+    // never given to anybody.
+    if (!current.assignment && input.roomNumber) {
+      throw new ORPCError("BAD_REQUEST", {
+        message: `This booking holds no room, so there is none to move the guest out of — change the type first, then assign ${input.roomNumber} to it`,
+      });
+    }
+
     const moved = await this.inventory.reserve(exec, {
       roomType: input.roomType,
       checkIn,
@@ -409,6 +433,14 @@ export class AssignmentService {
           .update(roomAssignment)
           .set({ checkOutDate: from.toString() })
           .where(eq(roomAssignment.id, current.assignment.row.id));
+      }
+
+      // Only for a guest who was in the building. An upgrade decided before the
+      // arrival moves a key nobody has collected, and sending a housekeeper to
+      // strip a bed nobody has slept in is the round {@link vacated} exists to
+      // avoid asking for.
+      if (current.row.state === "CHECKED_IN") {
+        await this.vacated(exec, current.assignment, newRoom.id);
       }
 
       assignment = await this.hold(exec, {
@@ -889,8 +921,15 @@ export class AssignmentService {
    * is no answer here a concurrent request can invalidate. Whether the room is
    * *free* is not asked at all — that is the exclusion constraint's, on the
    * insert.
+   *
+   * Public because a reinstated no-show may be given a room this file never
+   * assigned. §5 makes assignment legal from `CONFIRMED` and `CHECKED_IN` only,
+   * so a booking that reached `NO_SHOW` cannot be sent back here for one, and
+   * `booking.service.ts` resolves the room the manager names against the type
+   * the stay was sold as — the same refusal, in the same words, rather than a
+   * second spelling of it that could come to disagree about what a Superior is.
    */
-  private async roomOfType(
+  async roomOfType(
     exec: DbExecutor,
     roomNumber: string,
     roomTypeId: string,
@@ -1013,6 +1052,40 @@ export class AssignmentService {
 
       throw error;
     }
+  }
+
+  /**
+   * The room a guest has just walked out of, handed back to housekeeping.
+   *
+   * §3 gives check-out this effect and `housekeeping.service.ts` states what it
+   * means: the property is not judging how dirty the room is, it is saying
+   * somebody has been in it. A guest moved out of 304 mid-stay has been in it
+   * exactly as one who departed has, and without this the room keeps whatever
+   * condition it carried before they arrived — `CLEAN`, ordinarily, since that
+   * is what §4's room-ready guard demanded to let them in. The guard would then
+   * pass on it again and the next arrival would be checked into an unstripped
+   * bed.
+   *
+   * Attributed to nobody, for the reason `setCondition` takes `updatedBy` as
+   * optional: the desk clerk who moved the guest made no cleaning judgement,
+   * and putting the room in their name would record one they never made.
+   *
+   * Silent when the room did not change. A move naming the room the guest is
+   * already in vacates nothing — it splits the hold in two and leaves them
+   * where they were — and dirtying it would put an occupied room on the board
+   * as one to strip.
+   */
+  private async vacated(
+    exec: DbExecutor,
+    left: HeldRoom,
+    enteredRoomId: string,
+  ): Promise<void> {
+    if (left.row.roomId === enteredRoomId) return;
+
+    await this.housekeeping.setCondition(exec, {
+      roomNumber: left.roomNumber,
+      status: "DIRTY",
+    });
   }
 
   /** An assignment already in hand, in the shape a caller reads. */
