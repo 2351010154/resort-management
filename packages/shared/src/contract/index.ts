@@ -3,10 +3,12 @@
 // runtime in whichever one was deployed second.
 //
 // Domain contracts join here as their modules are built — inventory and pricing
-// at M3. Nothing is listed speculatively; an entry with no implementation is a
-// promise the type system will hold the client to and nobody can keep.
+// at M3, booking at M4. Nothing is listed speculatively; an entry with no
+// implementation is a promise the type system will hold the client to and
+// nobody can keep.
 
 import { availability } from "./availability.js";
+import { booking } from "./booking.js";
 import { health } from "./health.js";
 import { inventory } from "./inventory.js";
 import { jobs } from "./jobs.js";
@@ -17,6 +19,7 @@ export const contract = {
   availability,
   inventory,
   pricing,
+  booking,
   jobs,
 };
 
@@ -25,6 +28,22 @@ export type Contract = typeof contract;
 // The request and response shapes themselves, so a service can name what it is
 // handed without inferring it back out of the router object.
 export { rateCalendarQuery, stayOfferQuery } from "./availability.js";
+export {
+  assignRoomInput,
+  bookingSchema,
+  cancelInput,
+  changeDepartureInput,
+  changeRoomTypeInput,
+  checkInGuestSchema,
+  checkInInput,
+  createBookingInput,
+  extendedStaySchema,
+  policyChargeSchema,
+  reinstateInput,
+  roomAssignmentSchema,
+  roomTypeChangeSchema,
+  shortenedStaySchema,
+} from "./booking.js";
 export { closeRoomInput, roomClosureSchema } from "./inventory.js";
 export { jobRunSchema, triggerJobInput } from "./jobs.js";
 export {
