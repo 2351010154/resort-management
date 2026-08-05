@@ -19,30 +19,22 @@
 // policy but a booking nobody may still walk into, and §4 marks only the early
 // side with a ⚑.
 
-import type { HousekeepingStatus, StayDate } from "@mariva/shared";
+import type {
+  CheckInRefusal,
+  HousekeepingStatus,
+  StayDate,
+} from "@mariva/shared";
 import { ORPCError } from "@orpc/nest";
 import type { RoomAssignmentRow } from "../../../database/schema/inventory.js";
 
 /**
- * Why a check-in was refused, as a string a caller may branch on.
+ * Refuses with the code the desk branches on — `booking-refusal.ts` names them
+ * and argues why they are separate values.
  *
- * The message says what happened to a human; this says it to the front desk
- * screen, which has a different action behind each one — a manager override for
- * the window, the room grid for an assignment, housekeeping for a room that is
- * not ready yet. Matching on prose would tie that screen to the wording.
- *
- * It travels in the error's `data` and not in its `code`, which is oRPC's own
- * and is the HTTP-shaped `CONFLICT` every one of these carries.
+ * The code travels in the error's `data` and not in its `code`, which is oRPC's
+ * own and is the HTTP-shaped `CONFLICT` every one of these carries: the state
+ * pair is legal, and it is the circumstances that refuse.
  */
-export const CHECK_IN_REFUSALS = [
-  "ARRIVAL_WINDOW_EARLY",
-  "ARRIVAL_WINDOW_LATE",
-  "ROOM_NOT_ASSIGNED",
-  "ROOM_NOT_READY",
-] as const;
-
-export type CheckInRefusal = (typeof CHECK_IN_REFUSALS)[number];
-
 function refuse(refusal: CheckInRefusal, message: string): never {
   throw new ORPCError("CONFLICT", { message, data: { code: refusal } });
 }
@@ -126,12 +118,12 @@ export function validateRoomAssigned(
  * `housekeeping-status.ts` argues the point: the supervisor pass is optional,
  * and requiring it would stop check-in at every property that does not run one.
  *
- * §7's second ⚑ relaxes `DIRTY` **only**. `OUT_OF_ORDER` stays refused whatever
- * the flag says, and the narrowing is deliberate: §7 asks about "check-in into a
- * `DIRTY` room", and `housekeeping-status.ts` files `OUT_OF_ORDER` as a room
- * that cannot be occupied at all rather than one that is not ready yet. A flag
- * that admitted both would answer a question nobody asked, in the direction that
- * puts a guest in a room with a fault in it.
+ * The two refusals are two rooms the desk cannot use for different reasons, and
+ * §7's second ⚑ reaches only the first: a `ROOM_NOT_READY` room is ready once
+ * someone cleans it, a `ROOM_OUT_OF_ORDER` one is not until it is repaired. So
+ * the flag is asked about `DIRTY` alone — §7 asks about "check-in into a `DIRTY`
+ * room", and a flag that admitted both would answer a question nobody asked, in
+ * the direction that puts a guest in a room with a fault in it.
  */
 export function validateRoomReady(
   housekeepingStatus: HousekeepingStatus,
@@ -143,6 +135,13 @@ export function validateRoomReady(
 
   if (housekeepingStatus === "DIRTY" && dirtyRoomCheckInEnabled) {
     return;
+  }
+
+  if (housekeepingStatus === "OUT_OF_ORDER") {
+    refuse(
+      "ROOM_OUT_OF_ORDER",
+      "The room is out of order and cannot take a guest until it is repaired — assign a different room",
+    );
   }
 
   refuse(
