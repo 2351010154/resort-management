@@ -44,6 +44,7 @@ import {
 import { seedDatabase } from "../src/database/seed/seed.js";
 import { AssignmentService } from "../src/modules/booking/assignment.service.js";
 import { BusinessDateService } from "../src/modules/booking/business-date.service.js";
+import { StayQuoteService } from "../src/modules/booking/stay-quote.service.js";
 import { InventoryService } from "../src/modules/inventory/inventory.service.js";
 
 const SEED_FROM = parseDate("2027-06-01");
@@ -105,7 +106,11 @@ beforeAll(async () => {
   await seedDatabase(db, { from: SEED_FROM, bookings: 0 });
 
   inventory = new InventoryService();
-  assignments = new AssignmentService(inventory, new StoppedClock(TODAY));
+  assignments = new AssignmentService(
+    inventory,
+    new StoppedClock(TODAY),
+    new StayQuoteService(),
+  );
 });
 
 // Every case starts against the property as the seed laid it down: no stays, no

@@ -211,8 +211,17 @@ export const booking = pgTable(
  * approximated by dividing a total by a count when a weekend night costs more
  * than a Tuesday.
  *
- * One row per night of `[check_in_date, check_out_date)` — the service writes
- * them with the booking, in the transaction that consumes the inventory.
+ * One row per night the stay was *sold*, written with the booking in the
+ * transaction that consumes the inventory. That is `[check_in_date,
+ * check_out_date)` as the booking was taken, and an extension keeps it so by
+ * appending rows for the nights it adds.
+ *
+ * An early departure is the one operation that leaves rows past the departure
+ * date, deliberately. §4 charges "the remaining nights at 50%", so the nights
+ * nobody will now sleep are precisely the basis of that charge — deleting them
+ * would destroy the number the folio has to post and, later, explain. A
+ * cancellation and the night audit leave them for the same reason: what stops
+ * happening is the stay, not the record of what it was sold as.
  */
 export const bookingNight = pgTable(
   "booking_night",

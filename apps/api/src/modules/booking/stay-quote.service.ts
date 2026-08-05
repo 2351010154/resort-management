@@ -129,42 +129,24 @@ export class StayQuoteService {
       });
     }
 
-    const priced = await exec
-      .select({
-        stayDate: rateCalendar.stayDate,
-        grossPerNight: rateCalendar.grossPerNight,
-      })
-      .from(rateCalendar)
-      .where(
-        and(
-          eq(rateCalendar.roomTypeId, type.id),
-          gte(rateCalendar.stayDate, request.checkIn.toString()),
-          lt(rateCalendar.stayDate, request.checkOut.toString()),
-        ),
-      )
-      .orderBy(asc(rateCalendar.stayDate));
-
-    if (priced.length !== nights) {
-      throw new ORPCError("CONFLICT", {
-        message:
-          "The stay includes nights the property has published no price for — set the rate calendar for them first",
-      });
-    }
+    const priced = await this.calendarNights(
+      exec,
+      type.id,
+      request.checkIn,
+      request.checkOut,
+    );
 
     const plan = await this.planPricing(exec, request.plan);
     const extraPersonPerNightGross = await this.extraPersonRate(exec);
 
     const standardTotal = priced.reduce<VndAmount>(
-      (total, night) => total + night.grossPerNight,
+      (total, night) => total + night.standardGross,
       0n,
     );
 
     return {
       roomTypeId: type.id,
-      nights: priced.map((night) => ({
-        stayDate: parseDate(night.stayDate),
-        standardGross: night.grossPerNight,
-      })),
+      nights: priced,
       stayTotalGross: stayTotalGross({
         standardTotal,
         percentAdjustment: plan.percentAdjustment,
@@ -177,6 +159,55 @@ export class StayQuoteService {
       breakfastPerPersonGross: plan.breakfastPerPersonGross,
       extraPersonPerNightGross,
     };
+  }
+
+  /**
+   * The calendar price of every night in a range, in stay order.
+   *
+   * Public because a stay that is extended has to price the nights it adds, and
+   * those nights have no frozen price to reuse — nobody sold them. What that
+   * caller must *not* do is re-read the plan and the property tariff, which is
+   * why it reaches for this rather than for {@link quote}: §8 freezes those two
+   * onto the booking at the moment of sale, and a stay lengthened after a manager
+   * moved the percentage would otherwise be totalled under terms the guest never
+   * agreed to. The calendar is the one input an extension legitimately reads.
+   *
+   * Refuses rather than approximates, on the same grounds {@link quote} does — a
+   * night the property has published no price for produces no row, and pricing
+   * the range without it would sell it for less than it covers.
+   */
+  async calendarNights(
+    exec: DbExecutor,
+    roomTypeId: string,
+    checkIn: StayDate,
+    checkOut: StayDate,
+  ): Promise<readonly QuotedNight[]> {
+    const priced = await exec
+      .select({
+        stayDate: rateCalendar.stayDate,
+        grossPerNight: rateCalendar.grossPerNight,
+      })
+      .from(rateCalendar)
+      .where(
+        and(
+          eq(rateCalendar.roomTypeId, roomTypeId),
+          gte(rateCalendar.stayDate, checkIn.toString()),
+          lt(rateCalendar.stayDate, checkOut.toString()),
+        ),
+      )
+      .orderBy(asc(rateCalendar.stayDate));
+
+    if (priced.length !== nightCount({ checkIn, checkOut })) {
+      throw new ORPCError("CONFLICT", {
+        message:
+          "The stay includes nights the property has published no price for — set the rate calendar for them first",
+      });
+    }
+
+    return priced.map((night) => ({
+      stayDate: parseDate(night.stayDate),
+      standardGross: night.grossPerNight,
+    }));
   }
 
   /**
