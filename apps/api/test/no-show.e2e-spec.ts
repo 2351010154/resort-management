@@ -114,7 +114,7 @@ function deskAt(today: StayDate): BookingService {
     inventory,
     new StayQuoteService(),
     clock,
-    new AssignmentService(inventory, clock),
+    new AssignmentService(inventory, clock, new StayQuoteService()),
     new GuestService(),
     new HousekeepingService(),
     new FolioSettled(),
@@ -124,7 +124,11 @@ function deskAt(today: StayDate): BookingService {
 
 /** The rooms service, on a given day. */
 function roomsAt(today: StayDate): AssignmentService {
-  return new AssignmentService(new InventoryService(), new StoppedClock(today));
+  return new AssignmentService(
+    new InventoryService(),
+    new StoppedClock(today),
+    new StayQuoteService(),
+  );
 }
 
 beforeAll(async () => {

@@ -1,14 +1,24 @@
-// Which physical room a booking gets — `booking-state-machine.md` §5's first,
-// second and fifth rows.
+// What a booking's stay is made of — `booking-state-machine.md` §5's first five
+// rows: which room, which nights, and which type.
 //
 // None of these change the state, and that is the reason they are here rather
 // than in `booking.service.ts`. §5 calls them "where most real front-desk work
 // happens": a guest is confirmed for a Superior all week and the room they sleep
-// in is decided the afternoon they arrive, changed when the shower fails, and
-// upgraded when the property is short. The booking is the same booking through
-// all of it, so `state-machine.ts` is never consulted — what is consulted is the
-// state the booking is *in*, because §5 gives each operation its own list of
-// states it is legal from.
+// in is decided the afternoon they arrive, changed when the shower fails,
+// upgraded when the property is short, and given up two nights early when the
+// meeting they came for ends. The booking is the same booking through all of it,
+// so `state-machine.ts` is never consulted — what is consulted is the state the
+// booking is *in*, because §5 gives each operation its own list of states it is
+// legal from.
+//
+// **Only an extension touches the frozen quote.** §8 forbids a booking from
+// re-deriving a price it was quoted, and every operation here honours it: the
+// room, the type and a shortened departure all leave the agreed total alone. An
+// extension cannot, because nights nobody sold have no frozen price to leave
+// alone — so it prices those nights off the calendar, under the plan terms the
+// booking already froze, and re-runs the one total over the whole stay. What it
+// never does is re-read the plan or the tariff, which is the difference between
+// pricing new nights and repricing sold ones.
 //
 // **The exclusion constraint is not re-derived here.** `schema/inventory.ts`
 // spells out `EXCLUDE USING gist (room_id WITH =, daterange(...) WITH &&)`, and
@@ -33,13 +43,24 @@
 // upgrade is the rate operation, deliberately, and a type change that quietly
 // repriced would be that manager-only decision taken by a receptionist.
 
-import { nightCount, type RoomTypeCode, type StayDate } from "@mariva/shared";
+import {
+  nightCount,
+  type Party,
+  type RoomTypeCode,
+  type StayDate,
+  stayTotalGross,
+  type VndAmount,
+} from "@mariva/shared";
 import { Injectable } from "@nestjs/common";
 import { ORPCError } from "@orpc/nest";
 import { parseDate } from "@internationalized/date";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNull, lt } from "drizzle-orm";
 import type { DbExecutor } from "../../database/database.module.js";
-import { booking, type BookingRow } from "../../database/schema/booking.js";
+import {
+  booking,
+  type BookingRow,
+  bookingNight,
+} from "../../database/schema/booking.js";
 import {
   room,
   roomAssignment,
@@ -49,6 +70,8 @@ import {
 import { sqlStateOf } from "../../database/sql-state.js";
 import { InventoryService } from "../inventory/inventory.service.js";
 import { BusinessDateService } from "./business-date.service.js";
+import { type PolicyCharge, policyCharge } from "./cancellation-calculator.js";
+import { StayQuoteService } from "./stay-quote.service.js";
 
 /** Postgres' SQLSTATE for the refusal every write in this file expects. */
 const EXCLUSION_VIOLATION = "23P01";
@@ -102,11 +125,38 @@ export interface HeldRoom {
   readonly roomNumber: string;
 }
 
+/** What a lengthened stay added, for the caller that has to report it. */
+export interface ExtendedStay {
+  readonly bookingId: string;
+  readonly checkOut: StayDate;
+  /** Nights added — zero when the stay already ran that far. */
+  readonly nightsAdded: number;
+  /** The agreed total, with the added nights in it. */
+  readonly stayTotalGross: VndAmount;
+  readonly assignment: RoomAssignment | null;
+}
+
+/** What an early departure gave back, and what §4's grid charges for it. */
+export interface ShortenedStay {
+  readonly bookingId: string;
+  readonly checkOut: StayDate;
+  /** Nights released — zero when the stay already ended there. */
+  readonly nightsReleased: number;
+  /**
+   * §4's early-departure amount, computed and not stored.
+   * `cancellation-calculator.ts` says why nothing here writes it anywhere: a
+   * charge is a folio posting, and the folio is `M6`.
+   */
+  readonly charge: PolicyCharge;
+  readonly assignment: RoomAssignment | null;
+}
+
 @Injectable()
 export class AssignmentService {
   constructor(
     private readonly inventory: InventoryService,
     private readonly businessDate: BusinessDateService,
+    private readonly quotes: StayQuoteService,
   ) {}
 
   /**
@@ -380,6 +430,374 @@ export class AssignmentService {
   }
 
   /**
+   * §5's "extend stay" — the guest is staying on, and the property has to have
+   * the nights.
+   *
+   * "Needs inventory for the added nights; fails cleanly" is the row's own note,
+   * and §4 lists this operation in the inventory-available guard beside the two
+   * creating transitions. So the added nights go through `InventoryService` like
+   * any other sale and a full house refuses the extension rather than the
+   * counter going past what the property owns.
+   *
+   * Only the departure moves. Pulling the arrival earlier would be a different
+   * booking — an earlier night is one the funnel's restrictions and the arrival
+   * guard were never asked about — and §5 words this row as "the added nights",
+   * which are the ones after the stay as sold.
+   *
+   * The added nights are priced, and this is the one place in this file that
+   * touches money. §8 freezes a booking's price so it is never re-derived, and
+   * nights nobody has sold have nothing frozen: they take the calendar price of
+   * the day the guest asked for them, under the plan percentage, breakfast
+   * figure and extra-person rate the booking already carries. Reading the *plan*
+   * again is what §8 forbids, and {@link retotal} is where that line is drawn.
+   *
+   * The room follows the nights. An extension whose room is taken by the next
+   * arrival is refused by `room_assignment_no_double_booking`, as a `409` the
+   * desk resolves by moving the guest first — never by quietly dropping the
+   * assignment, which {@link changeRoomType} refuses to do for the same reason.
+   */
+  async extendStay(
+    exec: DbExecutor,
+    input: { bookingId: string; checkOut: StayDate },
+  ): Promise<ExtendedStay> {
+    const current = await this.lock(exec, input.bookingId);
+
+    this.assertAssignable(current, "extend the stay of");
+
+    const departure = parseDate(current.row.checkOutDate);
+
+    if (input.checkOut.compare(departure) < 0) {
+      throw new ORPCError("BAD_REQUEST", {
+        message: `This stay already departs on ${current.row.checkOutDate} — giving nights back is an early departure, which §4's grid puts a charge on`,
+      });
+    }
+
+    // Idempotent, for the reason every transition in `booking.service.ts` is: a
+    // retried request arriving as the extension that already happened must not
+    // reserve the nights a second time. Doing so would have the booking hold two
+    // rooms of its type across the same dates and hold neither of them for
+    // anybody who could sleep in it.
+    if (input.checkOut.compare(departure) === 0) {
+      return {
+        bookingId: input.bookingId,
+        checkOut: departure,
+        nightsAdded: 0,
+        stayTotalGross: current.row.quotedStayTotalGross,
+        assignment: current.assignment
+          ? this.asAssignment(current.assignment, input.bookingId)
+          : null,
+      };
+    }
+
+    const added = await this.quotes.calendarNights(
+      exec,
+      current.row.roomTypeId,
+      departure,
+      input.checkOut,
+    );
+
+    const moved = await this.inventory.reserve(exec, {
+      roomType: current.roomTypeCode,
+      checkIn: departure,
+      checkOut: input.checkOut,
+    });
+
+    // `do nothing` on a night the booking already holds a price for, which is
+    // reachable: an early departure keeps the rows of the nights it released,
+    // because they are what §4's grid charges against. A guest who cuts the stay
+    // short and then extends it again gets those nights back at the price they
+    // were sold at rather than at today's — the same stay, not a resale.
+    await exec
+      .insert(bookingNight)
+      .values(
+        added.map((night) => ({
+          bookingId: input.bookingId,
+          stayDate: night.stayDate.toString(),
+          standardGross: night.standardGross,
+        })),
+      )
+      .onConflictDoNothing({
+        target: [bookingNight.bookingId, bookingNight.stayDate],
+      });
+
+    const total = await this.retotal(exec, current.row, input.checkOut);
+
+    await exec
+      .update(booking)
+      .set({
+        checkOutDate: input.checkOut.toString(),
+        quotedStayTotalGross: total,
+        updatedAt: new Date(),
+      })
+      .where(eq(booking.id, input.bookingId));
+
+    let assignment: RoomAssignment | null = null;
+
+    if (current.assignment) {
+      const held = current.assignment;
+
+      await this.whileHolding(
+        async () =>
+          await exec
+            .update(roomAssignment)
+            .set({ checkOutDate: input.checkOut.toString() })
+            .where(eq(roomAssignment.id, held.row.id)),
+        `Room ${held.roomNumber} is held by somebody else across part of ${current.row.checkOutDate} to ${input.checkOut.toString()} — move the guest to a room that is free for the rest of the stay, then extend it`,
+      );
+
+      assignment = {
+        id: held.row.id,
+        bookingId: input.bookingId,
+        roomNumber: held.roomNumber,
+        checkIn: parseDate(held.row.checkInDate),
+        checkOut: input.checkOut,
+      };
+    }
+
+    return {
+      bookingId: input.bookingId,
+      checkOut: input.checkOut,
+      nightsAdded: moved.nights,
+      stayTotalGross: total,
+      assignment,
+    };
+  }
+
+  /**
+   * §5's "shorten stay / early departure" — "releases nights, posts the
+   * early-departure charge".
+   *
+   * `CHECKED_IN` only, which is §5's own column and not a narrowing of it. A
+   * booking that has not arrived gives its nights back by being cancelled, and
+   * §2 is emphatic that the two are different acts: the guest in the building
+   * slept nights the property sold and cannot have them erased, which is why
+   * `CHECKED_IN → CANCELLED` is a cell the table closes.
+   *
+   * The charge is returned and never written. §4's grid puts the remaining
+   * nights at 50% on a refundable plan and at 100% on a `NONREF` one, and
+   * `cancellation-calculator.ts` computes both from the *stored* per-night
+   * prices — "the remaining nights at 50%" may not be approximated by dividing a
+   * total by a count when a weekend night costs more than a Tuesday. Where the
+   * number goes is `M6`'s; a service that stored it would be a second place for
+   * a balance to live.
+   *
+   * So the released nights keep their `booking_night` rows. They are the basis
+   * of the charge, and deleting them would destroy the number the folio has to
+   * post and later explain — the same reason a cancellation and the night audit
+   * leave them alone. The frozen total is left alone too: it is the record of
+   * what was sold, and the difference between that and what is owed is the
+   * charge, not a renegotiated price.
+   */
+  async shortenStay(
+    exec: DbExecutor,
+    input: { bookingId: string; checkOut: StayDate },
+  ): Promise<ShortenedStay> {
+    const current = await this.lock(exec, input.bookingId);
+
+    if (current.row.state !== "CHECKED_IN") {
+      throw new ORPCError("CONFLICT", {
+        message: `An early departure is for a guest who is in the building — this booking is ${current.row.state}, so cancelling it is the operation`,
+      });
+    }
+
+    const arrival = parseDate(current.row.checkInDate);
+    const departure = parseDate(current.row.checkOutDate);
+    const today = this.businessDate.current();
+
+    if (input.checkOut.compare(departure) > 0) {
+      throw new ORPCError("BAD_REQUEST", {
+        message: `This stay departs on ${current.row.checkOutDate} — keeping the guest longer is an extension, which has to find the inventory for the added nights`,
+      });
+    }
+
+    // A night the guest has slept cannot be given back. The counter would take
+    // it — `type_inventory` knows nothing about who was in the room — and the
+    // property would then be showing a night for sale that has already happened.
+    if (input.checkOut.compare(today) < 0) {
+      throw new ORPCError("CONFLICT", {
+        message: `The business date is ${today.toString()} and this guest has slept the nights up to it — ${input.checkOut.toString()} is not a departure the property can still take back`,
+      });
+    }
+
+    // `booking_covers_at_least_one_night` refuses the row that would follow, but
+    // it would refuse it as a `23514` naming a constraint rather than as the
+    // answer: a guest who is in the building slept the night they arrived.
+    if (input.checkOut.compare(arrival) <= 0) {
+      throw new ORPCError("BAD_REQUEST", {
+        message: `This stay arrived on ${current.row.checkInDate}, so it cannot depart on ${input.checkOut.toString()} — a booking covers at least one night`,
+      });
+    }
+
+    // Priced before anything moves, off the nights as sold. `nightsSpent` is the
+    // count the new departure date implies, which is what an early departure
+    // arranged in advance means — the calculator's own note asks for postings
+    // instead, and that reading is `M6`'s, for the guest already standing at the
+    // desk on the day. There are no postings to count at `M4`, and the two
+    // answers differ only for a stay whose folio is missing a night.
+    const charge = policyCharge({
+      plan: current.row.ratePlanCode,
+      checkInDate: arrival,
+      nights: await this.soldNights(
+        exec,
+        current.row.id,
+        current.row.checkInDate,
+        current.row.checkOutDate,
+      ),
+      event: {
+        kind: "EARLY_DEPARTURE",
+        nightsSpent: nightCount({ checkIn: arrival, checkOut: input.checkOut }),
+      },
+    });
+
+    let nightsReleased = 0;
+    let assignment: RoomAssignment | null = current.assignment
+      ? this.asAssignment(current.assignment, input.bookingId)
+      : null;
+
+    // Idempotent by arithmetic rather than by an early return: a request naming
+    // the departure date the stay already has releases an empty range, and
+    // `inventory.service.ts` refuses a movement of no nights. The charge above
+    // is zero on that path by the same reasoning — there are no remaining nights
+    // to charge for.
+    if (input.checkOut.compare(departure) < 0) {
+      nightsReleased = (
+        await this.inventory.release(exec, {
+          roomType: current.roomTypeCode,
+          checkIn: input.checkOut,
+          checkOut: departure,
+        })
+      ).nights;
+
+      if (current.assignment) {
+        const held = current.assignment;
+        const heldFrom = parseDate(held.row.checkInDate);
+
+        // The hold ends when the stay does. Left running to the original
+        // departure date it would keep the room against
+        // `room_assignment_no_double_booking` across nights the counter has just
+        // put back on sale — the room unsellable and the type reading free. A
+        // guest leaving the day they moved into this room leaves it holding no
+        // night at all, which is the row
+        // `room_assignment_covers_at_least_one_night` refuses.
+        if (input.checkOut.compare(heldFrom) <= 0) {
+          await exec
+            .delete(roomAssignment)
+            .where(eq(roomAssignment.id, held.row.id));
+
+          assignment = null;
+        } else {
+          await exec
+            .update(roomAssignment)
+            .set({ checkOutDate: input.checkOut.toString() })
+            .where(eq(roomAssignment.id, held.row.id));
+
+          assignment = {
+            id: held.row.id,
+            bookingId: input.bookingId,
+            roomNumber: held.roomNumber,
+            checkIn: heldFrom,
+            checkOut: input.checkOut,
+          };
+        }
+      }
+
+      await exec
+        .update(booking)
+        .set({ checkOutDate: input.checkOut.toString(), updatedAt: new Date() })
+        .where(eq(booking.id, input.bookingId));
+    }
+
+    return {
+      bookingId: input.bookingId,
+      checkOut: input.checkOut,
+      nightsReleased,
+      charge,
+      assignment,
+    };
+  }
+
+  /**
+   * The prices a booking stored for a range of its nights, in stay order.
+   *
+   * Bounded at both ends because the rows can outlast the range: an early
+   * departure keeps the ones it released, so a stay shortened twice would
+   * otherwise charge the second time for nights the first one already priced.
+   */
+  private async soldNights(
+    exec: DbExecutor,
+    bookingId: string,
+    from: string,
+    to: string,
+  ): Promise<VndAmount[]> {
+    const nights = await exec
+      .select({ standardGross: bookingNight.standardGross })
+      .from(bookingNight)
+      .where(
+        and(
+          eq(bookingNight.bookingId, bookingId),
+          gte(bookingNight.stayDate, from),
+          lt(bookingNight.stayDate, to),
+        ),
+      )
+      .orderBy(asc(bookingNight.stayDate));
+
+    return nights.map((night) => night.standardGross);
+  }
+
+  /**
+   * The agreed total, re-run over the nights the booking has stored.
+   *
+   * One `stayTotalGross` call over the whole stay and never one per part, which
+   * is `property-and-tariff.md` §5: integer đồng means every division truncates,
+   * so a total assembled by adding a separately-adjusted extension to a
+   * separately-adjusted original would fail to match the nights it was built
+   * from. `schema/booking.ts` states the invariant this protects — the stored
+   * nights and the four frozen inputs reproduce this figure exactly — and an
+   * extension is precisely where a careless total would break it.
+   *
+   * The three plan figures are the booking's own and are never re-read. That is
+   * the whole of §8: they are the terms the guest agreed to, and a stay extended
+   * after a manager edited the plan is still that guest's stay.
+   */
+  private async retotal(
+    exec: DbExecutor,
+    row: BookingRow,
+    checkOut: StayDate,
+  ): Promise<VndAmount> {
+    const nights = await this.soldNights(
+      exec,
+      row.id,
+      row.checkInDate,
+      checkOut.toString(),
+    );
+
+    return stayTotalGross({
+      standardTotal: nights.reduce<VndAmount>(
+        (total, night) => total + night,
+        0n,
+      ),
+      percentAdjustment: row.quotedPercentAdjustment,
+      breakfastPerPersonGross: row.quotedBreakfastPerPersonGross,
+      extraPersonPerNightGross: row.quotedExtraPersonPerNightGross,
+      nights: nights.length,
+      party: this.partyOf(row),
+    });
+  }
+
+  /**
+   * The party the booking was quoted for, as `occupancy-pricing.ts` takes it.
+   *
+   * Ages and not a count, because §3 prices children in three bands — the same
+   * reason `schema/booking.ts` stores the array rather than a head count.
+   */
+  private partyOf(row: BookingRow): Party {
+    return {
+      adults: row.adults,
+      children: row.childAges.map((age) => ({ age })),
+    };
+  }
+
+  /**
    * The booking and its room, locked for the rest of the transaction.
    *
    * `for update` for the reason `booking.service.ts` gives: two requests
@@ -543,33 +961,54 @@ export class AssignmentService {
       checkOutDate: string;
     },
   ): Promise<RoomAssignment> {
-    try {
-      const [held] = await exec
-        .insert(roomAssignment)
-        .values({
-          roomId: values.roomId,
-          bookingId: values.bookingId,
-          checkInDate: values.checkInDate,
-          checkOutDate: values.checkOutDate,
-        })
-        .returning({ id: roomAssignment.id });
+    const [held] = await this.whileHolding(
+      async () =>
+        await exec
+          .insert(roomAssignment)
+          .values({
+            roomId: values.roomId,
+            bookingId: values.bookingId,
+            checkInDate: values.checkInDate,
+            checkOutDate: values.checkOutDate,
+          })
+          .returning({ id: roomAssignment.id }),
+      `Room ${values.roomNumber} is already held across part of ${values.checkInDate} to ${values.checkOutDate}`,
+    );
 
-      return {
-        id: held!.id,
-        bookingId: values.bookingId,
-        roomNumber: values.roomNumber,
-        checkIn: parseDate(values.checkInDate),
-        checkOut: parseDate(values.checkOutDate),
-      };
+    return {
+      id: held!.id,
+      bookingId: values.bookingId,
+      roomNumber: values.roomNumber,
+      checkIn: parseDate(values.checkInDate),
+      checkOut: parseDate(values.checkOutDate),
+    };
+  }
+
+  /**
+   * Runs a write against `room_assignment` and turns the one refusal it expects
+   * into an answer.
+   *
+   * A 409 and not a 500, for the reason `closure.service.ts` gives: the room is
+   * genuinely taken — by another guest, or by a closure — and the desk resolves
+   * it by choosing a different room. §5's "never moves a different checked-in
+   * guest" is this line.
+   *
+   * Shared by the insert and by the extension's update, because the constraint
+   * does not care which statement reached it: lengthening a hold over the next
+   * arrival's nights collides exactly as writing a new one over them does, and a
+   * second spelling of the mapping is how one of the two comes to be missing it.
+   * The message is the caller's, because what the desk should do next differs —
+   * pick another room, or move the guest and then extend.
+   */
+  private async whileHolding<T>(
+    write: () => Promise<T>,
+    refusal: string,
+  ): Promise<T> {
+    try {
+      return await write();
     } catch (error) {
-      // A 409 and not a 500, for the reason `closure.service.ts` gives: the room
-      // is genuinely taken — by another guest, or by a closure — and the desk
-      // resolves it by choosing a different room. §5's "never moves a different
-      // checked-in guest" is this line.
       if (sqlStateOf(error) === EXCLUSION_VIOLATION) {
-        throw new ORPCError("CONFLICT", {
-          message: `Room ${values.roomNumber} is already held across part of ${values.checkInDate} to ${values.checkOutDate}`,
-        });
+        throw new ORPCError("CONFLICT", { message: refusal });
       }
 
       throw error;
