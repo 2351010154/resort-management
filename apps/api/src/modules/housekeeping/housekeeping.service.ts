@@ -266,6 +266,39 @@ export class HousekeepingService {
   }
 
   /**
+   * The state one room is in — what §4's room-ready guard is asked about.
+   *
+   * `coalesce` to `CLEAN`, the same default `getBoard` applies and for the same
+   * reason: a room the property has never recorded a condition for has never
+   * been dirtied, and `schema/housekeeping.ts` stores the row rather than the
+   * absence. Defaulting the other way would refuse check-in into every room of a
+   * property that has not run a cleaning round yet.
+   *
+   * By id and not by number, because the caller already holds the assignment
+   * row. Resolving the number back out of it would be a second read to reach a
+   * value the first one returned.
+   */
+  async statusOf(
+    exec: DbExecutor,
+    roomId: string,
+  ): Promise<HousekeepingStatus> {
+    const [found] = await exec
+      .select({
+        status: sql<HousekeepingStatus>`coalesce(${roomCondition.status}, 'CLEAN')`,
+      })
+      .from(room)
+      .leftJoin(roomCondition, eq(roomCondition.roomId, room.id))
+      .where(eq(room.id, roomId))
+      .limit(1);
+
+    if (!found) {
+      throw new ORPCError("NOT_FOUND", { message: "No room with that id" });
+    }
+
+    return found.status;
+  }
+
+  /**
    * Writes the one condition row a room has.
    *
    * The room is resolved by number first, and that read is not a check a
