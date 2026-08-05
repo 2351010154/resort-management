@@ -5,14 +5,19 @@
 // those refusals are called.
 //
 // Here at the root and not in `contract/`, for the reason `housekeeping-status.ts`
-// and `booking-state.ts` are: a refusal code is vocabulary, not a route. There is
-// no booking contract yet, and `contract/index.ts` says why one must not be
-// written ahead of the routes it promises — but the vocabulary is already needed,
-// because a guard already throws these and a desk will already read them.
+// and `booking-state.ts` are: a refusal code is vocabulary, not a route. The
+// booking contract carries these in the `data` of the errors its two guarded
+// transitions declare, and `contract/booking.ts` is where that declaration sits;
+// the vocabulary is older than it, because a guard threw these before there was
+// a route to reach the guard through.
 //
-// No `z.enum` beside the tuples, unlike the files above. Nothing parses a refusal
-// off the wire: the API produces it and the client reads it, so a schema here
-// would be a validator with no input. It joins when a route declares its errors.
+// The `z.enum`s below arrived with that contract, which is the condition this
+// file set for them: nothing parses a refusal off the wire — the API produces it
+// and the client reads it — so a schema here was a validator with no input until
+// a route had errors to declare. It has, and the enum is what types the code the
+// desk branches on all the way to the client.
+
+import { z } from "zod";
 
 /**
  * Why a check-in was refused, as a string a caller may branch on.
@@ -38,6 +43,8 @@ export const CHECK_IN_REFUSALS = [
   "ROOM_OUT_OF_ORDER",
 ] as const;
 
+export const checkInRefusalSchema = z.enum(CHECK_IN_REFUSALS);
+
 export type CheckInRefusal = (typeof CHECK_IN_REFUSALS)[number];
 
 /**
@@ -51,5 +58,7 @@ export type CheckInRefusal = (typeof CHECK_IN_REFUSALS)[number];
  * write yet — adds a value rather than changing what kind of thing this is.
  */
 export const CHECK_OUT_REFUSALS = ["FOLIO_NOT_SETTLED"] as const;
+
+export const checkOutRefusalSchema = z.enum(CHECK_OUT_REFUSALS);
 
 export type CheckOutRefusal = (typeof CHECK_OUT_REFUSALS)[number];
