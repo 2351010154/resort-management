@@ -48,7 +48,7 @@ import {
 } from "@mariva/shared";
 import { Inject, Injectable } from "@nestjs/common";
 import { ORPCError } from "@orpc/nest";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { ENV, type Env } from "../../config/env.js";
 import type { DbExecutor } from "../../database/database.module.js";
 import {
@@ -61,7 +61,7 @@ import { roomAssignment, roomType } from "../../database/schema/inventory.js";
 import { GuestService, type NewGuest } from "../guest/guest.service.js";
 import { HousekeepingService } from "../housekeeping/housekeeping.service.js";
 import { InventoryService } from "../inventory/inventory.service.js";
-import { AssignmentService } from "./assignment.service.js";
+import { AssignmentService, type HeldRoom } from "./assignment.service.js";
 import { BusinessDateService } from "./business-date.service.js";
 import {
   validateArrivalWindow,
@@ -257,13 +257,17 @@ export class BookingService {
       checkOut: parseDate(current.booking.checkOutDate),
     });
 
-    // Releasing the type's counter is the whole of the effect *today*, because
-    // nothing writes `room_assignment` yet. The moment something does, this
-    // cancellation has a second row to close: an assignment left behind holds
-    // its room against `room_assignment_no_double_booking`, so the room could be
-    // given to nobody else and would read as occupied on the housekeeping board
-    // for a stay that is not happening. The counter would say the room is free
-    // and the exclusion constraint would say it is taken.
+    // The second row a cancellation has to close, now that `assignment.service.ts`
+    // writes them. An assignment left behind holds its room against
+    // `room_assignment_no_double_booking`, so the room could be given to nobody
+    // else and would read as occupied on the housekeeping board for a stay that
+    // is not happening — the counter saying the room is free and the exclusion
+    // constraint saying it is taken.
+    //
+    // Deleted rather than closed off. A cancelled stay slept no night, so there
+    // is no history to keep and no row that could cover one; the guest never
+    // arrived, which is the whole difference from a check-out.
+    await this.releaseRooms(exec, bookingId);
 
     const [cancelled] = await exec
       .update(booking)
@@ -326,6 +330,168 @@ export class BookingService {
       return this.asBooking(current);
     }
 
+    await this.admissible(exec, current);
+
+    return await this.admit(exec, current, input.guests);
+  }
+
+  /**
+   * `CONFIRMED` → `NO_SHOW` — the guest never came.
+   *
+   * §3 releases "the nights **after** the arrival night" and keeps that first
+   * one, which is not an arbitrary split: the no-show charge is levied against
+   * it, and a night the property is charging for is a night it has not resold.
+   * The rest go back on sale, because nobody is coming for them.
+   *
+   * The room follows the counter. The hold is cut back to the arrival night for
+   * the reason `checkOut` cuts it back on an early departure — a room still held
+   * to the original departure date across nights the counter now reads as free
+   * is a room nothing can be given, on a board that shows it occupied.
+   *
+   * When the charge is levied is not decided here, and the amount is not
+   * computed here. §3 has the night audit write this transition and
+   * `cancellation-calculator.ts` says why no money is persisted from a state
+   * change — `D3` in `plans/backlog.md` still owes the no-show amount itself.
+   */
+  async markNoShow(exec: DbExecutor, bookingId: string): Promise<Booking> {
+    const current = await this.forUpdate(exec, bookingId);
+    const next = applyTransition(current.booking.state, "NO_SHOW");
+
+    // §4's idempotency row. A sweep that ran twice over the same night must not
+    // release the remaining nights twice — `type_inventory_sold_not_negative`
+    // would catch it as a fault, and by then the counter has already lied.
+    if (next === current.booking.state) {
+      return this.asBooking(current);
+    }
+
+    const arrival = parseDate(current.booking.checkInDate);
+    const departure = parseDate(current.booking.checkOutDate);
+    const afterArrival = arrival.add({ days: 1 });
+
+    // A one-night stay has nothing after its arrival night, so the release is
+    // skipped rather than asked for an empty range — `inventory.service.ts`
+    // refuses a movement of no nights, and rightly.
+    if (afterArrival.compare(departure) < 0) {
+      await this.inventory.release(exec, {
+        roomType: current.roomTypeCode,
+        checkIn: afterArrival,
+        checkOut: departure,
+      });
+
+      await exec
+        .update(roomAssignment)
+        .set({ checkOutDate: afterArrival.toString() })
+        .where(
+          and(
+            eq(roomAssignment.bookingId, bookingId),
+            isNull(roomAssignment.closureReason),
+          ),
+        );
+    }
+
+    return await this.setState(exec, current, next);
+  }
+
+  /**
+   * `NO_SHOW` → `CHECKED_IN` — the guest landed at 02:00 after all.
+   *
+   * §2 calls this an ordinary event rather than a data-entry error, and §3 gives
+   * it one inventory effect: "re-consume remaining nights, fail if unavailable".
+   * Failing is the interesting half. The nights went back on sale the moment the
+   * audit ran, so somebody else may hold them — and then the honest answer is
+   * that this stay cannot be reinstated, not that the counter should go past
+   * what the property owns. `type_inventory_sold_at_most_total` is what says so,
+   * surfaced as the `409` the desk acts on by finding the guest another room.
+   *
+   * Which nights are "remaining" depends on when the guest turns up. Landing on
+   * the arrival date — the ordinary case, hours after the audit — the arrival
+   * night is still held and it is the rest that are re-consumed. Turning up two
+   * days later, the nights in between were never slept and are not bought back;
+   * the stay resumes from today.
+   *
+   * Only from `NO_SHOW`. §2 lets `CONFIRMED` reach `CHECKED_IN` as well, and
+   * that path is {@link checkIn} — arriving here it would re-consume nights the
+   * booking already holds, which is the property selling itself the same room
+   * twice.
+   */
+  async reinstate(
+    exec: DbExecutor,
+    input: {
+      bookingId: string;
+      guests: readonly CheckInGuest[];
+    },
+  ): Promise<Booking> {
+    const current = await this.forUpdate(exec, input.bookingId);
+    const next = applyTransition(current.booking.state, "CHECKED_IN");
+
+    if (next === current.booking.state) {
+      return this.asBooking(current);
+    }
+
+    if (current.booking.state !== "NO_SHOW") {
+      throw new ORPCError("CONFLICT", {
+        message: `Only a no-show is reinstated — this booking is ${current.booking.state}, so checking the guest in is the transition`,
+      });
+    }
+
+    const arrival = parseDate(current.booking.checkInDate);
+    const departure = parseDate(current.booking.checkOutDate);
+    const today = this.businessDate.current();
+
+    // The guards run before the counters move. A room that is not ready is an
+    // answer the desk gets without the property having bought back nights it is
+    // about to give up again — the transaction would undo them either way, but
+    // the refusal is the same refusal and this way it costs nothing.
+    const held = await this.admissible(exec, current);
+
+    // Never the arrival night: the no-show kept it, and buying it a second time
+    // is the property selling itself a room it already holds.
+    const from = today.compare(arrival) > 0 ? today : arrival.add({ days: 1 });
+
+    if (from.compare(departure) < 0) {
+      await this.inventory.reserve(exec, {
+        roomType: current.roomTypeCode,
+        checkIn: from,
+        checkOut: departure,
+      });
+
+      // A second row rather than the first one stretched back out, which is the
+      // shape `assignment.service.ts` gives a room move and for the same reason:
+      // the arrival night the property charged for stays a night this room was
+      // held, and the nights nobody slept in between are not claimed at all.
+      //
+      // Written through the assignment service rather than here, because §2's
+      // "it fails if the room was resold" is `room_assignment_no_double_booking`
+      // refusing this insert, and that file is where the `23P01` is turned into
+      // the `409` the desk acts on. Reaching for the table directly would leave
+      // an occupied room arriving at the desk as a fault.
+      await this.assignments.hold(exec, {
+        bookingId: input.bookingId,
+        roomId: held.row.roomId,
+        roomNumber: held.roomNumber,
+        checkInDate: from.toString(),
+        checkOutDate: departure.toString(),
+      });
+    }
+
+    return await this.admit(exec, current, input.guests);
+  }
+
+  /**
+   * §4's three guards against `→ CHECKED_IN`, in the order §4 lists them.
+   *
+   * Returns the room, because the caller that passed needs it and reading it
+   * again would be a second answer to a question already asked. The order is not
+   * cosmetic: it is the order the desk can act on. A stay that is a day early is
+   * refused for being early rather than for the room not being ready, because
+   * sending a housekeeper to a room the guest may not have yet is work nobody
+   * needed. The room is then required before its condition is asked about, since
+   * there is no status to read without one.
+   */
+  private async admissible(
+    exec: DbExecutor,
+    current: { booking: BookingRow; roomTypeCode: RoomTypeCode },
+  ): Promise<HeldRoom> {
     validateArrivalWindow({
       businessDate: this.businessDate.current(),
       arrivalDate: parseDate(current.booking.checkInDate),
@@ -333,7 +499,7 @@ export class BookingService {
       earlyCheckInEnabled: this.env.BOOKING_EARLY_CHECK_IN_ENABLED,
     });
 
-    const held = await this.assignments.current(exec, input.bookingId);
+    const held = await this.assignments.current(exec, current.booking.id);
 
     validateRoomAssigned(held?.row ?? null);
 
@@ -342,10 +508,28 @@ export class BookingService {
       this.env.BOOKING_DIRTY_ROOM_CHECK_IN_ENABLED,
     );
 
+    return held!;
+  }
+
+  /**
+   * The party into the residence record, and the booking into `CHECKED_IN`.
+   *
+   * Shared by {@link checkIn} and {@link reinstate} because §1 files the
+   * registration record as a property of the state rather than of the route that
+   * reached it: a guest who arrives at 14:00 and one who arrives at 02:00 the
+   * next morning are equally in the building, and a stay that recorded who was
+   * in the room only on one of those paths would be a statutory residence record
+   * with a hole in it.
+   */
+  private async admit(
+    exec: DbExecutor,
+    current: { booking: BookingRow; roomTypeCode: RoomTypeCode },
+    guests: readonly CheckInGuest[],
+  ): Promise<Booking> {
     // Nobody in the room is not a check-in. The residence record is the reason
     // the transition exists at all, and a stay that reached `CHECKED_IN` with an
     // empty party would be one the property cannot say who was in.
-    if (input.guests.length === 0) {
+    if (guests.length === 0) {
       throw new ORPCError("BAD_REQUEST", {
         message: "Check-in registers at least one guest",
       });
@@ -357,29 +541,55 @@ export class BookingService {
     // one rule that needs no extra field on the wire.
     let primary = true;
 
-    for (const person of input.guests) {
+    for (const person of guests) {
       const guestId =
         "guestId" in person
           ? person.guestId
           : (await this.guests.createGuest(exec, person)).id;
 
-      await exec
-        .insert(registration)
-        .values({ bookingId: input.bookingId, guestId, isPrimary: primary });
+      await exec.insert(registration).values({
+        bookingId: current.booking.id,
+        guestId,
+        isPrimary: primary,
+      });
 
       primary = false;
     }
 
-    const [arrived] = await exec
+    return await this.setState(exec, current, "CHECKED_IN");
+  }
+
+  /** The state written, and the booking read back in the application's shape. */
+  private async setState(
+    exec: DbExecutor,
+    current: { booking: BookingRow; roomTypeCode: RoomTypeCode },
+    state: BookingState,
+  ): Promise<Booking> {
+    const [written] = await exec
       .update(booking)
-      .set({ state: next, updatedAt: new Date() })
-      .where(eq(booking.id, input.bookingId))
+      .set({ state, updatedAt: new Date() })
+      .where(eq(booking.id, current.booking.id))
       .returning();
 
     return this.asBooking({
-      booking: arrived!,
+      booking: written!,
       roomTypeCode: current.roomTypeCode,
     });
+  }
+
+  /** Every room this booking holds, given up. */
+  private async releaseRooms(
+    exec: DbExecutor,
+    bookingId: string,
+  ): Promise<void> {
+    await exec
+      .delete(roomAssignment)
+      .where(
+        and(
+          eq(roomAssignment.bookingId, bookingId),
+          isNull(roomAssignment.closureReason),
+        ),
+      );
   }
 
   /**
