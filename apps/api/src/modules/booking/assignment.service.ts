@@ -523,8 +523,17 @@ export class AssignmentService {
     return from;
   }
 
-  /** Writes the hold, and lets Postgres refuse a room that is already taken. */
-  private async hold(
+  /**
+   * Writes the hold, and lets Postgres refuse a room that is already taken.
+   *
+   * Public because a reinstated no-show writes one too. §2's `NO_SHOW →
+   * CHECKED_IN` "fails if the room was resold", and this refusal is what that
+   * sentence is about — an `insert` spelled a second time in
+   * `booking.service.ts` would be a second chance to leave the `23P01`
+   * unmapped, and an unmapped exclusion violation reaches the desk as a `500`
+   * for a room that is simply occupied.
+   */
+  async hold(
     exec: DbExecutor,
     values: {
       bookingId: string;
