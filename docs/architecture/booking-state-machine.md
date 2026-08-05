@@ -18,7 +18,17 @@ Six, and no more. Variants that look like states are reason codes instead.
 | `CHECKED_IN` | Guest in house | Consumed, remaining nights | **Yes** |
 | `CHECKED_OUT` | Stay complete, folio closed | Consumed nights spent | Historical |
 | `CANCELLED` | Terminal, did not occur | Released | No |
-| `NO_SHOW` | Arrival night passed without check-in | Arrival night retained, rest released | No |
+| `NO_SHOW` | Arrival night passed without check-in | Arrival night retained, rest released | Arrival night only |
+
+**Why a no-show keeps a room.** The room follows the counter, and the counter
+keeps the arrival night — it is the night the no-show charge is levied against,
+and a night the property is charging for is not a night it has resold. Cutting
+the hold back to that one night rather than dropping it keeps the two inventory
+layers saying the same thing: a room shown occupied for the night being paid for,
+sellable for every night after it. It is also what makes §2's "it fails if the
+room was resold" a sentence the code can enforce — without a hold to collide
+with, `room_assignment_no_double_booking` has nothing to refuse and a reinstated
+guest walks into an occupied room.
 
 **Why no `EXPIRED` state.** An abandoned hold and a guest cancellation differ in
 *reason*, not in what the system must do. Both release inventory and end the
@@ -62,7 +72,7 @@ Three entries deserve their reason:
 | `HELD` → `CANCELLED` | Release all nights | Refund deposit if any | Reason `HOLD_EXPIRED` when the TTL job fires |
 | `CONFIRMED` → `CANCELLED` | Release all nights | Penalty per policy, refund remainder | Reason code required, always |
 | `CONFIRMED` → `CHECKED_IN` | Unchanged | First room-night posted by night audit, not at check-in | Room assignment mandatory; registration record written |
-| `CONFIRMED` → `NO_SHOW` | Release nights **after** the arrival night | No-show charge per policy | Written by the night audit |
+| `CONFIRMED` → `NO_SHOW` | Release nights **after** the arrival night | No-show charge per policy | Room hold cut back to the arrival night; written by the night audit |
 | `CHECKED_IN` → `CHECKED_OUT` | Release unspent nights | Folio must balance; invoice job enqueued | Room → `DIRTY` |
 | `NO_SHOW` → `CHECKED_IN` | Re-consume remaining nights, fail if unavailable | Reverse the no-show charge | `MANAGER` only |
 

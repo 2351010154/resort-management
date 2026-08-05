@@ -120,7 +120,16 @@ Nguồn `.drawio`: [`hinh/state-machine.drawio`](hinh/state-machine.drawio).
 | `CHECKED_IN` | Khách đang ở | Chiếm, các đêm còn lại | **Có** |
 | `CHECKED_OUT` | Kết thúc lưu trú, folio đã đóng | Chiếm các đêm đã ở | Lịch sử |
 | `CANCELLED` | Kết thúc, đã không diễn ra | Trả lại | Không |
-| `NO_SHOW` | Qua đêm đến mà không nhận phòng | Giữ đêm đến, trả phần còn lại | Không |
+| `NO_SHOW` | Qua đêm đến mà không nhận phòng | Giữ đêm đến, trả phần còn lại | Chỉ đêm đến |
+
+Buồng đi theo tồn kho. Tồn kho giữ lại đêm đến vì đó là đêm bị tính phí no-show,
+và một đêm khách sạn đang thu tiền không phải là một đêm đã bán lại được. Cắt
+ngắn phần giữ buồng về đúng đêm ấy — thay vì bỏ hẳn — giữ cho hai lớp tồn kho nói
+cùng một điều: buồng hiện đang có khách trong đêm được trả tiền, và bán được ở
+mọi đêm sau đó. Đó cũng là điều khiến "thất bại nếu buồng đã bán lại" ở §5.4.2
+thành một câu mã nguồn cưỡng chế được — không còn phần giữ buồng để va chạm thì
+`room_assignment_no_double_booking` không có gì để từ chối, và khách được khôi
+phục sẽ bước vào một buồng đang có người.
 
 ### 5.4.2 Bảng chuyển trạng thái
 
@@ -155,7 +164,7 @@ mua được gì và nhân đôi bảng chuyển trạng thái.
 | `HELD` → `CANCELLED` | Trả toàn bộ đêm | Hoàn cọc nếu có | Reason `HOLD_EXPIRED` khi job TTL kích hoạt |
 | `CONFIRMED` → `CANCELLED` | Trả toàn bộ đêm | Phạt theo chính sách, hoàn phần dư | **Bắt buộc** có reason code |
 | `CONFIRMED` → `CHECKED_IN` | Không đổi | Tiền buồng đêm đầu do night audit ghi, **không** ghi lúc nhận phòng | Bắt buộc đã gán buồng; ghi bản ghi lưu trú |
-| `CONFIRMED` → `NO_SHOW` | Trả các đêm **sau** đêm đến | Phí no-show theo chính sách | Do night audit ghi |
+| `CONFIRMED` → `NO_SHOW` | Trả các đêm **sau** đêm đến | Phí no-show theo chính sách | Cắt phần giữ buồng về đêm đến; do night audit ghi |
 | `CHECKED_IN` → `CHECKED_OUT` | Trả các đêm chưa ở | Folio phải cân; job hoá đơn được xếp hàng | Buồng → `DIRTY` |
 | `NO_SHOW` → `CHECKED_IN` | Chiếm lại các đêm còn lại, thất bại nếu hết chỗ | Đảo phí no-show | Chỉ `MANAGER` |
 
