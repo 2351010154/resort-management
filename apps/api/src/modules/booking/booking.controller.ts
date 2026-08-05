@@ -20,11 +20,12 @@
 // be a second opinion reachable only over HTTP, which is the half of the system
 // no service test covers.
 //
-// **Six capability rows govern eleven routes**, and which row governs which is
-// `rbac-matrix.md`'s §3, not this file's judgement. Two of them are the same row
-// read twice — a hold and a walk-in are both creations, and the funnel's is the
-// guest-realm row — and two are the policy/override pair §2 refuses to let
-// collapse into one endpoint with a check inside it.
+// **Eight capability rows govern nine routes**, and which row governs which is
+// `rbac-matrix.md`'s §3, not this file's judgement. One row is read twice — a
+// walk-in and the deposit that confirms a hold are both "create / modify
+// booking" — and two of the eight are the policy/override pair §2 refuses to let
+// collapse into one endpoint with a check inside it. The funnel's creation is a
+// different row again, and the only one in this file a guest can reach.
 
 import {
   contract,
@@ -37,7 +38,6 @@ import { Controller } from "@nestjs/common";
 import { Implement, implement } from "@orpc/nest";
 import { RequiresCapability } from "../../common/auth/access.decorators.js";
 import { TransactionRunner } from "../../database/transaction-runner.js";
-import type { CheckInGuest } from "./booking.service.js";
 import {
   type Booking,
   BookingService,
@@ -163,7 +163,7 @@ export class BookingController {
         await this.transactions.run((exec) =>
           this.bookings.checkIn(exec, {
             bookingId: input.bookingId,
-            guests: input.guests as readonly CheckInGuest[],
+            guests: input.guests,
           }),
         ),
       ),
@@ -221,7 +221,7 @@ export class BookingController {
         await this.transactions.run((exec) =>
           this.bookings.reinstate(exec, {
             bookingId: input.bookingId,
-            guests: input.guests as readonly CheckInGuest[],
+            guests: input.guests,
             roomNumber: input.roomNumber,
           }),
         ),
