@@ -1,12 +1,16 @@
 // The machinery the sweeps mount on, end to end — `prd-m4.md`'s third scope
 // decision.
 //
-// There is no sweep in the tree yet: hold expiry and the no-show sweep are their
-// own requirements. So the sweeps here are the spec's own, and they are real
-// ones — set-based statements against a probe table this file creates and drops,
-// running through the same runner, the same transaction and the same lock that
-// `booking`'s will. Two of them exist to be wrong on purpose: one that never
-// settles, and one whose cron the parser refuses.
+// The sweeps here are the spec's own even though the tree now has a real one in
+// `hold-expiry-sweep.ts`, and they stay that way: what is under test is the
+// machinery, and two of these exist to be wrong on purpose — one that never
+// settles, and one whose cron the parser refuses. Neither defect can be staged
+// on a sweep the property depends on. They are still real sweeps, set-based
+// statements against a probe table this file creates and drops, running through
+// the same runner, transaction and lock that `booking`'s does.
+//
+// The real registry is asserted where the real sweep is: `hold-expiry.e2e-spec.ts`
+// boots the container and requires the sweep to be in it.
 //
 // The claims worth holding are all properties of the infrastructure rather than
 // of any sweep:
