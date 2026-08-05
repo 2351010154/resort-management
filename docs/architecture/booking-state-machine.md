@@ -77,7 +77,7 @@ Three entries deserve their reason:
 | `CONFIRMED` → `CANCELLED` | Release all nights | Penalty per policy, refund remainder | Reason code required, always |
 | `CONFIRMED` → `CHECKED_IN` | Unchanged | First room-night posted by night audit, not at check-in | Room assignment mandatory; registration record written |
 | `CONFIRMED` → `NO_SHOW` | Release nights **after** the arrival night | No-show charge per policy | Room hold cut back to the arrival night; written by the night audit |
-| `CHECKED_IN` → `CHECKED_OUT` | Release unspent nights | Folio must balance; invoice job enqueued | Room → `DIRTY` |
+| `CHECKED_IN` → `CHECKED_OUT` | Release unspent nights | Folio must balance; invoice job enqueued | Room → `DIRTY`, unless it is `OUT_OF_ORDER` |
 | `NO_SHOW` → `CHECKED_IN` | Re-consume remaining nights, fail if unavailable | Reverse the no-show charge | `MANAGER` only; room may be named, and must be when none is held |
 
 ## 4. Guards
@@ -109,6 +109,15 @@ each is a separate endpoint with its own `@RequiresCapability()` declaration.
 | Change rate | `CONFIRMED`, `CHECKED_IN` | Below the plan price is `MANAGER` only |
 | Post charge / payment | `CHECKED_IN`, `CONFIRMED` | Deposits post pre-arrival |
 | Add or edit guest details | all but `CANCELLED` | |
+
+**Handing a vacated room back.** A move and a checked-in upgrade both leave a
+slept-in room nobody is returning to, so both set it `DIRTY` — the same effect §3
+gives check-out, and for the same reason: the property is not judging how dirty
+the room is, it is recording that somebody was in it. Two rooms are left alone.
+One the guest is already in, since a move naming it vacates nothing. And one that
+is `OUT_OF_ORDER`: writing `DIRTY` clears the note with it, so a guest moved out
+*because* the shower failed would take the reason for the withdrawal with them
+and leave a room nobody has repaired one cleaning round from the next arrival.
 
 ## 6. Diagram
 
