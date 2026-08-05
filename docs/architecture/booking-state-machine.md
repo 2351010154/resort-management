@@ -120,9 +120,21 @@ stateDiagram-v2
 **Two.** This list is the count every other document quotes.
 
 1. **Early check-in** — allowed before the arrival date, or hard-blocked?
-   Assumed blocked, config flag ready.
+   Assumed blocked. `BOOKING_EARLY_CHECK_IN_ENABLED`, default off.
 2. **Check-in into a `DIRTY` room** — some properties permit it with a manager
    override. Assumed blocked outright.
+   `BOOKING_DIRTY_ROOM_CHECK_IN_ENABLED`, default off.
+
+Both flags exist as of the check-in guard and are declared in `config/env.ts`.
+They are the switch, not the decision: the defaults above are still what this
+document assumes and not what an owner has chosen, and the flag is what makes
+choosing otherwise a line rather than a guard.
+
+The second flag relaxes `DIRTY` and **only** `DIRTY`. `OUT_OF_ORDER` is refused
+whatever it says, because `housekeeping-status.ts` files that status as a room
+that cannot be occupied at all rather than one that is not ready yet — a
+different question from the one asked here, and admitting a guest into a room
+with a fault in it is not an answer to this one.
 
 Not a decision here: the no-show charge amount and the cancellation deadline
 grid. They are not state-machine questions, but the transitions above cannot be
