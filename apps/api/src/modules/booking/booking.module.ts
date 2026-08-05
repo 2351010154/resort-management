@@ -2,7 +2,9 @@ import { Module } from "@nestjs/common";
 import { GuestModule } from "../guest/guest.module.js";
 import { HousekeepingModule } from "../housekeeping/housekeeping.module.js";
 import { InventoryModule } from "../inventory/inventory.module.js";
+import { AssignmentController } from "./assignment.controller.js";
 import { AssignmentService } from "./assignment.service.js";
+import { BookingController } from "./booking.controller.js";
 import { BookingService } from "./booking.service.js";
 import { BusinessDateService } from "./business-date.service.js";
 import { FolioStubService } from "./ports/folio-stub.service.js";
@@ -37,9 +39,13 @@ import { StayQuoteService } from "./stay-quote.service.js";
 // `DatabaseModule` is global, so nothing is imported for the executor type or
 // the `ENV` token the services take.
 //
-// No controller yet. The routes these transitions answer are a later task's, and
-// the transaction boundary they need is opened there — `database.module.ts` and
-// `closure.controller.ts` say why it belongs at the controller and not here.
+// Two controllers, split the way the services are and for the same reason
+// `booking-state-machine.md` §5 splits them: `BookingController` owns §2's
+// transitions and `AssignmentController` owns the operations that change no
+// state. Each opens the transaction its writes need, which is why the services
+// take an executor and this module provides no boundary of its own —
+// `database.module.ts` and `closure.controller.ts` argue where that boundary
+// belongs.
 //
 // `FOLIO_PORT` is the one binding here that is expected to change. `M4` has no
 // ledger, so it points at the stub that reports every folio settled; `M6` points
@@ -47,6 +53,7 @@ import { StayQuoteService } from "./stay-quote.service.js";
 // moves. `ports/folio.port.ts` argues why the dependency runs in this direction.
 @Module({
   imports: [GuestModule, HousekeepingModule, InventoryModule],
+  controllers: [BookingController, AssignmentController],
   providers: [
     AssignmentService,
     BookingService,
