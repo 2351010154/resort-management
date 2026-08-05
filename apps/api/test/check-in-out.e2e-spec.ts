@@ -594,6 +594,29 @@ describe("checking a guest out", () => {
     expect(await conditionOf(SUPERIOR)).toBe("DIRTY");
   });
 
+  it("leaves a room that was withdrawn mid-stay out of order", async () => {
+    // A fault outlasts the stay it was reported during. `setCondition` clears
+    // the note as it writes, so handing this room back would take the reason it
+    // was withdrawn with the guest and leave it one cleaning round from the next
+    // arrival — with nobody having repaired the thing that broke.
+    const id = await inTheBuilding();
+
+    await db.transaction(
+      async (tx) =>
+        await new HousekeepingService().setOutOfOrder(tx, {
+          roomNumber: SUPERIOR,
+          outOfOrder: true,
+          reason: "air conditioning failed",
+        }),
+    );
+
+    await db.transaction(
+      async (tx) => await deskAt(parseDate(DEPARTURE)).checkOut(tx, id),
+    );
+
+    expect(await conditionOf(SUPERIOR)).toBe("OUT_OF_ORDER");
+  });
+
   it("releases no night when the guest leaves on the day they were due to", async () => {
     // There was never an unspent night to give back, and the range is empty.
     const id = await inTheBuilding();
