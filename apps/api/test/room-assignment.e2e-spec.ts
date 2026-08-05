@@ -16,13 +16,11 @@
 // only way to prove that a refused type change leaves *both* counters where it
 // found them.
 //
-// The property's clock is pinned. `business-date.service.ts` makes `now` a
-// parameter so that a test, the night audit and a back-dated correction can all
-// ask about a moment other than this one; the service under test calls it with
-// no argument, so the instant is fixed here instead of the rollover logic being
-// replaced. A room move's whole behaviour turns on where today falls inside the
-// stay, and a suite that ran against the real clock would assert one thing this
-// year and another thing next.
+// The property's day is stopped. A room move's whole behaviour turns on where
+// today falls inside the stay — the old room keeps the nights up to it and the
+// new one takes the rest — so a suite running against the wall clock would
+// assert one thing this year and another thing next, against stays whose dates
+// have to sit inside the seeded calendar either way.
 
 import "reflect-metadata";
 
@@ -34,7 +32,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import pg from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { type Env, parseEnv } from "../src/config/env.js";
+import type { Env } from "../src/config/env.js";
 import * as schema from "../src/database/schema/index.js";
 import { booking } from "../src/database/schema/booking.js";
 import {
@@ -62,8 +60,10 @@ const ANOTHER_DELUXE = "304";
 const ARRIVAL = "2027-06-10";
 const DEPARTURE = "2027-06-15";
 
-/** Mid-stay: three nights slept, two still to come. */
-const TODAY = new Date("2027-06-12T09:00:00+07:00");
+/** Mid-stay: two nights slept, three still to come. */
+const TODAY = parseDate("2027-06-12");
+
+const ROLLOVER_HOUR = 4;
 
 let pool: pg.Pool;
 let db: ReturnType<typeof drizzle<typeof schema>>;
@@ -72,30 +72,19 @@ let inventory: InventoryService;
 let reference = 9_000;
 
 /**
- * The property's clock, stopped.
- *
- * A subclass over the real service rather than an object with a `current`
- * method: the rollover hour, the property's zone and the 04:00 arithmetic are
- * all still the ones the API boots with, and only the instant they are applied
- * to is this file's. A hand-written stand-in would assert nothing about the
- * off-by-one-night the real service exists to prevent.
+ * The property's day, stopped — the same device
+ * `booking-lifecycle.e2e-spec.ts` uses and for the same reason. A room move's
+ * whole behaviour turns on where today falls inside the stay, and every stay
+ * here is a 2027 date chosen to sit inside the seeded calendar.
  */
-class PinnedClock extends BusinessDateService {
-  constructor(private readonly instant: Date) {
-    super(envForTests());
+class StoppedClock extends BusinessDateService {
+  constructor(private readonly today: StayDate) {
+    super({ BUSINESS_DATE_ROLLOVER_HOUR: ROLLOVER_HOUR } as Env);
   }
 
   override current(): StayDate {
-    return super.current(this.instant);
+    return this.today;
   }
-}
-
-function envForTests(): Env {
-  return parseEnv({
-    DATABASE_URL: process.env.DATABASE_URL,
-    BETTER_AUTH_SECRET: "a".repeat(32),
-    STAFF_JWT_SECRET: "b".repeat(32),
-  });
 }
 
 beforeAll(async () => {
@@ -116,7 +105,7 @@ beforeAll(async () => {
   await seedDatabase(db, { from: SEED_FROM, bookings: 0 });
 
   inventory = new InventoryService();
-  assignments = new AssignmentService(inventory, new PinnedClock(TODAY));
+  assignments = new AssignmentService(inventory, new StoppedClock(TODAY));
 });
 
 // Every case starts against the property as the seed laid it down: no stays, no

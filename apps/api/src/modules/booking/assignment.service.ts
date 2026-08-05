@@ -43,6 +43,7 @@ import { booking, type BookingRow } from "../../database/schema/booking.js";
 import {
   room,
   roomAssignment,
+  type RoomAssignmentRow,
   roomType,
 } from "../../database/schema/inventory.js";
 import { sqlStateOf } from "../../database/sql-state.js";
@@ -86,15 +87,19 @@ export interface RoomTypeChange {
 interface LockedBooking {
   readonly row: BookingRow;
   readonly roomTypeCode: RoomTypeCode;
-  readonly assignment: AssignmentRow | null;
+  readonly assignment: HeldRoom | null;
 }
 
-/** The columns of an assignment this file decides from. */
-interface AssignmentRow {
-  readonly id: string;
-  readonly roomId: string;
-  readonly checkInDate: string;
-  readonly checkOutDate: string;
+/**
+ * The room a booking is in, as the row plus the number the desk speaks.
+ *
+ * The whole row and not the columns this file happens to read: `check-in.guard.ts`
+ * takes a `RoomAssignmentRow`, and narrowing it here would put a shape between
+ * the guard and the table it is a guard about.
+ */
+export interface HeldRoom {
+  readonly row: RoomAssignmentRow;
+  readonly roomNumber: string;
 }
 
 @Injectable()
@@ -151,7 +156,7 @@ export class AssignmentService {
     if (current.assignment) {
       await exec
         .delete(roomAssignment)
-        .where(eq(roomAssignment.id, current.assignment.id));
+        .where(eq(roomAssignment.id, current.assignment.row.id));
     }
 
     return await this.hold(exec, {
@@ -211,15 +216,15 @@ export class AssignmentService {
     // start date. `room_assignment_covers_at_least_one_night` refuses that row,
     // and rightly: a stay of no nights is the one hold the exclusion constraint
     // cannot see, so it would sit against the room colliding with nothing.
-    if (from.toString() === current.assignment.checkInDate) {
+    if (from.toString() === current.assignment.row.checkInDate) {
       await exec
         .delete(roomAssignment)
-        .where(eq(roomAssignment.id, current.assignment.id));
+        .where(eq(roomAssignment.id, current.assignment.row.id));
     } else {
       await exec
         .update(roomAssignment)
         .set({ checkOutDate: from.toString() })
-        .where(eq(roomAssignment.id, current.assignment.id));
+        .where(eq(roomAssignment.id, current.assignment.row.id));
     }
 
     return await this.hold(exec, {
@@ -280,7 +285,7 @@ export class AssignmentService {
         to: input.roomType,
         nights: nightCount({ checkIn, checkOut }),
         assignment: current.assignment
-          ? await this.asAssignment(exec, current.assignment, input.bookingId)
+          ? this.asAssignment(current.assignment, input.bookingId)
           : null,
       };
     }
@@ -345,15 +350,15 @@ export class AssignmentService {
           ? this.moveDate(current)
           : checkIn;
 
-      if (from.toString() === current.assignment.checkInDate) {
+      if (from.toString() === current.assignment.row.checkInDate) {
         await exec
           .delete(roomAssignment)
-          .where(eq(roomAssignment.id, current.assignment.id));
+          .where(eq(roomAssignment.id, current.assignment.row.id));
       } else {
         await exec
           .update(roomAssignment)
           .set({ checkOutDate: from.toString() })
-          .where(eq(roomAssignment.id, current.assignment.id));
+          .where(eq(roomAssignment.id, current.assignment.row.id));
       }
 
       assignment = await this.hold(exec, {
@@ -402,36 +407,47 @@ export class AssignmentService {
       throw new ORPCError("NOT_FOUND", { message: "No booking with that id" });
     }
 
-    // `closure_reason is null` is what separates a guest's room from a room
-    // withdrawn for a leaking pipe. Both are rows in this table —
-    // `schema/inventory.ts` says why they must be — and only the first is this
-    // booking's to move.
-    const [assignment] = await exec
-      .select({
-        id: roomAssignment.id,
-        roomId: roomAssignment.roomId,
-        checkInDate: roomAssignment.checkInDate,
-        checkOutDate: roomAssignment.checkOutDate,
-      })
+    return {
+      row: row.booking,
+      roomTypeCode: row.roomTypeCode,
+      assignment: await this.current(exec, bookingId),
+    };
+  }
+
+  /**
+   * The room a booking is in *now*, or null when it holds none.
+   *
+   * `closure_reason is null` is what separates a guest's room from a room
+   * withdrawn for a leaking pipe. Both are rows in this table —
+   * `schema/inventory.ts` says why they must be — and only the first is a room
+   * the booking is in.
+   *
+   * Public because check-in reads it too: §4's room requirement is asked of the
+   * same row this file writes, and a second query spelling the ordering below
+   * would be a second chance to spell it differently.
+   */
+  async current(
+    exec: DbExecutor,
+    bookingId: string,
+  ): Promise<HeldRoom | null> {
+    const [held] = await exec
+      .select({ row: roomAssignment, roomNumber: room.number })
       .from(roomAssignment)
+      .innerJoin(room, eq(room.id, roomAssignment.roomId))
       .where(
         and(
           eq(roomAssignment.bookingId, bookingId),
           isNull(roomAssignment.closureReason),
         ),
       )
-      // The row the booking is in *now*, and not the rooms it has been in. A
+      // The room the booking is in now, and not the rooms it has been in. A
       // stay that has been moved holds a closed-off row for every earlier room,
       // so the latest arrival is the live one — ordered the other way, this
       // would move a guest out of a room they left on Tuesday.
       .orderBy(desc(roomAssignment.checkInDate))
       .limit(1);
 
-    return {
-      row: row.booking,
-      roomTypeCode: row.roomTypeCode,
-      assignment: assignment ?? null,
-    };
+    return held ?? null;
   }
 
   /** §5's legality column, as a refusal that names what was attempted. */
@@ -552,23 +568,13 @@ export class AssignmentService {
   }
 
   /** An assignment already in hand, in the shape a caller reads. */
-  private async asAssignment(
-    exec: DbExecutor,
-    assignment: AssignmentRow,
-    bookingId: string,
-  ): Promise<RoomAssignment> {
-    const [held] = await exec
-      .select({ number: room.number })
-      .from(room)
-      .where(eq(room.id, assignment.roomId))
-      .limit(1);
-
+  private asAssignment(held: HeldRoom, bookingId: string): RoomAssignment {
     return {
-      id: assignment.id,
+      id: held.row.id,
       bookingId,
-      roomNumber: held!.number,
-      checkIn: parseDate(assignment.checkInDate),
-      checkOut: parseDate(assignment.checkOutDate),
+      roomNumber: held.roomNumber,
+      checkIn: parseDate(held.row.checkInDate),
+      checkOut: parseDate(held.row.checkOutDate),
     };
   }
 }
