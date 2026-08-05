@@ -59,7 +59,11 @@ Three entries deserve their reason:
   that consumed a room and produced revenue.
 - **`NO_SHOW` → `CHECKED_IN` is legal.** A guest landing at 02:00 after the
   night audit ran is an ordinary event, not a data-entry error. `MANAGER` only,
-  and it fails if the room was resold.
+  and it fails if the room was resold. The room may be named at the transition,
+  and must be when the booking is holding none — §1 makes an assignment optional
+  in `CONFIRMED`, and §5 makes assigning one legal from `CONFIRMED` and
+  `CHECKED_IN` only, so a stay written off without a room has no other door to
+  one. The same door takes a guest whose own room went out of order overnight.
 - **Direct creation as `CONFIRMED`** is how the front desk books a walk-in or a
   phone reservation. Only the public funnel starts at `HELD`.
 
@@ -74,7 +78,7 @@ Three entries deserve their reason:
 | `CONFIRMED` → `CHECKED_IN` | Unchanged | First room-night posted by night audit, not at check-in | Room assignment mandatory; registration record written |
 | `CONFIRMED` → `NO_SHOW` | Release nights **after** the arrival night | No-show charge per policy | Room hold cut back to the arrival night; written by the night audit |
 | `CHECKED_IN` → `CHECKED_OUT` | Release unspent nights | Folio must balance; invoice job enqueued | Room → `DIRTY` |
-| `NO_SHOW` → `CHECKED_IN` | Re-consume remaining nights, fail if unavailable | Reverse the no-show charge | `MANAGER` only |
+| `NO_SHOW` → `CHECKED_IN` | Re-consume remaining nights, fail if unavailable | Reverse the no-show charge | `MANAGER` only; room may be named, and must be when none is held |
 
 ## 4. Guards
 
@@ -86,6 +90,7 @@ Rejections that are not about the state pair.
 | Room required | → `CHECKED_IN` | No assignment, or assignment violates the `EXCLUDE USING gist` constraint |
 | Room ready | → `CHECKED_IN` | Housekeeping status is not `CLEAN` or `INSPECTED` ⚑ |
 | Folio settled | → `CHECKED_OUT` | Balance ≠ 0 and no approved deferred settlement |
+| Arrival reached | → `NO_SHOW` | Business date < arrival date — §1 defines the state as an arrival night that passed, and a guest cannot have failed to arrive for a night the property has not got to. On the arrival date it passes: the 04:00 rollover means the audit closing the night of `D` reads business date `D` |
 | Inventory available | → `HELD`, → `CONFIRMED`, extend, reinstate | `sold_rooms > total_rooms` — enforced by the `CHECK`, surfaced as `409` |
 | Idempotency | every transition | Same transition already applied; return the current state, do not error |
 
@@ -97,10 +102,10 @@ each is a separate endpoint with its own `@RequiresCapability()` declaration.
 | Operation | Legal in | Notes |
 |---|---|---|
 | Assign / reassign room | `CONFIRMED`, `CHECKED_IN` | Never moves a different checked-in guest |
-| Room move | `CHECKED_IN` | New assignment row; old one closed at today's date |
+| Room move | `CHECKED_IN` | New assignment row; old one closed at today's date; the vacated room goes to `DIRTY` |
 | Extend stay | `CONFIRMED`, `CHECKED_IN` | Needs inventory for the added nights; fails cleanly |
 | Shorten stay / early departure | `CHECKED_IN` | Releases nights, posts the early-departure charge |
-| Change room type (upgrade) | `CONFIRMED`, `CHECKED_IN` | Inventory moves between types atomically |
+| Change room type (upgrade) | `CONFIRMED`, `CHECKED_IN` | Inventory moves between types atomically; a checked-in guest's old room goes to `DIRTY` |
 | Change rate | `CONFIRMED`, `CHECKED_IN` | Below the plan price is `MANAGER` only |
 | Post charge / payment | `CHECKED_IN`, `CONFIRMED` | Deposits post pre-arrival |
 | Add or edit guest details | all but `CANCELLED` | |

@@ -114,7 +114,12 @@ function deskAt(today: StayDate): BookingService {
     inventory,
     new StayQuoteService(),
     clock,
-    new AssignmentService(inventory, clock, new StayQuoteService()),
+    new AssignmentService(
+      inventory,
+      clock,
+      new StayQuoteService(),
+      new HousekeepingService(),
+    ),
     new GuestService(),
     new HousekeepingService(),
     new FolioSettled(),
@@ -128,6 +133,7 @@ function roomsAt(today: StayDate): AssignmentService {
     new InventoryService(),
     new StoppedClock(today),
     new StayQuoteService(),
+    new HousekeepingService(),
   );
 }
 
@@ -231,6 +237,38 @@ async function noShow(
   );
 
   return id;
+}
+
+/**
+ * A stay written off having never been given a room.
+ *
+ * §1 makes the assignment optional in `CONFIRMED`, so this is an ordinary
+ * booking rather than a broken one: a phone reservation nobody picked a room for
+ * before the audit ran. The counter keeps the arrival night either way — what it
+ * has no row for is the room that night was held against.
+ */
+async function unroomedNoShow(
+  options: { checkIn?: string; checkOut?: string } = {},
+): Promise<string> {
+  const id = await confirmedStay(options);
+
+  await db.transaction(
+    async (tx) => await deskAt(parseDate(ARRIVAL)).markNoShow(tx, id),
+  );
+
+  return id;
+}
+
+/** Takes a room out of order, the way a fault reported overnight would. */
+async function breakRoom(roomNumber: string): Promise<void> {
+  await db.transaction(
+    async (tx) =>
+      await new HousekeepingService().setOutOfOrder(tx, {
+        roomNumber,
+        outOfOrder: true,
+        reason: "shower mixer leaking",
+      }),
+  );
 }
 
 /** `sold_rooms` for a type on one night. */
@@ -394,6 +432,41 @@ describe("writing off a guest who never came", () => {
 
     expect(again.state).toBe("NO_SHOW");
     expect(await soldAcrossTheStay()).toEqual([1, 0, 0, 0, 0]);
+  });
+
+  it("refuses a stay whose arrival night the property has not reached", async () => {
+    // §1 defines the state as "arrival night passed without check-in", so a
+    // booking arriving on the 14th cannot have failed to arrive on the 12th.
+    // Written off anyway, it would put four of its five nights back on sale and
+    // cut the room hold to a night the guest is still expected on.
+    const id = await stayHolding(SUPERIOR, {
+      checkIn: "2027-06-14",
+      checkOut: "2027-06-16",
+    });
+
+    expect(
+      (
+        await refusalOf(
+          db.transaction(
+            async (tx) =>
+              await deskAt(parseDate("2027-06-12")).markNoShow(tx, id),
+          ),
+        )
+      ).status,
+    ).toBe("CONFLICT");
+
+    expect(await stateOf(id)).toBe("CONFIRMED");
+    expect(await soldOn("SUPERIOR", "2027-06-15")).toBe(1);
+  });
+
+  it("writes off the stay whose arrival night the audit is closing", async () => {
+    // The other side of that line, and the caller §3 gives the transition to.
+    // `business-date.service.ts` rolls at 04:00, so the audit that runs at 03:00
+    // to close the night of the 10th reads business date 10 — the arrival date
+    // itself. A guard that refused `today == arrival` would refuse the audit.
+    const id = await noShow();
+
+    expect(await stateOf(id)).toBe("NO_SHOW");
   });
 
   it("refuses to write off a guest who is in the building", async () => {
@@ -570,6 +643,138 @@ describe("reinstating a guest who turned up after all", () => {
     // already bought back are the other guest's alone.
     expect(await soldAcrossTheStay()).toEqual([1, 1, 1, 1, 1]);
     expect(await stateOf(id)).toBe("NO_SHOW");
+  });
+
+  it("gives a room to the no-show that was written off without one", async () => {
+    // §1 makes the room optional in `CONFIRMED`, so this booking is ordinary
+    // rather than broken — and §5 makes assignment legal from `CONFIRMED` and
+    // `CHECKED_IN` only, so once it is a no-show nothing else can give it one.
+    // Without the room travelling with the reinstatement, §2's "ordinary event"
+    // would be a transition the manager cannot reach at all.
+    const id = await unroomedNoShow();
+
+    await db.transaction(
+      async (tx) =>
+        await deskAt(parseDate(ARRIVAL)).reinstate(tx, {
+          bookingId: id,
+          guests: [A_GUEST],
+          roomNumber: SUPERIOR,
+        }),
+    );
+
+    expect(await stateOf(id)).toBe("CHECKED_IN");
+    expect(await soldAcrossTheStay()).toEqual([1, 1, 1, 1, 1]);
+
+    // From the arrival, and not from the night after it. The counter kept the
+    // arrival night, and with no earlier row holding a room against it the hold
+    // has to start there or the two layers disagree about a night the property
+    // charged for.
+    expect(await heldBy(id)).toEqual([
+      { number: SUPERIOR, checkInDate: ARRIVAL, checkOutDate: DEPARTURE },
+    ]);
+  });
+
+  it("admits the roomless late guest of a one-night stay", async () => {
+    // The case the arrival-night hold exists for. There is nothing to buy back —
+    // the counter kept the only night — so a hold that started the night after
+    // the arrival would cover no night at all, and the guest would reach
+    // `CHECKED_IN` holding no room, which §1 says that state cannot be in.
+    const id = await unroomedNoShow({ checkOut: "2027-06-11" });
+
+    await db.transaction(
+      async (tx) =>
+        await deskAt(parseDate(ARRIVAL)).reinstate(tx, {
+          bookingId: id,
+          guests: [A_GUEST],
+          roomNumber: SUPERIOR,
+        }),
+    );
+
+    expect(await stateOf(id)).toBe("CHECKED_IN");
+    expect(await heldBy(id)).toEqual([
+      { number: SUPERIOR, checkInDate: ARRIVAL, checkOutDate: "2027-06-11" },
+    ]);
+  });
+
+  it("refuses the roomless no-show that names no room to go into", async () => {
+    // A different answer from §4's room requirement, deliberately: that guard
+    // tells the desk to assign a room, and this is the one state §5 will not let
+    // them assign one from.
+    const id = await unroomedNoShow();
+
+    expect(
+      (
+        await refusalOf(
+          db.transaction(
+            async (tx) =>
+              await deskAt(parseDate(ARRIVAL)).reinstate(tx, {
+                bookingId: id,
+                guests: [A_GUEST],
+              }),
+          ),
+        )
+      ).status,
+    ).toBe("BAD_REQUEST");
+
+    expect(await stateOf(id)).toBe("NO_SHOW");
+    expect(await soldAcrossTheStay()).toEqual([1, 0, 0, 0, 0]);
+  });
+
+  it("puts the guest in another room when their own went out of order", async () => {
+    // The second shape of the same dead end. The room a no-show held is refused
+    // by §4's room-ready guard once a fault is reported against it, and §5 will
+    // not let a no-show be reassigned — so without a room named here the guest
+    // is stuck behind a leaking shower they were never going to use.
+    const id = await noShow();
+
+    await breakRoom(SUPERIOR);
+
+    await db.transaction(
+      async (tx) =>
+        await deskAt(parseDate(ARRIVAL)).reinstate(tx, {
+          bookingId: id,
+          guests: [A_GUEST],
+          roomNumber: ANOTHER_SUPERIOR,
+        }),
+    );
+
+    expect(await stateOf(id)).toBe("CHECKED_IN");
+
+    // The old row keeps the arrival night it was charged for, exactly as a late
+    // arrival's does — the property held 201 that night whatever happened to it
+    // afterwards.
+    expect(await heldBy(id)).toEqual([
+      { number: SUPERIOR, checkInDate: ARRIVAL, checkOutDate: "2027-06-11" },
+      {
+        number: ANOTHER_SUPERIOR,
+        checkInDate: "2027-06-11",
+        checkOutDate: DEPARTURE,
+      },
+    ]);
+  });
+
+  it("reads the condition of the room the guest is going into", async () => {
+    // Not the one they are leaving. A named room is refused on its own status,
+    // and asking the held room instead would admit a guest into a broken room on
+    // the strength of a clean one they will not be in.
+    const id = await noShow();
+
+    await breakRoom(ANOTHER_SUPERIOR);
+
+    expect(
+      await refusalOf(
+        db.transaction(
+          async (tx) =>
+            await deskAt(parseDate(ARRIVAL)).reinstate(tx, {
+              bookingId: id,
+              guests: [A_GUEST],
+              roomNumber: ANOTHER_SUPERIOR,
+            }),
+        ),
+      ),
+    ).toEqual({ status: "CONFLICT", code: "ROOM_OUT_OF_ORDER" });
+
+    expect(await soldAcrossTheStay()).toEqual([1, 0, 0, 0, 0]);
   });
 
   it("refuses a room that is not ready before it moves a counter", async () => {
