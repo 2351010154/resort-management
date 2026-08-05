@@ -29,9 +29,12 @@
 // politely and released the nights again would credit the property with
 // inventory it never sold.
 //
-// What is deliberately NOT here: check-in, check-out, no-show and the operations
-// of §5. They need a business date, a room assignment, a housekeeping status and
-// a folio balance, and each is a guard this file cannot answer from two strings.
+// Check-in and check-out are here and the operations of §5 are not, which is the
+// line §5 itself draws: those change no state and are `assignment.service.ts`'s.
+// These two do, and each is the transition plus the effects §3 gives it — so
+// they read a business date, an assignment, a housekeeping status and a folio
+// balance, and hand each answer to the pure guard that judges it. The guards
+// stay pure and this file stays the one place a booking's state changes.
 
 import { parseDate } from "@internationalized/date";
 import {
@@ -53,9 +56,20 @@ import {
   type BookingRow,
   bookingNight,
 } from "../../database/schema/booking.js";
-import { roomType } from "../../database/schema/inventory.js";
+import { registration } from "../../database/schema/guest.js";
+import { roomAssignment, roomType } from "../../database/schema/inventory.js";
+import { GuestService, type NewGuest } from "../guest/guest.service.js";
+import { HousekeepingService } from "../housekeeping/housekeeping.service.js";
 import { InventoryService } from "../inventory/inventory.service.js";
+import { AssignmentService } from "./assignment.service.js";
 import { BusinessDateService } from "./business-date.service.js";
+import {
+  validateArrivalWindow,
+  validateRoomAssigned,
+  validateRoomReady,
+} from "./guards/check-in.guard.js";
+import { validateFolioSettled } from "./guards/check-out.guard.js";
+import { FOLIO_PORT, type FolioPort } from "./ports/folio.port.js";
 import { applyTransition } from "./state-machine.js";
 import { retryOnCollision } from "./reference-generator.js";
 import { assertFunnelMaySell } from "./stay-restriction-guard.js";
@@ -110,12 +124,29 @@ class ReferenceTaken extends Error {
   }
 }
 
+/**
+ * Somebody to register at check-in: a person the property has met before, or a
+ * record it is creating now.
+ *
+ * Both, because the property genuinely has both. A returning guest already has
+ * a row — `guest.ts` refuses a second one carrying the same CCCD, and rightly —
+ * so a check-in that could only create would turn every repeat visit into a
+ * duplicate-number conflict at the desk. Discriminated by the presence of an id
+ * rather than by a tag field: `NewGuest` requires a name and this does not have
+ * one, so the two shapes cannot be confused by a caller or by the compiler.
+ */
+export type CheckInGuest = { readonly guestId: string } | NewGuest;
+
 @Injectable()
 export class BookingService {
   constructor(
     private readonly inventory: InventoryService,
     private readonly quotes: StayQuoteService,
     private readonly businessDate: BusinessDateService,
+    private readonly assignments: AssignmentService,
+    private readonly guests: GuestService,
+    private readonly housekeeping: HousekeepingService,
+    @Inject(FOLIO_PORT) private readonly folio: FolioPort,
     @Inject(ENV) private readonly env: Env,
   ) {}
 
@@ -250,6 +281,199 @@ export class BookingService {
 
     return this.asBooking({
       booking: cancelled!,
+      roomTypeCode: current.roomTypeCode,
+    });
+  }
+
+  /**
+   * `CONFIRMED` → `CHECKED_IN` — the guest is in the building.
+   *
+   * All three of §4's guards run, in the order §4 lists them, and the order is
+   * not cosmetic: it is the order the desk can act on. A stay that is a day
+   * early is refused for being early rather than for the room not being ready,
+   * because sending a housekeeper to a room the guest may not have yet is work
+   * nobody needed. The room is then required before its condition is asked
+   * about, since there is no status to read without one.
+   *
+   * §3's other effect is the registration record, and §1 files it as a property
+   * of the state rather than as a later step: `CHECKED_IN` is the row whose
+   * "registration" column reads **Yes**. It is written in this transaction for
+   * the reason `guest.module.ts` gives — a stay that moved to `CHECKED_IN` and
+   * failed to record who is in the room would be a statutory residence record
+   * with a hole in it.
+   *
+   * The housekeeping status is read and not written. §3 gives check-in no
+   * housekeeping effect, and that is right: the room was `CLEAN` before the
+   * guest walked in and it is `CLEAN` after. It stops being clean when they
+   * leave, which is {@link checkOut}'s line.
+   */
+  async checkIn(
+    exec: DbExecutor,
+    input: {
+      bookingId: string;
+      /** At least one, and the first is the booking holder — see below. */
+      guests: readonly CheckInGuest[];
+    },
+  ): Promise<Booking> {
+    const current = await this.forUpdate(exec, input.bookingId);
+    const next = applyTransition(current.booking.state, "CHECKED_IN");
+
+    // §4's idempotency row. A double-clicked button must not register the same
+    // party twice — `registration_booking_guest_key` would refuse the second
+    // row, but as a constraint violation rather than as the polite answer §4
+    // asks for.
+    if (next === current.booking.state) {
+      return this.asBooking(current);
+    }
+
+    validateArrivalWindow({
+      businessDate: this.businessDate.current(),
+      arrivalDate: parseDate(current.booking.checkInDate),
+      departureDate: parseDate(current.booking.checkOutDate),
+      earlyCheckInEnabled: this.env.BOOKING_EARLY_CHECK_IN_ENABLED,
+    });
+
+    const held = await this.assignments.current(exec, input.bookingId);
+
+    validateRoomAssigned(held?.row ?? null);
+
+    validateRoomReady(
+      await this.housekeeping.statusOf(exec, held!.row.roomId),
+      this.env.BOOKING_DIRTY_ROOM_CHECK_IN_ENABLED,
+    );
+
+    // Nobody in the room is not a check-in. The residence record is the reason
+    // the transition exists at all, and a stay that reached `CHECKED_IN` with an
+    // empty party would be one the property cannot say who was in.
+    if (input.guests.length === 0) {
+      throw new ORPCError("BAD_REQUEST", {
+        message: "Check-in registers at least one guest",
+      });
+    }
+
+    // The first is the holder. §3 calls it "the booking holder, as against the
+    // other occupants", `registration_one_primary_per_booking_key` allows
+    // exactly one, and taking it from the order the desk entered them is the
+    // one rule that needs no extra field on the wire.
+    let primary = true;
+
+    for (const person of input.guests) {
+      const guestId =
+        "guestId" in person
+          ? person.guestId
+          : (await this.guests.createGuest(exec, person)).id;
+
+      await exec
+        .insert(registration)
+        .values({ bookingId: input.bookingId, guestId, isPrimary: primary });
+
+      primary = false;
+    }
+
+    const [arrived] = await exec
+      .update(booking)
+      .set({ state: next, updatedAt: new Date() })
+      .where(eq(booking.id, input.bookingId))
+      .returning();
+
+    return this.asBooking({
+      booking: arrived!,
+      roomTypeCode: current.roomTypeCode,
+    });
+  }
+
+  /**
+   * `CHECKED_IN` → `CHECKED_OUT` — the stay is over.
+   *
+   * §4's one guard, asked through `folio.port.ts` so that `M6` can answer it
+   * from a real ledger without this transition changing. Today the stub reports
+   * every folio settled, which is why the guard is exercised here through the
+   * port rather than skipped until there is money to count.
+   *
+   * §3's inventory effect is "release unspent nights", and which nights those
+   * are is the one judgement in this method. A guest leaving on business date
+   * `D` has slept the nights up to `D` and will not occupy `D` itself — the
+   * night of `D` runs from `D` into tomorrow, and at any hour of the property's
+   * day it has not happened yet. So the release covers `[D, departure)`, which
+   * puts tonight back on sale for a walk-in. The same reading makes an ordinary
+   * departure release nothing at all: on the departure date the range is empty,
+   * and there was never an unspent night to give back.
+   *
+   * The room goes back as `DIRTY` — §3's "Other" column, and `FR-HK-01`. It is
+   * attributed to nobody, because `housekeeping.service.ts` says why: the
+   * property is not making a cleaning judgement about the room, it is stating
+   * that somebody has been in it.
+   */
+  async checkOut(exec: DbExecutor, bookingId: string): Promise<Booking> {
+    const current = await this.forUpdate(exec, bookingId);
+    const next = applyTransition(current.booking.state, "CHECKED_OUT");
+
+    // §4's idempotency row, and the release below is what makes it matter. A
+    // second check-out that answered politely and released the nights again
+    // would credit the property with inventory it never sold — the same reason
+    // `cancel` guards it.
+    if (next === current.booking.state) {
+      return this.asBooking(current);
+    }
+
+    validateFolioSettled(await this.folio.getBalance(bookingId));
+
+    const departure = parseDate(current.booking.checkOutDate);
+    const arrival = parseDate(current.booking.checkInDate);
+    const today = this.businessDate.current();
+
+    // Clamped to the arrival, because early check-in is §7's first ⚑ and a
+    // guest admitted before their arrival date can leave before it too. The
+    // unclamped range would release nights the booking never consumed, which
+    // `type_inventory_sold_not_negative` refuses — correctly, and as a fault
+    // rather than as the answer it is.
+    const from = today.compare(arrival) > 0 ? today : arrival;
+
+    if (from.compare(departure) < 0) {
+      await this.inventory.release(exec, {
+        roomType: current.roomTypeCode,
+        checkIn: from,
+        checkOut: departure,
+      });
+    }
+
+    const held = await this.assignments.current(exec, bookingId);
+
+    // A checked-in booking has a room — §4's second guard is what guarantees it
+    // — so this is the shape of the one case that would leave a room held for a
+    // stay that has ended, rather than a condition worth refusing a departure
+    // over. The guest is leaving either way.
+    if (held) {
+      // The hold ends when the stay does. Left running to the original
+      // departure date, an early check-out would keep the room against
+      // `room_assignment_no_double_booking` for nights the counter has just
+      // put back on sale — the two layers `schema/inventory.ts` describes
+      // disagreeing, with the room unsellable and the type reading free.
+      if (from.toString() === held.row.checkInDate) {
+        await exec
+          .delete(roomAssignment)
+          .where(eq(roomAssignment.id, held.row.id));
+      } else if (from.compare(departure) < 0) {
+        await exec
+          .update(roomAssignment)
+          .set({ checkOutDate: from.toString() })
+          .where(eq(roomAssignment.id, held.row.id));
+      }
+
+      await this.housekeeping.setCondition(exec, {
+        roomNumber: held.roomNumber,
+        status: "DIRTY",
+      });
+    }
+
+    const [departed] = await exec
+      .update(booking)
+      .set({ state: next, updatedAt: new Date() })
+      .where(eq(booking.id, bookingId))
+      .returning();
+
+    return this.asBooking({
+      booking: departed!,
       roomTypeCode: current.roomTypeCode,
     });
   }

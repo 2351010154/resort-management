@@ -41,7 +41,11 @@ import {
   type Booking,
   type CreateBookingInput,
 } from "../src/modules/booking/booking.service.js";
+import { AssignmentService } from "../src/modules/booking/assignment.service.js";
 import { BusinessDateService } from "../src/modules/booking/business-date.service.js";
+import { FolioStubService } from "../src/modules/booking/ports/folio-stub.service.js";
+import { GuestService } from "../src/modules/guest/guest.service.js";
+import { HousekeepingService } from "../src/modules/housekeeping/housekeeping.service.js";
 import { isBookingReference } from "../src/modules/booking/reference-generator.js";
 import { StayQuoteService } from "../src/modules/booking/stay-quote.service.js";
 
@@ -79,6 +83,29 @@ class StoppedClock extends BusinessDateService {
   }
 }
 
+/**
+ * A booking service whose day is stopped at `today`.
+ *
+ * The collaborators check-in and check-out need are constructed real rather than
+ * stood in for: none of the transitions this file exercises reaches them, and a
+ * stand-in would be a shape to keep in step with the service for no assertion's
+ * sake. `check-in-out.e2e-spec.ts` is where they do the work.
+ */
+function deskAt(today: StayDate): BookingService {
+  const inventory = new InventoryService();
+
+  return new BookingService(
+    inventory,
+    new StayQuoteService(),
+    new StoppedClock(today),
+    new AssignmentService(inventory, new StoppedClock(today)),
+    new GuestService(),
+    new HousekeepingService(),
+    new FolioStubService(),
+    { BOOKING_HOLD_TTL_MINUTES: HOLD_TTL_MINUTES } as Env,
+  );
+}
+
 let pool: pg.Pool;
 let db: ReturnType<typeof drizzle<typeof schema>>;
 let bookings: BookingService;
@@ -107,12 +134,7 @@ beforeAll(async () => {
   // stay below arrives in its future and the arrival guard passes on its merits
   // rather than on what today happens to be. Against the wall clock this whole
   // file would begin failing once the calendar reached 2028.
-  bookings = new BookingService(
-    new InventoryService(),
-    new StayQuoteService(),
-    new StoppedClock(SEED_FROM),
-    { BOOKING_HOLD_TTL_MINUTES: HOLD_TTL_MINUTES } as Env,
-  );
+  bookings = deskAt(SEED_FROM);
 });
 
 afterAll(async () => {
@@ -450,12 +472,7 @@ describe("a stay that arrives before the property's own day", () => {
   let desk: BookingService;
 
   beforeAll(() => {
-    desk = new BookingService(
-      new InventoryService(),
-      new StayQuoteService(),
-      new StoppedClock(TODAY),
-      { BOOKING_HOLD_TTL_MINUTES: HOLD_TTL_MINUTES } as Env,
-    );
+    desk = deskAt(TODAY);
   });
 
   it("is refused at the desk, and consumes nothing on the way out", async () => {
