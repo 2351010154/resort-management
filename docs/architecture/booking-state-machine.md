@@ -18,7 +18,17 @@ Six, and no more. Variants that look like states are reason codes instead.
 | `CHECKED_IN` | Guest in house | Consumed, remaining nights | **Yes** |
 | `CHECKED_OUT` | Stay complete, folio closed | Consumed nights spent | Historical |
 | `CANCELLED` | Terminal, did not occur | Released | No |
-| `NO_SHOW` | Arrival night passed without check-in | Arrival night retained, rest released | No |
+| `NO_SHOW` | Arrival night passed without check-in | Arrival night retained, rest released | Arrival night only |
+
+**Why a no-show keeps a room.** The room follows the counter, and the counter
+keeps the arrival night — it is the night the no-show charge is levied against,
+and a night the property is charging for is not a night it has resold. Cutting
+the hold back to that one night rather than dropping it keeps the two inventory
+layers saying the same thing: a room shown occupied for the night being paid for,
+sellable for every night after it. It is also what makes §2's "it fails if the
+room was resold" a sentence the code can enforce — without a hold to collide
+with, `room_assignment_no_double_booking` has nothing to refuse and a reinstated
+guest walks into an occupied room.
 
 **Why no `EXPIRED` state.** An abandoned hold and a guest cancellation differ in
 *reason*, not in what the system must do. Both release inventory and end the
@@ -49,7 +59,11 @@ Three entries deserve their reason:
   that consumed a room and produced revenue.
 - **`NO_SHOW` → `CHECKED_IN` is legal.** A guest landing at 02:00 after the
   night audit ran is an ordinary event, not a data-entry error. `MANAGER` only,
-  and it fails if the room was resold.
+  and it fails if the room was resold. The room may be named at the transition,
+  and must be when the booking is holding none — §1 makes an assignment optional
+  in `CONFIRMED`, and §5 makes assigning one legal from `CONFIRMED` and
+  `CHECKED_IN` only, so a stay written off without a room has no other door to
+  one. The same door takes a guest whose own room went out of order overnight.
 - **Direct creation as `CONFIRMED`** is how the front desk books a walk-in or a
   phone reservation. Only the public funnel starts at `HELD`.
 
@@ -62,9 +76,9 @@ Three entries deserve their reason:
 | `HELD` → `CANCELLED` | Release all nights | Refund deposit if any | Reason `HOLD_EXPIRED` when the TTL job fires |
 | `CONFIRMED` → `CANCELLED` | Release all nights | Penalty per policy, refund remainder | Reason code required, always |
 | `CONFIRMED` → `CHECKED_IN` | Unchanged | First room-night posted by night audit, not at check-in | Room assignment mandatory; registration record written |
-| `CONFIRMED` → `NO_SHOW` | Release nights **after** the arrival night | No-show charge per policy | Written by the night audit |
-| `CHECKED_IN` → `CHECKED_OUT` | Release unspent nights | Folio must balance; invoice job enqueued | Room → `DIRTY` |
-| `NO_SHOW` → `CHECKED_IN` | Re-consume remaining nights, fail if unavailable | Reverse the no-show charge | `MANAGER` only |
+| `CONFIRMED` → `NO_SHOW` | Release nights **after** the arrival night | No-show charge per policy | Room hold cut back to the arrival night; written by the night audit |
+| `CHECKED_IN` → `CHECKED_OUT` | Release unspent nights | Folio must balance; invoice job enqueued | Room → `DIRTY`, unless it is `OUT_OF_ORDER` |
+| `NO_SHOW` → `CHECKED_IN` | Re-consume remaining nights, fail if unavailable | Reverse the no-show charge | `MANAGER` only; room may be named, and must be when none is held |
 
 ## 4. Guards
 
@@ -76,6 +90,7 @@ Rejections that are not about the state pair.
 | Room required | → `CHECKED_IN` | No assignment, or assignment violates the `EXCLUDE USING gist` constraint |
 | Room ready | → `CHECKED_IN` | Housekeeping status is not `CLEAN` or `INSPECTED` ⚑ |
 | Folio settled | → `CHECKED_OUT` | Balance ≠ 0 and no approved deferred settlement |
+| Arrival reached | → `NO_SHOW` | Business date < arrival date — §1 defines the state as an arrival night that passed, and a guest cannot have failed to arrive for a night the property has not got to. On the arrival date it passes: the 04:00 rollover means the audit closing the night of `D` reads business date `D` |
 | Inventory available | → `HELD`, → `CONFIRMED`, extend, reinstate | `sold_rooms > total_rooms` — enforced by the `CHECK`, surfaced as `409` |
 | Idempotency | every transition | Same transition already applied; return the current state, do not error |
 
@@ -87,13 +102,22 @@ each is a separate endpoint with its own `@RequiresCapability()` declaration.
 | Operation | Legal in | Notes |
 |---|---|---|
 | Assign / reassign room | `CONFIRMED`, `CHECKED_IN` | Never moves a different checked-in guest |
-| Room move | `CHECKED_IN` | New assignment row; old one closed at today's date |
+| Room move | `CHECKED_IN` | New assignment row; old one closed at today's date; the vacated room goes to `DIRTY` |
 | Extend stay | `CONFIRMED`, `CHECKED_IN` | Needs inventory for the added nights; fails cleanly |
 | Shorten stay / early departure | `CHECKED_IN` | Releases nights, posts the early-departure charge |
-| Change room type (upgrade) | `CONFIRMED`, `CHECKED_IN` | Inventory moves between types atomically |
+| Change room type (upgrade) | `CONFIRMED`, `CHECKED_IN` | Inventory moves between types atomically; a checked-in guest's old room goes to `DIRTY` |
 | Change rate | `CONFIRMED`, `CHECKED_IN` | Below the plan price is `MANAGER` only |
 | Post charge / payment | `CHECKED_IN`, `CONFIRMED` | Deposits post pre-arrival |
 | Add or edit guest details | all but `CANCELLED` | |
+
+**Handing a vacated room back.** A move and a checked-in upgrade both leave a
+slept-in room nobody is returning to, so both set it `DIRTY` — the same effect §3
+gives check-out, and for the same reason: the property is not judging how dirty
+the room is, it is recording that somebody was in it. Two rooms are left alone.
+One the guest is already in, since a move naming it vacates nothing. And one that
+is `OUT_OF_ORDER`: writing `DIRTY` clears the note with it, so a guest moved out
+*because* the shower failed would take the reason for the withdrawal with them
+and leave a room nobody has repaired one cleaning round from the next arrival.
 
 ## 6. Diagram
 
