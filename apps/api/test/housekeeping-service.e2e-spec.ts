@@ -476,11 +476,14 @@ describe("the board", () => {
     expect((await tileFor("304")).isOccupied).toBe(false);
   });
 
-  it("shows readiness and occupied/vacant and nothing else", async () => {
+  it("shows what a housekeeper walks with and no money and no guest", async () => {
     // `FR-HK-02` and `screens.md` §Staff surfaces: housekeeping sees no money
     // and no guest names. Asserted over the whole tile rather than by naming
     // the fields to avoid, because the field that gets added later is the one
     // no such list would have mentioned.
+    //
+    // `roomType` is inside that line rather than outside it — what has to be
+    // made up in the room is neither a price nor a person.
     const tile = await tileFor("303");
 
     expect(Object.keys(tile).sort()).toEqual([
@@ -489,6 +492,7 @@ describe("the board", () => {
       "isReady",
       "note",
       "roomNumber",
+      "roomType",
       "status",
       "updatedAt",
       "updatedBy",
