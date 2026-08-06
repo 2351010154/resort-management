@@ -261,10 +261,9 @@ None of them blocks M2 or M3.
 
 ## 8. Traceability — the professor's twelve requirements
 
-The coursework brief is restated in
-[`bao-cao/02-phan-tich-yeu-cau.md`](bao-cao/02-phan-tich-yeu-cau.md) §2.1, but
-that file is outdated and untrusted — the brief itself, not the report, is the
-reference. Each bullet is closed by at least one requirement here. The bullet → issue-key mapping
+The brief itself is the reference; no restatement of it is kept in this
+repository, because a copy is one more thing to drift.
+Each bullet is closed by at least one requirement here. The bullet → issue-key mapping
 lives in the execution authority named in [`README.md`](README.md); this table
 adds the requirement layer between them.
 
