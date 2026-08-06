@@ -51,7 +51,7 @@ import { sql } from "drizzle-orm";
 import type { Database } from "../database.module.js";
 import { booking, bookingNight } from "../schema/booking.js";
 import { registration } from "../schema/guest.js";
-import { guestUser } from "../schema/index.js";
+import { guestAccount, guestSession, guestUser } from "../schema/index.js";
 import { roomCondition } from "../schema/housekeeping.js";
 import {
   room,
@@ -152,6 +152,19 @@ async function wipe(db: Database): Promise<void> {
   await db.execute(sql`delete from ${ratePlan}`);
   await db.execute(sql`delete from ${propertyTariff}`);
   await db.execute(sql`delete from ${serviceCatalog}`);
+  // The sessions and credentials before the guests they belong to, for the same
+  // reason again. A seeded guest has neither today, so this clears nothing —
+  // but the first fixture that signs one in would otherwise meet a foreign-key
+  // violation raised from inside a wipe, which is a long way from the test that
+  // caused it.
+  const seededGuests = sql`select id from ${guestUser} where ${guestUser.email} like ${`%@${SEED_EMAIL_DOMAIN}`}`;
+
+  await db.execute(
+    sql`delete from ${guestSession} where ${guestSession.userId} in (${seededGuests})`,
+  );
+  await db.execute(
+    sql`delete from ${guestAccount} where ${guestAccount.userId} in (${seededGuests})`,
+  );
   await db.execute(
     sql`delete from ${guestUser} where ${guestUser.email} like ${`%@${SEED_EMAIL_DOMAIN}`}`,
   );
