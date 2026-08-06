@@ -39,6 +39,11 @@ export * from "./config.js";
 // under. Owned by `modules/folio`.
 export * from "./service.js";
 
+// The account a stay runs up, and the append-only lines it is made of. The
+// balance is their sum and is never stored; `UPDATE` and `DELETE` on a line are
+// refused by the database itself. Owned by `modules/folio`.
+export * from "./folio.js";
+
 // The guest realm: Better Auth's four core tables. Their in-file names are
 // Better Auth's own (`user`, `session`, …) because its Drizzle adapter indexes
 // the schema object it is given by those keys. Everything outside
