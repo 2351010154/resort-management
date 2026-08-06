@@ -9,6 +9,8 @@ import { BookingService } from "./booking.service.js";
 import { BusinessDateService } from "./business-date.service.js";
 import { FolioStubService } from "./ports/folio-stub.service.js";
 import { FOLIO_PORT } from "./ports/folio.port.js";
+import { SearchController } from "./search.controller.js";
+import { SearchService } from "./search.service.js";
 import { StayQuoteService } from "./stay-quote.service.js";
 
 // The lifecycle state machine, holds, room assignment and cancellation —
@@ -51,13 +53,20 @@ import { StayQuoteService } from "./stay-quote.service.js";
 // ledger, so it points at the stub that reports every folio settled; `M6` points
 // it at the service that reads the real one, and nothing else in this module
 // moves. `ports/folio.port.ts` argues why the dependency runs in this direction.
+//
+// `SearchController` is the third, and it sits here rather than in a module of
+// its own because `FR-BOOK-05` is a booking requirement and the thing it mostly
+// answers about is a stay. It reads across two of the imports above — the
+// housekeeping board for what a room is, the guest table for who a person is —
+// and changes nothing, which is why it needs neither a port nor an export.
 @Module({
   imports: [GuestModule, HousekeepingModule, InventoryModule],
-  controllers: [BookingController, AssignmentController],
+  controllers: [BookingController, AssignmentController, SearchController],
   providers: [
     AssignmentService,
     BookingService,
     BusinessDateService,
+    SearchService,
     StayQuoteService,
     { provide: FOLIO_PORT, useClass: FolioStubService },
   ],
