@@ -15,6 +15,7 @@ import { housekeeping } from "./housekeeping.js";
 import { inventory } from "./inventory.js";
 import { jobs } from "./jobs.js";
 import { pricing } from "./pricing.js";
+import { search } from "./search.js";
 
 export const contract = {
   health,
@@ -25,6 +26,7 @@ export const contract = {
   housekeeping,
   guest,
   jobs,
+  search,
 };
 
 export type Contract = typeof contract;
@@ -73,3 +75,10 @@ export {
   stayRestrictionSchema,
   updateRatePlanInput,
 } from "./pricing.js";
+export {
+  bookingHitSchema,
+  guestHitSchema,
+  operationalSearchQuery,
+  SEARCH_RESULT_LIMIT,
+  searchResultsSchema,
+} from "./search.js";
