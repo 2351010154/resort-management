@@ -42,7 +42,17 @@ import {
   type StayDate,
 } from "@mariva/shared";
 import { Injectable } from "@nestjs/common";
-import { and, asc, desc, eq, ilike, inArray, sql, type SQL } from "drizzle-orm";
+import {
+  and,
+  asc,
+  desc,
+  eq,
+  ilike,
+  inArray,
+  isNotNull,
+  sql,
+  type SQL,
+} from "drizzle-orm";
 import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import type { DbExecutor } from "../../database/database.module.js";
 import { booking } from "../../database/schema/booking.js";
@@ -181,7 +191,7 @@ export class SearchService {
       .innerJoin(room, eq(room.id, roomAssignment.roomId))
       .where(
         and(
-          sql`${roomAssignment.bookingId} is not null`,
+          isNotNull(roomAssignment.bookingId),
           overlaps(roomAssignment.checkInDate, roomAssignment.checkOutDate, range),
         ),
       );
