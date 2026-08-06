@@ -322,7 +322,10 @@ describe("the capability the search route declares", () => {
       const response = await search(role, "roomNumber=999");
 
       if (admitted) {
-        expect(response.status).not.toBe(403);
+        // 200 and not merely "not 403": a fault would also fail to be a
+        // refusal, and a row that admits a role by answering 500 has not
+        // admitted them to anything.
+        expect(response.status).toBe(200);
       } else {
         expect(response.status).toBe(403);
       }
@@ -578,6 +581,36 @@ describe("the dimensions FR-BOOK-05 lists", () => {
     ).expect(200);
 
     expect(response.body.rooms).toEqual([]);
+  });
+});
+
+describe("the wildcards a caller can type", () => {
+  // A criterion is a fragment matched anywhere in a column, so the `like`
+  // metacharacters are the one input that could widen a filter instead of
+  // narrowing it. Escaped, they are ordinary characters and match the rows that
+  // contain them — which is none of these. Left unescaped, each query below
+  // answers with the row named beside it, so a regression here fails loudly
+  // rather than by returning slightly too much.
+  it("treats a per-cent sign as a character and not as every row", async () => {
+    const response = await search(
+      "RECEPTIONIST",
+      `guestName=${encodeURIComponent("%")}`,
+    ).expect(200);
+
+    // Unescaped this is `ilike '%%%'`, which is every person the property has
+    // on file and every stay one of them is registered on.
+    expect(response.body.guests).toEqual([]);
+    expect(response.body.bookings).toEqual([]);
+  });
+
+  it("treats an underscore as a character and not as any single one", async () => {
+    const response = await search("RECEPTIONIST", "roomNumber=_").expect(200);
+
+    // Unescaped this is `ilike '%_%'`, which every room number in the property
+    // matches — the rooms by way of the board and the in-house stay by way of
+    // the assignment it holds.
+    expect(response.body.rooms).toEqual([]);
+    expect(response.body.bookings).toEqual([]);
   });
 });
 
