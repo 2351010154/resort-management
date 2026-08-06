@@ -64,6 +64,13 @@
       "when": 1785814714509,
       "tag": "0008_housekeeping_core",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1785998615934,
+      "tag": "0009_system_config",
+      "breakpoints": true
     }
   ]
 }

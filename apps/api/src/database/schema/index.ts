@@ -28,6 +28,12 @@ export * from "./guest.js";
 // `modules/housekeeping`.
 export * from "./housekeeping.js";
 
+// The tax and clock figures no calculation may compile in — the VAT rate, the
+// dates the reduced rate covers, whether the VAT base includes service charge,
+// the service-charge rate and the hour the business date rolls. Edited by
+// `ADMIN` behind `system.config`, read at posting time.
+export * from "./config.js";
+
 // The guest realm: Better Auth's four core tables. Their in-file names are
 // Better Auth's own (`user`, `session`, …) because its Drizzle adapter indexes
 // the schema object it is given by those keys. Everything outside
