@@ -65,6 +65,7 @@ import {
   ratePlan,
   stayRestriction,
 } from "../schema/pricing.js";
+import { serviceCatalog } from "../schema/service.js";
 import {
   CALENDAR_MONTHS,
   EXTRA_PERSON_PER_NIGHT_GROSS,
@@ -73,6 +74,7 @@ import {
   ROOM_TYPES,
   roomNumbers,
   SEED_EMAIL_DOMAIN,
+  SERVICE_CATALOG,
   SYNTHETIC_BOOKINGS,
   WEEKEND_UPLIFT_PERCENT,
 } from "./property.js";
@@ -100,6 +102,7 @@ export interface SeedSummary {
   readonly nightsOpened: number;
   readonly ratesWritten: number;
   readonly restrictions: number;
+  readonly serviceItems: number;
   readonly bookings: number;
   readonly firstNight: string;
   readonly lastNight: string;
@@ -148,6 +151,7 @@ async function wipe(db: Database): Promise<void> {
   await db.execute(sql`delete from ${roomType}`);
   await db.execute(sql`delete from ${ratePlan}`);
   await db.execute(sql`delete from ${propertyTariff}`);
+  await db.execute(sql`delete from ${serviceCatalog}`);
   await db.execute(
     sql`delete from ${guestUser} where ${guestUser.email} like ${`%@${SEED_EMAIL_DOMAIN}`}`,
   );
@@ -192,6 +196,21 @@ export async function seedDatabase(
       percentAdjustment: plan.percentAdjustment,
       breakfastPerPersonGross: plan.breakfastPerPersonGross,
       displayOrder: plan.displayOrder,
+    })),
+  );
+
+  // §6's catalog, seeded here beside the room types and the rate plans for the
+  // reason those two are here: it is the property's reference data, not a
+  // fixture, and the seed is where this repository states what the property
+  // sells. Six of the eight go in without a price and stay that way — §6 leaves
+  // them to the owner, and a row without a price is a row a posting must refuse
+  // rather than a row a seed fills in.
+  await db.insert(serviceCatalog).values(
+    SERVICE_CATALOG.map((item) => ({
+      code: item.code,
+      name: item.name,
+      unitPriceGross: item.unitPriceGross,
+      taxClass: item.taxClass,
     })),
   );
 
@@ -259,6 +278,7 @@ export async function seedDatabase(
     nightsOpened: nights.length,
     ratesWritten: rates.length,
     restrictions: restrictions.length,
+    serviceItems: SERVICE_CATALOG.length,
     bookings: stays.length,
     firstNight: nights[0]!.toString(),
     lastNight: nights.at(-1)!.toString(),

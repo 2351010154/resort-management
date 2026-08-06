@@ -1,6 +1,6 @@
-// `docs/architecture/property-and-tariff.md` §1 and §3, as the rows the seed
-// writes. This is the file that file means by "revisable at no cost until the
-// code reads it" — the code reads it here, so §1 and this table are changed
+// `docs/architecture/property-and-tariff.md` §1, §3 and §6, as the rows the
+// seed writes. This is the file that file means by "revisable at no cost until
+// the code reads it" — the code reads it here, so §1 and this table are changed
 // together or they disagree.
 //
 // Every value is ⚑, and the four base rates are ⚑ twice over: §3 sets the plan
@@ -12,6 +12,7 @@
 // would look like a pricing bug rather than a wiring change.
 
 import type { RatePlanCode, RoomTypeCode, VndAmount } from "@mariva/shared";
+import type { TAX_CLASSES } from "../schema/service.js";
 
 /** The property's rooms — §1. */
 export const ROOM_COUNT = 40;
@@ -138,6 +139,18 @@ export interface RatePlanSeed {
   readonly displayOrder: number;
 }
 
+/**
+ * §6 states breakfast's price once, and two tables spend it: `rate_plan` holds
+ * what a `BB` quote adds, `service_catalog` holds what an à-la-carte folio line
+ * costs. They are separate products — a `BB` guest's price is snapshotted onto
+ * the booking at quote time and cannot move afterwards, while the catalog row
+ * prices a walk-in today. Naming the figure once is what makes them start from
+ * the same paragraph, so the day the owner moves §6 neither table is missed.
+ *
+ * ⚑ Proposed — §6, per person per night.
+ */
+export const BREAKFAST_PER_PERSON_GROSS: VndAmount = 250_000n;
+
 export const RATE_PLANS: readonly RatePlanSeed[] = [
   {
     code: "STANDARD",
@@ -150,8 +163,7 @@ export const RATE_PLANS: readonly RatePlanSeed[] = [
     code: "BB",
     name: "Bed and breakfast",
     percentAdjustment: 0,
-    // ⚑ Proposed — §6, per person per night.
-    breakfastPerPersonGross: 250_000n,
+    breakfastPerPersonGross: BREAKFAST_PER_PERSON_GROSS,
     displayOrder: 2,
   },
   {
@@ -188,6 +200,90 @@ export const EXTRA_PERSON_PER_NIGHT_GROSS: VndAmount = 600_000n;
  * that an impossible request.
  */
 export const WEEKEND_UPLIFT_PERCENT = 25;
+
+/**
+ * One row of §6's service catalog.
+ *
+ * `unitPriceGross` is `null` for an item nobody has costed. That is §6's own
+ * state — two of eight priced, six still ⚑ unset and blocking nothing — and it
+ * is carried into the seed rather than filled in, because a figure invented
+ * here would be invoiced. The gross is per one of whatever the item is counted
+ * in; §6 quotes breakfast per person per night and an extra bed per night, and
+ * qualifies neither of the six it has not priced.
+ */
+export interface ServiceItemSeed {
+  readonly code: string;
+  readonly name: string;
+  readonly unitPriceGross: VndAmount | null;
+  readonly taxClass: (typeof TAX_CLASSES)[number];
+}
+
+/**
+ * §6's eight items, seeded thin on purpose: "`P3-SVC` needs the posting path
+ * proven, not a real menu".
+ *
+ * Every item carries a tax class because §5 says each one does, and every item
+ * carries the same one because §6 assigns none and `system_config` prices
+ * exactly one rate. A row that named a class the configuration cannot resolve
+ * would post a line no rate applies to.
+ *
+ * The names are §6's own, in §6's order. Breakfast reads
+ * `BREAKFAST_PER_PERSON_GROSS`, the same constant `RATE_PLANS` gives `BB` —
+ * see the argument there for why one paragraph feeds two tables.
+ */
+export const SERVICE_CATALOG: readonly ServiceItemSeed[] = [
+  {
+    code: "BREAKFAST",
+    name: "Breakfast",
+    unitPriceGross: BREAKFAST_PER_PERSON_GROSS,
+    taxClass: "STANDARD",
+  },
+  {
+    code: "LAUNDRY",
+    name: "Laundry",
+    unitPriceGross: null,
+    taxClass: "STANDARD",
+  },
+  {
+    code: "MINIBAR",
+    name: "Minibar",
+    unitPriceGross: null,
+    taxClass: "STANDARD",
+  },
+  {
+    code: "AIRPORT_TRANSFER",
+    name: "Airport transfer",
+    unitPriceGross: null,
+    taxClass: "STANDARD",
+  },
+  {
+    code: "LATE_CHECKOUT",
+    name: "Late checkout",
+    unitPriceGross: null,
+    taxClass: "STANDARD",
+  },
+  // ⚑ Proposed — §6, per night. What it does *not* settle is §9's question:
+  // when a bed is mandatory, and whether this line stacks with or replaces the
+  // extra-person charge, is the owner's and no posting path may infer it.
+  {
+    code: "EXTRA_BED",
+    name: "Extra bed",
+    unitPriceGross: 350_000n,
+    taxClass: "STANDARD",
+  },
+  {
+    code: "SPA_TREATMENT",
+    name: "Spa treatment",
+    unitPriceGross: null,
+    taxClass: "STANDARD",
+  },
+  {
+    code: "LOCAL_TOUR",
+    name: "Local tour",
+    unitPriceGross: null,
+    taxClass: "STANDARD",
+  },
+];
 
 /** How far ahead the calendar is opened for sale — `FR-INV-05`'s 12 months. */
 export const CALENDAR_MONTHS = 12;
