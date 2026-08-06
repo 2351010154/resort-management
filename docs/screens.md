@@ -191,8 +191,9 @@ arrivals uses. A guest standing at the desk is never parked in a queue.
 The housekeeping board is the console's one deliberate exception to
 keyboard-first: housekeepers walk the floors with a phone, so the board is a
 touch-first grid of rooms by floor with large targets for advancing a room's
-state. It shows readiness and occupied/vacant and nothing else — housekeeping
-sees no money and no guest names. A room is assignable at `CLEAN`;
+state. It shows readiness, occupied/vacant, the room's type and who last
+touched it — and nothing beyond that, because housekeeping sees no money and no
+guest names. A room is assignable at `CLEAN`;
 `INSPECTED` is an optional quality pass a manager or receptionist records,
 because at a property this size a mandatory inspection would make one person a
 bottleneck for every check-in.

@@ -37,6 +37,7 @@
 import {
   HOUSEKEEPING_STATUSES,
   type HousekeepingStatus,
+  type RoomTypeCode,
   type StayDate,
 } from "@mariva/shared";
 import { Injectable } from "@nestjs/common";
@@ -45,7 +46,11 @@ import { eq, sql } from "drizzle-orm";
 import type { DbExecutor } from "../../database/database.module.js";
 import { roomCondition } from "../../database/schema/housekeeping.js";
 import { staffUser } from "../../database/schema/identity.js";
-import { room, roomAssignment } from "../../database/schema/inventory.js";
+import {
+  room,
+  roomAssignment,
+  roomType,
+} from "../../database/schema/inventory.js";
 
 /** The three a cleaning round moves a room between — `FR-HK-01`. */
 export type RoomReadiness = Exclude<HousekeepingStatus, "OUT_OF_ORDER">;
@@ -82,6 +87,10 @@ export interface RoomCondition {
  * to keep a field off a screen is to keep it out of the answer the screen is
  * drawn from.
  *
+ * `roomType` sits inside that line rather than outside it. It is neither money
+ * nor a person: a housekeeper is sent to a room knowing what has to be made up
+ * in it, and the type is what says so.
+ *
  * `updatedBy` is the staff member's name and not the guest's — the board is
  * read to find out who last touched 402 and when. Null is a real answer: the
  * checkout transition sets `DIRTY` with nobody deciding to.
@@ -89,6 +98,7 @@ export interface RoomCondition {
 export interface BoardRoom {
   readonly roomNumber: string;
   readonly floor: number;
+  readonly roomType: RoomTypeCode;
   readonly status: HousekeepingStatus;
   readonly isReady: boolean;
   readonly isOccupied: boolean;
@@ -232,6 +242,7 @@ export class HousekeepingService {
       .select({
         roomNumber: room.number,
         floor: room.floor,
+        roomType: roomType.code,
         status: sql<HousekeepingStatus>`coalesce(${roomCondition.status}, 'CLEAN')`,
         note: roomCondition.note,
         updatedAt: roomCondition.updatedAt,
@@ -255,6 +266,10 @@ export class HousekeepingService {
         )`,
       })
       .from(room)
+      // An inner join, unlike the two below it: `room.room_type_id` is not
+      // nullable, so a room with no type is not a room the board should be
+      // quiet about.
+      .innerJoin(roomType, eq(roomType.id, room.roomTypeId))
       .leftJoin(roomCondition, eq(roomCondition.roomId, room.id))
       .leftJoin(staffUser, eq(staffUser.id, roomCondition.updatedBy))
       .orderBy(room.floor, room.number);
