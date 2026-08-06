@@ -1,0 +1,310 @@
+// The system configuration table, against a real Postgres.
+//
+// `src/database/schema/config.spec.ts` asserts what the declarations say. This
+// file asserts what the database does with them, and it exists for one claim in
+// particular: the figures `property-and-tariff.md` §8 forbids the tree from
+// knowing are held to their scale by Postgres and not by the service that
+// writes them. A rate of 80000 basis points and a rollover hour of 24 are both
+// values a form could send; neither is storable.
+//
+// It also states the two things a key/value config table cannot: a
+// configuration key this system does not have is refused structurally rather
+// than by a constraint somebody could drop, and the reduced-VAT window is
+// refused when it closes before it opens — an invariant across two values that
+// only exists because both live in the same row.
+//
+// It runs against `mariva_test`, which `.env.test` points at, and it applies the
+// migrations rather than pushing the schema: the SQL under test is the SQL that
+// will run in production. No Nest application is booted — the subject is the
+// storage layer itself.
+
+import { sql } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { migrate } from "drizzle-orm/node-postgres/migrator";
+import pg from "pg";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { systemConfig } from "../src/database/schema/config.js";
+import * as schema from "../src/database/schema/index.js";
+
+const CHECK_VIOLATION = "23514";
+const UNIQUE_VIOLATION = "23505";
+const NOT_NULL_VIOLATION = "23502";
+const UNDEFINED_COLUMN = "42703";
+
+// What a boot seed would write from the environment. Provisional to the last
+// digit — `ASM-01` is unanswered — which is why they are values in a test
+// fixture and a row in a table rather than anything the tree carries.
+const SEEDED = {
+  vatRateBps: 800,
+  reducedVatFrom: "2026-01-01",
+  reducedVatTo: "2026-12-31",
+  vatIncludesServiceCharge: true,
+  serviceChargeRateBps: 500,
+  businessDateRolloverHour: 4,
+} as const;
+
+let pool: pg.Pool;
+let db: ReturnType<typeof drizzle<typeof schema>>;
+
+beforeAll(async () => {
+  const connectionString = process.env.DATABASE_URL;
+
+  if (!connectionString) {
+    throw new Error("DATABASE_URL is unset — vitest.config.ts loads .env.test");
+  }
+
+  pool = new pg.Pool({ connectionString });
+  db = drizzle({ client: pool, schema });
+
+  await migrate(db, { migrationsFolder: "./src/database/migrations" });
+});
+
+// The table holds at most one row by construction, so every test starts from
+// none rather than from whatever the previous one left.
+beforeEach(async () => {
+  await db.execute(sql`truncate system_config`);
+});
+
+afterAll(async () => {
+  await pool?.end();
+});
+
+describe("the seeded configuration", () => {
+  it("comes back exactly as it was written", async () => {
+    // The round trip is the point: a rate written as 800 is read as 800 and
+    // not as 8, 0.08 or "800". A posting path multiplies whatever this
+    // returns, so a type that shifted in storage would move every folio line
+    // by two orders of magnitude and still look like a number.
+    await db.insert(systemConfig).values(SEEDED);
+
+    const [stored] = await db.select().from(systemConfig);
+
+    expect(stored).toEqual({
+      isTheConfiguration: true,
+      vatRateBps: 800,
+      reducedVatFrom: "2026-01-01",
+      reducedVatTo: "2026-12-31",
+      vatIncludesServiceCharge: true,
+      serviceChargeRateBps: 500,
+      businessDateRolloverHour: 4,
+    });
+  });
+
+  it("keeps the window open at either end", async () => {
+    // Null is unbounded and not missing. It is how the property runs until the
+    // accountant answers `ASM-01`: one configured rate, applying to every
+    // business date, with no relief period asserted.
+    await db
+      .insert(systemConfig)
+      .values({ ...SEEDED, reducedVatFrom: null, reducedVatTo: null });
+
+    const [stored] = await db.select().from(systemConfig);
+
+    expect(stored?.reducedVatFrom).toBeNull();
+    expect(stored?.reducedVatTo).toBeNull();
+  });
+
+  it("refuses a row that leaves a rate for somebody else to supply", async () => {
+    // No column here has a default, so a half-written configuration is not a
+    // row with a rate nobody chose — it is not a row at all. This is the
+    // database half of §8: a posting cannot read a tax rate the tree invented,
+    // because the tree has none to invent and the table will not stand in for
+    // it.
+    const refusal = await refused(
+      db.execute(sql`
+        insert into system_config
+          (vat_includes_service_charge, service_charge_rate_bps, business_date_rollover_hour)
+        values (true, 500, 4)
+      `),
+    );
+
+    expect(refusal.code).toBe(NOT_NULL_VIOLATION);
+    expect(refusal.column).toBe("vat_rate_bps");
+  });
+});
+
+describe("a configuration key this system does not have", () => {
+  it("is refused by Postgres and not only by TypeScript", async () => {
+    // The reason this table has typed columns rather than `(key, value)` rows.
+    // An unknown key is not a `CHECK` a migration could drop or a list somebody
+    // forgot to extend — there is nowhere for it to go, and Postgres says so
+    // before any value is parsed.
+    const refusal = await refused(
+      db.execute(sql`
+        insert into system_config
+          (vat_rate_bps, vat_includes_service_charge, service_charge_rate_bps,
+           business_date_rollover_hour, loyalty_earn_rate)
+        values (800, true, 500, 4, 10000)
+      `),
+    );
+
+    expect(refusal.code).toBe(UNDEFINED_COLUMN);
+  });
+});
+
+describe("a figure outside its scale", () => {
+  it("refuses a VAT rate above 100%", async () => {
+    // 80000 is what 8% looks like when somebody enters it as basis points of a
+    // percent instead of of the whole. It would multiply every tax line by
+    // eight rather than by 0.08.
+    const refusal = await refused(
+      db.insert(systemConfig).values({ ...SEEDED, vatRateBps: 20_000 }),
+    );
+
+    expect(refusal.code).toBe(CHECK_VIOLATION);
+    expect(refusal.constraint).toBe("system_config_vat_rate_within_bounds");
+  });
+
+  it("refuses a negative VAT rate", async () => {
+    // A negative rate credits tax back to the guest on every line, which
+    // balances and is wrong.
+    const refusal = await refused(
+      db.insert(systemConfig).values({ ...SEEDED, vatRateBps: -800 }),
+    );
+
+    expect(refusal.code).toBe(CHECK_VIOLATION);
+    expect(refusal.constraint).toBe("system_config_vat_rate_within_bounds");
+  });
+
+  it("refuses a service charge above 100%", async () => {
+    const refusal = await refused(
+      db
+        .insert(systemConfig)
+        .values({ ...SEEDED, serviceChargeRateBps: 10_001 }),
+    );
+
+    expect(refusal.code).toBe(CHECK_VIOLATION);
+    expect(refusal.constraint).toBe(
+      "system_config_service_charge_rate_within_bounds",
+    );
+  });
+
+  it("accepts a rate of zero at either", async () => {
+    // Zero is a coherent configuration and not a typo: a zero-rated supply and
+    // a property that levies no service charge are both real. Refusing them
+    // would make the constraint a policy nobody wrote down.
+    await db
+      .insert(systemConfig)
+      .values({ ...SEEDED, vatRateBps: 0, serviceChargeRateBps: 0 });
+
+    const [stored] = await db.select().from(systemConfig);
+
+    expect(stored?.vatRateBps).toBe(0);
+    expect(stored?.serviceChargeRateBps).toBe(0);
+  });
+
+  it("refuses an hour that is not one", async () => {
+    // 24 is what somebody means as midnight and writes as a count. It would
+    // roll the business date on no hour at all — §2's clock stopping in a way
+    // nothing reports.
+    const refusal = await refused(
+      db.insert(systemConfig).values({ ...SEEDED, businessDateRolloverHour: 24 }),
+    );
+
+    expect(refusal.code).toBe(CHECK_VIOLATION);
+    expect(refusal.constraint).toBe("system_config_rollover_hour_is_an_hour");
+  });
+});
+
+describe("the reduced-VAT window", () => {
+  it("is refused when it closes before it opens", async () => {
+    // An invariant across two values, which is only statable because both live
+    // in one row. Split across two key/value rows it would need a trigger, or
+    // it would need nobody to transpose the dates.
+    const refusal = await refused(
+      db.insert(systemConfig).values({
+        ...SEEDED,
+        reducedVatFrom: "2026-12-31",
+        reducedVatTo: "2026-01-01",
+      }),
+    );
+
+    expect(refusal.code).toBe(CHECK_VIOLATION);
+    expect(refusal.constraint).toBe(
+      "system_config_reduced_vat_window_opens_before_it_closes",
+    );
+  });
+
+  it("accepts a window of one day", async () => {
+    await db
+      .insert(systemConfig)
+      .values({ ...SEEDED, reducedVatFrom: "2026-07-01", reducedVatTo: "2026-07-01" });
+
+    const [stored] = await db.select().from(systemConfig);
+
+    expect(stored?.reducedVatFrom).toBe("2026-07-01");
+  });
+});
+
+describe("a second configuration", () => {
+  it("collides with the first", async () => {
+    // `FR-FOL-02` reads the rate, the window and the base rule together to
+    // decompose one gross figure into three lines that sum back to it. Two rows
+    // would make "the VAT rate" a question about which one a query read first,
+    // and unlike the rate calendar there is no date or type to tell them apart.
+    await db.insert(systemConfig).values(SEEDED);
+
+    const refusal = await refused(
+      db.insert(systemConfig).values({ ...SEEDED, vatRateBps: 1_000 }),
+    );
+
+    expect(refusal.code).toBe(UNIQUE_VIOLATION);
+  });
+
+  it("cannot hide behind a different key", async () => {
+    // The primary key is a boolean pinned to `true`, so the only value that
+    // would not collide is one the `CHECK` refuses. Without the check, `false`
+    // would be a second complete-looking configuration.
+    const refusal = await refused(
+      db.execute(sql`
+        insert into system_config
+          (is_the_configuration, vat_rate_bps, vat_includes_service_charge,
+           service_charge_rate_bps, business_date_rollover_hour)
+        values (false, 800, true, 500, 4)
+      `),
+    );
+
+    expect(refusal.code).toBe(CHECK_VIOLATION);
+    expect(refusal.constraint).toBe("system_config_holds_exactly_one_row");
+  });
+});
+
+type Refusal = { code: string; constraint?: string; column?: string };
+
+/** The refusal a write provoked. Fails the test if the database accepted it. */
+async function refused(write: Promise<unknown>): Promise<Refusal> {
+  try {
+    await write;
+  } catch (error) {
+    return refusalOf(error);
+  }
+
+  throw new Error("the database stored a row it should have refused");
+}
+
+/**
+ * The SQLSTATE, constraint name and column out of a thrown error.
+ *
+ * Drizzle wraps a driver error in one of its own, so the fields that matter sit
+ * on a cause one or more levels down. The chain is walked rather than assumed
+ * to be one deep.
+ */
+function refusalOf(error: unknown): Refusal {
+  for (let current = error; current instanceof Error; current = current.cause) {
+    const { code, constraint, column } = current as Error & {
+      code?: unknown;
+      constraint?: unknown;
+      column?: unknown;
+    };
+
+    if (typeof code === "string") {
+      return {
+        code,
+        constraint: typeof constraint === "string" ? constraint : undefined,
+        column: typeof column === "string" ? column : undefined,
+      };
+    }
+  }
+
+  throw error;
+}
