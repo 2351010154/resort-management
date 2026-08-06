@@ -14,6 +14,7 @@ import { IdentityModule } from "./modules/identity/identity.module.js";
 import { InventoryModule } from "./modules/inventory/inventory.module.js";
 import { NotificationModule } from "./modules/notification/notification.module.js";
 import { PricingModule } from "./modules/pricing/pricing.module.js";
+import { SystemConfigModule } from "./modules/system-config/system-config.module.js";
 
 // The header a load balancer or an upstream service may already have stamped.
 // Reusing it is what makes a correlation id correlate across two processes
@@ -95,6 +96,15 @@ const CORRELATION_HEADER = "x-request-id";
     NotificationModule,
     IdentityModule,
     AuthModule,
+
+    // M6, and before every module that will read it. It registers no route
+    // today; what it registers is the boot provider that writes `system_config`
+    // from the environment, and the service a posting reads the VAT and
+    // service-charge figures back through. Ahead of the domain modules so the
+    // row exists by the time anything posts against it — and after `AuthModule`
+    // because the `ADMIN` screen that edits it is governed by the guard that
+    // module installs.
+    SystemConfigModule,
 
     // After `AuthModule`, because every route it registers is governed by the
     // guard that module installs — including the two availability routes, whose

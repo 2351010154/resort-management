@@ -1,4 +1,24 @@
+import { parseDate } from "@internationalized/date";
 import { z } from "zod";
+
+// A calendar date and not an instant, for the reason `stay-date.ts` gives at
+// length: these bound business dates, which the property agrees on, not moments.
+//
+// The shape check alone accepts 2026-02-31, so `parseDate` is asked as well —
+// it refuses a date that does not exist rather than rolling it into March, the
+// way `new Date` would. Checked here rather than left to the column, because a
+// boot that stops on a malformed variable is the whole contract of this file.
+const calendarDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "expected a YYYY-MM-DD calendar date")
+  .refine((value) => {
+    try {
+      parseDate(value);
+      return true;
+    } catch {
+      return false;
+    }
+  }, "is not a date that exists");
 
 // Every environment variable the API reads, in one place. Anything absent from
 // this schema is not configuration — it is a hardcoded value someone reached
@@ -79,6 +99,50 @@ export const envSchema = z.object({
     .max(23)
     .default(4),
 
+  // Three of the four figures `property-and-tariff.md` §8 says the tree may
+  // never carry, in the one place §8 sanctions them: "seeded from environment at
+  // boot". The fourth is the statutory retention floor, which is the lawyer's
+  // answer and lands with the milestone that consumes it.
+  //
+  // Nothing reads these at run time. They are read from `system_config` —
+  // `SystemConfigSeeder` writes the row once and the row is the authority from
+  // then on, so changing one of these after the first boot changes nothing until
+  // an `ADMIN` edits it.
+  //
+  // Every one is ⚑ provisional pending `ASM-01`, the accountant's unanswered
+  // question, which is why they are configuration rather than an answer.
+  //
+  // Basis points, whole integers — a hundredth of a percent each, so 800 is 8%.
+  // The ceiling is the table's: above 10000 the figure is a typo in a
+  // basis-points field, and a typo that reaches a posting multiplies a room
+  // charge by hundreds.
+  VAT_RATE_BPS: z.coerce.number().int().min(0).max(10_000).default(800),
+
+  // §5 puts the service charge at 5% over room and service lines.
+  SERVICE_CHARGE_RATE_BPS: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(10_000)
+    .default(500),
+
+  // §8: "this changes every gross/net calculation". A rule, so a boolean rather
+  // than a number, and read at posting time rather than picked between two
+  // formulas at compile time.
+  VAT_INCLUDES_SERVICE_CHARGE: z.stringbool().default(true),
+
+  // The business dates `VAT_RATE_BPS` covers. **Unset by default, and unset is
+  // unbounded rather than missing**: one rate applying to every date, which is
+  // how a property runs until it has a relief-period answer.
+  //
+  // Setting them is how the day the relief lapses becomes visible in data
+  // instead of in an invoice — and it is a decision with teeth, because there is
+  // only one rate behind the window. A date outside a window that is set has no
+  // rate at all, and `SystemConfigService` refuses to post on it rather than
+  // assuming one nobody chose.
+  REDUCED_VAT_FROM: calendarDateSchema.optional(),
+  REDUCED_VAT_TO: calendarDateSchema.optional(),
+
   // How long a hold holds — `FR-BOOK-02`, which states outright that "the TTL
   // length is configuration, not a constant".
   //
@@ -156,6 +220,24 @@ export const envSchema = z.object({
       path: ["GOOGLE_CLIENT_ID"],
       message:
         "is required in production — the login screen offers Google sign-in unconditionally",
+    },
+  )
+  // A window that closes before it opens covers no date, which reads at a
+  // posting as relief that never applied. `system_config` refuses the row, but
+  // the seed's failure is a log line rather than a dead process, so a boot that
+  // never mentions it again would leave the property running on a configuration
+  // nobody wrote. Caught here instead, where a malformed variable stops the
+  // boot — and the two dates are compared as strings because `YYYY-MM-DD`
+  // orders lexicographically.
+  .refine(
+    (env) =>
+      !env.REDUCED_VAT_FROM ||
+      !env.REDUCED_VAT_TO ||
+      env.REDUCED_VAT_TO >= env.REDUCED_VAT_FROM,
+    {
+      path: ["REDUCED_VAT_TO"],
+      message:
+        "must not fall before REDUCED_VAT_FROM — a window that closes before it opens covers no date",
     },
   )
   // Last, so every check above reads the environment exactly as it was written.
