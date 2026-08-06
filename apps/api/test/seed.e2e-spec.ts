@@ -25,10 +25,13 @@ import {
   typeInventory,
 } from "../src/database/schema/inventory.js";
 import { rateCalendar, ratePlan } from "../src/database/schema/pricing.js";
+import { serviceCatalog } from "../src/database/schema/service.js";
 import {
+  BREAKFAST_PER_PERSON_GROSS,
   ROOM_COUNT,
   ROOM_TYPES,
   SEED_EMAIL_DOMAIN,
+  SERVICE_CATALOG,
   SYNTHETIC_BOOKINGS,
 } from "../src/database/seed/property.js";
 import { type SeedSummary, seedDatabase } from "../src/database/seed/seed.js";
@@ -217,7 +220,25 @@ describe("the calendar it opens", () => {
     expect(nonref.percentAdjustment).toBe(-10);
     expect(nonref.breakfastPerPersonGross).toBeNull();
     expect(bb.percentAdjustment).toBe(0);
-    expect(bb.breakfastPerPersonGross).toBe(250_000n);
+    expect(bb.breakfastPerPersonGross).toBe(BREAKFAST_PER_PERSON_GROSS);
+  });
+
+  it("writes §6's service items, priced only where §6 prices them", async () => {
+    const items = await db.select().from(serviceCatalog);
+
+    expect(items.map((item) => item.code).sort()).toEqual(
+      SERVICE_CATALOG.map((item) => item.code).sort(),
+    );
+
+    // The one figure §6 states once, spent by `rate_plan` and by this row.
+    const breakfast = items.find((item) => item.code === "BREAKFAST")!;
+    expect(breakfast.unitPriceGross).toBe(BREAKFAST_PER_PERSON_GROSS);
+
+    // An item the owner has not priced is a row without a price. A zero here
+    // would read as free rather than as unanswered, and post a folio line for
+    // nothing.
+    expect(items.some((item) => item.unitPriceGross === null)).toBe(true);
+    expect(items.every((item) => item.unitPriceGross !== 0n)).toBe(true);
   });
 });
 

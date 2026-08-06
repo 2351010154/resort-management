@@ -34,6 +34,11 @@ export * from "./housekeeping.js";
 // `ADMIN` behind `system.config`, read at posting time.
 export * from "./config.js";
 
+// What the property sells besides a night — the eight seeded items of
+// `property-and-tariff.md` §6, each with the tax class its folio line posts
+// under. Owned by `modules/folio`.
+export * from "./service.js";
+
 // The guest realm: Better Auth's four core tables. Their in-file names are
 // Better Auth's own (`user`, `session`, …) because its Drizzle adapter indexes
 // the schema object it is given by those keys. Everything outside

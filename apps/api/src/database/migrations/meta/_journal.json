@@ -71,6 +71,13 @@
       "when": 1785998615934,
       "tag": "0009_system_config",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1786001199486,
+      "tag": "0010_service_catalog",
+      "breakpoints": true
     }
   ]
 }
