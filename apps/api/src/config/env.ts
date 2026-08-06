@@ -112,11 +112,18 @@ export const envSchema = z.object({
   // Every one is ⚑ provisional pending `ASM-01`, the accountant's unanswered
   // question, which is why they are configuration rather than an answer.
   //
+  // None of the three carries a `.default()`. §8 forbids the tree to know a tax
+  // rate, and a default is the tree knowing one — the same argument the
+  // `system_config` columns make about themselves, which a default here would
+  // undo one layer up: an unconfigured production deploy would invoice at a
+  // figure nobody approved, and never say so. Unset, they are supplied below
+  // for development and refused below for production.
+  //
   // Basis points, whole integers — a hundredth of a percent each, so 800 is 8%.
   // The ceiling is the table's: above 10000 the figure is a typo in a
   // basis-points field, and a typo that reaches a posting multiplies a room
   // charge by hundreds.
-  VAT_RATE_BPS: z.coerce.number().int().min(0).max(10_000).default(800),
+  VAT_RATE_BPS: z.coerce.number().int().min(0).max(10_000).optional(),
 
   // §5 puts the service charge at 5% over room and service lines.
   SERVICE_CHARGE_RATE_BPS: z.coerce
@@ -124,12 +131,12 @@ export const envSchema = z.object({
     .int()
     .min(0)
     .max(10_000)
-    .default(500),
+    .optional(),
 
   // §8: "this changes every gross/net calculation". A rule, so a boolean rather
   // than a number, and read at posting time rather than picked between two
   // formulas at compile time.
-  VAT_INCLUDES_SERVICE_CHARGE: z.stringbool().default(true),
+  VAT_INCLUDES_SERVICE_CHARGE: z.stringbool().optional(),
 
   // The business dates `VAT_RATE_BPS` covers. **Unset by default, and unset is
   // unbounded rather than missing**: one rate applying to every date, which is
@@ -222,6 +229,39 @@ export const envSchema = z.object({
         "is required in production — the login screen offers Google sign-in unconditionally",
     },
   )
+  // The three money figures, each refused separately so the message names the
+  // one that is missing. An invoice is a legal document issued to somebody
+  // else, and a rate nobody chose cannot be withdrawn from one after the fact —
+  // so a production boot without them stops here, where the fix is a variable,
+  // rather than at a posting, where it is an amended invoice.
+  .refine(
+    (env) => env.NODE_ENV !== "production" || env.VAT_RATE_BPS !== undefined,
+    {
+      path: ["VAT_RATE_BPS"],
+      message:
+        "is required in production — no rate is assumed, and an invoice at a rate nobody chose cannot be withdrawn",
+    },
+  )
+  .refine(
+    (env) =>
+      env.NODE_ENV !== "production" ||
+      env.SERVICE_CHARGE_RATE_BPS !== undefined,
+    {
+      path: ["SERVICE_CHARGE_RATE_BPS"],
+      message:
+        "is required in production — it is charged on every room and service line",
+    },
+  )
+  .refine(
+    (env) =>
+      env.NODE_ENV !== "production" ||
+      env.VAT_INCLUDES_SERVICE_CHARGE !== undefined,
+    {
+      path: ["VAT_INCLUDES_SERVICE_CHARGE"],
+      message:
+        "is required in production — it decides the base every VAT figure is computed on",
+    },
+  )
   // A window that closes before it opens covers no date, which reads at a
   // posting as relief that never applied. `system_config` refuses the row, but
   // the seed's failure is a log line rather than a dead process, so a boot that
@@ -241,13 +281,22 @@ export const envSchema = z.object({
     },
   )
   // Last, so every check above reads the environment exactly as it was written.
-  // The one derived value in this file lives here rather than in `.default()`
-  // because it is a default *about another variable*, and zod cannot express
+  // The derived values in this file live here rather than in `.default()`
+  // because each is a default *about another variable*, and zod cannot express
   // that on the field itself.
+  //
+  // The money figures are the reason that distinction earns its keep. A
+  // developer gets a database that posts without configuring anything, and
+  // production cannot reach these lines at all — the refines above have already
+  // stopped the boot. The literals are named once, here, and the only invoice
+  // they can ever reach is one nobody is billed for.
   .transform((env) => ({
     ...env,
     JOBS_SCHEDULER_ENABLED:
       env.JOBS_SCHEDULER_ENABLED ?? env.NODE_ENV !== "test",
+    VAT_RATE_BPS: env.VAT_RATE_BPS ?? 800,
+    SERVICE_CHARGE_RATE_BPS: env.SERVICE_CHARGE_RATE_BPS ?? 500,
+    VAT_INCLUDES_SERVICE_CHARGE: env.VAT_INCLUDES_SERVICE_CHARGE ?? true,
   }));
 
 export type Env = Readonly<z.infer<typeof envSchema>>;
