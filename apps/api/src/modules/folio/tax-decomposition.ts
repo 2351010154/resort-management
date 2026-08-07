@@ -138,11 +138,7 @@ export function decomposeGross(
  * the figure is a typo that would multiply a room charge by hundreds.
  */
 function basisPoints(value: number, what: string): bigint {
-  if (
-    !Number.isInteger(value) ||
-    value < 0 ||
-    BigInt(value) > BASIS_POINTS
-  ) {
+  if (!Number.isInteger(value) || value < 0 || value > BASIS_POINTS) {
     throw new RangeError(
       `${what} is basis points: a whole number from 0 to ${BASIS_POINTS}, ` +
         `where 800 is 8% and 500 is 5%. Received ${value}.`,

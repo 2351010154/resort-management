@@ -109,11 +109,16 @@ export const systemConfig = pgTable(
     // ⚑ §5 puts it at 5% over room and service lines. A figure the property
     // tunes, which is why it is here and not in the sentence that applies it.
     serviceChargeRateBps: smallint("service_charge_rate_bps").notNull(),
-    // §2's operating clock. It moves out of the environment and into this row
-    // because `rbac-matrix.md` §3 files the business date under System config —
-    // `ADMIN` edits it and `MANAGER` only looks — while everything in
-    // `property_tariff` sits under the rates row a `MANAGER` owns. Whoever
-    // reads it still reads a number; only where the number comes from changes.
+    // §2's operating clock. It belongs in this row rather than in
+    // `property_tariff` because `rbac-matrix.md` §3 files the business date under
+    // System config — `ADMIN` edits it and `MANAGER` only looks — while
+    // everything in `property_tariff` sits under the rates row a `MANAGER` owns.
+    //
+    // The column is here and the seeder fills it, but **nothing reads it yet**:
+    // `BusinessDateService` still takes the hour from the environment, so an
+    // edit to this column does not move a business date. Issue #21 is the swap.
+    // Stated rather than left to be discovered, because a column that looks
+    // authoritative and is not is the shape this whole file argues against.
     businessDateRolloverHour: smallint("business_date_rollover_hour").notNull(),
   },
   (table) => [
