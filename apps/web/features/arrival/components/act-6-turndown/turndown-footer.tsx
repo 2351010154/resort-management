@@ -13,17 +13,17 @@ import {
 } from "@/features/arrival/lib/lenis-scroll-provider";
 import {
   scrollToAct,
-  scrollToRoom,
+  scrollToExperience,
 } from "@/features/arrival/components/navigation/nav-hover-link";
 import { EmbossedMonogram, type EmbossIntensity } from "./embossed-monogram";
 import { LettersFromMariva } from "./letters-from-mariva-form";
 import { WordmarkReveal } from "./wordmark-reveal";
 import styles from "./act-6-turndown.module.css";
 
-// Entries with an `act` or a `room` ride the same lenis scroll as the nav; the
-// rest are decorative (concept piece, no destinations) and render as plain text
-// — no dead href, no focus stop. Dine and Restore are rooms inside Act 4, not
-// acts of their own.
+// Entries with an `act` or an `experience` ride the same lenis scroll as the
+// nav; the rest are decorative (concept piece, no destinations) and render as
+// plain text — no dead href, no focus stop. Dine and Restore are experiences
+// inside Act 4, not acts of their own; Stay is that act itself.
 //
 // The destinations are buttons, not links. There is no `#act-5` on the page to
 // link to — the acts are found by `[data-act]` and scrolled to by lenis — so an
@@ -33,9 +33,9 @@ const COLUMNS = [
   {
     title: "The resort",
     links: [
-      { label: "Stay", room: 0 },
-      { label: "Dine", room: 7 },
-      { label: "Restore", room: 6 },
+      { label: "Stay", act: 4 },
+      { label: "Dine", experience: 7 },
+      { label: "Restore", experience: 6 },
       { label: "Begin your stay", act: 5 },
     ],
   },
@@ -85,12 +85,12 @@ export function TurndownFooter({
                     >
                       {link.label}
                     </button>
-                  ) : "room" in link ? (
+                  ) : "experience" in link ? (
                     <button
                       key={link.label}
                       type="button"
                       className={styles.columnLink}
-                      onClick={() => scrollToRoom(lenis, link.room)}
+                      onClick={() => scrollToExperience(lenis, link.experience)}
                     >
                       {link.label}
                     </button>

@@ -9,6 +9,11 @@
 // the `where`, every cash payment in the property collides with the first one,
 // and the symptom is a front desk that cannot take money.
 //
+// The attempt key is the same two mistakes over a second column, and it exists
+// because the first one cannot reach a refusal: no money moved, so there is no
+// transaction id to key on, and the reference the property minted is the only
+// thing a redelivered refusal has in common with the first one.
+//
 // Whether Postgres actually refuses the second insert while the first is still
 // in flight is a question about the migration and about row locks, and no
 // assertion over a schema object can answer it. `test/payment-storage.e2e-spec.ts`
@@ -22,8 +27,14 @@ import {
   payment,
 } from "./payment.js";
 
-const idempotencyIndex = getTableConfig(payment).indexes.find(
+const declaredIndexes = getTableConfig(payment).indexes;
+
+const idempotencyIndex = declaredIndexes.find(
   (declared) => declared.config.name === "payment_gateway_transaction_unique_key",
+);
+
+const attemptIndex = declaredIndexes.find(
+  (declared) => declared.config.name === "payment_attempt_reference_unique_key",
 );
 
 describe("the idempotency key", () => {
@@ -54,6 +65,34 @@ describe("the idempotency key", () => {
     // day one arrives with a letter in it, and round the day one arrives long.
     expect(payment.gatewayTransactionId.getSQLType()).toBe("text");
     expect(payment.gatewayTransactionId.notNull).toBe(false);
+  });
+});
+
+describe("the attempt key", () => {
+  it("is unique, so one attempt is one row whatever became of it", () => {
+    // The guarantee the gateway id cannot give. A refused attempt carries no
+    // transaction id — `GatewayTransaction` will not name one for money nobody
+    // paid — so a redelivered refusal keyed on that column writes a second
+    // `FAILED` row, and the reference is the only thing both deliveries share.
+    expect(attemptIndex?.config.unique).toBe(true);
+    expect(
+      attemptIndex?.config.columns.map((column) =>
+        "name" in column ? column.name : undefined,
+      ),
+    ).toEqual(["attempt_reference"]);
+  });
+
+  it("is partial, so the money the desk takes itself was opened under nothing", () => {
+    expect(attemptIndex?.config.where).toBeDefined();
+  });
+
+  it("keeps the reference as nullable text, matched whole and never parsed", () => {
+    // The property's own name for the attempt, echoed back by the gateway and
+    // compared as the string it was handed. Nothing here splits it into the
+    // booking and the nonce it was composed from — that is the service's, and a
+    // column that knew the composition would have to be migrated with it.
+    expect(payment.attemptReference.getSQLType()).toBe("text");
+    expect(payment.attemptReference.notNull).toBe(false);
   });
 });
 

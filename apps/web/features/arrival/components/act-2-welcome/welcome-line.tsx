@@ -37,7 +37,11 @@ export function WelcomeLine() {
           // trigger on the copy, not the section: the section is 130vh with the
           // line centred, so a section-top trigger played the reveal a full
           // viewport before the words were on screen
-          scrollTrigger: { trigger: copyRef.current, start: "top 82%", once: true },
+          scrollTrigger: {
+            trigger: copyRef.current,
+            start: "top 82%",
+            once: true,
+          },
         },
       );
     }, section);
@@ -51,12 +55,20 @@ export function WelcomeLine() {
       <div className={styles.stage}>
         <div ref={copyRef} className={styles.copy}>
           <span className={styles.lineClip}>
-            <span data-reveal-line className={`caps-label ${styles.kicker}`} style={{ display: "block" }}>
+            <span
+              data-reveal-line
+              className={`caps-label ${styles.kicker}`}
+              style={{ display: "block" }}
+            >
               Mariva — Rest · Relax · Rejuvenate
             </span>
           </span>
           <span className={styles.lineClip}>
-            <h1 data-reveal-line className={`font-display ${styles.display}`} style={{ display: "block" }}>
+            <h1
+              data-reveal-line
+              className={`font-display ${styles.display}`}
+              style={{ display: "block" }}
+            >
               You have been expected.
             </h1>
           </span>

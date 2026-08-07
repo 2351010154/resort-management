@@ -34,7 +34,11 @@ export const FOCUS_X = 0.504;
 export const FOCUS_Y = 0.613;
 
 /** Ink bounds of a path, by rasterising once and scanning the alpha channel. */
-function measureInk(path: Path2D, viewW: number, viewH: number): MonogramGlyph["box"] {
+function measureInk(
+  path: Path2D,
+  viewW: number,
+  viewH: number,
+): MonogramGlyph["box"] {
   const probe = 512;
   const scale = probe / Math.max(viewW, viewH);
   const canvas = document.createElement("canvas");
@@ -43,7 +47,10 @@ function measureInk(path: Path2D, viewW: number, viewH: number): MonogramGlyph["
   ctx.scale(scale, scale);
   ctx.fill(path, "evenodd");
   const { data } = ctx.getImageData(0, 0, probe, probe);
-  let minX = probe, minY = probe, maxX = -1, maxY = -1;
+  let minX = probe,
+    minY = probe,
+    maxX = -1,
+    maxY = -1;
   for (let y = 0; y < probe; y++) {
     for (let x = 0; x < probe; x++) {
       if (data[(y * probe + x) * 4 + 3] < 8) continue;
@@ -68,7 +75,9 @@ export function loadMonogramGlyph(): Promise<MonogramGlyph> {
   pending ??= fetch("/brand/mariva-monogram-intro.svg")
     .then((r) => r.text())
     .then((source) => {
-      const viewBox = (/viewBox="([-\d.\s]+)"/.exec(source)?.[1] ?? "0 0 486 465")
+      const viewBox = (
+        /viewBox="([-\d.\s]+)"/.exec(source)?.[1] ?? "0 0 486 465"
+      )
         .trim()
         .split(/\s+/)
         .map(Number);
@@ -92,7 +101,10 @@ export function traceMonogram(
   const scale = height / box.height;
   ctx.save();
   ctx.scale(scale, scale);
-  ctx.translate(-(box.x + box.width * FOCUS_X), -(box.y + box.height * FOCUS_Y));
+  ctx.translate(
+    -(box.x + box.width * FOCUS_X),
+    -(box.y + box.height * FOCUS_Y),
+  );
   ctx.fill(glyph.path, "evenodd");
   ctx.restore();
 }

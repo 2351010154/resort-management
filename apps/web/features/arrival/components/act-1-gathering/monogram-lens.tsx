@@ -1,21 +1,20 @@
 "use client";
 
-// Act 1's foreground: the sea, with the monogram as a hole in it that magnifies
-// toward the viewer as you scroll.
+// Act 1's foreground: a warm ivory plaster wall, with the monogram as a hole in
+// it that magnifies toward the viewer as you scroll.
 //
 // It replaces the flat canvas cut-out because the cut-out can only ever be the
 // size it was drawn at. Here the mark is a distance field, so the same one
 // smoothstep serves it at rest and at twenty-five times rest — and the barrel
-// pinch, the sky's leak back over the opening and the water's reflection of the
-// mark are three more lines rather than three more passes. See
-// monogram-lens-shader.ts for the coordinate path.
+// pinch and the wall's light leaking back over the opening are two more lines
+// rather than two more passes. See monogram-lens-shader.ts for the coordinate
+// path and plaster-ground.ts for the wall.
 
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import {
   buildMonogramField,
-  GLYPH_BASE_V,
   type MonogramField,
 } from "@/features/arrival/lib/monogram-sdf";
 import { useInView } from "@/lib/use-in-view";
@@ -29,12 +28,6 @@ import {
   sheetOpacity,
   type IntroCamera,
 } from "./intro-camera-model";
-import {
-  HORIZON_POSTER,
-  horizonPlacement,
-  horizonScreenY,
-  horizonSources,
-} from "./horizon-plate";
 import { lensFragment, lensVertex } from "./monogram-lens-shader";
 
 /**
@@ -55,17 +48,6 @@ const BARREL = 1.15;
  * Against the act it would peak long after there was any outline left to bend.
  */
 const barrelRamp = (push: number) => Math.sin(Math.PI * push ** 0.85);
-
-/**
- * Magnification the reflection is gone by.
- *
- * Early, and not a matter of taste: a reflection is the whole letter given back
- * at once, and once the frame holds only part of a stroke there is no longer a
- * letter to give back — carried further it degenerates into a bright band
- * sliding up the screen. By 1.5 the mark has grown half again and the waterline
- * is already leaving the frame.
- */
-const REFLECT_OUT = 1.5;
 
 function fieldTexture({ data, size }: MonogramField): THREE.DataTexture {
   // Half float: distances here run to ~0.5 with the interesting band three
@@ -94,7 +76,7 @@ function fieldTexture({ data, size }: MonogramField): THREE.DataTexture {
   );
   texture.minFilter = texture.magFilter = THREE.LinearFilter;
   // Off the edge the field reads "well outside", which is plain sheet — so the
-  // wild coordinates the barrel throws at the corners resolve to backdrop.
+  // wild coordinates the barrel throws at the corners resolve to wall.
   texture.wrapS = texture.wrapT = THREE.ClampToEdgeWrapping;
   texture.needsUpdate = true;
   return texture;
@@ -103,32 +85,26 @@ function fieldTexture({ data, size }: MonogramField): THREE.DataTexture {
 function LensQuad({
   field,
   camera,
-  backdrop,
 }: {
   field: MonogramField;
   camera: IntroCamera;
-  backdrop: THREE.Texture;
 }) {
   const size = useThree((state) => state.size);
   const texture = useMemo(() => fieldTexture(field), [field]);
   useEffect(() => () => texture.dispose(), [texture]);
 
-  // biome-ignore lint/correctness/useExhaustiveDependencies: the backdrop is swapped in place below; rebuilding the block on every swap would hand the material a new uniform set mid-scrub.
   const uniforms = useMemo(
     () => ({
       uField: { value: texture },
-      uBackdrop: { value: backdrop },
       uResolution: { value: new THREE.Vector2(1, 1) },
+      uAspect: { value: 1 },
       uFieldPx: { value: 1 },
       uMagnify: { value: 1 },
       uBarrel: { value: 0 },
       uReveal: { value: 0 },
       uOpacity: { value: 1 },
-      uBackdropScale: { value: new THREE.Vector2(1, 1) },
-      uBackdropOffset: { value: new THREE.Vector2(0, 0) },
-      uBackdropDrift: { value: 1 },
-      uBaseV: { value: GLYPH_BASE_V },
-      uReflect: { value: 0 },
+      uGroundDrift: { value: 1 },
+      uTime: { value: 0 },
     }),
     [texture],
   );
@@ -140,11 +116,6 @@ function LensQuad({
   // mark never opens.
   const material = useRef<THREE.ShaderMaterial>(null);
 
-  useEffect(() => {
-    const u = material.current?.uniforms;
-    if (u) u.uBackdrop.value = backdrop;
-  }, [backdrop]);
-
   // The mark's height at rest matches what the static sheet draws, so the
   // reduced-motion fallback and the lens frame the same opening.
   useEffect(() => {
@@ -152,36 +123,11 @@ function LensQuad({
     if (!u) return;
     const markPx = APERTURE_UNITS * sceneUnitPx(size.width, size.height);
     u.uResolution.value.set(size.width, size.height);
+    u.uAspect.value = size.width / Math.max(size.height, 1);
     u.uFieldPx.value = markPx / field.glyphFraction;
+  }, [size, field.glyphFraction]);
 
-    const image = backdrop.image as {
-      videoWidth?: number;
-      width?: number;
-      videoHeight?: number;
-      height?: number;
-    };
-    const texW = image?.videoWidth || image?.width || 1;
-    const texH = image?.videoHeight || image?.height || 1;
-    const box = horizonPlacement(
-      size.width,
-      size.height,
-      texW,
-      texH,
-      horizonScreenY(size.height, markPx),
-    );
-    // Screen uv (v up from the bottom) to backdrop uv, as one scale and one
-    // offset so the fragment stage stays two multiplies.
-    u.uBackdropScale.value.set(
-      size.width / box.width,
-      size.height / box.height,
-    );
-    u.uBackdropOffset.value.set(
-      -box.left / box.width,
-      1 + box.top / box.height - size.height / box.height,
-    );
-  }, [size, field.glyphFraction, backdrop]);
-
-  useFrame(() => {
+  useFrame((state) => {
     const u = material.current?.uniforms;
     if (!u) return;
     const magnify = apertureMagnify(camera.z);
@@ -190,9 +136,12 @@ function LensQuad({
       -BARREL * barrelRamp(clamp01(camera.progress / APERTURE_PASS));
     u.uReveal.value = camera.reveal;
     u.uOpacity.value = sheetOpacity(camera.z);
-    u.uBackdropDrift.value = plateDrift(camera.z);
-    u.uReflect.value =
-      camera.entry * (1 - clamp01((magnify - 1) / (REFLECT_OUT - 1)));
+    u.uGroundDrift.value = plateDrift(camera.z);
+    // The clock keeps running while the act is off screen and the frameloop is
+    // parked, so coming back jumps the raking light's phase. Nothing sees that
+    // jump — the wall was not on screen for it — and the alternative is a
+    // second clock that has to be paused and resumed in step with the loop.
+    u.uTime.value = state.clock.elapsedTime;
   });
 
   return (
@@ -211,82 +160,6 @@ function LensQuad({
   );
 }
 
-/**
- * The backdrop, poster first and loop second.
- *
- * The act cannot start until something opaque is behind the mark, and a video
- * that has to be fetched, decoded and given a first frame is not that. So the
- * poster — the same grade, the same waterline — is what the lens opens on, and
- * the loop replaces it in place once it can actually play. Nothing downstream
- * notices the swap beyond re-reading the frame size.
- */
-function useBackdrop(inView: boolean): THREE.Texture | null {
-  const [texture, setTexture] = useState<THREE.Texture | null>(null);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-
-  useEffect(() => {
-    let live = true;
-    // held until unmount rather than freed at the swap: the material still
-    // points at it for the frame between setTexture and the uniform effect
-    let loop: THREE.VideoTexture | null = null;
-
-    const flat = new THREE.TextureLoader().load(HORIZON_POSTER, () => {
-      if (live) setTexture(flat);
-    });
-    flat.minFilter = flat.magFilter = THREE.LinearFilter;
-    flat.wrapS = flat.wrapT = THREE.ClampToEdgeWrapping;
-
-    const video = document.createElement("video");
-    video.muted = true;
-    video.loop = true;
-    video.playsInline = true;
-    video.preload = "auto";
-    const { webm, mp4 } = horizonSources(window.innerWidth);
-    for (const [src, type] of [
-      [webm, "video/webm"],
-      [mp4, "video/mp4"],
-    ]) {
-      const source = document.createElement("source");
-      source.src = src;
-      source.type = type;
-      video.appendChild(source);
-    }
-    videoRef.current = video;
-
-    const swap = () => {
-      if (!live) return;
-      loop = new THREE.VideoTexture(video);
-      loop.minFilter = loop.magFilter = THREE.LinearFilter;
-      loop.wrapS = loop.wrapT = THREE.ClampToEdgeWrapping;
-      setTexture(loop);
-    };
-    video.addEventListener("canplay", swap, { once: true });
-    video.load();
-
-    return () => {
-      live = false;
-      video.removeEventListener("canplay", swap);
-      video.pause();
-      video.removeAttribute("src");
-      video.load();
-      videoRef.current = null;
-      flat.dispose();
-      loop?.dispose();
-    };
-  }, []);
-
-  // Decoding a fullscreen loop behind a page the reader has scrolled past is
-  // pure heat, and the canvas is not drawing then either.
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    if (inView) video.play().catch(() => {});
-    else video.pause();
-  }, [inView]);
-
-  return texture;
-}
-
 export function MonogramLens({
   camera,
   onReady,
@@ -297,7 +170,6 @@ export function MonogramLens({
   const wrapRef = useRef<HTMLDivElement>(null);
   const inView = useInView(wrapRef);
   const [field, setField] = useState<MonogramField | null>(null);
-  const backdrop = useBackdrop(inView);
 
   useEffect(() => {
     let live = true;
@@ -310,32 +182,31 @@ export function MonogramLens({
     };
   }, []);
 
-  // Both halves of the sheet have to be in hand before the curtain lifts: the
-  // field alone would leave the mark cut out of nothing.
+  // The distance field is the only asset the act waits on now that the wall is
+  // drawn rather than fetched — without it the mark would be cut out of nothing.
   //
-  // Once, and latched. The backdrop changes identity again when the loop
-  // replaces the poster, and announcing that as a second arrival starts a
-  // second set of mount tweens on top of the first — two tweens driving the
-  // same reveal, which resolves into the mark snapping open in a few hundred
-  // milliseconds instead of opening over its two and a half seconds.
+  // Latched, because a second announcement would start a second set of mount
+  // tweens on top of the first: two tweens driving the same reveal resolve into
+  // the mark snapping open in a few hundred milliseconds instead of opening over
+  // its two and a half seconds.
   const announced = useRef(false);
   // biome-ignore lint/correctness/useExhaustiveDependencies: onReady is a stable callback from the orchestrator, and the announcement is latched by the ref above so a new identity would not re-announce anyway.
   useEffect(() => {
-    if (announced.current || !field || !backdrop) return;
+    if (announced.current || !field) return;
     announced.current = true;
     onReady?.();
-  }, [field, backdrop]);
+  }, [field]);
 
   return (
     <div ref={wrapRef} aria-hidden style={{ position: "absolute", inset: 0 }}>
-      {field && backdrop ? (
+      {field ? (
         <Canvas
           frameloop={inView ? "always" : "never"}
           dpr={[1, 2]}
           gl={{ alpha: true, antialias: false }}
           style={{ position: "absolute", inset: 0 }}
         >
-          <LensQuad field={field} camera={camera} backdrop={backdrop} />
+          <LensQuad field={field} camera={camera} />
         </Canvas>
       ) : null}
     </div>

@@ -1,16 +1,24 @@
-/* Act 4 — Stay. Three movements on one vertical scrollbar: a dark horizontal
-   corridor, an arch that opens onto daylight, and a receding deck of rooms.
-   z-scale: media 0 / copy 20 / seam fades 30 (nav owns 100). */
+/* Act 4 — Stay. Two movements on one vertical scrollbar: a dark horizontal
+   corridor that ends under a bright statement panel, and the experience field
+   that rises to pin over that panel and takes the frame from it.
+   z-scale: corridor stage 1 / experiences stage 2, and inside the experiences
+   stage: hand-off sheet 0 / wheels 1 / words and shards 10 / frame furniture
+   20 / wipe 40. The order is load-bearing at both scales — the experiences
+   stage has to sit in front of the corridor's own and behind Act 5, and inside
+   it a card has to pass *behind* the sentence at the centre and in front of
+   nothing. */
 
-/* The chapter's own floor. Movement III paints nothing of its own — it rides on
-   the threshold's pinned footage — so the act carries a dark base underneath in
-   case that pin is not there to cover it. */
 .act {
   position: relative;
+  /* The chapter's own floor, and the value it hands to Act 5 — both stages
+     below are opaque, so this is only ever seen where a pin has released. It
+     is also the value Act 3's own tail closes on, so the seam above this act
+     is one continuous dark rather than a cut. */
   background: var(--night);
+  color: var(--ink);
 }
 
-/* ============================ I. Corridor ============================ */
+/* ============================== I. Corridor ============================== */
 
 .corridor {
   position: relative;
@@ -18,8 +26,20 @@
   color: var(--ivory);
 }
 
+/* The pinned stage carries an explicit z-index. Pinning makes it `fixed` with
+   no stacking order of its own, and the movement that follows is a positioned
+   section later in the document — this is what keeps the statement panel
+   *under* the stage that rises over it rather than in front of it.
+
+   `--cover` is how much of the frame the statement panel owns, written by the
+   scrub. The dark furniture below is derived from it, so there is one figure
+   for "the ground under this type is not dark any more" and no element can
+   hold a different idea of when that happened. */
 .corridorStage {
+  --cover: 0;
+
   position: relative;
+  z-index: 1;
   height: 100vh;
   overflow: hidden;
   display: flex;
@@ -33,7 +53,7 @@
   left: 6vw;
   z-index: 20;
   color: var(--sand);
-  opacity: 0.75;
+  opacity: calc(0.75 * (1 - var(--cover)));
   pointer-events: none;
 }
 
@@ -143,7 +163,10 @@
   color: var(--sand);
 }
 
-/* Foot of the corridor stage: the honest signal that the page still scrolls. */
+/* Foot of the corridor stage: the honest signal that the page still scrolls.
+   It goes with the chapter mark under the statement panel — a sand rule on
+   ivory is neither legible nor true, and by then the panel is telling the
+   reader to scroll on in words. */
 .corridorFoot {
   position: absolute;
   left: 0;
@@ -156,6 +179,7 @@
   gap: var(--space-1);
   pointer-events: none;
   color: var(--sand);
+  opacity: calc(1 - var(--cover));
 }
 
 /* oryzo dashline motif: the rule is dashed, the fill is solid. */
@@ -182,411 +206,606 @@
   transform-origin: left center;
 }
 
-/* ============================ II. Threshold ============================ */
+/* ====================== I b. The statement panel ====================== */
 
-.threshold {
-  position: relative;
-  background: var(--ink);
-}
+/* The filmstrip's last panel, and the act's hinge: the dark half is not faded
+   out, it is covered by this.
 
-/* Both pinned stages carry an explicit z-index. Pinning makes them `fixed`
-   with no stacking order of their own, and the Invitation act is a positioned
-   section later in the document — without these it climbs over the door and
-   the deck as it rises, cutting the frame off from the bottom up. */
-.thresholdStage {
-  position: relative;
-  z-index: 1;
+   Two figures make the cover total. It is a full viewport tall rather than the
+   78vh the photographs are cropped to, and it is 6vw wider than the frame —
+   the track carries 6vw of tail padding, which is what keeps the first panel
+   off the left edge, so a panel quoted at exactly 100vw comes to rest 6vw short
+   of the right edge and leaves a dark strip standing at the end of the scrub.
+   The panel eats that padding back rather than the track losing it. */
+.statementPanel {
+  width: calc(var(--w) + 6vw);
   height: 100vh;
-  overflow: hidden;
-  background: var(--ink);
+  margin-right: -6vw;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  /* Lopsided by exactly the 6vw the panel reaches past the left edge of the
+     frame, so the copy is centred on the *viewport* at full cover rather than
+     on the panel. Centred on the panel it stood 3vw left of where every other
+     centred thing in the ride stands, which is close enough to look like a
+     mistake and far enough to be one. */
+  padding: var(--space-4) 6vw var(--space-4) 12vw;
+  text-align: center;
+  /* The same value the experience field's own ground is set in — see
+     `.stage::before` — so the sheet that movement draws up over this panel
+     never has an edge to be seen at. */
+  background: var(--ivory-warm);
+  color: var(--ink);
 }
 
-/* Each arch is a full-viewport media layer clipped to its own opening. Growing
-   the clip therefore reveals more of an already full-bleed frame — the media
-   never scales. That is the whole trick of the reference. */
-.arch {
-  position: absolute;
-  inset: 0;
-  will-change: clip-path, transform, opacity;
-  clip-path: inset(
-    var(--t) var(--r) var(--b) var(--l) round var(--rad) var(--rad) 0 0
-  );
+/* Ink on ivory, so this keeps the 300 the light acts are set in — the weight
+   step the corridor's own headline takes is a correction for light type on a
+   dark ground, and there is no dark ground here. */
+.statementLine {
+  max-width: 22ch;
+  font-size: var(--text-display);
+  line-height: 1.06;
+  white-space: pre-line;
 }
 
-.arch video,
-.arch img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
+/* ============================ II. The field ============================ */
 
-/* Warms the footage toward the corridor it emerges from. */
-.archTint {
-  position: absolute;
-  inset: 0;
-  background: linear-gradient(
-    to bottom,
-    rgb(var(--umber-rgb) / 0.28),
-    rgb(var(--ink-rgb) / 0.12) 45%,
-    rgb(var(--ink-rgb) / 0.55)
-  );
-  mix-blend-mode: multiply;
-}
-
-/* Closes the open door over the last of Movement II, so the rooms play on a
-   clean dark stage rather than on the arcade. Held part-open, the footage sat
-   behind the deck as a full-frame out-of-focus photograph competing with the
-   photographs the deck is actually made of.
-
-   Flat rather than a gradient stack, because this one has to land on a real
-   opaque value: the layered radial and linear it replaced summed to about two
-   thirds cover at frame centre even driven to opacity 1, which left the arcade
-   legible through it. It lives on this stage because this stage is what stays
-   pinned under the rooms — a scrim on their own stage would slide in with a
-   visible edge. */
-.doorScrim {
-  position: absolute;
-  inset: 0;
-  z-index: 10;
-  opacity: 0;
-  pointer-events: none;
-  background: var(--night);
-}
-
-/* ============================ III. Rooms ============================ */
-
-/* The ground here belongs to Movement II: its stage stays pinned underneath
-   this whole movement, closed over by the door scrim. Every layer of Movement
-   III therefore has to stay transparent — an opaque background on the section
-   or the stage would paint over that ground on its way in, since this section
-   sits after the threshold in the DOM and slides a viewport up before it pins,
-   which is exactly the travelling seam the scrim was put downstairs to avoid. */
-.rooms {
+.field {
   position: relative;
-  background: transparent;
-  color: var(--ivory);
 }
 
-/* This section keeps its natural flow position, which is a full viewport below
-   the end of the threshold's scrub. That viewport is the deck's entrance: the
-   door has finished opening and finished closing by the time the stage's top
-   edge reaches the bottom of the frame, and the whole of the approach is the
-   cards riding up over the closed ground until the stage pins. Nothing dissolves —
-   the deck is already composed when it enters, and scrolling is what reveals
-   it. The stage paints no ground of its own, so there is no sheet rising with
-   it, only the photographs. */
-.roomsStage {
+/* The beats, as the seven numbers the sheet below draws everything from. Each
+   is written by the scrub and nothing else reads the scroll:
+
+   --ground   the sheet that covers the corridor's statement
+   --reveal   the block arriving, letter by letter
+   --foot     the sentence at the foot changing hands
+   --shatter  how far through its flight the block's letters are
+   --shards   whether the letters are the block or the debris — never both
+   --resolve  the sentence setting itself where the block stood
+   --wheels   the rims turning in under the cards
+
+   All seven start at zero, so the first paint and every frame before the
+   scrub has spoken is a clear pane over whatever is already on the frame
+   rather than a composition caught half-built — which, for the first
+   `FIELD_HANDOFF` of this movement's own scroll, is the corridor's statement,
+   still standing. */
+.stage {
+  --ground: 0;
+  --reveal: 0;
+  --foot: 0;
+  --shatter: 0;
+  --shards: 0;
+  --resolve: 0;
+  --wheels: 0;
+
   position: relative;
   z-index: 2;
   height: 100vh;
   overflow: hidden;
 }
 
-/* One half of the movement: its cards and the ground under them, and nothing
-   else. The registers are not in here — see `.roomsList`. `--card-w` is the
-   card's size at the exit end of the cascade, written from JS because the frame
-   it belongs to is measured there; depth is applied on top of it as a scale.
-   The z-index is what makes it a stacking context, which keeps the deck's
-   per-card z-indices inside the half instead of competing with the registers
-   for the top of the stage. */
-.cascade {
-  position: absolute;
-  inset: 0;
-  z-index: 10;
-  --card-w: 40vw;
-  will-change: clip-path;
-}
-
-/* The two clips are complements of one wipe edge — day keeps everything ahead
-   of it, night everything behind it. Night starts with nothing. */
-.cascadeDay {
-  clip-path: inset(0 0 0 0);
-}
-
-.cascadeNight {
-  clip-path: inset(0 100% 0 0);
-}
-
-/* The light one half plays in, living inside the cascade so the wipe's clip
-   carries it for free. Only night has one. Day used to carry a warm amber wash
-   from the side its register stands on, and at this scale it stopped reading as
-   light in a room and became an orange cast lying over the whole frame — over
-   the photographs, the register and the ground alike. Day is the plain half
-   now; what still separates the two across the wipe is the grade each half's
-   photographs carry, below.
-
-   Feathered at the leading edge. This stage slides a whole viewport up the
-   frame before it pins, so the wash's own top edge travels across the ground as
-   a hard horizontal line. Spread over a fifth of the frame instead, there is no
-   edge left to read — the wash is a few percent of tint at its strongest, and
-   that much of it per viewport-fifth is a gradient, not a join. */
-.cascade::before {
+/* The hand-off sheet. Not the stage's own background — the stage has to be
+   able to draw nothing at all while it is travelling up into place, so this is
+   a layer of its own, painted the field's ground and held under everything
+   else the stage draws (see the z-scale note at the top of this file). It
+   ramps to fully opaque over the movement's own first `FIELD_HANDOFF`, in the
+   same value the statement panel it is covering is already drawn in — see
+   `.statementPanel` — so the moment the sheet closes over the sentence is not
+   a moment the reader can see. */
+.stage::before {
   content: "";
   position: absolute;
   inset: 0;
-  z-index: 1;
+  z-index: 0;
+  background: var(--ivory-warm);
+  opacity: var(--ground);
+}
+
+/* ============================== The block ============================== */
+
+/* The largest type in the ride, and the only place `--text-display-lg` is set.
+   One size for all four words: the block's big/small relationship is the length
+   of the words, and a stack that also changed size would be saying the same
+   thing twice.
+
+   `0.7` is the leading, and it is below the face's own cap height on purpose —
+   Cormorant's caps reach 0.664em, so consecutive rows of capitals sit a hair
+   apart and the four words read as one mass. It is only safe because this line
+   is uppercase and has no descenders to collide. */
+.words {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 10;
+  transform: translate(-50%, -50%);
+  width: max-content;
+  max-width: 92vw;
+  text-align: center;
+  font-size: var(--text-display-lg);
+  font-weight: 400;
+  line-height: 0.7;
+  letter-spacing: -0.04em;
   pointer-events: none;
-  mask-image: linear-gradient(to bottom, transparent, rgb(0 0 0 / 1) 22%);
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    transparent,
-    rgb(0 0 0 / 1) 22%
-  );
+  /* The block and its debris never share a frame. */
+  opacity: calc(1 - var(--shards));
 }
 
-/* Cool, drawn across the exit corner and away from the upper-right vanishing
-   point: put on that corner it lands exactly where the far cards spawn, and a
-   card that is small, still fading in and graded down has nothing left to give
-   another multiplication. Tint only — the ground beneath is already the act's
-   darkest value, so a deepening layer here would have nothing to deepen. */
-.cascadeNight::before {
-  background: linear-gradient(
-    255deg,
-    color-mix(in srgb, var(--ocean) 14%, transparent),
-    transparent 62%
-  );
+.word {
+  display: block;
 }
 
-/* The rotateY the cursor field applies is only visible with a perspective on
-   the deck; without one the cards just skew. The z-index only has to beat the
-   wash above — `perspective` already makes this a stacking context, so the
-   per-card z-indices stay contained either way. */
-.deck {
+/* One letter of the block. It arrives out of a blur rather than out of the
+   ground: this is type resolving, and a letter that slid in would be a letter
+   that came from somewhere, which is a claim the composition does not make.
+
+   `--c` is the letter's beat. The window is 0.45 wide and the beats fill the
+   first 0.55, so the last letter starts as the first is finishing — the block
+   sets itself in one continuous pass instead of in four visible lines. */
+.glyph {
+  display: inline-block;
+  opacity: clamp(0, calc((var(--reveal) - var(--c)) / 0.45), 1);
+  filter: blur(
+    calc(14px * (1 - clamp(0, calc((var(--reveal) - var(--c)) / 0.45), 1)))
+  );
+  will-change: opacity, filter;
+}
+
+/* The debris. One layer, the size of the frame, holding one absolutely placed
+   body per letter — each starts exactly on the box the letter it replaces was
+   drawn in, so the hand-over happens on a frame the reader cannot see. */
+.shards {
   position: absolute;
   inset: 0;
-  z-index: 2;
-  perspective: 1400px;
+  z-index: 10;
+  pointer-events: none;
+  opacity: var(--shards);
 }
 
-/* The card is the frame — no caption rides with it. Per-card copy would scale
-   with the depth and be unreadable at the far end; `.hoverCaption` is parked
-   under the card in stage coordinates instead, at one size. */
+.shard {
+  position: absolute;
+  top: 0;
+  left: 0;
+  white-space: nowrap;
+  line-height: 1;
+  transform-origin: center center;
+  will-change: transform, opacity;
+  font-synthesis: none;
+  color: var(--ink);
+}
+
+/* The two or three letters that go through the centre of the frame instead of
+   off it, at eight times their size. Stone rather than ink: at that scale ink
+   is most of the screen painted black, and what this beat is for is the *shape*
+   of a letterform passing over the sentence arriving under it. */
+.shardHero {
+  color: var(--stone);
+}
+
+/* ============================== The wheels ============================== */
+
+.wheels {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  opacity: var(--wheels);
+}
+
+/* Two circles several viewports across, standing off either side of the frame
+   with only the inner sliver of each on screen — the stage's own overflow is
+   the whole of the crop. A hairline at low alpha: the arc is there to say the
+   cards are on a rim and not on a rail, which does not take a drawn line so
+   much as the suggestion of one. `--arc-d` and the two centres are written by
+   the movement, because the radius is solved from the viewport and the card
+   rather than chosen. */
+.arc {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  width: var(--arc-d, 0);
+  height: var(--arc-d, 0);
+  margin-top: calc(var(--arc-d, 0) / -2);
+  margin-left: calc(var(--arc-d, 0) / -2);
+  border: 1px solid rgb(var(--ink-rgb) / 0.14);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.arcLeft {
+  transform: translate3d(var(--arc-left, 0), 0, 0);
+}
+
+.arcRight {
+  transform: translate3d(var(--arc-right, 0), 0, 0);
+}
+
+/* The rim, marked where nothing is passing. Hollow, so it reads as a station on
+   the path rather than as a dot dropped on it. */
+.arcNode {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border: 1px solid rgb(var(--ink-rgb) / 0.26);
+  border-radius: 50%;
+  background: var(--ivory-warm);
+  pointer-events: none;
+}
+
+/* ============================== One card ==============================
+
+   A photograph laid on a plate, with the name under it and the mark at the
+   corner — a print set down on the ground rather than a window cut into it.
+
+   The shadow is in two layers doing two jobs. The near one is the contact a
+   print laid on a table makes and stays light; a heavy drop is what makes a
+   card look pasted on. The far one is the ambient, and it is what lifts the
+   card off an ivory ground that would otherwise swallow its edges. */
 .card {
   position: absolute;
   top: 0;
   left: 0;
-  --dim: 0.26;
-  /* Each card takes its own photograph's shape, so nothing is cropped, and its
-     width is the frame's quote scaled to hold the area across shapes — both
-     figures are written on the element by the markup, from the same helper the
-     ticker positions the box with. The fallbacks are the old fixed card, for a
-     node that somehow reaches paint before its style does. */
-  width: calc(var(--card-w) * var(--card-fit, 1));
-  aspect-ratio: var(--card-ar, 3 / 2);
-  overflow: hidden;
-  background: var(--umber);
-  /* Overlapping plates on a dark ground merged into one mass — you could not
-     tell where one photograph ended. The tight contact shadow draws the near
-     plate against the one behind it; the hairline catches the light the room
-     throws. Both are specified at exit size and scale down with the card, which
-     is what a real plate's shadow does as it recedes. */
-  box-shadow:
-    0 0.4rem 1.2rem rgb(var(--night-rgb) / 0.85),
-    0 1.5rem 5rem rgb(var(--night-rgb) / 0.5),
-    inset 0 0 0 1.5px rgb(var(--ivory-rgb) / 0.11);
-  /* The deck is hit-tested in the ticker against the boxes it just drew: the
-     nodes parked past SPAN keep their last transform and would otherwise take
-     the pointer from the cards that are actually on screen. */
-  pointer-events: none;
+  width: clamp(11rem, 15vw, 16rem);
+  padding: 0.5rem 0.5rem 0.75rem;
+  border-radius: 0.75rem;
+  /* One step lighter than the ground it is laid on — see `.stage::before`. */
+  background: var(--ivory);
   will-change: transform, opacity;
-  transform-origin: center center;
+  box-shadow:
+    0 0.2rem 0.5rem rgb(var(--ink-rgb) / 0.06),
+    0 1.5rem 3rem rgb(var(--ink-rgb) / 0.09);
 }
 
-.card img {
+.cardPlate {
+  overflow: hidden;
+  border-radius: 0.5rem;
+  background: var(--sand);
+}
+
+.cardPlate img {
   width: 100%;
-  height: 100%;
+  aspect-ratio: 4 / 3;
   object-fit: cover;
 }
 
-/* Every card sits under a scrim; the hovered one loses it as it slides out, and
-   that is the whole of "and then it gets brighter". A scrim rather than an
-   animated `filter` because this is one paint over a rectangle — a filter on a
-   transformed element re-rasterises the layer every frame the scale changes,
-   and the scale changes on every frame here. `--dim` is written by the ticker
-   and only when it has actually moved. */
-.card::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: rgb(var(--night-rgb) / var(--dim));
-}
-
-/* The grade that makes a half its own time of day. Static per element — a
-   filter that never changes is one paint, unlike the transform beside it.
-   Night is drained rather than dimmed: these photographs are already dark, and
-   the brightness it took to separate the halves on paper turned them to mud on
-   screen. The wash above supplies the cool; the grade takes out the warmth that
-   would fight it. */
-.cascadeDay .card img {
-  filter: brightness(1.14) saturate(1.08) contrast(1.02);
-}
-
-.cascadeNight .card img {
-  filter: brightness(0.88) saturate(0.72) contrast(1.08);
-}
-
-/* Day on the left, night on the right, on the side its cascade recedes toward —
-   the cards spawn behind the list and grow away from it. Each entry dims to a
-   whisper except the one currently in the focus slot.
-
-   Above *both* cascades and a sibling of them rather than a child of one:
-   inside its own half it was clipped by the wipe, and it also sat under the
-   other half's whole subtree, so day's names went dark beneath night's cards
-   long before night's names came up. The ticker owns its opacity — the wipe
-   takes it away as the edge crosses its column, and the pointer takes it away
-   while a card is pulled out over the ground it stands on. */
-.roomsList {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 400;
+.cardFoot {
   display: flex;
   flex-direction: column;
-  gap: 1.15rem;
-  pointer-events: none;
-  text-shadow: 0 1px 22px rgb(var(--night-rgb) / 0.9);
+  gap: 0.1rem;
+  /* Cleared past the mark, so a long name wraps above it rather than under it. */
+  padding: 0.6rem 2rem 0 0.35rem;
 }
 
-.listDay {
-  left: 5vw;
-  text-align: left;
+.cardName {
+  font-size: var(--text-sm);
+  color: var(--ink);
 }
 
-/* Starts down, like its cascade's clip does — the ticker brings it up as the
-   edge reaches the column. Without this the two share the frame until the first
-   tick, which at phone width is one strip and both of them on it. */
-.listNight {
-  right: 5vw;
-  text-align: right;
-  opacity: 0;
+.cardNote {
+  font-size: var(--text-xs);
+  color: var(--stone);
 }
 
-.listTitle {
-  font-size: var(--text-lg);
-  letter-spacing: var(--tracking-caps);
-  text-transform: uppercase;
-  color: var(--dusk-amber);
-  margin-bottom: var(--space-1);
-}
-
-.listItem {
-  transition:
-    opacity 0.45s var(--ease-ui),
-    color 0.45s var(--ease-ui);
-  opacity: 0.3;
-  color: var(--sand);
-}
-
-.listItem[data-focus="true"] {
-  opacity: 1;
-  color: var(--ivory);
-}
-
-/* Set locally rather than off `--text-lg`. That step is shared with `.listTitle`
-   directly above, which is a caps label in the mono — moving the token would have
-   taken the label with it. The room name is the one of the pair in the display face,
-   so it carries the face's own correction here: up a quarter for the smaller
-   x-height, and up a weight because the deck runs on --night. */
-.listItemName {
-  font-size: 1.75rem;
-  font-weight: 400;
-  line-height: 1.18;
-}
-
-/* One size, in stage coordinates, parked under whichever card the pointer is
-   on. Never inside the deck: there the depth scale would size the type, which
-   is the reason the old design put the names off to the side in the first
-   place. */
-.hoverCaption {
+/* The affordance, and it is only ever an affordance: the field is `aria-hidden`
+   and the register below carries the reading. */
+.cardMark {
   position: absolute;
-  top: 0;
-  left: 0;
-  z-index: 420;
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 0.28s var(--ease-ui);
-  white-space: nowrap;
-  color: var(--ivory);
-  text-shadow: 0 1px 18px rgb(var(--night-rgb) / 0.95);
-  will-change: transform, opacity;
+  right: 0.6rem;
+  bottom: 0.7rem;
+  display: grid;
+  place-items: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  border: 1px solid rgb(var(--ink-rgb) / 0.18);
+  border-radius: 50%;
+  font-size: 0.7rem;
+  color: var(--ink);
 }
 
-/* There is deliberately no element drawn on the wipe's edge. A soft band
-   travelling with it was tried and read as a blurred vertical smear across the
-   frame; what carries the crossing instead is the two halves' own light, which
-   is now different enough that the hard clip boundary is legible on its own.
-   The edge stays exactly what it is — one sharp cut between two clips. */
+/* ============================ The furniture ============================ */
 
-/* Seam into Act 5 (Invitation). The whole frame, not a bottom gradient: this
-   closes over a deck that is still full and lands on exactly the value Act 5
-   opens on, so the handover is one continuous dark rather than a cut. */
-.tailFade {
+/* Everything that is read, on one layer above the wheels: the label at the
+   head, the sentence at the centre, the aside in the corner, the foot. */
+.frame {
   position: absolute;
   inset: 0;
-  z-index: 500;
+  z-index: 20;
+  padding: clamp(2rem, 7vh, 4.5rem) 6vw clamp(1.5rem, 5vh, 3rem);
   pointer-events: none;
-  opacity: 0;
-  background: var(--night);
 }
 
-/* Only the reduced-motion grid still pairs a caption with an image. */
-.cardMeta {
+/* Rides `--reveal`, the same beat the block arrives on, rather than standing
+   fixed at full opacity — the reduced-motion path defines no `--reveal` at
+   all, so the fallback is what keeps the label visible there. On the animated
+   path this is what keeps the label off the frame for the whole of the
+   hand-off sheet: `--reveal` is held at zero until `FIELD_HANDOFF` by the same
+   rebasing that holds every other beat, so nothing here is a second, separate
+   claim about when the field's own content is allowed to show. */
+.label {
+  position: absolute;
+  top: clamp(2rem, 7vh, 4.5rem);
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
-  justify-content: space-between;
-  gap: var(--space-2);
-  margin-top: 0.75rem;
-  color: var(--sand);
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--ink);
+  white-space: nowrap;
+  opacity: var(--reveal, 1);
 }
 
-/* ============================ Reduced motion / narrow ============================ */
+.labelRule {
+  width: 3.5rem;
+  height: 1px;
+  background: rgb(var(--ink-rgb) / 0.3);
+}
 
-/* No pins mount under reduced motion, so each movement has to stand as a static
-   composition rather than a frozen frame of an animation. */
-.staticCorridor,
-.staticRooms {
+/* The sentence that takes the centre the block was standing in. It arrives at
+   the same place, in the same face, small where the block was enormous — the
+   exchange reads as the words settling into what they meant rather than as one
+   screen of type replacing another.
+
+   Held to a measure rather than to the frame: the clear ground between the two
+   streams is what the composition is, and a paragraph that ran out to the
+   cards would close it. */
+.centre {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%)
+    translateY(calc((1 - var(--resolve)) * 0.75rem));
+  width: clamp(19rem, 32vw, 30rem);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  text-align: center;
+  opacity: var(--resolve);
+  pointer-events: auto;
+}
+
+.headline {
+  font-size: clamp(2.4rem, 4.4vw, 4rem);
+  font-weight: 400;
+  line-height: 1.02;
+  letter-spacing: -0.015em;
+  white-space: pre-line;
+}
+
+.lead {
+  max-width: 32ch;
+  font-size: var(--text-sm);
+  line-height: 1.62;
+  color: var(--stone-deep);
+}
+
+.centreLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: var(--space-1);
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid rgb(var(--ink-rgb) / 0.35);
+  color: var(--ink);
+}
+
+.centreLinkMark {
+  display: grid;
+  place-items: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  border: 1px solid rgb(var(--ink-rgb) / 0.25);
+  border-radius: 50%;
+  font-size: 0.7rem;
+  letter-spacing: 0;
+}
+
+/* Read on arrival and not again, which is why it is in the corner and set at
+   reading size rather than at the label's. It rides the same beat as the block
+   so the head of the frame is composed before the middle of it moves. */
+.aside {
+  position: absolute;
+  top: clamp(2rem, 7vh, 4.5rem);
+  right: 6vw;
+  max-width: 17rem;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--stone-deep);
+  opacity: calc(0.9 * var(--reveal));
+}
+
+/* The foot changes once, and the change is drawn letter by letter in both
+   directions at the same time: the first sentence dissolving into blur as the
+   second resolves out of it, each letter one beat behind the one to its left.
+   Both sentences sit on the same grid cell, so nothing moves.
+
+   The container itself rides `--reveal`, same reasoning as `.label`: the first
+   sentence's own opacity formula rests at full strength whenever `--foot` is
+   still at zero, which is also its value for the whole of the hand-off sheet —
+   without this the resting sentence would already be standing on the frame the
+   instant the sheet closes rather than arriving with the rest of the field. */
+.foot {
+  position: absolute;
+  right: 6vw;
+  bottom: clamp(1.5rem, 5vh, 3rem);
+  left: 6vw;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+  opacity: var(--reveal, 1);
+}
+
+.footOut,
+.footIn {
+  grid-area: 1 / 1;
+}
+
+.footGlyph {
+  display: inline-block;
+  white-space: pre;
+  will-change: opacity, filter;
+}
+
+/* The first sentence goes over the first half of the turn, the second arrives
+   over the second — they cross, so the foot is never blank. */
+.footOut .footGlyph {
+  opacity: calc(1 - clamp(0, calc((var(--foot) - var(--c) * 0.3) / 0.2), 1));
+  filter: blur(
+    calc(10px * clamp(0, calc((var(--foot) - var(--c) * 0.3) / 0.2), 1))
+  );
+}
+
+.footIn .footGlyph {
+  opacity: clamp(0, calc((var(--foot) - 0.5 - var(--c) * 0.3) / 0.2), 1);
+  filter: blur(
+    calc(
+      10px *
+      (1 - clamp(0, calc((var(--foot) - 0.5 - var(--c) * 0.3) / 0.2), 1))
+    )
+  );
+}
+
+/* ============================== The hand-over ============================== */
+
+/* Five bands of the Invitation's own dark, each growing up out of its own foot,
+   the lowest first. What crosses the frame is a rising edge rather than a
+   curtain — and because the bands are Act 5's colour, the act it hands to is
+   already behind them when the last one closes. */
+.wipe {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+}
+
+.stripe {
+  flex: 1;
+  /* A hair of overlap, so no seam between two bands can show the ivory through
+     it at a fractional device pixel. */
+  margin-top: -0.5px;
+  padding-bottom: 0.5px;
+  background: var(--night);
+  transform: scaleY(0);
+  transform-origin: bottom;
+  will-change: transform;
+}
+
+/* ============================== Off-screen ============================== */
+
+/* The cards are `aria-hidden`, so this list is the whole of the field's
+   accessible content. Visually hidden, not `display: none`, which would take it
+   out of the accessibility tree as well. */
+.register,
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  list-style: none;
+}
+
+/* ============================ Reduced motion ============================ */
+
+/* No pin mounts here, so each movement has to stand as a static composition
+   rather than a frozen frame of one. */
+.staticCorridor {
   display: grid;
   gap: var(--space-2);
   padding: var(--space-4) 6vw;
   grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
-}
-
-/* Nothing is pinned here, so the rooms grid has to carry the dark ground the
-   open door would otherwise be holding. */
-.staticRooms {
-  background: var(--night);
+  background: var(--ink);
   color: var(--ivory);
 }
 
-/* Each figure has to reserve its own caption space. A stretched `height: 100%`
-   on the image leaves the caption overflowing onto the row beneath it. */
-.staticCorridor figure,
-.staticRooms figure {
+.staticCorridor figure {
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
   margin: 0;
 }
 
-.staticCorridor img,
-.staticRooms img {
+.staticCorridor img {
   width: 100%;
   aspect-ratio: 4 / 3;
   object-fit: cover;
 }
 
-.staticThreshold {
-  position: relative;
-  height: 70vh;
-  overflow: hidden;
+/* The statement, standing on its own after the grid: the one bright frame of
+   the chapter is a frame under reduced motion too, not a paragraph. */
+.staticStatement {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 60vh;
+  padding: var(--space-4) 6vw;
+  text-align: center;
+  background: var(--ivory-warm);
+  color: var(--ink);
 }
 
-.staticThreshold img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
+.static {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4) 6vw;
+  text-align: center;
+  background: var(--ivory-warm);
+  color: var(--ink);
 }
+
+.static .label {
+  position: static;
+  transform: none;
+  opacity: 1;
+}
+
+.staticWords {
+  font-size: var(--text-display-sm);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: var(--stone);
+}
+
+.staticGrid {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  width: 100%;
+  margin-top: var(--space-3);
+  list-style: none;
+  text-align: left;
+}
+
+/* The grid lays the cards out; nothing places them, and nothing tilts them. */
+.staticGrid .card {
+  position: static;
+  width: auto;
+}
+
+.static .foot {
+  position: static;
+  margin-top: var(--space-3);
+  opacity: 1;
+}
+
+/* ============================== Narrow ============================== */
 
 @media (max-width: 767px) {
   .panel {
@@ -611,27 +830,68 @@
     left: var(--space-2);
   }
 
-  /* The lists would collide with the cascade at phone width; they stack under
-     the head instead and only the focused entry is shown. */
-  .roomsList {
-    top: auto;
-    bottom: clamp(var(--space-3), 8vh, 5rem);
-    left: var(--space-2);
+  /* The height is restated because the photographs' own `.panel` rule is
+     shortened here and, carrying the same weight from further down the sheet,
+     it wins on this element too. The statement is not a panel that got cropped
+     to 62vh with the rest — it is the frame, and short of a frame it leaves the
+     corridor's dark ground standing in a band above and below the one bright
+     screen of the chapter. */
+  .statementPanel {
+    height: 100vh;
+    padding-right: var(--space-2);
+    padding-left: calc(var(--space-2) + 6vw);
+  }
+
+  .statementLine {
+    font-size: var(--text-display-sm);
+  }
+
+  .words {
+    letter-spacing: -0.02em;
+  }
+
+  .frame {
+    padding-inline: var(--space-2);
+  }
+
+  .card {
+    width: clamp(8.5rem, 42vw, 12rem);
+    padding: 0.4rem 0.4rem 0.6rem;
+  }
+
+  .cardFoot {
+    padding-right: 1.6rem;
+  }
+
+  .cardMark {
+    width: 1.3rem;
+    height: 1.3rem;
+    right: 0.45rem;
+    bottom: 0.55rem;
+  }
+
+  /* There is no clear ground between the streams at this width — the wheels
+     stand almost on the frame's edges and a card is nearly half the screen — so
+     the sentence takes a plate of the ground itself, faded to nothing at its
+     own edges, and is read on that rather than on whatever is passing. */
+  .centre {
+    width: min(21rem, 86vw);
+    padding: var(--space-3) var(--space-2);
+    background: radial-gradient(
+      ellipse closest-side at center,
+      var(--ivory-warm) 68%,
+      rgb(var(--ivory-warm-rgb) / 0) 100%
+    );
+  }
+
+  /* The aside is the one piece of furniture a phone has no room for beside the
+     block: at this width it would sit on the words. */
+  .aside {
+    display: none;
+  }
+
+  .foot {
     right: var(--space-2);
-    transform: none;
-    align-items: center;
-    text-align: center;
-  }
-
-  .listItem[data-focus="false"] {
-    display: none;
-  }
-
-  /* Both lists sit on the same strip at this width, so their titles would stack
-     on each other — and only one half is ever uncovered under it. Nothing is
-     needed for the lists themselves: the ticker fades day out before night
-     comes up, and the two windows do not overlap. */
-  .listTitle {
-    display: none;
+    left: var(--space-2);
   }
 }
