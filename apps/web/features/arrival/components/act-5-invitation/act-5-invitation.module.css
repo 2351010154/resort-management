@@ -76,11 +76,17 @@
 }
 
 .headline {
-  font-size: clamp(1.5rem, 2.6vw, 2.35rem);
-  line-height: 1.28;
+  font-size: clamp(1.9rem, 3.3vw, 3rem);
+  /* Ivory on --night, like Act 4. */
+  font-weight: 400;
+  line-height: 1.22;
   letter-spacing: 0.005em;
 }
 
+/* Cormorant Garamond's italic is drawn, not sloped — a genuine cursive lowercase
+   with its own single-storey `a` and entry strokes, which is why `app/layout.tsx`
+   pays for the extra file. A synthesised oblique of a face with this much stroke
+   contrast shears the thin strokes to nothing. */
 .line[data-italic="true"] {
   font-style: italic;
 }
@@ -104,8 +110,13 @@
 .lineClip {
   display: block;
   overflow: hidden;
-  /* Literata's descenders are cropped by a clip drawn to the line box. */
-  padding-bottom: 0.06em;
+  /* Headroom, because the clip cuts at the line box and the face draws below it.
+     Cormorant Garamond's deepest glyph sits 0.282em under the baseline — the italic
+     line this act sets is the same 0.281em — against a 0.287em font descent, so the
+     descenders survive only from `line-height: 1.20` up. The headline is set above
+     that; this is the margin over it. Unlike Act 2's clip, this span is inside the
+     h2, so the em resolves against the headline's own size. */
+  padding-bottom: 0.05em;
 }
 
 .line {
@@ -261,7 +272,7 @@
   }
 
   .headline {
-    font-size: clamp(1.35rem, 5.6vw, 1.75rem);
+    font-size: clamp(1.7rem, 7.2vw, 2.25rem);
   }
 }
 

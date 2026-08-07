@@ -1,4 +1,6 @@
 import { Module } from "@nestjs/common";
+import { FolioModule } from "../folio/folio.module.js";
+import { FolioService } from "../folio/folio.service.js";
 import { GuestModule } from "../guest/guest.module.js";
 import { HousekeepingModule } from "../housekeeping/housekeeping.module.js";
 import { InventoryModule } from "../inventory/inventory.module.js";
@@ -7,7 +9,6 @@ import { AssignmentService } from "./assignment.service.js";
 import { BookingController } from "./booking.controller.js";
 import { BookingService } from "./booking.service.js";
 import { BusinessDateService } from "./business-date.service.js";
-import { FolioStubService } from "./ports/folio-stub.service.js";
 import { FOLIO_PORT } from "./ports/folio.port.js";
 import { SearchController } from "./search.controller.js";
 import { SearchService } from "./search.service.js";
@@ -49,10 +50,16 @@ import { StayQuoteService } from "./stay-quote.service.js";
 // `database.module.ts` and `closure.controller.ts` argue where that boundary
 // belongs.
 //
-// `FOLIO_PORT` is the one binding here that is expected to change. `M4` has no
-// ledger, so it points at the stub that reports every folio settled; `M6` points
-// it at the service that reads the real one, and nothing else in this module
-// moves. `ports/folio.port.ts` argues why the dependency runs in this direction.
+// `FOLIO_PORT` is the one binding here that was expected to change, and it has.
+// `M4` had no ledger and pointed it at a stub that reported every folio settled;
+// it now points at `FolioService`, which sums the postings. Nothing else in this
+// module moved and nothing in the check-out path did either — the guard, its
+// spec and the transition were written against the interface, which is the whole
+// argument `ports/folio.port.ts` makes for the dependency running this way.
+//
+// `useExisting` and not `useClass`: `FolioModule` already provides the service
+// and this must be the same instance the folio's own callers get, not a second
+// one Nest would construct against this token.
 //
 // `SearchController` is the third, and it sits here rather than in a module of
 // its own because `FR-BOOK-05` is a booking requirement and the thing it mostly
@@ -60,7 +67,7 @@ import { StayQuoteService } from "./stay-quote.service.js";
 // housekeeping board for what a room is, the guest table for who a person is —
 // and changes nothing, which is why it needs neither a port nor an export.
 @Module({
-  imports: [GuestModule, HousekeepingModule, InventoryModule],
+  imports: [FolioModule, GuestModule, HousekeepingModule, InventoryModule],
   controllers: [BookingController, AssignmentController, SearchController],
   providers: [
     AssignmentService,
@@ -68,7 +75,7 @@ import { StayQuoteService } from "./stay-quote.service.js";
     BusinessDateService,
     SearchService,
     StayQuoteService,
-    { provide: FOLIO_PORT, useClass: FolioStubService },
+    { provide: FOLIO_PORT, useExisting: FolioService },
   ],
   exports: [AssignmentService, BookingService, BusinessDateService],
 })
