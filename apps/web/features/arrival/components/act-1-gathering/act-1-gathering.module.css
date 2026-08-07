@@ -89,9 +89,17 @@
   text-shadow: 0 1px 12px rgba(10, 40, 52, 0.35);
 }
 
+/* `max-width` stays at 18ch even though `ch` is now the display face's "0" and that
+   glyph is narrower (0.477em against 0.578em). The step it is set at went up by more
+   than the glyph came down, so the clamp lands 5.6% wider than before — under a
+   character's worth on an 18-character line, and this is a line-break control rather
+   than a measure. */
 .statement {
   font-size: var(--text-display-sm);
-  line-height: 1.18;
+  /* Ivory over open sea. Same one-step compensation the dark acts take. */
+  font-weight: 400;
+  /* Wraps at 18ch, so the channel between lines is real. */
+  line-height: 1.16;
   max-width: 18ch;
 }
 

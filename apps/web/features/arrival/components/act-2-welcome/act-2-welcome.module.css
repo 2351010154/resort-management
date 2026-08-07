@@ -83,6 +83,18 @@
   padding: var(--space-3);
 }
 
+/* The reveal's window. `overflow: hidden` is what the line rises out of, and it cuts
+   at the line box — so anything the face draws below that box is cut with it.
+   Measured on Cormorant Garamond: the deepest glyph (g, j, y) reaches 0.282em below
+   the baseline while the font's own descent is 0.287em, which leaves the descenders
+   fitting only while `line-height` is at least 1.20. Both headings clipped here are
+   set at or above that, and each adds a little padding of its own on top for
+   headroom.
+
+   The padding belongs on the typed element rather than here, and that is not a
+   preference either: this span sits *outside* the h1 in `welcome-line.tsx`, so an
+   `em` written here would resolve against the inherited 1rem instead of the
+   headline's size and land at about a twentieth of the space it looks like. */
 .lineClip {
   display: block;
   overflow: hidden;
@@ -96,15 +108,27 @@
 }
 
 .display {
-  /* Sized so the line takes the same share of the frame as the comp (~45%),
-     which lands smaller than the global display step — that one is cut for act
-     openers, and Literata sets wider than the comp's face. */
-  font-size: clamp(2rem, 4.1vw, 3.75rem);
-  line-height: 1.12;
+  /* Sized so the line takes the same share of the frame as the comp (~45%). It
+     still lands under the global display step, which is cut for act openers, but
+     the second half of the old reason is gone: this used to be held down because
+     the display face set wider than the face the comp was drawn with. Cormorant
+     sets 21% narrower, so the figures went up with the token to hold that same
+     ~45% rather than to fight the face. */
+  font-size: clamp(2.5rem, 5.25vw, 4.75rem);
+  /* 1.20 is the floor the reveal clip imposes, not a rhythm choice — see .lineClip.
+     It reads tighter than the number suggests: Cormorant's ink spans about 1.02em
+     from ascender to descender, so 1.20 leaves roughly the same visual channel the
+     old face left at 1.12. */
+  line-height: 1.2;
+  /* Headroom over that floor. On the h1 rather than on the clip so the em resolves
+     against this size. */
+  padding-bottom: 0.06em;
   margin-top: 1.75rem;
   color: var(--ink);
   font-weight: 300;
-  letter-spacing: -0.005em;
+  /* Was -0.005em against a wide face. A narrow, high-contrast Garamond at this size
+     is already tight; pulling it further starts closing the counters. */
+  letter-spacing: 0;
 }
 
 /* The caps run fills a phone's width at the desktop size; step it down rather
@@ -307,25 +331,40 @@
    the old size read as a caption to the picture rather than the other half of
    the frame. */
 .chapterHead {
-  font-size: clamp(1.75rem, 3.6vw, 3.4rem);
-  line-height: 1.14;
+  font-size: clamp(2.25rem, 4.6vw, 4.35rem);
+  /* The clip's 1.20 floor again — see .lineClip. */
+  line-height: 1.2;
   color: var(--ink);
   font-weight: 300;
-  letter-spacing: -0.008em;
+  letter-spacing: 0;
 }
 
 /* Ragged setting: each line carries its own indent from the data, so the
-   block steps rather than stacking flush. */
+   block steps rather than stacking flush.
+   The clip here wraps each line individually, so the headroom over the descender
+   floor goes on the line rather than on the heading. */
 .chapterLine {
   padding-inline-start: var(--indent, 0);
+  padding-bottom: 0.06em;
 }
 
+/* The one block of running prose in the act, and it stays in the mono — the tracked
+   caps and the fixed pitch against a Garamond are the house's voice, not an
+   oversight. What was wrong was the measure. `ch` is the advance of "0", so in a
+   proportional face 33ch is comfortably more than 33 characters; in a fixed-pitch
+   one it is exactly 33, well under the 45 a line wants before it starts costing the
+   reader a return sweep. The 1.9 leading was paying for that — an over-open line
+   compensating for an over-short one. Widening the measure to 46 characters lets the
+   leading come back down to something the paragraph actually wants.
+
+   The column it sits in is `minmax(0, 1fr)`, so this only caps; at narrower widths
+   the block takes what the grid gives it. */
 .chapterBody {
-  max-width: 33ch;
+  max-width: 46ch;
   margin-top: 2.25rem;
   color: var(--stone-deep);
   font-size: 1rem;
-  line-height: 1.9;
+  line-height: 1.7;
 }
 
 .chapterCaption {

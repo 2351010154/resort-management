@@ -64,14 +64,31 @@
      eventually be edited alone. They move into this package the day a second
      app needs them; today that would be a re-export with no reader. */
 
-  /* type — families injected by next/font in the consuming app's layout */
+  /* type — families injected by next/font in the consuming app's layout.
+   *
+   * The steps split by face, and the split is why they are not one ramp. The first
+   * four are read by both families; every `--text-display-*` step is only ever set
+   * in the display face, and each one went up by about a quarter when that face
+   * became Cormorant Garamond.
+   *
+   * That factor is measured, not taste. Against the previous face Cormorant sets 21%
+   * narrower (0.44em average lowercase advance against 0.56em) and carries a much
+   * smaller x-height (0.386em against 0.507em). Filling the same share of a frame
+   * asks for 1/0.79 ≈ 1.26x; matching apparent size asks for 0.507/0.386 ≈ 1.31x.
+   * The two land close enough that one factor serves both, so these steps are the
+   * old ones times ~1.28.
+   *
+   * `--text-lg` deliberately did NOT move with them. It is the one step both faces
+   * read — Act 4 sets a caps label and a room name at it, and the booking funnel
+   * three more — so scaling it for the serif would have grown every mono use too. */
   --text-xs: 0.75rem;
   --text-sm: 0.875rem;
   --text-base: 1rem;
   --text-lg: 1.375rem;
-  --text-display-sm: clamp(1.75rem, 3.5vw, 2.75rem);
-  --text-display: clamp(2.5rem, 6vw, 4.5rem);
-  --text-display-lg: clamp(3.5rem, 9vw, 7.5rem);
+  --text-display-sm: clamp(2.25rem, 4.5vw, 3.5rem);
+  --text-display: clamp(3.25rem, 7.75vw, 5.75rem);
+  /* Declared for the ramp's shape, not for a reader — nothing sets it today. */
+  --text-display-lg: clamp(4.5rem, 11.5vw, 9.5rem);
   --tracking-caps: 0.22em;
 
   /* spacing rhythm */

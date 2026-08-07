@@ -84,14 +84,24 @@
 
 /* Wider than the panel on purpose: the panel edge clips it, so the line reads
    out as the panel crosses the viewport. */
+/* The act's largest type, and the one place the em value looks alarming on its own.
+   Cormorant's x-height is 0.386em where the old face's was 0.507em, so this line
+   renders at about the apparent size a 6.4rem setting used to — the number grew
+   because the face sits smaller on its body, not because the type got louder.
+
+   Weight goes up a step here and nowhere in the ivory acts. This is light type on
+   --night, and a 300 Light with this much stroke contrast thins out to nothing at
+   the hairlines against a dark ground; 400 puts the thin strokes back without
+   changing the colour or the size. */
 .panelHeadline {
   position: absolute;
   left: var(--space-3);
   bottom: 22%;
   z-index: 20;
   white-space: nowrap;
-  font-size: clamp(3rem, 7.5vw, 6.5rem);
-  line-height: 0.92;
+  font-size: clamp(3.85rem, 9.6vw, 8.3rem);
+  font-weight: 400;
+  line-height: 0.94;
   color: var(--ivory);
 }
 
@@ -119,7 +129,12 @@
 
 .toneLine {
   font-size: var(--text-display-sm);
-  line-height: 1.12;
+  /* Ivory on --stone-deep / --umber: same one-step compensation as the headline. */
+  font-weight: 400;
+  /* `pre-line`, so this really does stack. Cormorant's descenders reach 0.282em and
+     its ascenders climb high, so a ratio that suited a shallower face closes the
+     channel between the two. */
+  line-height: 1.14;
   color: var(--ivory);
   white-space: pre-line;
 }
@@ -220,37 +235,34 @@
   mix-blend-mode: multiply;
 }
 
-/* Sinks the open door far enough for Movement III's ivory copy and its
-   photographic cards to read on it, without flattening the movement out of it.
-   It lives on this stage because this stage is what stays pinned under the
-   rooms — a scrim on their own stage would slide in with a visible edge. */
+/* Closes the open door over the last of Movement II, so the rooms play on a
+   clean dark stage rather than on the arcade. Held part-open, the footage sat
+   behind the deck as a full-frame out-of-focus photograph competing with the
+   photographs the deck is actually made of.
+
+   Flat rather than a gradient stack, because this one has to land on a real
+   opaque value: the layered radial and linear it replaced summed to about two
+   thirds cover at frame centre even driven to opacity 1, which left the arcade
+   legible through it. It lives on this stage because this stage is what stays
+   pinned under the rooms — a scrim on their own stage would slide in with a
+   visible edge. */
 .doorScrim {
   position: absolute;
   inset: 0;
   z-index: 10;
   opacity: 0;
   pointer-events: none;
-  background:
-    radial-gradient(
-      ellipse at 50% 40%,
-      rgb(var(--night-rgb) / 0.3) 0%,
-      rgb(var(--night-rgb) / 0.72) 100%
-    ),
-    linear-gradient(
-      to bottom,
-      rgb(var(--ink-rgb) / 0.6),
-      rgb(var(--night-rgb) / 0.48) 46%,
-      rgb(var(--night-rgb) / 0.78)
-    );
+  background: var(--night);
 }
 
 /* ============================ III. Rooms ============================ */
 
-/* The ground here is Movement II's door, still open and still running: the
-   threshold stage stays pinned underneath this whole movement. Every layer of
-   Movement III therefore has to stay transparent — an opaque background on the
-   section or the stage would paint straight over the footage, since this
-   section sits after the threshold in the DOM. */
+/* The ground here belongs to Movement II: its stage stays pinned underneath
+   this whole movement, closed over by the door scrim. Every layer of Movement
+   III therefore has to stay transparent — an opaque background on the section
+   or the stage would paint over that ground on its way in, since this section
+   sits after the threshold in the DOM and slides a viewport up before it pins,
+   which is exactly the travelling seam the scrim was put downstairs to avoid. */
 .rooms {
   position: relative;
   background: transparent;
@@ -259,9 +271,9 @@
 
 /* This section keeps its natural flow position, which is a full viewport below
    the end of the threshold's scrub. That viewport is the deck's entrance: the
-   door has finished opening and finished sinking by the time the stage's top
+   door has finished opening and finished closing by the time the stage's top
    edge reaches the bottom of the frame, and the whole of the approach is the
-   cards riding up over the open door until the stage pins. Nothing dissolves —
+   cards riding up over the closed ground until the stage pins. Nothing dissolves —
    the deck is already composed when it enters, and scrolling is what reveals
    it. The stage paints no ground of its own, so there is no sheet rising with
    it, only the photographs. */
@@ -297,22 +309,19 @@
   clip-path: inset(0 100% 0 0);
 }
 
-/* The ground each half plays on. Day and night used to differ only in which six
-   photographs loaded — same grade, same ground — so the wipe crossed between
-   two frames that looked alike and the "other half" never arrived. This is the
-   half's own light, and it lives inside the cascade so the wipe's clip carries
-   it for free.
-
-   Semi-transparent by necessity: the open door from movement II is still
-   running underneath, and an opaque layer here paints straight over it.
+/* The light one half plays in, living inside the cascade so the wipe's clip
+   carries it for free. Only night has one. Day used to carry a warm amber wash
+   from the side its register stands on, and at this scale it stopped reading as
+   light in a room and became an orange cast lying over the whole frame — over
+   the photographs, the register and the ground alike. Day is the plain half
+   now; what still separates the two across the wipe is the grade each half's
+   photographs carry, below.
 
    Feathered at the leading edge. This stage slides a whole viewport up the
-   frame before it pins, so the wash's own top edge travels across the open door
-   as a hard horizontal line — the same seam the door scrim was moved off this
-   stage to avoid. The wash cannot follow it there: the wipe has to carry it, so
-   it has to stay inside the clip. Spread over a fifth of the frame instead,
-   there is no edge left to read — the wash is a few percent of lift at its
-   strongest, and that much of it per viewport-fifth is a gradient, not a join. */
+   frame before it pins, so the wash's own top edge travels across the ground as
+   a hard horizontal line. Spread over a fifth of the frame instead, there is no
+   edge left to read — the wash is a few percent of tint at its strongest, and
+   that much of it per viewport-fifth is a gradient, not a join. */
 .cascade::before {
   content: "";
   position: absolute;
@@ -327,39 +336,17 @@
   );
 }
 
-/* Warm and lifted, thrown from the side the day list stands on. */
-.cascadeDay::before {
-  background:
-    radial-gradient(
-      120% 80% at 12% 45%,
-      rgb(var(--dusk-amber-rgb) / 0.2),
-      transparent 62%
-    ),
-    linear-gradient(
-      105deg,
-      rgb(var(--dusk-amber-rgb) / 0.12),
-      rgb(var(--umber-rgb) / 0.1) 60%,
-      transparent
-    );
-}
-
-/* Cool and dropped. The deepening sits over the exit corner, away from the
-   upper-right vanishing point: put on that corner it lands exactly where the
-   far cards spawn, and a card that is small, still fading in and graded down
-   has nothing left to give a fourth multiplication. */
+/* Cool, drawn across the exit corner and away from the upper-right vanishing
+   point: put on that corner it lands exactly where the far cards spawn, and a
+   card that is small, still fading in and graded down has nothing left to give
+   another multiplication. Tint only — the ground beneath is already the act's
+   darkest value, so a deepening layer here would have nothing to deepen. */
 .cascadeNight::before {
-  background:
-    radial-gradient(
-      110% 75% at 22% 78%,
-      rgb(var(--night-rgb) / 0.42),
-      transparent 68%
-    ),
-    linear-gradient(
-      255deg,
-      color-mix(in srgb, var(--ocean) 14%, transparent),
-      rgb(var(--night-rgb) / 0.22) 60%,
-      transparent
-    );
+  background: linear-gradient(
+    255deg,
+    color-mix(in srgb, var(--ocean) 14%, transparent),
+    transparent 62%
+  );
 }
 
 /* The rotateY the cursor field applies is only visible with a perspective on
@@ -497,9 +484,15 @@
   color: var(--ivory);
 }
 
+/* Set locally rather than off `--text-lg`. That step is shared with `.listTitle`
+   directly above, which is a caps label in the mono — moving the token would have
+   taken the label with it. The room name is the one of the pair in the display face,
+   so it carries the face's own correction here: up a quarter for the smaller
+   x-height, and up a weight because the deck runs on --night. */
 .listItemName {
-  font-size: var(--text-lg);
-  line-height: 1.15;
+  font-size: 1.75rem;
+  font-weight: 400;
+  line-height: 1.18;
 }
 
 /* One size, in stage coordinates, parked under whichever card the pointer is
@@ -601,7 +594,7 @@
   }
 
   .panelHeadline {
-    font-size: clamp(2.25rem, 12vw, 3.5rem);
+    font-size: clamp(2.9rem, 15.4vw, 4.5rem);
     left: var(--space-2);
   }
 

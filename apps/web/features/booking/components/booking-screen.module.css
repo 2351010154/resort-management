@@ -6,7 +6,7 @@
  */
 
 .screen {
-  /* **The funnel's prose is Literata, not DM Mono.**
+  /* **The funnel's prose is the serif, not the mono.**
    *
    * `globals.css` sets `--font-ui` on `body` for the whole document, and on the
    * arrival that is right — a caption over a film plate wants the mono. A booking
@@ -19,10 +19,28 @@
    * labels, the one primary button. Two faces still, no new bytes, and the arrival
    * is untouched.
    *
-   * It also fixes something: DM Mono has no Vietnamese coverage, so ₫ fell through
-   * to whatever the system offered. Literata carries the mark.
+   * **That decision was made against a different serif, and it is worth re-taking.**
+   * It was written when the display face was Literata — a face Google commissioned
+   * for reading on screens, with a 0.507em x-height that is comfortable at 16px.
+   * The display face is now Cormorant Garamond, chosen for the arrival's headlines,
+   * and its x-height is 0.386em: a third smaller on the same body, at a weight the
+   * arrival sets to 300. It is the right face for a hero line and a delicate one for
+   * a paragraph a guest reads while typing dates.
+   *
+   * The compensation below keeps this readable rather than pretending the swap was
+   * free — a step up in size and a step up in weight, both of which the arrival's
+   * own display type does not need. It is a floor, not a finished answer: this is an
+   * Operate surface and it deserves its own typeset pass, where the honest options
+   * are a text-optical serif for prose here or moving the funnel's prose to a face
+   * cut for it. Neither is a change to make quietly inside a marketing-page task.
    */
   font-family: var(--font-display), serif;
+  font-size: 1.125rem;
+  font-weight: 400;
+  /* Inherited by the whole screen, so the face's oldstyle default would reach every
+     price and date under it. Corrected once here — see `.font-display` in
+     globals.css. */
+  font-variant-numeric: lining-nums;
 
   min-height: 100dvh;
   background: var(--ivory);

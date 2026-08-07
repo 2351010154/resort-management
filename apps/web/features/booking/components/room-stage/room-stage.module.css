@@ -86,7 +86,8 @@
    photograph the whole window is showing. */
 .name {
   font-family: var(--font-display), serif;
-  font-size: clamp(1.75rem, 2.3vw, 2.5rem);
+  font-variant-numeric: lining-nums;
+  font-size: clamp(2.15rem, 2.85vw, 3.1rem);
   font-weight: 300;
   line-height: 1.1;
   color: var(--ink);
@@ -488,7 +489,11 @@
    read in. */
 .total {
   font-family: var(--font-display), serif;
-  font-size: 1.5rem;
+  /* A price, in a face whose figures are oldstyle by default — see the note on
+     `.font-display` in globals.css. Without this the total's 3s and 5s hang below
+     the line and its 6s ride above it. */
+  font-variant-numeric: lining-nums;
+  font-size: 1.9rem;
   line-height: 1.2;
   color: var(--ink);
   white-space: nowrap;

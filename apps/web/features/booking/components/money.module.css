@@ -1,14 +1,22 @@
 /* The đồng mark.
  *
- * Named as Literata explicitly rather than left to inherit, because the stack it
- * would inherit reaches "DM Mono Fallback" first and that face draws ₫ shrunken.
- * See the note in money.tsx.
+ * This file used to name the display face here and size it to 0.92em, because the UI
+ * face had no Vietnamese coverage: it could not draw ₫ at all, next/font's
+ * metric-adjusted fallback was reached before any other family in the stack, and the
+ * mark came out small and above the baseline.
+ *
+ * Both house faces now carry U+20AB — IBM Plex Mono and Cormorant Garamond alike —
+ * so the mark simply inherits whatever the price around it is set in and matches it.
+ * That is the point of naming nothing: on the arrival a price would be mono, on the
+ * booking screen it is the serif, and either way the mark and its digits are one
+ * face. The 0.92em went with it; a size compensation measured against a face the
+ * site no longer loads is just a new bug.
+ *
+ * The element stays because `money.tsx` still owns the non-breaking space, and a mark
+ * that can be styled in one place is worth keeping the seam for.
  */
 
 .mark {
-  font-family: var(--font-display), serif;
-  /* Literata's ₫ sits a little large beside DM Mono's digits at the same size —
-     the two faces have different cap heights. Measured against a price at
-     --text-base; the mark is the only glyph this applies to. */
-  font-size: 0.92em;
+  /* Deliberately empty of font overrides. See above. */
+  white-space: nowrap;
 }
