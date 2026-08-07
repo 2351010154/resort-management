@@ -66,15 +66,16 @@
 import { CHARGE_BASES } from "@mariva/shared";
 import { sql } from "drizzle-orm";
 import {
-  type AnyPgColumn,
   bigint,
   check,
   date,
+  foreignKey,
   index,
   pgEnum,
   pgTable,
   text,
   timestamp,
+  unique,
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
@@ -210,10 +211,9 @@ export const folioPosting = pgTable(
     // a legal document that cannot quietly change its own wording.
     description: text("description").notNull(),
     // The line this one undoes. A self-reference, so a reversal is a row like
-    // any other and the correction is itself part of the account.
-    reversesPostingId: uuid("reverses_posting_id").references(
-      (): AnyPgColumn => folioPosting.id,
-    ),
+    // any other and the correction is itself part of the account. The key is
+    // declared below rather than here, because it has to name the folio too.
+    reversesPostingId: uuid("reverses_posting_id"),
     // The charge this line was levied on. `FR-FOL-02` splits one agreed gross
     // figure into a charge, a service charge and a tax line, and §5 requires all
     // three be shown separately rather than folded together — which leaves the
@@ -232,9 +232,9 @@ export const folioPosting = pgTable(
     // its lines; with this column that set is `id = $1 or parent_posting_id =
     // $1`, and without it the service would have to infer siblings from the
     // instant they happened to be written at.
-    parentPostingId: uuid("parent_posting_id").references(
-      (): AnyPgColumn => folioPosting.id,
-    ),
+    //
+    // Like the column above it, the key is declared below and names the folio.
+    parentPostingId: uuid("parent_posting_id"),
     // The catalog row a service line charged for — `FR-FOL-03`. The key is what
     // makes a sold item undeletable, which is why `service_catalog` withdraws an
     // item with `is_active` instead of removing it.
@@ -253,6 +253,35 @@ export const folioPosting = pgTable(
     // The balance query, which is every read of this table: sum the amounts of
     // one folio.
     index("folio_posting_folio_idx").on(table.folioId),
+    // **Both self-references stay inside one account.** A key on `id` alone
+    // would let a line name a posting on somebody else's folio, and neither
+    // direction of that is survivable: a `VAT` line in guest B's account levied
+    // on guest A's room charge is a tax nothing in B accounts for, and a
+    // `REVERSAL` in B undoing a posting in A credits the wrong guest while the
+    // mistake stands. Both rows would satisfy every check above — a check reads
+    // one row and cannot ask what folio another belongs to — and the
+    // append-only trigger means neither could ever be corrected, only
+    // compensated. The comment on `parentPostingId` states the reversal set as
+    // `id = $1 or parent_posting_id = $1`; without this, that query can return a
+    // line from an account it was never asked about.
+    //
+    // Carrying `folio_id` into the key is what closes it, and it needs a unique
+    // constraint on the pair to point at. `MATCH SIMPLE` is what makes the
+    // nullable case still work: `folio_id` is never null, so when the reference
+    // is null the constraint is skipped entirely, exactly as the single-column
+    // key behaved. These replace the per-column keys rather than joining them —
+    // each implies the one it replaced.
+    unique("folio_posting_id_folio_key").on(table.id, table.folioId),
+    foreignKey({
+      name: "folio_posting_reverses_a_line_on_the_same_folio",
+      columns: [table.reversesPostingId, table.folioId],
+      foreignColumns: [table.id, table.folioId],
+    }),
+    foreignKey({
+      name: "folio_posting_derives_from_a_line_on_the_same_folio",
+      columns: [table.parentPostingId, table.folioId],
+      foreignColumns: [table.id, table.folioId],
+    }),
     // A posting is reversed at most once. Twice would credit the guest twice for
     // one mistake, and — because the correction is an insert rather than an edit
     // — nothing else would refuse the second row. Partial, because every
@@ -283,6 +312,24 @@ export const folioPosting = pgTable(
     // claiming to have been levied on another sale. The two members named here
     // are exactly the two `decomposeGross` returns beside the charge, which is
     // what makes the set closed rather than a list somebody will extend.
+    //
+    // What it does not say, and no reader should assume: this constrains the
+    // *child*'s type and never the parent's. A `VAT` line naming another `VAT`
+    // line, or naming a `PAYMENT`, satisfies it — a check reads one row, so the
+    // parent's type is as far out of reach here as the parent's folio was
+    // before the key above carried `folio_id` into it. The damage would be
+    // quiet rather than arithmetic: the balance sums amounts and never reads
+    // this column, so `NFR-02` holds exactly either way, and only the reversal
+    // set goes wrong — `id = $1 or parent_posting_id = $1` misses a tax line
+    // hung off the wrong row, leaving the guest owing tax on a sale that was
+    // undone.
+    //
+    // Left open rather than closed because a check cannot close it and the set
+    // to close it to is not settled. `ROOM_CHARGE` and `SERVICE_ITEM` are
+    // certain; whether a `POLICY_CHARGE` carries tax is §4's silence and
+    // `ASM-01`'s unanswered question. Closing it is a trigger, and it belongs
+    // to the service that writes the three lines together — the same reason the
+    // grouping column above was not invented ahead of that service either.
     check(
       "folio_posting_derives_exactly_when_a_tax_line",
       sql`(${table.type} in ('SERVICE_CHARGE_FEE', 'VAT')) = (${table.parentPostingId} is not null)`,
