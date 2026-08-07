@@ -57,6 +57,7 @@ import { Test } from "@nestjs/testing";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
+import type { PinoLogger } from "nestjs-pino";
 import pg from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { AppModule } from "../src/app.module.js";
@@ -96,6 +97,7 @@ const DEPARTURE = "2027-06-13";
 const NIGHTS = [ARRIVAL, "2027-06-11", "2027-06-12"] as const;
 
 const FIRST_NIGHT = parseDate(ARRIVAL);
+const SECOND_NIGHT = parseDate("2027-06-11");
 const THE_DAY_THEY_LEAVE = parseDate(DEPARTURE);
 const THE_DAY_BEFORE_THEY_ARRIVE = parseDate("2027-06-09");
 
@@ -151,6 +153,24 @@ class StoppedClock extends BusinessDateService {
     return this.today;
   }
 }
+
+/**
+ * The warnings the sweep raised, kept.
+ *
+ * A stand-in rather than a real logger, because the assertion is about the
+ * sweep and not about pino: a run that leaves a guest under-charged has to say
+ * which stay and which night, and the only place it can say it is here. The
+ * charging path writes nothing to this, so a case that finds it empty has
+ * proven the quiet run and not merely a quiet logger.
+ */
+const warnings: { detail: Record<string, unknown>; message: string }[] = [];
+
+const log = {
+  setContext: () => {},
+  warn: (detail: Record<string, unknown>, message: string) => {
+    warnings.push({ detail, message });
+  },
+} as unknown as PinoLogger;
 
 let pool: pg.Pool;
 let db: ReturnType<typeof drizzle<typeof schema>>;
@@ -228,13 +248,14 @@ beforeAll(async () => {
   deskId = staff!.id;
 
   folios = new FolioService(db, new SystemConfigService());
-  sweep = new RoomChargeSweep(folios);
+  sweep = new RoomChargeSweep(folios, log);
 });
 
 // Each case starts against the property as the seed laid it down, and against an
 // empty ledger — a case reading a folio another one left behind is reading an
 // account nobody opened.
 beforeEach(async () => {
+  warnings.length = 0;
   await clearTheLedger();
   await db.execute(
     sql`truncate registration, room_assignment, booking, guest restart identity cascade`,
@@ -351,6 +372,92 @@ describe("a stay the sweep must not charge", () => {
 
     expect(await runSweep(THE_DAY_BEFORE_THEY_ARRIVE)).toEqual([]);
     expect(await folios.getBalance(stay)).toBe(0n);
+  });
+});
+
+describe("a night that was never charged", () => {
+  it("is named, with the stay and the date to re-run", async () => {
+    // The ordinary way this happens is not downtime. A guest arrives at 23:00
+    // and the desk keys the check-in the next afternoon: the stay was
+    // `CONFIRMED` for the whole night it slept, so no run selected it, and no
+    // later run ever asks about that date again.
+    const stay = await checkedInStay();
+
+    expect(await runSweep(SECOND_NIGHT)).toHaveLength(1);
+
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]?.detail).toMatchObject({
+      businessDate: "2027-06-11",
+      stays: 1,
+      nights: 1,
+      naming: [`${stay}@${ARRIVAL}`],
+    });
+
+    // Said, and not silently fixed. The arrival night is still off the account —
+    // the header argues that back-posting it would drop a figure into a trading
+    // day the property may already have reported, so recovery is a person
+    // re-running this sweep over that date.
+    const lines = await linesOf(await folioOf(stay));
+
+    expect(lines).toHaveLength(3);
+    expect(lines.every((line) => line.businessDate === "2027-06-11")).toBe(true);
+  });
+
+  it("stops being named once somebody re-runs the sweep over it", async () => {
+    const stay = await checkedInStay();
+
+    await runSweep(SECOND_NIGHT);
+    warnings.length = 0;
+
+    // The recovery `job-trigger.controller.ts` allows: the same sweep, over the
+    // date it missed. The night lands at the rates and on the day it belongs to.
+    expect(await runSweep(FIRST_NIGHT)).toHaveLength(1);
+    expect(await runSweep(SECOND_NIGHT)).toEqual([]);
+
+    expect(warnings).toEqual([]);
+
+    // Both nights on the account, each dated to itself — which is the whole
+    // point of recovering this way rather than posting the arrears as today's.
+    const dated = new Set(
+      (await linesOf(await folioOf(stay))).map((line) => line.businessDate),
+    );
+
+    expect(dated).toEqual(new Set([ARRIVAL, "2027-06-11"]));
+  });
+
+  it("says nothing about a stay whose nights are all on the account", async () => {
+    await checkedInStay();
+
+    await runSweep(FIRST_NIGHT);
+
+    expect(warnings).toEqual([]);
+  });
+
+  it("still names a night the desk posted some other charge against", async () => {
+    // The same `posted_by is null` narrowing the charging predicate uses, read
+    // the other way, and the two have to agree. A late checkout billed on the
+    // arrival night is not that night's rent — the sweep would still charge the
+    // night, so the night is still owed, so it is still named. The alternative
+    // is a report that goes quiet exactly when a receptionist happened to touch
+    // the account.
+    const stay = await checkedInStay();
+    const folioId = await folios.ensureFolio(db, stay);
+
+    await folios.postRoomCharge(db, {
+      folioId,
+      grossAmount: 500_000n,
+      businessDate: FIRST_NIGHT,
+      description: "Late checkout, charged at the desk",
+      postedBy: deskId,
+    });
+
+    await runSweep(SECOND_NIGHT);
+
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]?.detail).toMatchObject({
+      nights: 1,
+      naming: [`${stay}@${ARRIVAL}`],
+    });
   });
 });
 

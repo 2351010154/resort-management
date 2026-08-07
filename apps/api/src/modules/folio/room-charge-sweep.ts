@@ -79,6 +79,32 @@
 // arriving today is a room held for a guest who may still not come, and what
 // that becomes is `FR-BOOK-04`'s no-show charge rather than a night's rent this
 // sweep would have to take back.
+//
+// ## The nights it did not charge, said out loud
+//
+// One business date is charged per run and there is no catch-up, which leaves a
+// gap that is quiet rather than rare. A guest arrives at 23:00 and the desk keys
+// the check-in the following afternoon: the stay was `CONFIRMED` for the whole
+// of the night it slept, no run selected it, and no later run ever asks about
+// that date again. The same hole opens on a business date this process was down
+// for, or one whose `booking_night` rows landed late. The folio is short, §4's
+// check-out guard reads that short folio, and the stay settles for less than it
+// agreed to with nothing anywhere recording why.
+//
+// Posting the missing night automatically is the obvious answer and it is the
+// wrong one. `FR-RPT-01` freezes a snapshot per business date, so back-posting
+// would drop a figure into a trading day the property has closed and reported —
+// which is the thing dating a posting correctly exists to prevent, arrived at
+// from the other side. Recovery belongs to a person: `job-trigger.controller.ts`
+// takes a business date, so re-running this sweep over the missed one posts it
+// at the rates and on the day it belongs to, deliberately.
+//
+// What is fixed here is that nobody has to notice first. Every run counts the
+// nights an in-house stay should have been charged for and was not, by the same
+// predicate that decides tonight, and says so. It charges none of them and its
+// return value does not mention them — the runner requires a second pass over
+// the same transaction to come back empty, and a sweep that reported work it had
+// not done would fail that check for the wrong reason.
 
 import {
   type Party,
@@ -87,7 +113,18 @@ import {
   type VndAmount,
 } from "@mariva/shared";
 import { Injectable } from "@nestjs/common";
-import { and, eq, gt, inArray, isNull, lte, notExists, sql } from "drizzle-orm";
+import {
+  and,
+  eq,
+  gt,
+  inArray,
+  isNull,
+  lt,
+  lte,
+  notExists,
+  sql,
+} from "drizzle-orm";
+import { PinoLogger } from "nestjs-pino";
 import type { DbExecutor } from "../../database/database.module.js";
 import { booking, bookingNight } from "../../database/schema/booking.js";
 import { folio, folioPosting } from "../../database/schema/folio.js";
@@ -110,6 +147,14 @@ interface PricedNight {
 }
 
 /**
+ * How many uncharged nights are named in the log line rather than counted in it.
+ *
+ * Enough to start from without turning one stuck stay into a log nobody reads.
+ * The counts beside them are the whole set.
+ */
+const ARREARS_NAMED = 5;
+
+/**
  * Posts one night's room charge to every in-house stay's folio.
  *
  * Registered in `jobs.module.ts` and owned here, which is the split that file
@@ -121,7 +166,15 @@ export class RoomChargeSweep implements SweepJob {
   readonly name = "room-charge";
   readonly schedule = HOURLY;
 
-  constructor(private readonly folios: FolioService) {}
+  constructor(
+    private readonly folios: FolioService,
+    // The context is set on an injected `PinoLogger` rather than declared with
+    // `@InjectPinoLogger`, for the evaluation-order reason `job-runner.service.ts`
+    // sets out where it does the same thing.
+    private readonly logger: PinoLogger,
+  ) {
+    this.logger.setContext("RoomChargeSweep");
+  }
 
   /**
    * Charges the night, and answers with the id of every charge it posted.
@@ -136,6 +189,10 @@ export class RoomChargeSweep implements SweepJob {
     businessDate: StayDate,
   ): Promise<readonly string[]> {
     const tonight = businessDate.toString();
+
+    // Before the early return below, because a night left behind is exactly the
+    // thing a run with nothing to charge would otherwise say nothing about.
+    await this.reportArrears(exec, tonight);
 
     // `for update` rather than a plain read, for the reason both other sweeps
     // give: under `read committed` Postgres re-evaluates the predicate after it
@@ -275,6 +332,73 @@ export class RoomChargeSweep implements SweepJob {
       // which the predicate above reads back to recognise its own work.
       postedBy: null,
     });
+  }
+
+  /**
+   * Says which in-house stays are carrying a night nobody charged them for.
+   *
+   * The predicate is the one above with two changes: the night is *before*
+   * tonight rather than tonight, and it comes from `booking_night` rather than
+   * from the business date this run was handed — a run only ever knows about one
+   * date, and the nights it is looking for are the ones no run ever asked about.
+   * The `not exists` is unchanged down to the `posted_by is null`, so a night the
+   * desk charged by hand is not reported as missing and a reversed one is not
+   * reported twice.
+   *
+   * Nothing is written and nothing is returned to the runner. The header says
+   * why the missing night is not simply posted, and why the recovery is a person
+   * re-running this sweep over the date rather than this sweep deciding to.
+   */
+  private async reportArrears(
+    exec: DbExecutor,
+    tonight: string,
+  ): Promise<void> {
+    const uncharged = await exec
+      .select({ bookingId: booking.id, stayDate: bookingNight.stayDate })
+      .from(bookingNight)
+      .innerJoin(booking, eq(booking.id, bookingNight.bookingId))
+      .where(
+        and(
+          eq(booking.state, "CHECKED_IN"),
+          lte(booking.checkInDate, tonight),
+          gt(booking.checkOutDate, tonight),
+          lt(bookingNight.stayDate, tonight),
+          notExists(
+            exec
+              .select({ charged: sql`1` })
+              .from(folioPosting)
+              .innerJoin(folio, eq(folio.id, folioPosting.folioId))
+              .where(
+                and(
+                  eq(folio.bookingId, booking.id),
+                  eq(folioPosting.type, "ROOM_CHARGE"),
+                  eq(folioPosting.businessDate, bookingNight.stayDate),
+                  isNull(folioPosting.postedBy),
+                ),
+              ),
+          ),
+        ),
+      )
+      .orderBy(booking.id, bookingNight.stayDate);
+
+    if (uncharged.length === 0) {
+      return;
+    }
+
+    this.logger.warn(
+      {
+        businessDate: tonight,
+        stays: new Set(uncharged.map((night) => night.bookingId)).size,
+        nights: uncharged.length,
+        // Sorted by stay and then by date, so this is the oldest night of the
+        // lowest-numbered stay rather than the oldest night outright. The dates
+        // named below are what somebody re-runs, and they are all here.
+        naming: uncharged
+          .slice(0, ARREARS_NAMED)
+          .map((night) => `${night.bookingId}@${night.stayDate}`),
+      },
+      "in-house stays are carrying nights with no room charge — re-run this sweep for those business dates",
+    );
   }
 
   /**
