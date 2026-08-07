@@ -85,10 +85,11 @@ class StoppedClock extends BusinessDateService {
 /**
  * A folio reporting whatever the case needs.
  *
- * The real binding at `M4` is `folio-stub.service.ts`, which reports every folio
- * settled — so the guard would never refuse and the assertion that it runs at
- * all would be vacuous. This is the same port with the other answer, which is
- * exactly what `M6` will hand the transition once there is a ledger.
+ * The application binds this port to `FolioService`, which sums a real folio's
+ * postings. This suite posts nothing, so every folio it opened would read as
+ * settled, the guard would never refuse, and the assertion that it runs at all
+ * would be vacuous. This is the same port with the other answer. What the guard
+ * does against a ledger with money in it is `folio-check-out.e2e-spec.ts`.
  */
 class FolioOwing implements FolioPort {
   constructor(private readonly balance: VndAmount) {}

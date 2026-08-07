@@ -697,10 +697,10 @@ export class BookingService {
   /**
    * `CHECKED_IN` → `CHECKED_OUT` — the stay is over.
    *
-   * §4's one guard, asked through `folio.port.ts` so that `M6` can answer it
-   * from a real ledger without this transition changing. Today the stub reports
-   * every folio settled, which is why the guard is exercised here through the
-   * port rather than skipped until there is money to count.
+   * §4's one guard, asked through `folio.port.ts` so that the ledger could
+   * answer it without this transition changing. It now does: the port resolves
+   * to `FolioService`, which sums the postings. That the swap cost this method
+   * nothing is the whole return on asking through a port in the first place.
    *
    * §3's inventory effect is "release unspent nights", and which nights those
    * are is the one judgement in this method. A guest leaving on business date
