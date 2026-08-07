@@ -12,11 +12,17 @@ import { NavHoverLink } from "./nav-hover-link";
 import { DynamicIslandMenu, NAV_LINKS } from "./dynamic-island-menu";
 import styles from "./navigation.module.css";
 
-// Act 4 used to open onto daylight halfway through and drove `navDark` from its
-// own scroll position. Its rooms now play on the opened door rather than on
-// ivory, so the act is dark end to end and belongs in the set — which is also
-// what gets the bar right under reduced motion, where no scroll trigger runs.
-const DARK_ACTS = new Set([4, 5, 6]);
+// Acts whose ground is dark for the whole of their scroll, which is also what
+// gets the bar right under reduced motion, where no scroll trigger runs.
+//
+// Act 4 is not one of them and cannot be: it starts on the corridor's dark, is
+// covered by a bright statement panel, holds that brightness through the first
+// half of the rooms and only then goes to night. Listed here it would be dark
+// unconditionally — the membership is an `||` over the claim, so no amount of
+// `setNavDark(4, false)` could reach the bar. It drives the bar from its own
+// scroll position instead, and its reduced-motion variant claims dark on mount
+// for the same reason this set exists.
+const DARK_ACTS = new Set([5, 6]);
 
 // A claim only speaks for its own act. Reading "any act claims dark" made the
 // bar inherit claims from acts that are nowhere near the viewport: Act 4 takes

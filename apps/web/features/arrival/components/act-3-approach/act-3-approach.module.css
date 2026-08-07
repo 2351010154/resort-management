@@ -1,14 +1,27 @@
-/* Act 3 — floema video swell: centered card scales to fullscreen by scroll. */
+/* Act 3 — floema video swell: centered card scales to fullscreen by scroll,
+   then the hour falls across the fullscreen hold beat.
+   z-scale inside the stage: footage 0 / dusk grade 1 / tail fade 3 /
+   caption 4 (the nav owns 100). */
 
 .section {
   position: relative;
   /* Same wall Act 2 settles on, so the two acts read as one surface. Plain
      ivory here cut a hard line across the frame at the seam, and this act has
-     no reason to go back to it — its foot dissolves into Act 4's dark. */
+     no reason to go back to it — its foot dissolves into Act 4's dark. The
+     ground stays light because for three quarters of the pin it is genuinely
+     the page the card is sitting on; the dark this act hands over is made by
+     the grade on the frame, not by repainting the section under it. */
   background: var(--ivory-warm);
 }
 
 .stage {
+  /* The hour, and the single number every layer of the grade is written off.
+     0 is the light the loop was shot in; 1 is nightfall. It lives on the stage
+     rather than on the shell so the scrub, the footage filter, the sky overlay
+     and the reduced-motion still below all read one value and none of them can
+     hold a different idea of what dusk looks like. */
+  --dusk: 0;
+
   position: relative;
   height: 100vh;
   display: flex;
@@ -32,20 +45,56 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+  /* The light going, rather than a sheet laid over it. A scrim alone cannot do
+     this: dropped over the blown sky this footage opens on it returns grey,
+     where an actual exposure drop with the saturation drained out from under
+     it leaves a dim warm sky — which is what the amber band in the grade below
+     then has something to sit on. */
+  filter: brightness(calc(1 - 0.54 * var(--dusk)))
+    saturate(calc(1 - 0.28 * var(--dusk)))
+    contrast(calc(1 + 0.06 * var(--dusk)));
+}
+
+/* Nightfall, built as a sky and not as a scrim. Darkest at the head, because
+   the zenith is the first part of a dusk sky to go; a band of the last warm
+   light across the middle, which is where this footage keeps its arch openings
+   and its water; and the foot closed to ink.
+   It lives inside the shell, so it is clipped to the frame and scales with it:
+   while the card is still small the page around it stays the ivory it always
+   was, and only the picture loses its light. */
+.duskGrade {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: var(--dusk);
+  background: linear-gradient(
+    to bottom,
+    rgb(var(--ink-rgb) / 0.9) 0%,
+    rgb(var(--ink-rgb) / 0.46) 17%,
+    rgb(var(--dusk-amber-rgb) / 0.2) 47%,
+    rgb(var(--ink-rgb) / 0.58) 76%,
+    var(--ink) 100%
+  );
+  /* A viewport-sized fill whose opacity moves on every scrubbed frame; on its
+     own layer that is a recomposite, off one it is a full repaint. */
+  will-change: opacity;
 }
 
 /* Seam into Act 4: the fullscreen frame's foot dissolves into the room's dark
    instead of ending on a cut line. Lives on the stage, not the shell, so the
-   opening card keeps its clean edge. */
+   opening card keeps its clean edge. The grade above has already taken this
+   band most of the way down; this carries it the last step, to the deeper
+   night the corridor is actually painted on. */
 .tailFade {
   position: absolute;
-  left: 0;
   right: 0;
   bottom: 0;
-  height: 34vh;
+  left: 0;
   z-index: 3;
-  pointer-events: none;
+  height: 34vh;
   opacity: 0;
+  pointer-events: none;
   background: linear-gradient(
     to bottom,
     rgb(var(--night-rgb) / 0),
@@ -53,22 +102,49 @@
   );
 }
 
+/* The act's one line of copy, and it belongs to the viewport rather than to
+   the frame: it sits on the stage, outside the shell, so the swell's scale
+   never rides it — a caption inside the card would enter at 42% of its size
+   and grow, which reads as a zoom on the type instead of a label on the
+   picture. The timeline rises it in at the frame the swell reaches fullscreen
+   and it holds for the rest of the act. Visible by default, because GSAP owns
+   the hidden start state and no timeline is built on the reduced-motion path
+   or before the motion probe answers. */
 .caption {
   position: absolute;
-  left: var(--space-3);
   bottom: var(--space-3);
-  z-index: 2;
-  color: var(--ivory);
+  left: var(--space-3);
+  z-index: 4;
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  text-shadow: 0 1px 10px rgba(0, 0, 0, 0.4);
+  color: var(--ivory);
+  text-shadow: 0 1px 10px rgb(0 0 0 / 40%);
 }
 
 .caption::after {
   content: "";
   width: 64px;
   height: 1px;
-  background: currentColor;
+  background: currentcolor;
   opacity: 0.7;
+}
+
+/* Reduced motion holds the frame fullscreen for the whole act and never plays
+   it, so what the reader gets is one still under one grade. That still is set
+   late in the evening but not at nightfall: it has to hand Act 4 the same dark
+   page the scrubbed path does and keep the ivory bar honest over it, but it
+   never gets the bright-then-dark contrast that earns a fully inked frame, and
+   closing it all the way would leave the poster as a black rectangle with a
+   caption on it. Just past three quarters keeps the picture readable and the
+   hour unambiguous. */
+.stage[data-still="true"] {
+  --dusk: 0.72;
+}
+
+/* The tail fade is normally opened by the timeline, which does not run here,
+   so the still would meet Act 4 on a cut. Declared open instead — the seam is
+   part of the act, not part of the animation. */
+.stage[data-still="true"] .tailFade {
+  opacity: 1;
 }

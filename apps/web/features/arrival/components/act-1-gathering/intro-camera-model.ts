@@ -13,7 +13,7 @@ import {
 /**
  * Depth of the interior plate — far enough that it only drifts. Read against
  * TRAVEL: it has to sit several travels back, or a camera crossing three depth
- * units takes the backdrop to 4x, which is both a visible upscale of a 1920px
+ * units takes the plate to 4x, which is both a visible upscale of a 1920px
  * photograph and far more motion than something behind everything should have.
  * At 9 it creeps to ~1.5x across the whole act.
  */
@@ -40,7 +40,7 @@ export interface IntroCamera {
   progress: number;
   /** Camera advance into the scene, 0 → TRAVEL. */
   z: number;
-  /** 0-1 mount fade — the scene lifts out of the flat sea once the SDF is ready. */
+  /** 0-1 mount fade — the scene lifts in behind the wall once the SDF is ready. */
   entry: number;
   /** 0-1 opening of the mark itself: a dot at 0, the full monogram at 1. */
   reveal: number;
@@ -82,9 +82,9 @@ export function apertureMagnify(z: number): number {
  * this. Around 46x the mark's thickest stroke covers the frame corners, and
  * since the lens converges its sample on the middle of that stroke, every pixel
  * resolves to "inside the mark" and the quad goes transparent on its own. What
- * is on screen just before that is bright sky rushing outward — the walls of
- * the letter going past. Fading the sheet out any earlier than that instead
- * leaves a half-opaque wash of sea over the darkened interior, which greys the
+ * is on screen just before that is bright plaster rushing outward — the walls
+ * of the letter going past. Fading the sheet out any earlier than that instead
+ * leaves a half-opaque wash of ivory over the darkened interior, which greys the
  * whole frame at the exact moment it should be opening.
  *
  * Unlike the reference's mask — a real plane, which simply ends up behind the
@@ -95,7 +95,7 @@ const SHEET_OUT_FROM = 34;
 const SHEET_OUT_TO = 70;
 
 /**
- * Opacity of the sea sheet as the mark blows past. Expressed against apparent
+ * Opacity of the wall sheet as the mark blows past. Expressed against apparent
  * depth rather than magnification so it is linear in scroll: magnification is
  * already hyperbolic here, and fading linearly in it drops the sheet in the last
  * half percent of the window.
@@ -274,13 +274,12 @@ export const INTRO_CARDS: IntroCard[] = [...STILL_CARDS, ...VIDEO_CARDS].sort(
  * The plate the whole scene sits in front of — what fills the mark before the
  * first cards arrive.
  *
- * An interior, and specifically one with no sky in it. The act used to open on
- * ivory, so a coastal aerial read as a window; against the sea backdrop the
- * same photograph puts its own sky inside the letter, a few shades off the sky
- * outside it, and the strokes stop reading as an opening at all — worst in the
- * caps, which are narrow enough to sit entirely inside the outline's spill.
- * Warm columns at dusk give the opening something to be a window onto, and go
- * on doing it as the interior sinks toward black.
+ * An interior, and specifically a dark one. The mark is cut into an ivory wall,
+ * so what shows through it has to be plainly *not* wall — a bright or pale plate
+ * lands within a few shades of the plaster and the strokes stop reading as an
+ * opening at all, worst in the caps, which are narrow enough to sit entirely
+ * inside the outline's spill. Warm columns at dusk give the opening something to
+ * be a window onto, and go on doing it as the interior sinks toward black.
  */
 export const PLATE_IMAGE = bySlug.get("lounge-columns-dusk") ?? FIELD[0];
 

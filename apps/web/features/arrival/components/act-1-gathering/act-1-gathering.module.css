@@ -2,27 +2,7 @@
    at the back, photo field in the middle, monogram sheet in front. Layer order
    is fixed here so the components themselves stay unaware of each other. */
 
-/* Standing in for the sea until the sheet can draw it. Sampled off the encode
-   at the sky, just above the waterline, just below it, and at the bottom of the
-   frame, so the curtain lifting onto the real backdrop is a change of texture
-   rather than a change of colour. The act is built on not flashing a tone the
-   eye has to re-adapt to — that is the whole reason it no longer opens on the
-   ivory the page ends on. */
 .section {
-  /* stylelint-disable color-no-hex -- These five are not design colours and
-     must not become tokens: they are pixels read off the backdrop encode. Their
-     job is to match footage, so they change when the footage is re-cut and
-     never for a palette reason. In the token package they would invite exactly
-     the wrong edit. */
-  --sea-standin: linear-gradient(
-    to bottom,
-    #3d86ad 0%,
-    #8fb4c4 48%,
-    #b4c7d1 62%,
-    #7cb0be 74%,
-    #0f6e80 100%
-  );
-  /* stylelint-enable color-no-hex */
   background: var(--ivory);
 }
 
@@ -36,7 +16,7 @@
   z-index: 0;
   height: 100vh;
   overflow: hidden;
-  background: var(--sea-standin);
+  background: var(--ivory);
 }
 
 /* Far plane — sits behind everything and only drifts as the camera advances. */
@@ -84,9 +64,10 @@
   padding: var(--space-3);
   z-index: 1300;
   pointer-events: none;
-  /* The copy sits on open sea now, not on ivory. */
-  color: var(--ivory);
-  text-shadow: 0 1px 12px rgba(10, 40, 52, 0.35);
+  /* Ink: the copy is only ever on screen while the plaster wall still covers the
+     frame, so it never sees the dark interior behind the mark. No shadow either
+     — nothing under it moves, and a shadow on ivory is just a smudge. */
+  color: var(--ink);
 }
 
 /* `max-width` stays at 18ch even though `ch` is now the display face's "0" and that
@@ -96,23 +77,26 @@
    than a measure. */
 .statement {
   font-size: var(--text-display-sm);
-  /* Ivory over open sea. Same one-step compensation the dark acts take. */
-  font-weight: 400;
+  /* No weight override: the one-step compensation here was for ivory type over
+     open sea, and ink on ivory does not bloom, so the display face's own 300 is
+     the right weight again. */
   /* Wraps at 18ch, so the channel between lines is real. */
   line-height: 1.16;
   max-width: 18ch;
 }
 
 .cue {
-  color: rgb(var(--ivory-rgb) / 0.72);
+  color: rgb(var(--ink-rgb) / 0.62);
   white-space: nowrap;
   padding-bottom: 0.35em;
 }
 
 /* Arriving into light: the photo field over-exposes first (see EXPOSURE in
    depth-image-field), then this settles the frame onto exactly the ivory Act 2
-   opens on. Cross-fading a panel straight over the dark interior instead just
-   turns it grey, which reads as fog rather than light. */
+   opens on — which is also the ivory of the wall the act opened on, so the act
+   closes on the tone it started in rather than resolving to a new one.
+   Cross-fading a panel straight over the dark interior instead just turns it
+   grey, which reads as fog rather than light. */
 .bloom {
   position: absolute;
   inset: 0;
@@ -122,12 +106,21 @@
   pointer-events: none;
 }
 
-/* Held over the stage until the distance field and the backdrop are both in
-   hand, so the scene never flashes its unmasked layers. */
+/* Held over the stage until the distance field is in hand, so the scene never
+   flashes its unmasked layers.
+
+   Flat ivory, and that is the whole point: the plaster wall's lit tone *is*
+   --ivory (PLASTER_LIT in plaster-ground.ts), so lifting this adds grain, a
+   raking light and a corner falloff to a colour that was already on screen — a
+   change of texture rather than a change of tone the eye has to re-adapt to.
+   Deliberately not a gradient approximating the wall's own light either: eight
+   levels of ivory spread across a viewport is exactly the width a two-stop
+   gradient bands at, and the grain that hides banding is the one thing a plain
+   CSS layer cannot draw. */
 .curtain {
   position: absolute;
   inset: 0;
-  background: var(--sea-standin);
+  background: var(--ivory);
   z-index: 1500;
   pointer-events: none;
 }
