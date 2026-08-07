@@ -1,4 +1,24 @@
+import { parseDate } from "@internationalized/date";
 import { z } from "zod";
+
+// A calendar date and not an instant, for the reason `stay-date.ts` gives at
+// length: these bound business dates, which the property agrees on, not moments.
+//
+// The shape check alone accepts 2026-02-31, so `parseDate` is asked as well —
+// it refuses a date that does not exist rather than rolling it into March, the
+// way `new Date` would. Checked here rather than left to the column, because a
+// boot that stops on a malformed variable is the whole contract of this file.
+const calendarDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "expected a YYYY-MM-DD calendar date")
+  .refine((value) => {
+    try {
+      parseDate(value);
+      return true;
+    } catch {
+      return false;
+    }
+  }, "is not a date that exists");
 
 // Every environment variable the API reads, in one place. Anything absent from
 // this schema is not configuration — it is a hardcoded value someone reached
@@ -68,16 +88,71 @@ export const envSchema = z.object({
   // Here rather than in `property_tariff`, and the reason is who may change it.
   // `rbac-matrix.md` §3 files the business date under System config — `ADMIN`
   // edits, `MANAGER` only looks — while `property_tariff` sits under the rates
-  // row a `MANAGER` owns, so a column there would widen the audience for it. The
-  // row `FR-IDN-03` describes is `M6`'s to build, and §8 says those rows are
-  // "seeded from environment at boot": this is that seed, arriving early because
-  // the business date is needed before the table that will hold it exists.
+  // row a `MANAGER` owns, so a column there would widen the audience for it.
+  //
+  // `system_config.business_date_rollover_hour` exists now and this variable
+  // seeds it, which is what §8 means by "seeded from environment at boot". But
+  // unlike the three money figures below, this one is **still read at run time**:
+  // `BusinessDateService` takes the hour from here, not from the row, so this is
+  // the value that decides what day the property is on. Issue #21 is the swap and
+  // says what it costs. Until it lands, editing the row moves nothing.
   BUSINESS_DATE_ROLLOVER_HOUR: z.coerce
     .number()
     .int()
     .min(0)
     .max(23)
     .default(4),
+
+  // Three of the four figures `property-and-tariff.md` §8 says the tree may
+  // never carry, in the one place §8 sanctions them: "seeded from environment at
+  // boot". The fourth is the statutory retention floor, which is the lawyer's
+  // answer and lands with the milestone that consumes it.
+  //
+  // Nothing reads these at run time. They are read from `system_config` —
+  // `SystemConfigSeeder` writes the row once and the row is the authority from
+  // then on, so changing one of these after the first boot changes nothing until
+  // an `ADMIN` edits it.
+  //
+  // Every one is ⚑ provisional pending `ASM-01`, the accountant's unanswered
+  // question, which is why they are configuration rather than an answer.
+  //
+  // None of the three carries a `.default()`. §8 forbids the tree to know a tax
+  // rate, and a default is the tree knowing one — the same argument the
+  // `system_config` columns make about themselves, which a default here would
+  // undo one layer up: an unconfigured production deploy would invoice at a
+  // figure nobody approved, and never say so. Unset, they are supplied below
+  // for development and refused below for production.
+  //
+  // Basis points, whole integers — a hundredth of a percent each, so 800 is 8%.
+  // The ceiling is the table's: above 10000 the figure is a typo in a
+  // basis-points field, and a typo that reaches a posting multiplies a room
+  // charge by hundreds.
+  VAT_RATE_BPS: z.coerce.number().int().min(0).max(10_000).optional(),
+
+  // §5 puts the service charge at 5% over room and service lines.
+  SERVICE_CHARGE_RATE_BPS: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(10_000)
+    .optional(),
+
+  // §8: "this changes every gross/net calculation". A rule, so a boolean rather
+  // than a number, and read at posting time rather than picked between two
+  // formulas at compile time.
+  VAT_INCLUDES_SERVICE_CHARGE: z.stringbool().optional(),
+
+  // The business dates `VAT_RATE_BPS` covers. **Unset by default, and unset is
+  // unbounded rather than missing**: one rate applying to every date, which is
+  // how a property runs until it has a relief-period answer.
+  //
+  // Setting them is how the day the relief lapses becomes visible in data
+  // instead of in an invoice — and it is a decision with teeth, because there is
+  // only one rate behind the window. A date outside a window that is set has no
+  // rate at all, and `SystemConfigService` refuses to post on it rather than
+  // assuming one nobody chose.
+  REDUCED_VAT_FROM: calendarDateSchema.optional(),
+  REDUCED_VAT_TO: calendarDateSchema.optional(),
 
   // How long a hold holds — `FR-BOOK-02`, which states outright that "the TTL
   // length is configuration, not a constant".
@@ -158,14 +233,74 @@ export const envSchema = z.object({
         "is required in production — the login screen offers Google sign-in unconditionally",
     },
   )
+  // The three money figures, each refused separately so the message names the
+  // one that is missing. An invoice is a legal document issued to somebody
+  // else, and a rate nobody chose cannot be withdrawn from one after the fact —
+  // so a production boot without them stops here, where the fix is a variable,
+  // rather than at a posting, where it is an amended invoice.
+  .refine(
+    (env) => env.NODE_ENV !== "production" || env.VAT_RATE_BPS !== undefined,
+    {
+      path: ["VAT_RATE_BPS"],
+      message:
+        "is required in production — no rate is assumed, and an invoice at a rate nobody chose cannot be withdrawn",
+    },
+  )
+  .refine(
+    (env) =>
+      env.NODE_ENV !== "production" ||
+      env.SERVICE_CHARGE_RATE_BPS !== undefined,
+    {
+      path: ["SERVICE_CHARGE_RATE_BPS"],
+      message:
+        "is required in production — it is charged on every room and service line",
+    },
+  )
+  .refine(
+    (env) =>
+      env.NODE_ENV !== "production" ||
+      env.VAT_INCLUDES_SERVICE_CHARGE !== undefined,
+    {
+      path: ["VAT_INCLUDES_SERVICE_CHARGE"],
+      message:
+        "is required in production — it decides the base every VAT figure is computed on",
+    },
+  )
+  // A window that closes before it opens covers no date, which reads at a
+  // posting as relief that never applied. `system_config` refuses the row, but
+  // the seed's failure is a log line rather than a dead process, so a boot that
+  // never mentions it again would leave the property running on a configuration
+  // nobody wrote. Caught here instead, where a malformed variable stops the
+  // boot — and the two dates are compared as strings because `YYYY-MM-DD`
+  // orders lexicographically.
+  .refine(
+    (env) =>
+      !env.REDUCED_VAT_FROM ||
+      !env.REDUCED_VAT_TO ||
+      env.REDUCED_VAT_TO >= env.REDUCED_VAT_FROM,
+    {
+      path: ["REDUCED_VAT_TO"],
+      message:
+        "must not fall before REDUCED_VAT_FROM — a window that closes before it opens covers no date",
+    },
+  )
   // Last, so every check above reads the environment exactly as it was written.
-  // The one derived value in this file lives here rather than in `.default()`
-  // because it is a default *about another variable*, and zod cannot express
+  // The derived values in this file live here rather than in `.default()`
+  // because each is a default *about another variable*, and zod cannot express
   // that on the field itself.
+  //
+  // The money figures are the reason that distinction earns its keep. A
+  // developer gets a database that posts without configuring anything, and
+  // production cannot reach these lines at all — the refines above have already
+  // stopped the boot. The literals are named once, here, and the only invoice
+  // they can ever reach is one nobody is billed for.
   .transform((env) => ({
     ...env,
     JOBS_SCHEDULER_ENABLED:
       env.JOBS_SCHEDULER_ENABLED ?? env.NODE_ENV !== "test",
+    VAT_RATE_BPS: env.VAT_RATE_BPS ?? 800,
+    SERVICE_CHARGE_RATE_BPS: env.SERVICE_CHARGE_RATE_BPS ?? 500,
+    VAT_INCLUDES_SERVICE_CHARGE: env.VAT_INCLUDES_SERVICE_CHARGE ?? true,
   }));
 
 export type Env = Readonly<z.infer<typeof envSchema>>;

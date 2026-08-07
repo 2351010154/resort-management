@@ -51,7 +51,7 @@ import { sql } from "drizzle-orm";
 import type { Database } from "../database.module.js";
 import { booking, bookingNight } from "../schema/booking.js";
 import { registration } from "../schema/guest.js";
-import { guestUser } from "../schema/index.js";
+import { guestAccount, guestSession, guestUser } from "../schema/index.js";
 import { roomCondition } from "../schema/housekeeping.js";
 import {
   room,
@@ -65,6 +65,7 @@ import {
   ratePlan,
   stayRestriction,
 } from "../schema/pricing.js";
+import { serviceCatalog } from "../schema/service.js";
 import {
   CALENDAR_MONTHS,
   EXTRA_PERSON_PER_NIGHT_GROSS,
@@ -73,6 +74,7 @@ import {
   ROOM_TYPES,
   roomNumbers,
   SEED_EMAIL_DOMAIN,
+  SERVICE_CATALOG,
   SYNTHETIC_BOOKINGS,
   WEEKEND_UPLIFT_PERCENT,
 } from "./property.js";
@@ -100,6 +102,7 @@ export interface SeedSummary {
   readonly nightsOpened: number;
   readonly ratesWritten: number;
   readonly restrictions: number;
+  readonly serviceItems: number;
   readonly bookings: number;
   readonly firstNight: string;
   readonly lastNight: string;
@@ -134,6 +137,14 @@ async function wipe(db: Database): Promise<void> {
   // could outlive the statement below. The guests those rows named are left
   // where they are: a person is not owned by one stay, and the seed never
   // wrote them.
+  //
+  // Nothing opens a folio yet, and the day something does, the delete of
+  // `booking` below stops working: `folio.booking_id` references it with no
+  // cascade. The repair is not another line here, because `folio_posting`
+  // refuses `DELETE` outright — the append-only trigger raises on it for every
+  // client, this one included. A seed that owns stays will have to drop the
+  // ledger by a route that is not a delete, and choosing which is part of
+  // building it.
   await db.execute(sql`delete from ${roomAssignment}`);
   await db.execute(sql`delete from ${registration}`);
   await db.execute(sql`delete from ${bookingNight}`);
@@ -148,6 +159,20 @@ async function wipe(db: Database): Promise<void> {
   await db.execute(sql`delete from ${roomType}`);
   await db.execute(sql`delete from ${ratePlan}`);
   await db.execute(sql`delete from ${propertyTariff}`);
+  await db.execute(sql`delete from ${serviceCatalog}`);
+  // The sessions and credentials before the guests they belong to, for the same
+  // reason again. A seeded guest has neither today, so this clears nothing —
+  // but the first fixture that signs one in would otherwise meet a foreign-key
+  // violation raised from inside a wipe, which is a long way from the test that
+  // caused it.
+  const seededGuests = sql`select id from ${guestUser} where ${guestUser.email} like ${`%@${SEED_EMAIL_DOMAIN}`}`;
+
+  await db.execute(
+    sql`delete from ${guestSession} where ${guestSession.userId} in (${seededGuests})`,
+  );
+  await db.execute(
+    sql`delete from ${guestAccount} where ${guestAccount.userId} in (${seededGuests})`,
+  );
   await db.execute(
     sql`delete from ${guestUser} where ${guestUser.email} like ${`%@${SEED_EMAIL_DOMAIN}`}`,
   );
@@ -192,6 +217,21 @@ export async function seedDatabase(
       percentAdjustment: plan.percentAdjustment,
       breakfastPerPersonGross: plan.breakfastPerPersonGross,
       displayOrder: plan.displayOrder,
+    })),
+  );
+
+  // §6's catalog, seeded here beside the room types and the rate plans for the
+  // reason those two are here: it is the property's reference data, not a
+  // fixture, and the seed is where this repository states what the property
+  // sells. Six of the eight go in without a price and stay that way — §6 leaves
+  // them to the owner, and a row without a price is a row a posting must refuse
+  // rather than a row a seed fills in.
+  await db.insert(serviceCatalog).values(
+    SERVICE_CATALOG.map((item) => ({
+      code: item.code,
+      name: item.name,
+      unitPriceGross: item.unitPriceGross,
+      taxClass: item.taxClass,
     })),
   );
 
@@ -259,6 +299,7 @@ export async function seedDatabase(
     nightsOpened: nights.length,
     ratesWritten: rates.length,
     restrictions: restrictions.length,
+    serviceItems: SERVICE_CATALOG.length,
     bookings: stays.length,
     firstNight: nights[0]!.toString(),
     lastNight: nights.at(-1)!.toString(),
