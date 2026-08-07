@@ -94,6 +94,59 @@ describe("the money figures outside production", () => {
   });
 });
 
+describe("the VNPay terminal", () => {
+  it("is not required, so a developer without a merchant account still boots", () => {
+    // The whole reason the pair is optional. A terminal comes from VNPay's
+    // onboarding, and requiring one at boot would stop every developer and
+    // every CI runner from starting an API that mostly does other things.
+    const env = parseEnv({ ...DEVELOPMENT_BASE });
+
+    expect(env.VNPAY_TMN_CODE).toBeUndefined();
+    expect(env.VNPAY_SECRET_KEY).toBeUndefined();
+  });
+
+  it("is not required in production either, since the flip is not this milestone", () => {
+    // `prd-m6.md` scope decision 2 puts the switch to live credentials, and
+    // gate `G2` behind it, with the guest funnel. A refusal here would assert
+    // that a deployed property is already taking card payments.
+    expect(() => parseEnv({ ...PRODUCTION_BASE })).not.toThrow();
+  });
+
+  it("refuses half of one", () => {
+    // A terminal code with no secret signs nothing, and the failure arrives at
+    // a checksum — on a payment a guest is waiting for, or on an IPN whose
+    // signature never verifies, so money that moved is never posted.
+    expect(() =>
+      parseEnv({ ...DEVELOPMENT_BASE, VNPAY_TMN_CODE: "MRVTEST1" }),
+    ).toThrow(/VNPAY_TMN_CODE/);
+
+    expect(() =>
+      parseEnv({ ...DEVELOPMENT_BASE, VNPAY_SECRET_KEY: "a-hash-secret" }),
+    ).toThrow(/VNPAY_TMN_CODE/);
+  });
+
+  it("takes both together", () => {
+    const env = parseEnv({
+      ...DEVELOPMENT_BASE,
+      VNPAY_TMN_CODE: "MRVTEST1",
+      VNPAY_SECRET_KEY: "a-hash-secret",
+    });
+
+    expect(env.VNPAY_TMN_CODE).toBe("MRVTEST1");
+    expect(env.VNPAY_SECRET_KEY).toBe("a-hash-secret");
+  });
+
+  it("points at the sandbox until somebody says otherwise", () => {
+    // The wrong value is only safe in one direction: a production deploy still
+    // on sandbox takes no money and is noticed at the first transaction, while
+    // a staging deploy on production takes real money from whoever is testing.
+    expect(parseEnv({ ...DEVELOPMENT_BASE }).VNPAY_SANDBOX).toBe(true);
+    expect(
+      parseEnv({ ...DEVELOPMENT_BASE, VNPAY_SANDBOX: "false" }).VNPAY_SANDBOX,
+    ).toBe(false);
+  });
+});
+
 describe("the reduced-VAT window", () => {
   it("refuses one that closes before it opens", () => {
     expect(() =>
