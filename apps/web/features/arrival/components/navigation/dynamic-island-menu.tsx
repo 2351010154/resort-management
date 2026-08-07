@@ -16,16 +16,21 @@ import {
   EASE_UI_EXIT,
   STAGGER_CASCADE,
 } from "@/lib/motion-tokens";
-import { NavHoverLink, scrollToAct, scrollToRoom } from "./nav-hover-link";
+import {
+  NavHoverLink,
+  scrollToAct,
+  scrollToExperience,
+} from "./nav-hover-link";
 import styles from "./dynamic-island-menu.module.css";
 
-// Dine and Restore used to share Act 5 with Stay's neighbour, so three cards
-// resolved to two places. All three now live inside Act 4, aimed at the deck
-// card each one is actually about: the first suite, The Table, the Onsen Villa.
+// All three destinations live inside Act 4. Dine and Restore are aimed at the
+// experience each one is actually about — In-Room Dining and the Wellness Spa —
+// and land on the frame that card is settled on. Stay is the chapter itself, so
+// it carries no index: it lands on the four words the act opens with.
 const CARDS = [
-  { slug: "island-stay", label: "Stay", room: 0 },
-  { slug: "island-dine", label: "Dine", room: 7 },
-  { slug: "island-restore", label: "Restore", room: 6 },
+  { slug: "island-stay", label: "Stay" },
+  { slug: "island-dine", label: "Dine", experience: 7 },
+  { slug: "island-restore", label: "Restore", experience: 6 },
 ].map((card) => ({
   ...card,
   image: arrivalImages["nav-island"].find((img) =>
@@ -170,13 +175,17 @@ export function DynamicIslandMenu() {
           </div>
         </div>
         <div className={styles.cards}>
-          {CARDS.map(({ slug, label, room, image }) => (
+          {CARDS.map(({ slug, label, experience, image }) => (
             <button
               key={slug}
               type="button"
               className={styles.card}
               data-cascade
-              onClick={() => scrollToRoom(lenis, room, close)}
+              onClick={() =>
+                experience == null
+                  ? scrollToAct(lenis, 4, close)
+                  : scrollToExperience(lenis, experience, close)
+              }
             >
               <img
                 src={tierSrc(image.src, 640)}
