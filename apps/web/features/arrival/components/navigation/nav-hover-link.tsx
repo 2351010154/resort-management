@@ -3,7 +3,7 @@
 // Podium-style hover link: stacked label copies glide inside a clipped pill;
 // the active act's link keeps a pill outline (wolverine cue).
 
-import { roomScrollTarget } from "@/features/arrival/components/act-4-stay/room-deck";
+import { experienceScrollTarget } from "@/features/arrival/components/act-4-stay/experience-field";
 import { useArrivalActStore } from "@/features/arrival/lib/act-store";
 import { useLenis } from "@/features/arrival/lib/lenis-scroll-provider";
 import { DUR_SCENE } from "@/lib/motion-tokens";
@@ -29,16 +29,17 @@ export function scrollToAct(
 }
 
 /**
- * Land on one room of Act 4's deck. Stay / Dine / Restore all live inside Act 4
- * now, so they need distinct offsets within it rather than one shared anchor.
- * The reduced-motion variant has no deck to aim at; that falls back to the act.
+ * Land on one experience in Act 4's field. Dine and Restore live inside Act 4
+ * rather than in acts of their own, so they need distinct offsets within it
+ * rather than one shared anchor. The reduced-motion variant has no field to aim
+ * at; that falls back to the act.
  */
-export function scrollToRoom(
+export function scrollToExperience(
   lenis: ReturnType<typeof useLenis>,
   index: number,
   onDone?: () => void,
 ) {
-  const y = roomScrollTarget(index);
+  const y = experienceScrollTarget(index);
   if (y == null) {
     scrollToAct(lenis, 4, onDone);
     return;

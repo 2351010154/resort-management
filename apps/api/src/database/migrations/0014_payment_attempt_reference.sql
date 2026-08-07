@@ -1,0 +1,2 @@
+ALTER TABLE "payment" ADD COLUMN "attempt_reference" text;--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_attempt_reference_unique_key" ON "payment" USING btree ("attempt_reference") WHERE "payment"."attempt_reference" is not null;

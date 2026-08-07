@@ -82,6 +82,8 @@ export default defineConfig({
         "src/jobs/**/*.ts",
         "src/modules/inventory/**/*.ts",
         "src/modules/pricing/**/*.ts",
+        "src/modules/folio/**/*.ts",
+        "src/modules/payment/**/*.ts",
         "src/database/schema/inventory.ts",
         "src/database/schema/pricing.ts",
       ],
@@ -90,9 +92,19 @@ export default defineConfig({
       // of `NFR-10` is that each of these holds its own line — a pooled figure
       // lets a well-tested inventory module carry an untested pricing one.
       //
-      // `folio` joins this list at `M6`. Its directory holds no code today,
-      // and a threshold over nothing passes vacuously while looking like a
-      // guarantee.
+      // `folio` was held out of this list until it held code, on the grounds
+      // that a threshold over an empty directory passes vacuously while looking
+      // like a guarantee. It holds the ledger now — the posting service, the
+      // decomposition and the sweep that charges a night — so it joins, and
+      // `NFR-10` names it directly.
+      //
+      // `payment` joins beside it. `NFR-10` does not name it, for the same
+      // reason it does not name `guest`: the requirement lists where the money
+      // *sits*, and this is where it arrives. The argument for the floor is the
+      // one `schema/payment.ts` makes about its own index — the failure this
+      // code exists to prevent is taking a guest's money twice, and that defect
+      // is silent. A second charge looks exactly like a first one to everything
+      // except the guest reading a statement.
       thresholds: {
         "src/modules/booking/**": {
           lines: 85,
@@ -141,6 +153,29 @@ export default defineConfig({
           branches: 85,
           statements: 85,
         },
+        "src/modules/folio/**": {
+          lines: 85,
+          functions: 85,
+          branches: 85,
+          statements: 85,
+        },
+        "src/modules/payment/**": {
+          lines: 85,
+          functions: 85,
+          branches: 85,
+          statements: 85,
+        },
+        // `folio.ts` and `payment.ts` are deliberately not here beside the
+        // other two. What fails on them is the *function* count, and the
+        // functions a Drizzle schema file declares are the lazy
+        // `() => other.column` reference thunks and the `(table) => [...]`
+        // constraint callbacks — v8 records those as covered when Drizzle
+        // happened to introspect the table, not when a test proved the
+        // constraint holds. Both files are covered where it counts, by
+        // `payment.spec.ts` and the folio storage suite, which assert that the
+        // indexes and checks actually refuse what they are there to refuse.
+        // A floor over the thunks would move on whether an unrelated query
+        // planner walked the relation.
         "src/database/schema/{inventory,pricing}.ts": {
           lines: 85,
           functions: 85,

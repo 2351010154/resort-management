@@ -1,11 +1,11 @@
-// The monogram lens: one fullscreen quad that paints the sea backdrop
+// The monogram lens: one fullscreen quad that paints the plaster wall
 // everywhere except through the mark.
 //
 // Three things happen to the coordinate on its way to the distance field, and
 // the whole look comes from their order:
 //
 //   1. magnify — the screen point is divided back onto the glyph plane. The
-//      plane is what moves; the sheet does not scale, so the backdrop stays put
+//      plane is what moves; the sheet does not scale, so the wall stays put
 //      while the opening grows past the frame.
 //   2. barrel  — a lens pinch normalised against the plane's own extent, so it
 //      is strongest when the plane is still small in frame and relaxes as the
@@ -17,13 +17,18 @@
 //      few pixels at rest is tens of pixels by the end. The melt is free; it
 //      is the same smoothstep the whole way.
 //
-// The backdrop also spills back in across the outline, which is what gives the
-// mark its shine. Three things about that spill matter: it is measured off the
+// The wall also spills back in across the outline, which is what gives the mark
+// its shine. Three things about that spill matter: it is measured off the
 // outline, never off the screen — keyed to screen position it reads as a wash
 // laid over the frame rather than as light on the shape; it starts outside the
-// mark, so only its tail is visible and the light plainly comes from the sky;
-// and it carries the backdrop's *own* colour at that pixel, so the sea leaks
-// into the strokes it touches and the sky into the ones it touches.
+// mark, so only its tail is visible and the light plainly comes from the room
+// the wall is in; and it carries the wall's *own* colour at that pixel, so the
+// strokes the raking light crosses are lit a shade brighter than the ones it
+// does not.
+//
+// The wall itself is in plaster-ground.ts, prepended below.
+
+import { plasterChunk } from "./plaster-ground";
 
 /** Fullscreen by construction — no camera involved. */
 export const lensVertex = /* glsl */ `
@@ -38,11 +43,10 @@ export const lensFragment = /* glsl */ `
   precision highp float;
 
   uniform sampler2D uField;
-  /** The sea loop. Sampled raw: no colour-space decode, so what was encoded is
-      what reaches the frame. */
-  uniform sampler2D uBackdrop;
   /** Viewport in CSS px — the unit uFieldPx is also measured in. */
   uniform vec2 uResolution;
+  /** Viewport width over height, so the wall's tooth is never stretched. */
+  uniform float uAspect;
   /** On-screen size of the field square with the plane at rest. */
   uniform float uFieldPx;
   /** Plane magnification, 1 at rest. */
@@ -53,17 +57,14 @@ export const lensFragment = /* glsl */ `
   uniform float uReveal;
   /** Retires the sheet as the plane arrives at the camera. */
   uniform float uOpacity;
-  /** Screen uv -> backdrop uv: cover fit, with the waterline placed. */
-  uniform vec2 uBackdropScale;
-  uniform vec2 uBackdropOffset;
   /** Far-plane creep, shared with the interior plate inside the mark. */
-  uniform float uBackdropDrift;
-  /** v of the mark's baseline in field uv — where the water starts. */
-  uniform float uBaseV;
-  /** 0-1 strength of the mark's reflection in that water. */
-  uniform float uReflect;
+  uniform float uGroundDrift;
+  /** Seconds since mount — the raking light's only input. */
+  uniform float uTime;
 
   varying vec2 vUv;
+
+${plasterChunk}
 
   /** Displace radially by a factor quadratic in the radius. */
   vec2 barrelPincushion(vec2 p, vec2 st, float strength) {
@@ -106,18 +107,6 @@ export const lensFragment = /* glsl */ `
   const float GLOW_HAZE = 0.22;
   const float GLOW_HAZE_REACH = 0.055;
 
-  /**
-   * The reflection. Flat water returns a near-mirror, so this is the mark's own
-   * silhouette rather than a blur of it — but it returns it as light, not as
-   * image: the strokes are full of pale stone and sand, so what the water gets
-   * back is a lift, which keeps the sea's own ripple readable through it. The
-   * edge is softened over a band far wider than the sheet's, since the one
-   * thing flat water never gives back is a hard outline.
-   */
-  const float REFLECT_FALL = 0.13;
-  const float REFLECT_SOFT = 0.02;
-  const vec3 REFLECT_LIFT = vec3(0.16, 0.145, 0.118);
-
   /** How far the mark is still eaten back at a point of the field. */
   float shutter(vec2 at) {
     return (1.0 - uReveal) * (CLOSED + SPREAD * length(at - 0.5));
@@ -152,28 +141,21 @@ export const lensFragment = /* glsl */ `
     // magnifying it that melts it late in the push, not a blur.
     float sheet = smoothstep(0.0, EDGE, d);
 
-    // The backdrop creeps forward at the interior plate's rate. Left static it is
-    // the one plane in the scene that does not move, and a still sky behind a
-    // letter rushing at the viewer reads as a photograph the mark is pasted on.
-    vec2 drifted = (vUv - 0.5) / uBackdropDrift + 0.5;
-    vec3 sea = texture2D(uBackdrop, drifted * uBackdropScale + uBackdropOffset).rgb;
+    // The wall creeps forward at the interior plate's rate, so its tooth grows
+    // fractionally coarser as the camera closes. Left static it is the one plane
+    // in the scene that does not move, and a fixed surface behind a letter
+    // rushing at the viewer reads as a shape pasted onto a flat fill. Aspect
+    // correction goes on here too: the wall is material, and material stretched
+    // on a wide screen stops being material.
+    vec2 wall = st * vec2(uAspect, 1.0) / uGroundDrift;
+    vec3 ground = plasterGround(wall, uTime);
 
-    // The mark, given back by the water below its baseline. Measured in the
-    // same magnified field the sheet is cut from, so it belongs to the letter
-    // and not to the screen — and retired early, because once the mark is
-    // rushing past there is no longer a whole letter to reflect.
-    float under = uBaseV - field.y;
-    vec2 image = vec2(field.x, uBaseV + under);
-    float mirrored = texture2D(uField, image).r + shutter(image);
-    float inMark = 1.0 - smoothstep(-REFLECT_SOFT, REFLECT_SOFT, mirrored);
-    float depth = exp(-max(under, 0.0) / REFLECT_FALL) * step(0.0, under);
-    sea += REFLECT_LIFT * inMark * depth * uReflect;
-
-    // Spill: sky light crossing the outline and dying away inside the mark.
+    // Spill: light from the wall crossing the outline and dying away inside the
+    // mark.
     //
     // Its origin sits *outside* the outline, so the bright end of the ramp
     // falls on sheet that is already opaque and only the tail lands on the
-    // mark. That is what makes it read as the sky lighting the shape rather
+    // mark. That is what makes it read as the room lighting the shape rather
     // than the shape lighting itself — a spill that starts at the outline
     // reads as the mark's own emission.
     //
@@ -195,6 +177,6 @@ export const lensFragment = /* glsl */ `
     float glow = GLOW_RIM * exp(-t / GLOW_RIM_REACH)
       + GLOW_HAZE * exp(-t / GLOW_HAZE_REACH);
 
-    gl_FragColor = vec4(sea, (sheet + (1.0 - sheet) * glow) * uOpacity);
+    gl_FragColor = vec4(ground, (sheet + (1.0 - sheet) * glow) * uOpacity);
   }
 `;
