@@ -24,7 +24,7 @@ import { useArrivalActStore } from "@/features/arrival/lib/act-store";
 import { arrivalImages } from "@/features/arrival/lib/image-manifest";
 import { tierSrc, tierSrcSet } from "@/features/arrival/lib/image-srcset";
 import styles from "./act-4-stay.module.css";
-import { ORBIT_HANDOFF } from "./room-orbit";
+import { FIELD_HANDOFF } from "./experience-field";
 
 const PANELS_IMG = arrivalImages["act-4-corridor"];
 const pick = (slug: string) => PANELS_IMG.find((i) => i.src.includes(slug))!;
@@ -227,7 +227,7 @@ export function CorridorTrack({ mobile }: { mobile: boolean }) {
       // its pin and start scrolling away under that sheet, and the reader would
       // watch the line slide upward as it went.
       const rooms = document.querySelector<HTMLElement>(
-        '[data-movement="rooms"]',
+        '[data-movement="experiences"]',
       );
       ScrollTrigger.create({
         trigger: section,
@@ -237,7 +237,7 @@ export function CorridorTrack({ mobile }: { mobile: boolean }) {
           ? () =>
               `top top-=${Math.round(
                 Math.max(1, rooms.offsetHeight - window.innerHeight) *
-                  ORBIT_HANDOFF,
+                  FIELD_HANDOFF,
               )}`
           : "bottom bottom",
         pin: stage,

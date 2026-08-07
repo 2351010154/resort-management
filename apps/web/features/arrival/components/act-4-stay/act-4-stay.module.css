@@ -1,16 +1,24 @@
 /* Act 4 — Stay. Two movements on one vertical scrollbar: a dark horizontal
-   corridor that ends under a bright statement panel, and two wheels of rooms
-   turning on a ground that runs from that brightness down to night.
-   z-scale: media 0 / copy 20 / seam fades 30 (nav owns 100). */
+   corridor that ends under a bright statement panel, and the experience field
+   that rises to pin over that panel and takes the frame from it.
+   z-scale: corridor stage 1 / experiences stage 2, and inside the experiences
+   stage: hand-off sheet 0 / wheels 1 / words and shards 10 / frame furniture
+   20 / wipe 40. The order is load-bearing at both scales — the experiences
+   stage has to sit in front of the corridor's own and behind Act 5, and inside
+   it a card has to pass *behind* the sentence at the centre and in front of
+   nothing. */
 
-/* The chapter's own floor, and the value it hands to Act 5. Both stages are
-   opaque, so this is only ever seen where a pin has released. */
 .act {
   position: relative;
+  /* The chapter's own floor, and the value it hands to Act 5 — both stages
+     below are opaque, so this is only ever seen where a pin has released. It
+     is also the value Act 3's own tail closes on, so the seam above this act
+     is one continuous dark rather than a cut. */
   background: var(--night);
+  color: var(--ink);
 }
 
-/* ============================ I. Corridor ============================ */
+/* ============================== I. Corridor ============================== */
 
 .corridor {
   position: relative;
@@ -225,7 +233,10 @@
      mistake and far enough to be one. */
   padding: var(--space-4) 6vw var(--space-4) 12vw;
   text-align: center;
-  background: var(--ivory);
+  /* The same value the experience field's own ground is set in — see
+     `.stage::before` — so the sheet that movement draws up over this panel
+     never has an edge to be seen at. */
+  background: var(--ivory-warm);
   color: var(--ink);
 }
 
@@ -239,94 +250,157 @@
   white-space: pre-line;
 }
 
-/* ============================ II. The rooms ============================ */
+/* ============================ II. The field ============================ */
 
-/* The value this movement leaves on, and the only part of the section its own
-   stage does not cover: the pin releases at Act 5's top, and by then the
-   ground has already reached this. */
-.rooms {
+.field {
   position: relative;
-  background: var(--night);
 }
 
-/* The hour, as two numbers. `--dusk` is 0 for the light the statement panel
-   hands over and 1 for the dark Act 5 opens on; the ground, the plate under the
-   copy and the grade on the photographs are all derived from it, so nothing
-   here can hold a different idea of what time it is.
+/* The beats, as the seven numbers the sheet below draws everything from. Each
+   is written by the scrub and nothing else reads the scroll:
 
-   `--type` is the same crossing on a much shorter ramp, and it exists because
-   type that tracked the ground exactly went invisible half way through. Ivory
-   mixed half into ink and night mixed half into ivory are the same mid grey:
-   at `--dusk` 0.5 the words and the ground under them landed on one value and
-   the copy simply vanished for a third of the movement. Held to its own pole
-   until the ground has committed and then crossed quickly, the type reads ink
-   on a light ground, crosses in a fraction of a screen of scroll, and reads
-   ivory on a dark one. Everything that inherits `color` — the copy, the card
-   labels, the hairline wheels — rides it.
+   --ground   the sheet that covers the corridor's statement
+   --reveal   the block arriving, letter by letter
+   --foot     the sentence at the foot changing hands
+   --shatter  how far through its flight the block's letters are
+   --shards   whether the letters are the block or the debris — never both
+   --resolve  the sentence setting itself where the block stood
+   --wheels   the rims turning in under the cards
 
-   `--ground`, `--enter` and `--wheels` are the hand-off from the corridor, in
-   that order: the sheet that covers the statement, the words that take its
-   place at the same centre, and the streams that turn in behind them. All three
-   are zero until this movement's own scrub starts, which is what makes the
-   viewport this section travels up through show the corridor's statement rather
-   than a second block of type arriving from below.
-
-   The z-index is the same argument the corridor's stage makes, from the other
-   side: pinning takes both stages out of flow, and this one has to stay in
-   front of the one it rose over and behind the act that rises over it. */
-.roomsStage {
-  --dusk: 0;
-  --type: 0;
+   All seven start at zero, so the first paint and every frame before the
+   scrub has spoken is a clear pane over whatever is already on the frame
+   rather than a composition caught half-built — which, for the first
+   `FIELD_HANDOFF` of this movement's own scroll, is the corridor's statement,
+   still standing. */
+.stage {
   --ground: 0;
-  --enter: 0;
+  --reveal: 0;
+  --foot: 0;
+  --shatter: 0;
+  --shards: 0;
+  --resolve: 0;
   --wheels: 0;
 
   position: relative;
   z-index: 2;
   height: 100vh;
   overflow: hidden;
-  color: color-mix(in srgb, var(--ivory) calc(var(--type) * 100%), var(--ink));
 }
 
-/* The ground, as a sheet rather than as the stage's own background, because it
-   has to be able to be absent. While the stage is travelling up into place it
-   is nothing at all and what shows through is the corridor's held statement —
-   the two stages carry z-indexes for exactly this, and the sections' own dark
-   backgrounds paint below both of them. Then it comes up over the statement at
-   the value that statement is already drawn in, so the sentence underneath goes
-   without the sheet ever having an edge to be seen at. */
-.roomsStage::before {
+/* The hand-off sheet. Not the stage's own background — the stage has to be
+   able to draw nothing at all while it is travelling up into place, so this is
+   a layer of its own, painted the field's ground and held under everything
+   else the stage draws (see the z-scale note at the top of this file). It
+   ramps to fully opaque over the movement's own first `FIELD_HANDOFF`, in the
+   same value the statement panel it is covering is already drawn in — see
+   `.statementPanel` — so the moment the sheet closes over the sentence is not
+   a moment the reader can see. */
+.stage::before {
   content: "";
   position: absolute;
   inset: 0;
-  background: color-mix(
-    in srgb,
-    var(--night) calc(var(--dusk) * 100%),
-    var(--ivory)
-  );
+  z-index: 0;
+  background: var(--ivory-warm);
   opacity: var(--ground);
 }
 
-/* Everything the stage draws, on one layer. The layer itself no longer carries
-   the entrance — the words and the wheels arrive on different beats of it, and
-   one opacity over both is what made the seam a whole composition sliding in. */
-.orbitField {
+/* ============================== The block ============================== */
+
+/* The largest type in the ride, and the only place `--text-display-lg` is set.
+   One size for all four words: the block's big/small relationship is the length
+   of the words, and a stack that also changed size would be saying the same
+   thing twice.
+
+   `0.7` is the leading, and it is below the face's own cap height on purpose —
+   Cormorant's caps reach 0.664em, so consecutive rows of capitals sit a hair
+   apart and the four words read as one mass. It is only safe because this line
+   is uppercase and has no descenders to collide. */
+.words {
   position: absolute;
-  inset: 0;
+  top: 50%;
+  left: 50%;
+  z-index: 10;
+  transform: translate(-50%, -50%);
+  width: max-content;
+  max-width: 92vw;
+  text-align: center;
+  font-size: var(--text-display-lg);
+  font-weight: 400;
+  line-height: 0.7;
+  letter-spacing: -0.04em;
+  pointer-events: none;
+  /* The block and its debris never share a frame. */
+  opacity: calc(1 - var(--shards));
 }
 
-/* The wheels, drawn. Two circles several viewports across, standing off either
-   side of the frame with only the inner sliver of each on screen — the stage's
-   own overflow is the whole of the crop. A hairline at low alpha: the arc is
-   there to say the cards are on a rim and not on a rail, which does not take a
-   drawn line so much as the suggestion of one.
+.word {
+  display: block;
+}
 
-   `--arc-d` and the two centres are written by the movement, because the radius
-   is solved from the viewport and the card size rather than chosen. The line
-   rides the hour: on the ivory ground it is ink, where the same alpha that
-   whispers on --night draws a visible circle across a bright frame, so it is
-   held to almost nothing there and allowed to come up as the ground goes. */
-.orbitArc {
+/* One letter of the block. It arrives out of a blur rather than out of the
+   ground: this is type resolving, and a letter that slid in would be a letter
+   that came from somewhere, which is a claim the composition does not make.
+
+   `--c` is the letter's beat. The window is 0.45 wide and the beats fill the
+   first 0.55, so the last letter starts as the first is finishing — the block
+   sets itself in one continuous pass instead of in four visible lines. */
+.glyph {
+  display: inline-block;
+  opacity: clamp(0, calc((var(--reveal) - var(--c)) / 0.45), 1);
+  filter: blur(
+    calc(14px * (1 - clamp(0, calc((var(--reveal) - var(--c)) / 0.45), 1)))
+  );
+  will-change: opacity, filter;
+}
+
+/* The debris. One layer, the size of the frame, holding one absolutely placed
+   body per letter — each starts exactly on the box the letter it replaces was
+   drawn in, so the hand-over happens on a frame the reader cannot see. */
+.shards {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  opacity: var(--shards);
+}
+
+.shard {
+  position: absolute;
+  top: 0;
+  left: 0;
+  white-space: nowrap;
+  line-height: 1;
+  transform-origin: center center;
+  will-change: transform, opacity;
+  font-synthesis: none;
+  color: var(--ink);
+}
+
+/* The two or three letters that go through the centre of the frame instead of
+   off it, at eight times their size. Stone rather than ink: at that scale ink
+   is most of the screen painted black, and what this beat is for is the *shape*
+   of a letterform passing over the sentence arriving under it. */
+.shardHero {
+  color: var(--stone);
+}
+
+/* ============================== The wheels ============================== */
+
+.wheels {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  opacity: var(--wheels);
+}
+
+/* Two circles several viewports across, standing off either side of the frame
+   with only the inner sliver of each on screen — the stage's own overflow is
+   the whole of the crop. A hairline at low alpha: the arc is there to say the
+   cards are on a rim and not on a rail, which does not take a drawn line so
+   much as the suggestion of one. `--arc-d` and the two centres are written by
+   the movement, because the radius is solved from the viewport and the card
+   rather than chosen. */
+.arc {
   position: absolute;
   top: 50%;
   left: 0;
@@ -334,199 +408,306 @@
   height: var(--arc-d, 0);
   margin-top: calc(var(--arc-d, 0) / -2);
   margin-left: calc(var(--arc-d, 0) / -2);
-  border: 1px solid currentColor;
+  border: 1px solid rgb(var(--ink-rgb) / 0.14);
   border-radius: 50%;
-  opacity: calc((0.045 + 0.075 * var(--dusk)) * var(--wheels));
   pointer-events: none;
 }
 
-.orbitArcLeft {
+.arcLeft {
   transform: translate3d(var(--arc-left, 0), 0, 0);
 }
 
-.orbitArcRight {
+.arcRight {
   transform: translate3d(var(--arc-right, 0), 0, 0);
 }
 
-/* The streams turn in on their own beat of the hand-off, after the words have
-   changed. Held here rather than on each card, because each card's own opacity
-   is the fade it makes as it crosses the frame's edge and the two are different
-   claims: one is where the card is, the other is whether the wheels have
-   arrived at all. */
-.orbitWheel {
-  position: absolute;
-  inset: 0;
-  opacity: var(--wheels);
-}
-
-/* One room, one card: the position on its arc and the fade it makes as it
-   crosses the frame's edge — both compositor properties, which is what keeps a
-   column of them moving for the cost of one.
-
-   The plate shadow rides the hour, in two layers that do different jobs. The
-   near one is the contact a print laid on a table has and stays light: on the
-   ivory ground a heavy drop is what makes a card look pasted on rather than
-   set down. The far one is the ambient, and it is the one that grows — as the
-   ground goes, a photograph reads as lit from within, and what sells that is
-   depth under it rather than a harder edge around it. */
-.orbitCard {
+/* The rim, marked where nothing is passing. Hollow, so it reads as a station on
+   the path rather than as a dot dropped on it. */
+.arcNode {
   position: absolute;
   top: 0;
   left: 0;
-  overflow: hidden;
-  background: var(--umber);
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  border: 1px solid rgb(var(--ink-rgb) / 0.26);
+  border-radius: 50%;
+  background: var(--ivory-warm);
+  pointer-events: none;
+}
+
+/* ============================== One card ==============================
+
+   A photograph laid on a plate, with the name under it and the mark at the
+   corner — a print set down on the ground rather than a window cut into it.
+
+   The shadow is in two layers doing two jobs. The near one is the contact a
+   print laid on a table makes and stays light; a heavy drop is what makes a
+   card look pasted on. The far one is the ambient, and it is what lifts the
+   card off an ivory ground that would otherwise swallow its edges. */
+.card {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: clamp(11rem, 15vw, 16rem);
+  padding: 0.5rem 0.5rem 0.75rem;
+  border-radius: 0.75rem;
+  /* One step lighter than the ground it is laid on — see `.stage::before`. */
+  background: var(--ivory);
   will-change: transform, opacity;
   box-shadow:
-    0 0.25rem 0.7rem rgb(var(--night-rgb) / calc(0.07 + 0.24 * var(--dusk))),
-    0 1.75rem 5rem rgb(var(--night-rgb) / calc(0.07 + 0.4 * var(--dusk)));
+    0 0.2rem 0.5rem rgb(var(--ink-rgb) / 0.06),
+    0 1.5rem 3rem rgb(var(--ink-rgb) / 0.09);
 }
 
-.orbitCard img {
+.cardPlate {
+  overflow: hidden;
+  border-radius: 0.5rem;
+  background: var(--sand);
+}
+
+.cardPlate img {
   width: 100%;
-  height: 100%;
+  aspect-ratio: 4 / 3;
   object-fit: cover;
-  /* The night grade, faded in on the hour rather than switched: drained rather
-     than dimmed, because these photographs are already dark and the brightness
-     it would take to separate the halves turns them to mud on screen. */
-  filter: brightness(calc(1 - 0.12 * var(--dusk)))
-    saturate(calc(1 - 0.28 * var(--dusk)));
 }
 
-/* Stationary, and the reason the wheels are worth turning: the words are what
-   the reader is reading while the rooms go past them.
+.cardFoot {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  /* Cleared past the mark, so a long name wraps above it rather than under it. */
+  padding: 0.6rem 2rem 0 0.35rem;
+}
 
-   The clear ground between the two streams is not a constant — the widest card
-   reaches about 0.34 of the frame in from either side at every width, which
-   leaves 650px of it on a 1920 screen and 124px on a phone. So the copy stands
-   in front of the cards rather than beside them, on a plate of the ground
-   itself faded to nothing at its edges. It is mixed on the same `--dusk` as the
-   ground, so where nothing is passing behind it the plate is invisible by
-   construction and where a card is, the card is veiled; a flat scrim would be a
-   rectangle of the wrong colour for half of this movement. */
-.orbitCopy {
+.cardName {
+  font-size: var(--text-sm);
+  color: var(--ink);
+}
+
+.cardNote {
+  font-size: var(--text-xs);
+  color: var(--stone);
+}
+
+/* The affordance, and it is only ever an affordance: the field is `aria-hidden`
+   and the register below carries the reading. */
+.cardMark {
+  position: absolute;
+  right: 0.6rem;
+  bottom: 0.7rem;
+  display: grid;
+  place-items: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  border: 1px solid rgb(var(--ink-rgb) / 0.18);
+  border-radius: 50%;
+  font-size: 0.7rem;
+  color: var(--ink);
+}
+
+/* ============================ The furniture ============================ */
+
+/* Everything that is read, on one layer above the wheels: the label at the
+   head, the sentence at the centre, the aside in the corner, the foot. */
+.frame {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  padding: clamp(2rem, 7vh, 4.5rem) 6vw clamp(1.5rem, 5vh, 3rem);
+  pointer-events: none;
+}
+
+/* Rides `--reveal`, the same beat the block arrives on, rather than standing
+   fixed at full opacity — the reduced-motion path defines no `--reveal` at
+   all, so the fallback is what keeps the label visible there. On the animated
+   path this is what keeps the label off the frame for the whole of the
+   hand-off sheet: `--reveal` is held at zero until `FIELD_HANDOFF` by the same
+   rebasing that holds every other beat, so nothing here is a second, separate
+   claim about when the field's own content is allowed to show. */
+.label {
+  position: absolute;
+  top: clamp(2rem, 7vh, 4.5rem);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--ink);
+  white-space: nowrap;
+  opacity: var(--reveal, 1);
+}
+
+.labelRule {
+  width: 3.5rem;
+  height: 1px;
+  background: rgb(var(--ink-rgb) / 0.3);
+}
+
+/* The sentence that takes the centre the block was standing in. It arrives at
+   the same place, in the same face, small where the block was enormous — the
+   exchange reads as the words settling into what they meant rather than as one
+   screen of type replacing another.
+
+   Held to a measure rather than to the frame: the clear ground between the two
+   streams is what the composition is, and a paragraph that ran out to the
+   cards would close it. */
+.centre {
   position: absolute;
   top: 50%;
   left: 50%;
-  z-index: 20;
-  /* The exchange itself. The corridor's sentence and this one cross at the same
-     centre in the same face — that overlap is what makes the seam read as one
-     line becoming another rather than as two screens of type — and this one
-     comes up to size as it takes over. Small on purpose: a hand-off is a
-     dissolve, not an entrance. */
-  opacity: var(--enter);
-  transform: translate(-50%, -50%) scale(calc(0.975 + 0.025 * var(--enter)));
-  /* Measured to hold two lines of the headline on two lines, and quoted against
-     the frame rather than in ems so the clearing between the streams grows with
-     the screen the streams are standing further apart on. */
-  width: clamp(20rem, 34vw, 34rem);
-  /* One cell, both hours: the day words and the night words are stacked on the
-     same grid area and `--type` runs the exchange between them. */
-  display: grid;
-  place-items: center;
-  padding: var(--space-4) var(--space-2);
-  text-align: center;
-  pointer-events: none;
-  /* `closest-side`, so the plate reaches transparent exactly on the box's own
-     edges. Sized past them it is clipped there instead, and a gradient cut off
-     before it has finished fading is a rectangle — which is what the first
-     version of this drew across a phone screen. */
-  background: radial-gradient(
-    ellipse closest-side at center,
-    color-mix(in srgb, var(--night) calc(var(--dusk) * 100%), var(--ivory)) 58%,
-    transparent 100%
-  );
-}
-
-/* The exchange at dusk. Two different sentences, so the crossing is drawn as
-   an exchange — and drawn with masks, not with opacity: nothing here fades.
-   Every line sits inside its own clipping mask and slides on `--type`, the day
-   lines up and out over the first half of the turn, the night lines up and in
-   over the second, each line one beat (`--l`) behind the line above it. What
-   the reader sees is type leaving through its own baseline and new type
-   setting itself under the same centre — letterpress, not dissolve.
-
-   Each block carries its own pole of the ink — day words exist only on the
-   light ground, night words only on the dark one — so neither is ever drawn
-   in the mid-grey the ground itself passes through. */
-.copyBlock {
-  grid-area: 1 / 1;
+  transform: translate(-50%, -50%)
+    translateY(calc((1 - var(--resolve)) * 0.75rem));
+  width: clamp(19rem, 32vw, 30rem);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: var(--space-2);
+  text-align: center;
+  opacity: var(--resolve);
+  pointer-events: auto;
 }
 
-.copyDay {
+.headline {
+  font-size: clamp(2.4rem, 4.4vw, 4rem);
+  font-weight: 400;
+  line-height: 1.02;
+  letter-spacing: -0.015em;
+  white-space: pre-line;
+}
+
+.lead {
+  max-width: 32ch;
+  font-size: var(--text-sm);
+  line-height: 1.62;
+  color: var(--stone-deep);
+}
+
+.centreLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: var(--space-1);
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid rgb(var(--ink-rgb) / 0.35);
   color: var(--ink);
 }
 
-.copyNight {
-  color: var(--ivory);
+.centreLinkMark {
+  display: grid;
+  place-items: center;
+  width: 1.8rem;
+  height: 1.8rem;
+  border: 1px solid rgb(var(--ink-rgb) / 0.25);
+  border-radius: 50%;
+  font-size: 0.7rem;
+  letter-spacing: 0;
 }
 
-/* The mask holds one line and clips everything past its own box — with a hair
-   of padding, clawed back by the margin, so Cormorant's long descenders are
-   not shaved while the line is at rest. */
-.lineMask {
-  display: block;
-  overflow: hidden;
-  padding-block: 0.12em;
-  margin-block: -0.12em;
+/* Read on arrival and not again, which is why it is in the corner and set at
+   reading size rather than at the label's. It rides the same beat as the block
+   so the head of the frame is composed before the middle of it moves. */
+.aside {
+  position: absolute;
+  top: clamp(2rem, 7vh, 4.5rem);
+  right: 6vw;
+  max-width: 17rem;
+  font-size: var(--text-sm);
+  line-height: 1.55;
+  color: var(--stone-deep);
+  opacity: calc(0.9 * var(--reveal));
 }
 
-/* One line's travel, as a window of `--type`: a line spends 0.34 of the turn
-   crossing its mask and starts `--l` after the turn begins. The clamp is the
-   whole choreography — before its window a line rests on its baseline (day) or
-   below its mask (night), after it the line has left through the top. Both
-   halves slide *upward*, so the exchange runs one direction, like a platen
-   turned once. */
-.line {
-  display: block;
+/* The foot changes once, and the change is drawn letter by letter in both
+   directions at the same time: the first sentence dissolving into blur as the
+   second resolves out of it, each letter one beat behind the one to its left.
+   Both sentences sit on the same grid cell, so nothing moves.
+
+   The container itself rides `--reveal`, same reasoning as `.label`: the first
+   sentence's own opacity formula rests at full strength whenever `--foot` is
+   still at zero, which is also its value for the whole of the hand-off sheet —
+   without this the resting sentence would already be standing on the frame the
+   instant the sheet closes rather than arriving with the rest of the field. */
+.foot {
+  position: absolute;
+  right: 6vw;
+  bottom: clamp(1.5rem, 5vh, 3rem);
+  left: 6vw;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+  opacity: var(--reveal, 1);
+}
+
+.footOut,
+.footIn {
+  grid-area: 1 / 1;
+}
+
+.footGlyph {
+  display: inline-block;
+  white-space: pre;
+  will-change: opacity, filter;
+}
+
+/* The first sentence goes over the first half of the turn, the second arrives
+   over the second — they cross, so the foot is never blank. */
+.footOut .footGlyph {
+  opacity: calc(1 - clamp(0, calc((var(--foot) - var(--c) * 0.3) / 0.2), 1));
+  filter: blur(
+    calc(10px * clamp(0, calc((var(--foot) - var(--c) * 0.3) / 0.2), 1))
+  );
+}
+
+.footIn .footGlyph {
+  opacity: clamp(0, calc((var(--foot) - 0.5 - var(--c) * 0.3) / 0.2), 1);
+  filter: blur(
+    calc(
+      10px *
+      (1 - clamp(0, calc((var(--foot) - 0.5 - var(--c) * 0.3) / 0.2), 1))
+    )
+  );
+}
+
+/* ============================== The hand-over ============================== */
+
+/* Five bands of the Invitation's own dark, each growing up out of its own foot,
+   the lowest first. What crosses the frame is a rising edge rather than a
+   curtain — and because the bands are Act 5's colour, the act it hands to is
+   already behind them when the last one closes. */
+.wipe {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+}
+
+.stripe {
+  flex: 1;
+  /* A hair of overlap, so no seam between two bands can show the ivory through
+     it at a fractional device pixel. */
+  margin-top: -0.5px;
+  padding-bottom: 0.5px;
+  background: var(--night);
+  transform: scaleY(0);
+  transform-origin: bottom;
   will-change: transform;
 }
 
-.copyDay .line {
-  transform: translateY(
-    clamp(-120%, calc((var(--l, 0) - var(--type)) * 353%), 0%)
-  );
-}
+/* ============================== Off-screen ============================== */
 
-.copyNight .line {
-  transform: translateY(
-    clamp(0%, calc((var(--l, 0) + 0.84 - var(--type)) * 353%), 120%)
-  );
-}
-
-/* One weight for both halves of the hour. The corridor takes its display type
-   up a step because it is ivory on --night for the whole of its movement; this
-   line is ink on ivory at one end and ivory on --night at the other, and a
-   weight that changed under the reader would read as the type being replaced
-   rather than as the light going. 400 is the one that holds at both ends. */
-/* A step under the display scale, and the one place in the ride that is worth
-   arguing for. `--text-display-sm` set each of these lines wider than the
-   clearing between the two streams, so the sentence wrapped to four lines and
-   then stood shoulder to shoulder with the cards — loud and cramped at once.
-   Sized to break exactly where it is written to break, it holds the middle of
-   the frame with air on all four sides, which is the whole composition. */
-.orbitHeadline {
-  font-size: clamp(1.9rem, 3.2vw, 3rem);
-  font-weight: 400;
-  line-height: 1.16;
-  white-space: pre-line;
-  text-wrap: balance;
-}
-
-.orbitNote {
-  font-size: var(--text-sm);
-  letter-spacing: 0.01em;
-  opacity: 0.62;
-}
-
-/* The cards are `aria-hidden` — they are a moving arrangement of twelve
-   pictures and there is no reading order in them — so this list is the whole of
-   the movement's accessible content. Visually hidden, not `display: none`,
-   which would take it out of the accessibility tree as well. */
-.orbitRegister {
+/* The cards are `aria-hidden`, so this list is the whole of the field's
+   accessible content. Visually hidden, not `display: none`, which would take it
+   out of the accessibility tree as well. */
+.register,
+.sr {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -537,44 +718,30 @@
   list-style: none;
 }
 
-/* Seam into Act 5 (Invitation). The whole frame, not a bottom gradient: this
-   closes over wheels that are still turning and lands on exactly the value
-   Act 5 opens on, so the handover is one continuous dark rather than a cut. */
-.tailFade {
-  position: absolute;
-  inset: 0;
-  z-index: 500;
-  pointer-events: none;
-  opacity: 0;
-  background: var(--night);
-}
+/* ============================ Reduced motion ============================ */
 
-/* Only the reduced-motion grid still pairs a caption with an image. */
-.cardMeta {
-  display: flex;
-  justify-content: space-between;
-  gap: var(--space-2);
-  margin-top: 0.75rem;
-  color: var(--sand);
-}
-
-/* ============================ Reduced motion / narrow ============================ */
-
-/* No pins mount under reduced motion, so each movement has to stand as a static
-   composition rather than a frozen frame of an animation. */
-.staticCorridor,
-.staticRooms {
+/* No pin mounts here, so each movement has to stand as a static composition
+   rather than a frozen frame of one. */
+.staticCorridor {
   display: grid;
   gap: var(--space-2);
   padding: var(--space-4) 6vw;
   grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  background: var(--ink);
+  color: var(--ivory);
 }
 
-/* Nothing is pinned here, so the rooms grid has to carry the dark ground the
-   orbit's own stage would otherwise be holding. */
-.staticRooms {
-  background: var(--night);
-  color: var(--ivory);
+.staticCorridor figure {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 0;
+}
+
+.staticCorridor img {
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
 }
 
 /* The statement, standing on its own after the grid: the one bright frame of
@@ -588,26 +755,57 @@
   min-height: 60vh;
   padding: var(--space-4) 6vw;
   text-align: center;
-  background: var(--ivory);
+  background: var(--ivory-warm);
   color: var(--ink);
 }
 
-/* Each figure has to reserve its own caption space. A stretched `height: 100%`
-   on the image leaves the caption overflowing onto the row beneath it. */
-.staticCorridor figure,
-.staticRooms figure {
+.static {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
-  margin: 0;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-4) 6vw;
+  text-align: center;
+  background: var(--ivory-warm);
+  color: var(--ink);
 }
 
-.staticCorridor img,
-.staticRooms img {
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  object-fit: cover;
+.static .label {
+  position: static;
+  transform: none;
+  opacity: 1;
 }
+
+.staticWords {
+  font-size: var(--text-display-sm);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  color: var(--stone);
+}
+
+.staticGrid {
+  display: grid;
+  gap: var(--space-2);
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  width: 100%;
+  margin-top: var(--space-3);
+  list-style: none;
+  text-align: left;
+}
+
+/* The grid lays the cards out; nothing places them, and nothing tilts them. */
+.staticGrid .card {
+  position: static;
+  width: auto;
+}
+
+.static .foot {
+  position: static;
+  margin-top: var(--space-3);
+  opacity: 1;
+}
+
+/* ============================== Narrow ============================== */
 
 @media (max-width: 767px) {
   .panel {
@@ -648,24 +846,52 @@
     font-size: var(--text-display-sm);
   }
 
+  .words {
+    letter-spacing: -0.02em;
+  }
+
+  .frame {
+    padding-inline: var(--space-2);
+  }
+
+  .card {
+    width: clamp(8.5rem, 42vw, 12rem);
+    padding: 0.4rem 0.4rem 0.6rem;
+  }
+
+  .cardFoot {
+    padding-right: 1.6rem;
+  }
+
+  .cardMark {
+    width: 1.3rem;
+    height: 1.3rem;
+    right: 0.45rem;
+    bottom: 0.55rem;
+  }
+
   /* There is no clear ground between the streams at this width — the wheels
-     stand almost on the frame's edges and a card is nearly half the screen —
-     so the plate has to hold most of its own box before it begins to fade
-     rather than only its middle. Otherwise the last line of the copy, which
-     sits out at the plate's rim, is read across whatever is going past. */
-  .orbitCopy {
+     stand almost on the frame's edges and a card is nearly half the screen — so
+     the sentence takes a plate of the ground itself, faded to nothing at its
+     own edges, and is read on that rather than on whatever is passing. */
+  .centre {
     width: min(21rem, 86vw);
+    padding: var(--space-3) var(--space-2);
     background: radial-gradient(
       ellipse closest-side at center,
-      color-mix(in srgb, var(--night) calc(var(--dusk) * 100%), var(--ivory))
-        76%,
-      transparent 100%
+      var(--ivory-warm) 68%,
+      rgb(var(--ivory-warm-rgb) / 0) 100%
     );
   }
 
-  /* Held in off the plate's rim so it wraps rather than running out to the edge
-     of the fade, where the ground it is read on is whatever card is passing. */
-  .orbitNote {
-    max-width: 15rem;
+  /* The aside is the one piece of furniture a phone has no room for beside the
+     block: at this width it would sit on the words. */
+  .aside {
+    display: none;
+  }
+
+  .foot {
+    right: var(--space-2);
+    left: var(--space-2);
   }
 }
