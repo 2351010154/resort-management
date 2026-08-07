@@ -85,6 +85,13 @@
       "when": 1786009251869,
       "tag": "0011_folio_ledger",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1786073186456,
+      "tag": "0012_folio_same_folio_keys",
+      "breakpoints": true
     }
   ]
 }

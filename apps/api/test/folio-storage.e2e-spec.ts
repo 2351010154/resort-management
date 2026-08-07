@@ -457,6 +457,38 @@ describe("a correction is a new line", () => {
       );
     });
   });
+
+  it("refuses to undo a line belonging to another guest", async () => {
+    // A credit written on the wrong account. Every check on the table passes —
+    // a check reads one row and cannot ask what folio another row is on — so
+    // without the folio in the key this row would be stored, and the trigger
+    // above means it could never be taken back. One guest would be credited for
+    // a mistake still standing on the other's account.
+    await rolledBack(async (tx) => {
+      const hers = await anOpenFolio(tx);
+      const his = await anOpenFolio(tx);
+
+      const herCharge = await post(tx, aRoomCharge(hers, {
+        amount: 1_000_000n,
+      }));
+
+      const refusal = await refused(tx, (savepoint) =>
+        savepoint.insert(folioPosting).values(
+          aRoomCharge(his, {
+            type: "REVERSAL",
+            amount: -1_000_000n,
+            description: "Reverses a night charged to somebody else",
+            reversesPostingId: herCharge,
+          }),
+        ),
+      );
+
+      expect(refusal.code).toBe(FOREIGN_KEY_VIOLATION);
+      expect(refusal.constraint).toBe(
+        "folio_posting_reverses_a_line_on_the_same_folio",
+      );
+    });
+  });
 });
 
 describe("what a line says it is for", () => {
@@ -695,6 +727,38 @@ describe("the charge a tax line was levied on", () => {
       );
     });
   });
+
+  it("refuses a tax line levied on another guest's charge", async () => {
+    // The same hole as the reversal one, in the column that is read rather than
+    // written: the reversal set is `id = $1 or parent_posting_id = $1`, and a
+    // parent on another account makes that query return a line from a folio it
+    // was never asked about. On the balance it is worse still — the tax sums
+    // into an account holding no sale it could have been levied on.
+    await rolledBack(async (tx) => {
+      const hers = await anOpenFolio(tx);
+      const his = await anOpenFolio(tx);
+
+      const herCharge = await post(tx, aRoomCharge(hers, {
+        amount: 1_000_000n,
+      }));
+
+      const refusal = await refused(tx, (savepoint) =>
+        savepoint.insert(folioPosting).values(
+          aRoomCharge(his, {
+            type: "VAT",
+            amount: 84_000n,
+            description: "VAT on somebody else's room",
+            parentPostingId: herCharge,
+          }),
+        ),
+      );
+
+      expect(refusal.code).toBe(FOREIGN_KEY_VIOLATION);
+      expect(refusal.constraint).toBe(
+        "folio_posting_derives_from_a_line_on_the_same_folio",
+      );
+    });
+  });
 });
 
 describe("the sign the balance is read with", () => {
@@ -863,11 +927,18 @@ async function onAFolio(
   body: (tx: Tx, folioId: string) => Promise<void>,
 ): Promise<void> {
   await rolledBack(async (tx) => {
-    const bookingId = await aBooking(tx);
-    const [opened] = await tx.insert(folio).values({ bookingId }).returning();
-
-    await body(tx, opened!.id);
+    await body(tx, await anOpenFolio(tx));
   });
+}
+
+/** An open folio on a booking of its own. Taken separately from `onAFolio`
+ *  because the keys that hold a line to one account can only be tested with a
+ *  second account to point at. */
+async function anOpenFolio(tx: Tx): Promise<string> {
+  const bookingId = await aBooking(tx);
+  const [opened] = await tx.insert(folio).values({ bookingId }).returning();
+
+  return opened!.id;
 }
 
 const ROLLBACK = Symbol("rollback");
