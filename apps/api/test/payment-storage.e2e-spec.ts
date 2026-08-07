@@ -28,9 +28,10 @@
 // the cleanup is a delete — which is the difference between this table and
 // `folio_posting`, whose spec rolls back for exactly the opposite reason.
 //
-// It applies the migrations rather than pushing the schema: the partial index
-// under test lands in `0013_payment_core.sql`, and only migrating puts it there.
-// No Nest application is booted — the subject is the storage layer itself.
+// It applies the migrations rather than pushing the schema: the two partial
+// indexes under test land in `0013_payment_core.sql` and
+// `0014_payment_attempt_reference.sql`, and only migrating puts them there. No
+// Nest application is booted — the subject is the storage layer itself.
 
 import { eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
@@ -175,6 +176,79 @@ describe("one callback delivered ten times", () => {
   });
 });
 
+describe("one attempt", () => {
+  const A_REFERENCE = `${"0123456789abcdef".repeat(2)}${"fedcba9876543210".repeat(2)}`;
+
+  it("is one row, whatever the gateway ends up saying about it", async () => {
+    // The half the gateway id cannot cover. A refusal has no transaction id, so
+    // the index above does not reach it and the gateway's second delivery of
+    // one would write a second `FAILED` row — a guest asking why they were not
+    // charged shown the same refusal twice, and `FR-PAY-05` reconciling against
+    // a report that counts it once.
+    const [opened] = await db
+      .insert(payment)
+      .values({
+        folioId,
+        method: "VNPAY",
+        attemptReference: A_REFERENCE,
+        amount: 1_200_000n,
+        status: "PENDING",
+      })
+      .returning();
+
+    const refusal = await refused(() =>
+      db.insert(payment).values({
+        folioId,
+        method: "VNPAY",
+        attemptReference: A_REFERENCE,
+        amount: 1_200_000n,
+        status: "FAILED",
+      }),
+    );
+
+    expect(refusal.code).toBe(UNIQUE_VIOLATION);
+
+    await db.delete(payment).where(eq(payment.id, opened!.id));
+  });
+
+  it("resolves in place, which the ledger's own rule does not forbid", async () => {
+    // `folio_posting` is append-only because `FR-FOL-01` corrects a guest's
+    // account with a reversing entry. This table is the payer's side and not
+    // that account: an attempt going from claimed to confirmed is one fact
+    // finishing, and a `PENDING` row nothing could ever resolve would leave a
+    // paid stay holding two.
+    const [opened] = await db
+      .insert(payment)
+      .values({
+        folioId,
+        method: "VNPAY",
+        attemptReference: A_REFERENCE,
+        amount: 1_200_000n,
+        status: "PENDING",
+      })
+      .returning();
+
+    const [taken] = await db
+      .update(payment)
+      .set({
+        status: "SUCCESS",
+        gatewayTransactionId: "14528903",
+        paidAt: PAID_AT,
+      })
+      .where(eq(payment.id, opened!.id))
+      .returning();
+
+    expect(taken).toMatchObject({
+      id: opened!.id,
+      attemptReference: A_REFERENCE,
+      status: "SUCCESS",
+      paidAt: PAID_AT,
+    });
+
+    await db.delete(payment).where(eq(payment.id, opened!.id));
+  });
+});
+
 describe("the money the property collects itself", () => {
   it("takes as many cash and transfer payments as the desk takes", async () => {
     // The half the `where` clause on the index exists for. None of these has a
@@ -193,6 +267,9 @@ describe("the money the property collects itself", () => {
 
     expect(written).toHaveLength(4);
     expect(written.every((row) => row.gatewayTransactionId === null)).toBe(true);
+    // And no attempt behind any of them, which is the other partial index's
+    // `where` clause earning the same keep: four nulls that do not collide.
+    expect(written.every((row) => row.attemptReference === null)).toBe(true);
 
     await db.delete(payment).where(sql`${payment.gatewayTransactionId} is null`);
   });

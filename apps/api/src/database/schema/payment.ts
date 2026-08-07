@@ -27,6 +27,37 @@
 // loud instead of relying on a null-comparison rule a reader has to recall.
 // `folio_posting_reversal_unique_key` is the same shape for the same reason.
 //
+// **The attempt is here, and a decision is what put it there.** This file used
+// to record the column's absence as an open question — whether an unpaid attempt
+// is a row here or a query against the booking it belongs to — and
+// `payment.service.ts` answered it by writing a `PENDING` row the moment it
+// opens one. A row nothing can find again is worse than no row: the callback
+// that resolves it arrives naming the reference and nothing else, so with no
+// column to match on, a paid stay ends holding a `PENDING` row beside its
+// `SUCCESS` one and every reader of the table has to guess which of the two is
+// the money. `attempt_reference` is what the callback matches on.
+//
+// It is the property's own name for the attempt and not anything a gateway
+// said — minted here, handed over, echoed back — so `FR-PAY-01` is intact: no
+// reader of this column learns a gateway's vocabulary from it.
+//
+// **It carries its own partial unique index, for the guarantee the first one
+// cannot give.** An attempt the gateway *refused* has no transaction id —
+// `GatewayTransaction` will not name one for money nobody paid — so nothing
+// keyed on that column reaches it, and a redelivered refusal wrote a second
+// `FAILED` row. Keyed on the attempt instead, one attempt is one row whatever
+// became of it. Partial with the same predicate and for the same reason: the
+// money the property collects itself was opened under no attempt at all.
+//
+// **The row's status is written more than once, and that is not the ledger's
+// rule bent.** `folio_posting` is append-only because `FR-FOL-01` says a mistake
+// on a guest's account is corrected by a reversing entry and never an edit. This
+// table is not that account. It records the payer's side — one attempt, and what
+// became of it — and an attempt resolving from `PENDING` to `SUCCESS` is that
+// one fact finishing rather than a second fact overwriting the first. The
+// reconciliation `NFR-02` runs holds the two tables against each other precisely
+// because they are written under different rules.
+//
 // What is deliberately *not* here:
 //
 // - **A folio posting reference.** The posting and the payment are written in
@@ -34,12 +65,13 @@
 //   have to be written in one direction or the other, and neither is knowable
 //   before both rows exist — the payment service that writes the pair is where
 //   that question is answered, if it turns out to be one.
-// - **The attempt the gateway was opened under.** `PaymentGateway`'s
-//   `PaymentAttempt` is a reference and the instant it was minted, and it is
-//   the caller who mints and keeps the pair. Whether an unpaid attempt is a
-//   `PENDING` row here or a query against the booking it belongs to is the
-//   handler's decision, and inventing a column for it now would be a guess at
-//   an answer that costs a migration either way.
+// - **The instant the attempt was opened.** `PaymentAttempt` is a reference
+//   *and* a creation time, because a gateway partitions transactions by the day
+//   one was opened and a later query has to name the same instant. Only
+//   `created_at` is here, and it is this row's clock rather than the attempt's —
+//   near enough to read by, and not the same thing. The caller that queries or
+//   refunds an attempt is the one that needs the pair to be exact, and it is
+//   `FR-PAY-04`'s work to say where it keeps it.
 // - **A gateway response code, a bank code or a card type.** `FR-PAY-01` keeps
 //   gateway vocabulary inside the adapter, and a column here would carry it
 //   past the port and into every reader of this table.
@@ -118,6 +150,21 @@ export const payment = pgTable(
       .notNull()
       .references(() => folio.id),
     method: paymentMethodEnum("method").notNull(),
+    // The property's own name for the attempt this row belongs to — the
+    // reference `payment.service.ts` mints, hands to the gateway, and is handed
+    // back in every callback about it. It is the only thing a callback and a row
+    // have in common, and so the only thing an unresolved attempt can be found
+    // again by.
+    //
+    // Text rather than a pair of columns for the two halves the reference is
+    // built out of. What matches here is the whole string as the gateway echoed
+    // it, and splitting it into a booking and a nonce would be this table
+    // knowing how the service composes a value it neither reads nor validates.
+    //
+    // Null on the money nobody opened an attempt for — the cash and the
+    // transfers the desk takes itself — which is the same set of rows the
+    // gateway id is null on, and why both indexes below are partial.
+    attemptReference: text("attempt_reference"),
     // The gateway's own id for the money it took — VNPay's `vnp_TransactionNo`.
     // Text rather than a number: it is an identifier the gateway hands back and
     // compares as a string, and the day one arrives with a leading zero or a
@@ -148,6 +195,17 @@ export const payment = pgTable(
     uniqueIndex("payment_gateway_transaction_unique_key")
       .on(table.gatewayTransactionId)
       .where(sql`${table.gatewayTransactionId} is not null`),
+    // One attempt, one row, whatever became of it — and the lookup a callback is
+    // resolved through, which a unique index already serves.
+    //
+    // The index above cannot make this claim: a refused attempt carries no
+    // transaction id, so nothing keyed on one reaches it and the gateway's
+    // second delivery of a refusal writes a second `FAILED` row. Partial for the
+    // reason the other one is, and stated the same way rather than left to
+    // Postgres' rule about nulls in a unique index.
+    uniqueIndex("payment_attempt_reference_unique_key")
+      .on(table.attemptReference)
+      .where(sql`${table.attemptReference} is not null`),
     // Every read of this table is "what has this folio been paid" — the
     // reconciliation's sum, and the balance the check-out guard reads beside it.
     index("payment_folio_idx").on(table.folioId),
