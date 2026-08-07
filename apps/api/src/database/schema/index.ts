@@ -44,6 +44,12 @@ export * from "./service.js";
 // refused by the database itself. Owned by `modules/folio`.
 export * from "./folio.js";
 
+// What the property was actually paid, as the payer's side reports it — the
+// other half of `NFR-02`'s nightly identity. A gateway's own transaction id is
+// unique here, which is what makes a replayed callback post one payment rather
+// than one per delivery. Owned by `modules/payment`.
+export * from "./payment.js";
+
 // The guest realm: Better Auth's four core tables. Their in-file names are
 // Better Auth's own (`user`, `session`, …) because its Drizzle adapter indexes
 // the schema object it is given by those keys. Everything outside
