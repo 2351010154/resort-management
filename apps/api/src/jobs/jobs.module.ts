@@ -2,6 +2,8 @@ import { Module } from "@nestjs/common";
 import { BookingModule } from "../modules/booking/booking.module.js";
 import { HoldExpirySweep } from "../modules/booking/hold-expiry-sweep.js";
 import { NoShowSweep } from "../modules/booking/no-show-sweep.js";
+import { FolioModule } from "../modules/folio/folio.module.js";
+import { RoomChargeSweep } from "../modules/folio/room-charge-sweep.js";
 import { JobRunner } from "./job-runner.service.js";
 import { JobScheduler } from "./job-scheduler.service.js";
 import { JobTriggerController } from "./job-trigger.controller.js";
@@ -9,8 +11,10 @@ import { SWEEP_JOBS, type SweepJob } from "./sweep-job.js";
 
 // The scheduler and the sweeps that run on it —
 // docs/architecture/repository-structure.md §apps/api, and `prd-m4.md`'s third
-// scope decision, which fixes the scale of this: a minimal scheduler carrying
-// exactly two sweeps, both idempotent and both reachable by hand.
+// scope decision, which fixes the shape of this: a minimal scheduler carrying a
+// hand-edited list of sweeps, every one of them idempotent and reachable by
+// hand. It opened at two and takes a third with `M6`'s ledger; what the decision
+// pinned was the scheduler's smallness, not a count.
 //
 // This is not a domain module. It owns no table and answers no question about
 // the property; it is the machinery a sweep is mounted on, and the sweeps
@@ -24,6 +28,12 @@ import { SWEEP_JOBS, type SweepJob } from "./sweep-job.js";
 // `NoShowSweep` transitions through, for the same kind of reason, which each of
 // `hold-expiry-sweep.ts` and `no-show-sweep.ts` argues where it belongs.
 //
+// `FolioModule` is imported for `FolioService`, which is what `RoomChargeSweep`
+// posts a night through. Same reason again, and sharpest here: `FR-FOL-02` has
+// the rates read at posting time and the three lines written by one statement,
+// and a sweep that assembled its own `insert` would be a second implementation
+// of a decomposition that has to sum back to the figure the guest agreed to.
+//
 // The sweep classes themselves are provided here rather than by the modules they
 // belong to. A sweep is only ever resolved through the registry below, so
 // providing it next to the registry is what keeps "which sweeps run" answerable
@@ -33,7 +43,7 @@ import { SWEEP_JOBS, type SweepJob } from "./sweep-job.js";
 // `DatabaseModule` is global, so nothing is imported for the pool pg-boss
 // borrows or for the transaction runner that opens a run's boundary.
 @Module({
-  imports: [BookingModule],
+  imports: [BookingModule, FolioModule],
   controllers: [JobTriggerController],
   providers: [
     {
@@ -43,11 +53,12 @@ import { SWEEP_JOBS, type SweepJob } from "./sweep-job.js";
       // the factory collects them in that order. Discovery by decorator scan
       // would save the line and cost the ability to read this file and know
       // what runs.
-      inject: [HoldExpirySweep, NoShowSweep],
+      inject: [HoldExpirySweep, NoShowSweep, RoomChargeSweep],
       useFactory: (...jobs: SweepJob[]): readonly SweepJob[] => jobs,
     },
     HoldExpirySweep,
     NoShowSweep,
+    RoomChargeSweep,
     JobRunner,
     JobScheduler,
   ],
