@@ -50,6 +50,12 @@ export default defineConfig({
     // single shared Postgres cannot provide is bought here instead.
     fileParallelism: false,
 
+    // The same isolation, against the runs this process cannot see. The line
+    // above orders the files inside one `vitest run`; a second `vitest run`
+    // started while this one is going shares the database with it and neither
+    // knows. `global-setup.ts` makes the second wait, and says why it does.
+    globalSetup: ["./test/global-setup.ts"],
+
     // `NFR-10`: ≥85% on the modules that move money. UI coverage is
     // deliberately untargeted, and so is everything else here — a number over
     // the whole tree would be met by testing the easy half of it.

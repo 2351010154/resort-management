@@ -64,6 +64,34 @@
       "when": 1785814714509,
       "tag": "0008_housekeeping_core",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1785998615934,
+      "tag": "0009_system_config",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1786001199486,
+      "tag": "0010_service_catalog",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1786009251869,
+      "tag": "0011_folio_ledger",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1786073186456,
+      "tag": "0012_folio_same_folio_keys",
+      "breakpoints": true
     }
   ]
 }

@@ -24,12 +24,6 @@ does not report implementation or delivery status.
    snapshots preserve context but may age; they do not override Jira, current
    evidence or durable documentation. Generated HTML and capture screenshots
    remain untracked.
-5. **`docs/bao-cao/` is outdated and untrusted.** The coursework report is a
-   consumer of the authorities above, and as of 2026-08-01 it has drifted from
-   them. Do not read it to learn how the system works, do not cite it, and do
-   not change code or docs to match it. It is edited only when the report itself
-   is being rewritten, from directly re-read evidence.
-
 When Jira says work is complete but the executable evidence disagrees, report
 the inconsistency rather than rewriting either source to conceal it.
 
@@ -47,7 +41,6 @@ the inconsistency rather than rewriting either source to conceal it.
 | Hosting, database, storage, backup, payment and e-invoice decisions | [`architecture/infrastructure.md`](architecture/infrastructure.md) |
 | Screen intent and navigation | [`screens.md`](screens.md) |
 | Current delivery fields and blockers | [SCRUM in Jira](https://hungphat2018-1785053353783.atlassian.net/issues/?jql=project%20%3D%20SCRUM) |
-| Coursework report (outdated, untrusted — owns nothing) | [`bao-cao/README.md`](bao-cao/README.md) |
 
 Architecture documents may describe an accepted target before code enforces it.
 Follow their evidence links to determine what is implemented.
@@ -66,16 +59,12 @@ the durable owner.
 ## Language
 
 English is the canonical language for product and architecture documentation
-and for Markdown plans. `docs/bao-cao/` is the Vietnamese coursework
-deliverable. Vietnamese legal and commercial terms keep their Vietnamese names
-where they are the terms used by contracts or regulations.
+and for Markdown plans. Vietnamese legal and commercial terms keep their
+Vietnamese names where they are the terms used by contracts or regulations.
 
 ## Coursework
 
-[`bao-cao/`](bao-cao/README.md) is the Vietnamese đồ án report and
-[`bao-cao/hinh/`](bao-cao/hinh/) holds its diagram sources and exports. **Both
-are stale as of 2026-08-01 and carry no authority.** The diagrams there are hand
-drawn design sketches, not generated from any schema or contract, so they can
-disagree with the database and the API without anything failing. Every claim in
-that directory is downstream material to be re-verified against the durable
-owner and executable evidence before it is reused or submitted.
+The Vietnamese đồ án report is not kept in this repository. It is assembled
+from the owners above when it is needed, and a copy that lingers between
+submissions only drifts from them. Write it from the durable documents and the
+executable evidence they point to, never from a previous draft.

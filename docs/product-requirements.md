@@ -95,17 +95,17 @@ authority named in [`README.md`](README.md) and wins.
 
 | ID | Requirement | Acceptance criteria | Lands |
 |---|---|---|---|
-| `FR-AUTH-01` | Guest and staff authentication are two separate realms; no token opens both | Guest token on a staff route → 403, and the reverse — asserted by test in both directions | M2 ✅ |
-| `FR-AUTH-02` | Guest account lifecycle: sign-up, email verification, sign-in, password reset, Google as the one social provider | Flows driven in a real browser against the running API; Google registered only when both credential halves are present, refused at boot in production when absent | M2 ✅ |
-| `FR-AUTH-03` | Staff sign-in issues a token carrying exactly one staff role | Expired and tampered tokens both → 401, by named test | M2 ✅ |
+| `FR-AUTH-01` | Guest and staff authentication are two separate realms; no token opens both | Guest token on a staff route → 403, and the reverse — asserted by test in both directions | M2 |
+| `FR-AUTH-02` | Guest account lifecycle: sign-up, email verification, sign-in, password reset, Google as the one social provider | Flows driven in a real browser against the running API; Google registered only when both credential halves are present, refused at boot in production when absent | M2 |
+| `FR-AUTH-03` | Staff sign-in issues a token carrying exactly one staff role | Expired and tampered tokens both → 401, by named test | M2 |
 | `FR-AUTH-04` | Signed-in credential management: password change by proving the current password; email change only through re-verification of the new address | The new address becomes the sign-in identifier only after its link is used — until then the old address signs in; a Google-only account is offered neither form — it has no password to change and its address belongs to Google. Screen intent in [`screens.md`](screens.md) §Account | M7 |
 
 ### 4.2 `identity` — roles and the guard
 
 | ID | Requirement | Acceptance criteria | Lands |
 |---|---|---|---|
-| `FR-IDN-01` | Five staff roles plus the separate `GUEST` principal/realm are enforced by a fail-closed capability guard over the RBAC matrix; a route with no capability declaration is unreachable for everyone | Data-driven test iterates every matrix row asserting every allowed and every denied principal; anonymous → 401, wrong realm → 403 | M2 ✅ |
-| `FR-IDN-02` | Staff account management (`ADMIN` only), with a CLI bootstrap for the first admin | `GET/POST /identity/staff-accounts` behind the guard; `staff:create` CLI exists because the first `ADMIN` cannot come from an API requiring one | M2 ✅ |
+| `FR-IDN-01` | Five staff roles plus the separate `GUEST` principal/realm are enforced by a fail-closed capability guard over the RBAC matrix; a route with no capability declaration is unreachable for everyone | Data-driven test iterates every matrix row asserting every allowed and every denied principal; anonymous → 401, wrong realm → 403 | M2 |
+| `FR-IDN-02` | Staff account management (`ADMIN` only), with a CLI bootstrap for the first admin | `GET/POST /identity/staff-accounts` behind the guard; `staff:create` CLI exists because the first `ADMIN` cannot come from an API requiring one | M2 |
 | `FR-IDN-03` | System configuration — VAT rate and applicability window, whether the VAT base includes service charge, retention floor `N`, business-date rollover, gateway credentials — is data, editable by `ADMIN` without a deploy | No tax rate, tax-base rule or retention period compiled anywhere in the tree ([`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) §8). Cites `ASM-01`, `ASM-02` | M6/M8 |
 
 ### 4.3 `guest` — profiles and personal data
@@ -168,9 +168,9 @@ authority named in [`README.md`](README.md) and wins.
 
 | ID | Requirement | Acceptance criteria | Lands |
 |---|---|---|---|
-| `FR-PAY-01` | One internal `PaymentGateway` port — `createPayment` / `verifyCallback` / `refund` / `queryTransaction`; no gateway type leaks past it | Two implementations at most, one folio | M2 |
-| `FR-PAY-02` | VNPay first — sandbox at M2, production at M6 behind gate `G2` — signatures verified by the maintained library, never hand-rolled | One successful real production transaction before opening; the `G2` six-item checklist green before the credential flip | M2/M6 |
-| `FR-PAY-03` | Webhook idempotency: unique constraint on the gateway transaction id | One IPN replayed 10× posts exactly 1 payment — by test | M2 |
+| `FR-PAY-01` | One internal `PaymentGateway` port — `createPayment` / `verifyCallback` / `refund` / `queryTransaction`; no gateway type leaks past it | Two implementations at most, one folio | M6 |
+| `FR-PAY-02` | VNPay first — sandbox at M6, production at M7 behind gate `G2` — signatures verified by the maintained library, never hand-rolled | One successful real production transaction before opening; the `G2` six-item checklist green before the credential flip | M6/M7 |
+| `FR-PAY-03` | Webhook idempotency: unique constraint on the gateway transaction id | One IPN replayed 10× posts exactly 1 payment — by test | M6 |
 | `FR-PAY-04` | Refunds are reversing entries; policy-computed and discretionary refunds are separate endpoints with separate roles | Cites `ASM-05` for sandbox refund testability | M6 |
 | `FR-PAY-05` | Daily reconciliation against the gateway's own report; discrepancies page a phone | Alert proven by drill | M6 |
 | `FR-PAY-06` | MoMo slots behind the same port, **only if** measured VNPay-only abandonment is material; its IPN is ACKed < 15 s with the work in the job queue | NFR-06; abandonment measurable because every funnel step is a route (`FR-BOOK-06`) | M6.5 |
@@ -220,15 +220,15 @@ authority named in [`README.md`](README.md) and wins.
 | `NFR-01` | Double-booking | **0** — unrepresentable at the storage layer | 50-parallel-bookings test in CI (`FR-INV-02`) |
 | `NFR-02` | Ledger integrity | Σ postings = Σ payments + outstanding, nightly | Night-audit check (`FR-RPT-01`) |
 | `NFR-03` | Availability p95, 12-month calendar | **< 300 ms** | Load test at M10 |
-| `NFR-04` | Admin console interaction feedback | **< 150 ms**, no entrance animation on operational screens | E2E timing at M4 |
+| `NFR-04` | Admin console interaction feedback | **< 150 ms**, no entrance animation on operational screens | E2E timing at M7 |
 | `NFR-05` | `/booking` funnel bundle | **0 bytes** of `three`/`gsap`/`lenis` | CI bundle budget |
 | `NFR-06` | MoMo IPN ACK (if built) | **< 15 s** p100 | Handler ACKs, work queued |
-| `NFR-07` | Realm separation | Cross-realm request → 403, both directions | Guard suite (`FR-AUTH-01`) ✅ |
+| `NFR-07` | Realm separation | Cross-realm request → 403, both directions | Guard suite (`FR-AUTH-01`) |
 | `NFR-08` | ID-scan retention | **0** objects older than `N` days post-checkout | Lifecycle rule + verify job (`FR-GST-02`); cites `ASM-02` |
 | `NFR-09` | Audit coverage of state-changing endpoints | **100%** | Asserted by test (`FR-AUD-01`) |
 | `NFR-10` | Test coverage on `inventory` + `folio` + `pricing` | **≥ 85%**; UI coverage deliberately untargeted | Coverage report |
-| `NFR-11` | Keyboard-only check-in | **0** mouse events end to end | Playwright E2E at M4 |
-| `NFR-12` | Type-level money and dates | Integer-VND `bigint`; `StayDate` ≠ timestamp is a **compile** error | `@ts-expect-error` type tests ✅ |
+| `NFR-11` | Keyboard-only check-in | **0** mouse events end to end | Playwright E2E at M7 |
+| `NFR-12` | Type-level money and dates | Integer-VND `bigint`; `StayDate` ≠ timestamp is a **compile** error | `@ts-expect-error` type tests |
 
 ---
 
@@ -261,16 +261,15 @@ None of them blocks M2 or M3.
 
 ## 8. Traceability — the professor's twelve requirements
 
-The coursework brief is restated in
-[`bao-cao/02-phan-tich-yeu-cau.md`](bao-cao/02-phan-tich-yeu-cau.md) §2.1, but
-that file is outdated and untrusted — the brief itself, not the report, is the
-reference. Each bullet is closed by at least one requirement here. The bullet → issue-key mapping
+The brief itself is the reference; no restatement of it is kept in this
+repository, because a copy is one more thing to drift.
+Each bullet is closed by at least one requirement here. The bullet → issue-key mapping
 lives in the execution authority named in [`README.md`](README.md); this table
 adds the requirement layer between them.
 
 | # | Brief bullet | Closed by | Lands |
 |---|---|---|---|
-| 1 | RBAC ≥ 3 levels | `FR-IDN-01`, `FR-AUTH-01` | M2 ✅ |
+| 1 | RBAC ≥ 3 levels | `FR-IDN-01`, `FR-AUTH-01` | M2 |
 | 2 | Room types and attributes | `FR-INV-01` | M3 |
 | 3 | Guest accounts | `FR-AUTH-02`, `FR-GST-01`, `FR-GST-04`, `FR-GST-05` | M2/M7 |
 | 4 | Post-stay feedback | `FR-FBK-01` | M7 |
@@ -281,7 +280,7 @@ adds the requirement layer between them.
 | 9 | Audit log | `FR-AUD-01`, `FR-AUD-02` | M8 |
 | 10 | Excel export | `FR-OPS-03` | M8 |
 | 11 | Income / expense | `FR-OPS-02` | M8 |
-| 12 | Online payment | `FR-PAY-02` — one **production** gateway closes it; MoMo (`FR-PAY-06`) is optional | M6 |
+| 12 | Online payment | `FR-PAY-02` — one **production** gateway closes it; MoMo (`FR-PAY-06`) is optional | M7 |
 
 All twelve are demonstrable by M9 without building for the rubric.
 
@@ -304,13 +303,13 @@ authority named in [`README.md`](README.md).
 |---|---|
 | `M0` | Paperwork and procurement — external answers and credentials, each on its own trigger |
 | `M1` | Web migration |
-| `M2` | Foundations — auth realms, identity guard, payment port |
+| `M2` | Foundations — auth realms, identity guard |
 | `M3` | Inventory and availability — the correctness core |
 | `M4` | Booking lifecycle and front desk |
 | `M5` | Assignment optimizer — optional, does not block the spine |
 | `M6` | Folio, payments, invoicing |
 | `M6.5` | MoMo — only if measured VNPay-only abandonment demands it |
-| `M7` | Guest booking engine — production gate `G2` lands here |
+| `M7` | Guest booking engine and the admin console — production gate `G2` lands here |
 | `M8` | Operations — shifts, thu chi, Excel export |
 | `M9` | Reporting — night audit, snapshots, KPI reports |
 | `M9.5` | Overbooking — only after real no-show data exists |

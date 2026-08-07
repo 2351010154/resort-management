@@ -56,6 +56,7 @@ async function main(): Promise<void> {
         `${summary.roomTypes} room types, ${summary.rooms} rooms`,
         `${summary.nightsOpened} nights opened — ${summary.firstNight} to ${summary.lastNight}`,
         `${summary.ratesWritten} rates, ${summary.restrictions} restrictions`,
+        `${summary.serviceItems} service items`,
         `${summary.bookings} synthetic stays`,
         "",
       ].join("\n"),

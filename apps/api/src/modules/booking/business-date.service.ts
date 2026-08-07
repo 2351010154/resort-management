@@ -15,10 +15,21 @@
 //
 // The rollover hour is configuration and not a constant, because §2 says so
 // outright: "a property that runs its audit at 06:00 changes one row, not a
-// deploy". Today that value arrives from the environment; `config/env.ts` says
-// why it arrives from there rather than from `property_tariff`, and what
-// replaces it at `M6`. Nothing below reads the source — it reads the number —
-// so that replacement is a change to one provider and not to this file.
+// deploy". That value still arrives from the environment, and `config/env.ts`
+// says why it arrives from there rather than from `property_tariff`.
+//
+// `system_config.business_date_rollover_hour` now holds the figure as well, and
+// is the row §8 means — but nothing here reads it yet, so the environment is
+// still what decides what day it is. Issue #21 is the swap, and it is its own
+// piece of work because `current()` is synchronous and takes no executor while
+// the row reader needs both: thirteen call sites become asynchronous and four
+// of them, `search.controller.ts` among them, would take a database read they
+// do not take today. Until then, an edit to that row changes nothing, which is
+// why the seeder writes the environment's value into it and neither can drift
+// from the other without somebody editing one by hand.
+//
+// Nothing below reads the source — it reads the number — so the swap remains a
+// change to one provider and not to this file.
 
 import { fromDate, toCalendarDate } from "@internationalized/date";
 import { PROPERTY_TIME_ZONE, type StayDate } from "@mariva/shared";
