@@ -18,7 +18,10 @@ export function LettersFromMariva() {
         setSent(true);
       }}
     >
-      <label className={`caps-label ${styles.lettersLabel}`} htmlFor="letters-email">
+      <label
+        className={`caps-label ${styles.lettersLabel}`}
+        htmlFor="letters-email"
+      >
         Letters from Mariva
       </label>
       <p className={styles.lettersNote}>
