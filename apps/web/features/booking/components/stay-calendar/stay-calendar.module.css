@@ -215,7 +215,10 @@
   width: 2.5rem;
   height: 2.5rem;
   font-size: var(--text-base);
-  font-variant-numeric: tabular-nums;
+  /* `lining-nums` is repeated here, not inherited: `font-variant-numeric` is one
+     property, so naming `tabular-nums` alone would drop the lining correction the
+     screen sets and hand the figures back to the face oldstyle defaults. */
+  font-variant-numeric: lining-nums tabular-nums;
   line-height: 1;
   border-radius: 50%;
   /* The transform is the press — see below — and it is the only one of the three

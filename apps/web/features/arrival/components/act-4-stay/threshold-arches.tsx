@@ -49,12 +49,13 @@ const ARCH_BOTTOM = 14;
 const ARCH_RAD = 11; // vw — half of the 22vw opening
 const ARCH_RAD_MOBILE = 28; // vw — half of the 56vw one
 
-/** How far the scrim sinks the open door by the time the rooms take over. Short
- *  of opaque on purpose: driven to a flat 1 the arcade stopped being footage and
- *  became a dark rectangle, and the rooms then played on a colour rather than on
- *  a place. The cards and the ivory register still read at this value — they
- *  carry their own scrim and text-shadow — and the door stays visibly a door. */
-const SCRIM_MAX = 0.82;
+/** The scrim closes the door completely by the time the rooms take over. It was
+ *  held short of opaque so the arcade stayed a place under them, but a place is
+ *  not what it read as at that size and that softness — it read as one blurred
+ *  photograph filling the frame behind a deck of sharp ones. The door is still a
+ *  door for the whole of the movement that is about the door; it just does not
+ *  survive into the one that is about the rooms. */
+const SCRIM_MAX = 1;
 
 export function ThresholdArches({ mobile }: { mobile: boolean }) {
   const sectionRef = useRef<HTMLElement>(null);
