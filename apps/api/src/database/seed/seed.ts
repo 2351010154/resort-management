@@ -137,6 +137,14 @@ async function wipe(db: Database): Promise<void> {
   // could outlive the statement below. The guests those rows named are left
   // where they are: a person is not owned by one stay, and the seed never
   // wrote them.
+  //
+  // Nothing opens a folio yet, and the day something does, the delete of
+  // `booking` below stops working: `folio.booking_id` references it with no
+  // cascade. The repair is not another line here, because `folio_posting`
+  // refuses `DELETE` outright — the append-only trigger raises on it for every
+  // client, this one included. A seed that owns stays will have to drop the
+  // ledger by a route that is not a delete, and choosing which is part of
+  // building it.
   await db.execute(sql`delete from ${roomAssignment}`);
   await db.execute(sql`delete from ${registration}`);
   await db.execute(sql`delete from ${bookingNight}`);

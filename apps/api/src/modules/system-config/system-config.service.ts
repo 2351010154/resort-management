@@ -101,6 +101,12 @@ export class SystemConfigService {
    * because it answers a different question at a different moment: what day it
    * is, asked before a posting exists. It has no window and no date, so nothing
    * about it can be refused for a date.
+   *
+   * **Nothing calls this yet.** `BusinessDateService` still reads the hour from
+   * the environment, and issue #21 is the swap — it converts thirteen call sites
+   * to asynchronous and owes an answer about the read `search.controller.ts`
+   * would take. Landed here because the column and its reader are one decision;
+   * until that issue closes, this is the row's value and not the property's.
    */
   async businessDateRolloverHour(exec: DbExecutor): Promise<number> {
     return (await this.configuration(exec)).businessDateRolloverHour;

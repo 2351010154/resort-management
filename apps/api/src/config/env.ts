@@ -88,10 +88,14 @@ export const envSchema = z.object({
   // Here rather than in `property_tariff`, and the reason is who may change it.
   // `rbac-matrix.md` §3 files the business date under System config — `ADMIN`
   // edits, `MANAGER` only looks — while `property_tariff` sits under the rates
-  // row a `MANAGER` owns, so a column there would widen the audience for it. The
-  // row `FR-IDN-03` describes is `M6`'s to build, and §8 says those rows are
-  // "seeded from environment at boot": this is that seed, arriving early because
-  // the business date is needed before the table that will hold it exists.
+  // row a `MANAGER` owns, so a column there would widen the audience for it.
+  //
+  // `system_config.business_date_rollover_hour` exists now and this variable
+  // seeds it, which is what §8 means by "seeded from environment at boot". But
+  // unlike the three money figures below, this one is **still read at run time**:
+  // `BusinessDateService` takes the hour from here, not from the row, so this is
+  // the value that decides what day the property is on. Issue #21 is the swap and
+  // says what it costs. Until it lands, editing the row moves nothing.
   BUSINESS_DATE_ROLLOVER_HOUR: z.coerce
     .number()
     .int()
