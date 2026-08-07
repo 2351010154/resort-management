@@ -13,41 +13,43 @@ export const INTRO_VIDEO_BASE = "/video/intro";
 
 export const introVideoTiles: IntroVideoTile[] = [
   {
-    "slug": "atlas-ridge",
-    "width": 960,
-    "height": 540,
-    "alt": "Cloud shadow crossing the Atlas foothills"
+    slug: "atlas-ridge",
+    width: 960,
+    height: 540,
+    alt: "Cloud shadow crossing the Atlas foothills",
   },
   {
-    "slug": "arch-garden",
-    "width": 540,
-    "height": 720,
-    "alt": "Palms framed by a keyhole arch"
+    slug: "arch-garden",
+    width: 540,
+    height: 720,
+    alt: "Palms framed by a keyhole arch",
   },
   {
-    "slug": "terracotta-corridor",
-    "width": 640,
-    "height": 640,
-    "alt": "A porter crossing a terracotta corridor"
+    slug: "terracotta-corridor",
+    width: 640,
+    height: 640,
+    alt: "A porter crossing a terracotta corridor",
   },
   {
-    "slug": "hammam-hands",
-    "width": 960,
-    "height": 540,
-    "alt": "Hands working oil across a shoulder"
+    slug: "hammam-hands",
+    width: 960,
+    height: 540,
+    alt: "Hands working oil across a shoulder",
   },
   {
-    "slug": "pool-teal",
-    "width": 576,
-    "height": 720,
-    "alt": "Green tiled water at the pool edge"
+    slug: "pool-teal",
+    width: 576,
+    height: 720,
+    alt: "Green tiled water at the pool edge",
   },
   {
-    "slug": "colonnade-walk",
-    "width": 540,
-    "height": 720,
-    "alt": "A colonnade opening onto the garden"
-  }
+    slug: "colonnade-walk",
+    width: 540,
+    height: 720,
+    alt: "A colonnade opening onto the garden",
+  },
 ];
 
-export const introVideoBySlug = new Map(introVideoTiles.map((t) => [t.slug, t]));
+export const introVideoBySlug = new Map(
+  introVideoTiles.map((t) => [t.slug, t]),
+);

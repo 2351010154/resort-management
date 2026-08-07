@@ -50,7 +50,9 @@ export class SecondOrderSpring2 {
     } else {
       const decay = Math.exp(-this.z * this.w * dt);
       const carrier =
-        2 * decay * (this.z <= 1 ? Math.cos(dt * this.d) : Math.cosh(dt * this.d));
+        2 *
+        decay *
+        (this.z <= 1 ? Math.cos(dt * this.d) : Math.cosh(dt * this.d));
       const decay2 = decay * decay;
       const scale = dt / (1 + decay2 - carrier);
       k1 = (1 - decay2) * scale;
@@ -60,8 +62,18 @@ export class SecondOrderSpring2 {
     this.value.x += this.velocity.x * dt;
     this.value.y += this.velocity.y * dt;
     this.velocity.x +=
-      ((this.target.x + this.k3 * targetVelX - this.value.x - k1 * this.velocity.x) * dt) / k2;
+      ((this.target.x +
+        this.k3 * targetVelX -
+        this.value.x -
+        k1 * this.velocity.x) *
+        dt) /
+      k2;
     this.velocity.y +=
-      ((this.target.y + this.k3 * targetVelY - this.value.y - k1 * this.velocity.y) * dt) / k2;
+      ((this.target.y +
+        this.k3 * targetVelY -
+        this.value.y -
+        k1 * this.velocity.y) *
+        dt) /
+      k2;
   }
 }
