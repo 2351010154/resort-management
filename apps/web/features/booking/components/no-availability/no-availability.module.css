@@ -13,6 +13,7 @@
 
 .headline {
   font-family: var(--font-display), serif;
+  font-variant-numeric: lining-nums;
   font-size: var(--text-display-sm);
   font-weight: 300;
   line-height: 1.15;

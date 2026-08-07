@@ -155,12 +155,25 @@
    with prices under them rather than as one comparison — and the room's own name
    on the plate beside it, which is the thing actually being looked at, was
    competing with all five. 15px still leads its row by five sizes over the facts
-   under it, which is the only job the name has here. */
+   under it, which is the only job the name has here.
+
+   **19px is that same decision, re-measured for the current face.** The 15px above
+   was set in Literata, whose x-height is 0.507em; Cormorant Garamond's is 0.386em,
+   so 15px here would render a third smaller than the size that judgement was made
+   at — around a 6px x-height, which is not a scanning size. 19px in this face is
+   what 15px looked like in that one, so the row still reads as a comparison rather
+   than as five headings. The 22px that shouted was 22px of a much larger-bodied
+   face; it is not what this is.
+
+   Weight goes to 400 for the same reason it does not on the arrival: five names
+   scanned quickly on a pale ground want the sturdier stroke, and a 300 Light at
+   this size is where a high-contrast Garamond starts dropping its thins. */
 .name {
   font-family: var(--font-display), serif;
-  font-size: 0.9375rem;
-  font-weight: 300;
-  line-height: 1.2;
+  font-variant-numeric: lining-nums;
+  font-size: 1.1875rem;
+  font-weight: 400;
+  line-height: 1.25;
   color: var(--ink);
 }
 

@@ -55,10 +55,27 @@ export const DUR_UI = 0.5;
 /** Menu/card cascade stagger, seconds. */
 export const STAGGER_CASCADE = 0.1;
 
-/** Podium measured 0.08; lowered to 0.06 at M1 — user asked for more glide. */
-export const LENIS_LERP = 0.06;
-/** Measured range 0.8–1; bottom of range per M1 heavier-feel call. */
-export const LENIS_WHEEL_MULTIPLIER = 0.8;
+/**
+ * Lenis turns `lerp` into `damp(from, to, lerp * 60, dt)`, so the figure is a
+ * rate: the page closes `lerp * 60` of the remaining gap per second, and its
+ * time constant is `1 / (lerp * 60)`.
+ *
+ * 0.06 is a 280ms constant — most of a second to finish one notch of the wheel.
+ * That is past glide and into lag: the page is still arriving somewhere you
+ * asked for four notches ago, so nothing on it reads as answering the hand. At
+ * 0.1 the constant is 170ms, which still coasts visibly — a notch lands over
+ * about ten frames rather than snapping — but the first frame of the answer is
+ * already moving, which is the whole of "I am scrolling this".
+ */
+export const LENIS_LERP = 0.1;
+/**
+ * Full travel per notch. Held at 0.8, a wheel notch bought four fifths of what
+ * the same notch buys on every other page the reader has ever used, and the
+ * deficit compounds across a ride this long — the heaviness people describe as
+ * "slow" is mostly this, not the lerp. Weight now comes entirely from the
+ * coast, which is where it belongs: how the page stops, not how far it goes.
+ */
+export const LENIS_WHEEL_MULTIPLIER = 1;
 
 /**
  * How much the page weighs under the wheel. One setting for the whole ride was
@@ -85,11 +102,12 @@ export const SCROLL_WEIGHT_CINEMATIC: ScrollWeight = {
   wheelMultiplier: LENIS_WHEEL_MULTIPLIER,
 };
 
-/** Reading screens: full travel per notch, and the coast cut to about a fifth
- *  of the cinematic one. Still smoothed — this is not native scroll, it is the
- *  same instrument played quietly. */
+/** Reading screens: the same travel per notch, and the coast cut to about
+ *  60ms — enough to take the step out of a wheel notch and no more. Still
+ *  smoothed; this is not native scroll, it is the same instrument played
+ *  quietly. */
 export const SCROLL_WEIGHT_LIGHT: ScrollWeight = {
-  lerp: 0.13,
+  lerp: 0.17,
   wheelMultiplier: 1,
 };
 

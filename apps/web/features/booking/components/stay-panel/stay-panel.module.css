@@ -74,7 +74,10 @@
 .endDate {
   margin-top: var(--space-1);
   font-size: var(--text-base);
-  font-variant-numeric: tabular-nums;
+  /* `lining-nums` is repeated here, not inherited: `font-variant-numeric` is one
+     property, so naming `tabular-nums` alone would drop the lining correction the
+     screen sets and hand the figures back to the face oldstyle defaults. */
+  font-variant-numeric: lining-nums tabular-nums;
   line-height: 1.3;
   color: var(--ink);
 }
@@ -230,7 +233,10 @@
 .stepperValue {
   min-width: 2ch;
   font-size: var(--text-base);
-  font-variant-numeric: tabular-nums;
+  /* `lining-nums` is repeated here, not inherited: `font-variant-numeric` is one
+     property, so naming `tabular-nums` alone would drop the lining correction the
+     screen sets and hand the figures back to the face oldstyle defaults. */
+  font-variant-numeric: lining-nums tabular-nums;
   text-align: center;
   color: var(--ink);
 }

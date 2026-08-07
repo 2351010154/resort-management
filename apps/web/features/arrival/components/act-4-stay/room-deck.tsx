@@ -7,7 +7,9 @@
 // corner. A card's offset from that point and its size share a single factor,
 // `r = GROWTH^(depth - SPAN)`, which is what makes the stack read as one
 // perspective instead of a fan of separately scaled photos. Depth advances with
-// scroll and, on its own, with time — the deck never stops.
+// scroll and with nothing else: stop the page and the deck stops on the frame
+// you stopped it on, which is what makes dealing through it feel like your own
+// hand rather than a reel you are being shown.
 //
 // Cards do not sit exactly on that ray: each is carried off it, normal to it,
 // by an amount that grows with its depth. The trail leaves the vanishing point
@@ -279,20 +281,34 @@ const mirrored = (f: Frame): Frame => ({ ...f, vpx: 1 - f.vpx, ex: 1 - f.ex });
 const DAY_RUN: [number, number] = [0.0, 0.56];
 const NIGHT_RUN: [number, number] = [0.4, 1.0];
 /** Depth a half travels across its run — one step is one room through focus,
- *  so a scroll of the run is very nearly one pass of that half's six. The idle
- *  drift rides on top, which is why "very nearly" is the honest word. */
+ *  so a scroll of the run is exactly one pass of that half's six. */
 const STEPS = 6.2;
 /** Depth at the start of a run: room 0 sits in the focus slot. */
 const K0 = FOCUS_D;
 /** Section progress over which the night half wipes in, left to right. */
 const WIPE: [number, number] = [0.46, 0.64];
-/** Idle travel, in steps per second. The deck keeps moving with the page still. */
-const DRIFT = 0.11;
-/** Fraction of DRIFT the deck keeps while the pointer rests on a card. Not
- *  zero: a stopped deck reads as a bug, a slowed one reads as an answer. */
-const HOVER_DRIFT = 0.12;
-/** Seconds the brake takes to reach most of the way to its target. */
-const BRAKE_TAU = 0.4;
+/**
+ * Peak roll a card takes about its own centre, in degrees, as a wave along the
+ * trail — see `ROLL_WAVE`.
+ *
+ * The cascade used to have none: every card square to the frame, sliding a
+ * straight ray at a rate nothing varied. Correct, and mechanical — a print
+ * queue rather than a hand of photographs, which is what a deck this literal
+ * has to read as. Small on purpose. Past about three degrees the trail stops
+ * being a stack that was set down and becomes a fan that was thrown.
+ */
+const ROLL = 2.6;
+/**
+ * One full period of the roll across the whole trail, which puts its zeros at
+ * depth 0, SPAN/2 and SPAN. SPAN/2 is `FOCUS_D`: the card in the hero slot is
+ * always dead square to the frame and its neighbours are the ones leaning, so
+ * the tilt is what the eye reads on the way in and out and never something the
+ * photograph you are actually looking at has to fight.
+ *
+ * A function of depth alone, like `fan` above, so it is continuous through the
+ * recycle without any node having to know its own history.
+ */
+const ROLL_WAVE = (Math.PI * 2) / SPAN;
 
 /**
  * A card's shape, and how wide it is drawn against the frame's quoted width.
@@ -316,14 +332,8 @@ const smoothstep = (a: number, b: number, v: number) => {
 
 const span01 = (v: number, a: number, b: number) => clamp01((v - a) / (b - a));
 
-/**
- * Idle travel accumulated so far, in steps. Accumulated by the ticker rather
- * than solved from a start time because the hover brake makes the rate vary —
- * `roomScrollTarget` reads this so its aim stays right whatever the pointer has
- * been doing. `deckLive` is the mounted flag those callers used to read off the
- * clock.
- */
-let driftK = 0;
+/** Whether a live deck is mounted — the reduced-motion variant has none, and
+ *  `roomScrollTarget`'s answer is meaningless without one. */
 let deckLive = false;
 
 /**
@@ -341,13 +351,13 @@ export function roomScrollTarget(index: number): number | null {
 
   const [runStart, runEnd] = index < HALF ? DAY_RUN : NIGHT_RUN;
   const local = index % HALF;
-  const drift = driftK;
-  // Focus is `round(k - FOCUS_D) mod HALF` and k is `K0 + m * STEPS + drift`
-  // with K0 = FOCUS_D, so the run fraction that focuses `local` is
-  // `(local + HALF * n - drift) / STEPS`. STEPS > HALF, so some n always lands
-  // inside the run.
-  const n = Math.ceil((drift - local) / HALF);
-  const m = clamp01((local + HALF * n - drift) / STEPS);
+  // Focus is `round(k - FOCUS_D) mod HALF` and k is `K0 + m * STEPS` with
+  // K0 = FOCUS_D, so the run fraction that focuses `local` is `local / STEPS`.
+  // STEPS > HALF, so every room in a half lands inside its own run. This used
+  // to have to solve around an accumulated idle offset; depth is a function of
+  // scroll alone now, so where a room sits is a fixed page position and the
+  // menu lands on the same frame every time it is used.
+  const m = clamp01(local / STEPS);
 
   const p = runStart + m * (runEnd - runStart);
   const top = section.getBoundingClientRect().top + window.scrollY;
@@ -380,6 +390,16 @@ interface Cascade {
   /** Last scrim alpha written per node, so an unchanged card is not repainted
    *  every frame for nothing. */
   dimWritten: number[];
+  /**
+   * Whether each node is currently drawn at all. Half the pool is off-frame at
+   * any moment — parked past SPAN or still under the fade at either end — and a
+   * card is an expensive thing to keep in the frame budget for nothing: its own
+   * layer, a two-stop plate shadow specified at exit size, and a scrim over the
+   * whole of it. `visibility: hidden` takes it out of paint and composite both,
+   * which `opacity: 0` does not, and the flag is what keeps that toggle to the
+   * frame it changes on.
+   */
+  shown: boolean[];
   frame: Frame;
   run: [number, number];
 }
@@ -406,7 +426,6 @@ export function RoomDeck({ mobile }: { mobile: boolean }) {
     if (!section || !stage || !day || !night || !dayList || !nightList) return;
     const caption = captionRef.current;
     gsap.registerPlugin(ScrollTrigger);
-    driftK = 0;
     deckLive = true;
 
     const ctx = gsap.context(() => {
@@ -430,6 +449,9 @@ export function RoomDeck({ mobile }: { mobile: boolean }) {
         pull: new Array(POOL).fill(0),
         hovered: -1,
         dimWritten: new Array(POOL).fill(-1),
+        // The markup ships every card at opacity 0; nothing is drawn until the
+        // first tick says which nodes are on frame.
+        shown: new Array(POOL).fill(true),
         frame,
         run,
       });
@@ -453,11 +475,10 @@ export function RoomDeck({ mobile }: { mobile: boolean }) {
       let vh = 1;
       let wipeWritten = -1;
       let dayCovered = false;
-      // The brake reads last frame's hit test: the card boxes it tests against
-      // are the ones the loop below draws, so the answer arrives after the
-      // drift that positioned them. One frame of lag on a 0.4s ease.
+      // Last frame's hit test: the card boxes it tests against are the ones the
+      // loop below drew. One frame of lag on the register's 0.16s ease, which
+      // is nothing anyone can see.
       let onCard = false;
-      let brake = 1;
       let listAway = 0;
       let dayOpWritten = -1;
       let nightOpWritten = -1;
@@ -489,15 +510,18 @@ export function RoomDeck({ mobile }: { mobile: boolean }) {
         spring.setTarget(pointer.x, pointer.y);
         spring.update(dt);
 
-        // Rest the pointer on a card and the deck all but stops, so the photo
-        // under it can be looked at rather than watched going past.
-        brake +=
-          ((onCard ? HOVER_DRIFT : 1) - brake) *
-          (1 - Math.exp(-dt / BRAKE_TAU));
-        driftK += DRIFT * brake * dt;
-
+        // Depth is a function of scroll and nothing else. It used to advance on
+        // a clock as well — a slow idle travel, braked while the pointer rested
+        // on a card — and the clock is what made the cascade feel like a thing
+        // being played at you rather than a thing you were moving. Two costs,
+        // and the second is the one that mattered: the deck carried on dealing
+        // after the page had stopped, which reads as the scroll having failed
+        // to take; and while you were scrolling, part of what moved was not
+        // yours, so no notch of the wheel bought a legible amount of cascade.
+        // Nothing replaces it. The stage is not dead when the page is still —
+        // the whole trail leans to the cursor, which is a live answer to a live
+        // input, where the clock was motion with no author.
         const p = progress.current;
-        const drift = driftK;
 
         // The group's answer to the pointer, solved once for the whole stage:
         // both halves are the same arrangement and turn together. Every card
@@ -578,7 +602,7 @@ export function RoomDeck({ mobile }: { mobile: boolean }) {
         let hitTop = 0;
 
         for (const c of cascades) {
-          const k = K0 + span01(p, c.run[0], c.run[1]) * STEPS + drift;
+          const k = K0 + span01(p, c.run[0], c.run[1]) * STEPS;
           const base = Math.floor(k);
           const f = c.frame;
           const vpX = f.vpx * vw;
@@ -613,7 +637,11 @@ export function RoomDeck({ mobile }: { mobile: boolean }) {
             const slot = ((ordinal % POOL) + POOL) % POOL;
             const node = c.cards[slot];
             if (depth >= SPAN) {
-              node.style.opacity = "0";
+              if (c.shown[slot]) {
+                c.shown[slot] = false;
+                node.style.visibility = "hidden";
+                node.style.opacity = "0";
+              }
               // Snapped, not eased: this slot is off-frame and will re-enter at
               // the far end, where a leftover pull would show as a card sliding
               // in off its own ray.
@@ -671,10 +699,28 @@ export function RoomDeck({ mobile }: { mobile: boolean }) {
             const opacity =
               smoothstep(0, 1.4, depth) *
               (1 - smoothstep(SPAN - 0.9, SPAN, depth));
+            // Still inside SPAN but under the fade at one end or the other:
+            // nothing of it is on screen, and a card nobody can see is not
+            // worth a layer. Same toggle as the parked branch above, so the
+            // pool only ever paints the cards actually in the frame.
+            const visible = opacity > 0.003;
+            if (visible !== c.shown[slot]) {
+              c.shown[slot] = visible;
+              node.style.visibility = visible ? "visible" : "hidden";
+            }
+            if (!visible) {
+              node.style.opacity = "0";
+              continue;
+            }
+            // The lean. Zero at the hero slot, opposite either side of it — see
+            // ROLL_WAVE. It is applied about the card's own centre, after the
+            // uniform scale, so a far card leans by the same angle as a near
+            // one and only the arc it draws on screen is smaller.
+            const rollDeg = ROLL * Math.sin(depth * ROLL_WAVE);
             node.style.transform =
               `translate3d(${(cx - cw / 2).toFixed(2)}px, ${(cy - ch / 2).toFixed(2)}px, 0) ` +
               `rotateY(${yawDeg.toFixed(3)}deg) rotateX(${pitchDeg.toFixed(3)}deg) ` +
-              `scale(${rs.toFixed(4)})`;
+              `scale(${rs.toFixed(4)}) rotate(${rollDeg.toFixed(3)}deg)`;
             node.style.opacity = opacity.toFixed(3);
             // Depth alone decides who is in front, hover included. The pulled
             // card used to be lifted to the top of its half as well, because a
@@ -860,7 +906,6 @@ export function RoomDeck({ mobile }: { mobile: boolean }) {
 
     return () => {
       ctx.revert();
-      driftK = 0;
       deckLive = false;
       setNavDark(4, false);
     };
@@ -933,7 +978,16 @@ export function RoomDeck({ mobile }: { mobile: boolean }) {
       ref={sectionRef}
       data-movement="rooms"
       className={styles.rooms}
-      style={{ height: mobile ? "340vh" : "700vh" }}
+      // Seven screens of scroll bought twelve photographs, and with the idle
+      // travel gone the whole of that distance is now something the reader has
+      // to produce themselves — the pace is no longer half the section's and
+      // half the clock's. At 480vh a half's six rooms run over about 210vh, so
+      // a room passes through the hero slot for roughly a third of a viewport
+      // of scroll: two or three notches of the wheel, which is slow enough to
+      // be a cascade and fast enough to be an answer. Narrow screens keep their
+      // height — a thumb covers far more ground per gesture than a wheel does,
+      // and 340vh was already about a third of the desktop rate.
+      style={{ height: mobile ? "340vh" : "480vh" }}
       aria-label="The rooms"
     >
       <div ref={stageRef} className={styles.roomsStage}>
