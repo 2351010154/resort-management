@@ -81,6 +81,36 @@ export const envSchema = z.object({
 
   MAIL_FROM: z.string().min(1).default("Mariva <no-reply@mariva.local>"),
 
+  // The merchant terminal `FR-PAY-02`'s adapter signs with. `config.ts` says why
+  // they are here and not in `system_config`: a secret in a table an `ADMIN`
+  // screen reads has a wider audience than the process that uses it.
+  //
+  // Optional, and the reason is who is stopped by making them mandatory. A
+  // terminal comes from VNPay's merchant onboarding, so requiring one at boot
+  // would mean no developer and no CI runner could start the API — to run the
+  // housekeeping suite, or the seed, or anything else that has nothing to do
+  // with taking money. Unset, the API boots and every call to the gateway
+  // fails, naming the two variables; `MailerService` makes the same trade for
+  // the same reason. What is *not* traded away is the both-or-neither check
+  // below: a terminal code without its secret is not a configuration anybody
+  // meant to write, and it fails at a signature rather than at a boot.
+  //
+  // Not required in production either, and that is this milestone's boundary
+  // rather than an oversight. `prd-m6.md` §Stack scope decision 2 files the
+  // switch from sandbox to live credentials — and gate `G2`'s checklist behind
+  // it — under `M7` with the guest funnel, which is what actually needs a live
+  // gateway. A production refusal written here would assert that a deployed
+  // property is already taking card payments, and it is not yet.
+  VNPAY_TMN_CODE: z.string().min(1).optional(),
+  VNPAY_SECRET_KEY: z.string().min(1).optional(),
+
+  // Which VNPay the adapter talks to. Sandbox by default, because the wrong
+  // value is only safe in one direction: a production deploy still pointing at
+  // sandbox takes no money and is noticed on the first transaction, while a
+  // staging deploy pointing at production takes real money from whoever is
+  // testing it.
+  VNPAY_SANDBOX: z.stringbool().default(true),
+
   // The hour the business date rolls over, in the property's own zone —
   // docs/architecture/property-and-tariff.md §2. 04:00 by default, which is when
   // the night audit runs and closes the date that just ended.
@@ -231,6 +261,18 @@ export const envSchema = z.object({
       path: ["GOOGLE_CLIENT_ID"],
       message:
         "is required in production — the login screen offers Google sign-in unconditionally",
+    },
+  )
+  // The same shape as the Google pair above, for the same reason and with a
+  // sharper edge. A terminal code with no secret registers a merchant the
+  // adapter cannot sign for, and the failure arrives as a rejected checksum on
+  // a payment a guest is standing in front of — or, worse, as an IPN whose
+  // signature never verifies, so money that moved is never posted to a folio.
+  .refine(
+    (env) => Boolean(env.VNPAY_TMN_CODE) === Boolean(env.VNPAY_SECRET_KEY),
+    {
+      path: ["VNPAY_SECRET_KEY"],
+      message: "and VNPAY_TMN_CODE are set together, or neither is set",
     },
   )
   // The three money figures, each refused separately so the message names the
