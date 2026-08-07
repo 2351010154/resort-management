@@ -7,12 +7,18 @@
 // the frame is inside a single stroke. The act ends by surfacing the interior
 // back into daylight and then blooming it to ivory, so the window dissolves
 // into the page rather than sliding off it.
+//
+// The mark stands in a plaster wall of the page's own ivory, so the act is one
+// tone from first frame to bloom and the concierge bar is ink over all of it —
+// which is why nothing here claims the dark bar from the act store.
 
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useArrivalActStore } from "@/features/arrival/lib/act-store";
-import { prefersReducedMotion, shouldRenderFilm } from "@/features/arrival/lib/webgl-support";
+import {
+  prefersReducedMotion,
+  shouldRenderFilm,
+} from "@/features/arrival/lib/webgl-support";
 import { tierSrcSet } from "@/features/arrival/lib/image-srcset";
 import { DUR_SCENE_SLOW, EASE_UI } from "@/lib/motion-tokens";
 import { ApertureSheet } from "./aperture-sheet";
@@ -36,17 +42,6 @@ const ACT_HEIGHT = "260vh";
 /** The plate is oversized at rest so its slow drift never exposes an edge. */
 const PLATE_REST_SCALE = 1.05;
 
-/**
- * Progress at which the concierge bar gives the sea back and returns to ink.
- *
- * The act owns the viewport centre — and so the act tracker's idea of "active"
- * — for a good while after the bloom has taken the frame to ivory, so the flip
- * cannot be left to the tracker: it would leave ivory lettering on an ivory
- * page for the last stretch of the scroll. Set a little past the middle of the
- * bloom tween (0.93 over 0.07), where the frame has committed to light.
- */
-const NAV_HANDBACK = 0.96;
-
 /** Seconds the holding curtain takes to clear. The mark's opening waits on it. */
 const CURTAIN_LIFT = 1;
 
@@ -60,8 +55,12 @@ export function Act1Gathering() {
   // The lens needs WebGL; without it the act still scrubs, behind the flat
   // canvas cut-out.
   const [lens, setLens] = useState(false);
-  const cameraRef = useRef<IntroCamera>({ progress: 0, z: 0, entry: 0, reveal: 1 });
-  const setNavDark = useArrivalActStore((s) => s.setNavDark);
+  const cameraRef = useRef<IntroCamera>({
+    progress: 0,
+    z: 0,
+    entry: 0,
+    reveal: 1,
+  });
 
   useEffect(() => {
     setAnimate(!prefersReducedMotion());
@@ -76,7 +75,12 @@ export function Act1Gathering() {
   // inside it.
   const handleSheetReady = useCallback(() => {
     const camera = cameraRef.current;
-    gsap.to(camera, { entry: 1, duration: 1.4, ease: "power2.out", delay: 0.15 });
+    gsap.to(camera, {
+      entry: 1,
+      duration: 1.4,
+      ease: "power2.out",
+      delay: 0.15,
+    });
     // Not the scene ease: the mark opens by relaxing an erosion, so an ease
     // that front-loads as hard as expo.out spends the whole tween on the last
     // hairline of the outline and snaps the letter open.
@@ -105,23 +109,6 @@ export function Act1Gathering() {
     }
   }, []);
 
-  // Reduced motion: the act is one still frame of open sea, so the bar stays
-  // ivory for exactly as long as that frame owns the viewport. The scrubbed
-  // path below hands it back mid-bloom instead, which is earlier than this.
-  useEffect(() => {
-    const section = sectionRef.current;
-    if (animate !== false || !section) return;
-    const io = new IntersectionObserver(
-      ([entry]) => setNavDark(1, entry.isIntersecting),
-      { rootMargin: "-45% 0px -45% 0px" },
-    );
-    io.observe(section);
-    return () => {
-      io.disconnect();
-      setNavDark(1, false);
-    };
-  }, [animate, setNavDark]);
-
   useEffect(() => {
     if (!animate) return;
     const section = sectionRef.current;
@@ -129,8 +116,6 @@ export function Act1Gathering() {
     if (!section || !stage) return;
     gsap.registerPlugin(ScrollTrigger);
     const camera = cameraRef.current;
-    let navDark = true;
-    setNavDark(1, true);
 
     const ctx = gsap.context(() => {
       const timeline = gsap.timeline({
@@ -147,11 +132,6 @@ export function Act1Gathering() {
             if (plateRef.current) {
               const drift = PLATE_REST_SCALE * plateDrift(camera.z);
               plateRef.current.style.transform = `scale(${drift.toFixed(4)})`;
-            }
-            const dark = self.progress < NAV_HANDBACK;
-            if (dark !== navDark) {
-              navDark = dark;
-              setNavDark(1, dark);
             }
           },
         },
@@ -175,17 +155,15 @@ export function Act1Gathering() {
       });
     }, section);
 
-    return () => {
-      ctx.revert();
-      setNavDark(1, false);
-    };
-  }, [animate, setNavDark]);
+    return () => ctx.revert();
+  }, [animate]);
 
   const copy = (
     <div className={styles.copy}>
-      <p className={`font-display ${styles.statement}`}>
-      </p>
-      {animate ? <span className={`caps-label ${styles.cue}`}>Scroll</span> : null}
+      <p className={`font-display ${styles.statement}`}></p>
+      {animate ? (
+        <span className={`caps-label ${styles.cue}`}>Scroll</span>
+      ) : null}
     </div>
   );
 
@@ -212,9 +190,14 @@ export function Act1Gathering() {
             <DepthImageField camera={cameraRef.current} still={!animate} />
             <div className={styles.aperture}>
               {lens ? (
-                <MonogramLens camera={cameraRef.current} onReady={handleSheetReady} />
+                <MonogramLens
+                  camera={cameraRef.current}
+                  onReady={handleSheetReady}
+                />
               ) : (
-                <ApertureSheet onReady={animate ? handleSheetReady : undefined} />
+                <ApertureSheet
+                  onReady={animate ? handleSheetReady : undefined}
+                />
               )}
             </div>
             {copy}
