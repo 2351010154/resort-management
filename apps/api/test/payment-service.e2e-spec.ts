@@ -8,12 +8,13 @@
 // replay adds neither, that a refusal resolves the same row and never touches
 // the account, and that a callback the gateway did not sign adds nothing at all.
 //
-// **An attempt is a row, and the reference is what finds it again.** Several
-// cases below are about that one string doing two jobs — naming the stay, so an
-// account can be opened for a callback whose attempt row is gone, and naming the
+// **An attempt is a row, and the reference is what finds it again.** The row is
+// committed before the payer is sent anywhere, so every callback that can arrive
+// has one to resolve — which is what makes the reference's whole job naming the
 // attempt, so a `PENDING` row becomes the payment instead of sitting beside it.
-// An amount the gateway reports that the attempt was not opened for is the case
-// that reads the row without resolving it, and posts nothing.
+// Two kinds of case read that row without resolving it and post nothing: an
+// amount the attempt was not opened for, and a callback claiming an outcome the
+// row already contradicts.
 //
 // **A real database is not optional here.** Three of the claims are the
 // database's own answers read back — the unique index refusing a replay, the
@@ -234,7 +235,9 @@ describe("opening an attempt", () => {
     expect(refusal.code).toBe("BAD_REQUEST");
   });
 
-  it("refuses a well-formed id that names no stay", async () => {
+  it("refuses a well-formed id that names no stay, before the payer is sent anywhere", async () => {
+    const asked = gateway.opened.length;
+
     const refusal = await refused(
       payments.createPaymentRequest({
         bookingId: ABSENT_ID,
@@ -246,6 +249,33 @@ describe("opening an attempt", () => {
     );
 
     expect(refusal.code).toBe("NOT_FOUND");
+
+    // The row goes in first, so the foreign key answers before the gateway is
+    // asked for anything. Nothing was opened and there is nothing to abandon.
+    expect(gateway.opened).toHaveLength(asked);
+  });
+
+  it("refuses an amount that is not money, before the payer is sent anywhere", async () => {
+    // `payment_amount_is_positive` would refuse this at the other end, but as a
+    // fault rather than as an answer — and only after a payer had been handed a
+    // page to look at.
+    const bookingId = await aBooking();
+    const asked = gateway.opened.length;
+
+    const refusal = await refused(
+      payments.createPaymentRequest({
+        bookingId,
+        amount: 0n as VndAmount,
+        description: "Deposit against a stay, for nothing",
+        returnUrl: RETURN_URL,
+        payerIpAddress: PAYER_ADDRESS,
+      }),
+    );
+
+    expect(refusal.code).toBe("BAD_REQUEST");
+
+    expect(gateway.opened).toHaveLength(asked);
+    expect(await paymentsOn(bookingId)).toHaveLength(0);
   });
 });
 
@@ -402,11 +432,13 @@ describe("the attempt a callback names", () => {
     expect(await folios.getBalance(bookingId)).toBe(-AMOUNT);
   });
 
-  it("records the money even when the row that opened it is gone", async () => {
-    // `payment.service.ts` asks the gateway before it writes anything and
-    // accepts losing the row when that write fails — the payer is already on
-    // their way to a payment page, and the reference still names the stay. So
-    // the callback has nothing to resolve and the money still has to land.
+  it("posts nothing when this property has no record of the attempt", async () => {
+    // `createPaymentRequest` commits the attempt's row before the payer is sent
+    // anywhere, so a signed callback naming a reference with no row is not an
+    // attempt whose write was lost — it is somebody else's order, or this
+    // property's own reference format having been changed under attempts that
+    // were already open. Inventing the payment from the callback would post a
+    // figure nothing here can be held against.
     const attempt = await anAttempt();
 
     await db
@@ -415,22 +447,121 @@ describe("the attempt a callback names", () => {
 
     gateway.verification = takenBy(attempt.reference, "14528932");
 
+    const refusal = await refused(payments.handleIpn(A_CALLBACK));
+
+    expect(refusal.code).toBe("NOT_FOUND");
+
+    expect(await paymentsOn(attempt.bookingId)).toHaveLength(0);
+    expect(await linesOf(attempt.bookingId)).toHaveLength(0);
+    expect(await paymentsUnder("14528932")).toHaveLength(0);
+  });
+});
+
+describe("a callback contradicting what the attempt already says", () => {
+  it("posts nothing when the gateway reports success over a refusal it filed", async () => {
+    // The payer's return and the IPN are the same claim over the same
+    // signature, so both reach this handler and they can arrive in either
+    // order. A refusal filed first and a success after is money the gateway
+    // says it took against an attempt already closed the other way — and
+    // `status = 'PENDING'` alone cannot tell that from a replay, which is the
+    // reading that would answer "already recorded" and post nothing at all.
+    const attempt = await anAttempt();
+
+    gateway.verification = {
+      verified: true,
+      transaction: {
+        status: "FAILED",
+        reference: attempt.reference,
+        amount: AMOUNT,
+      },
+    };
+
+    expect(await payments.handleIpn(A_CALLBACK)).toBe("REFUSED");
+
+    gateway.verification = takenBy(attempt.reference, "14528933");
+
+    const refusal = await refused(payments.handleIpn(A_CALLBACK));
+
+    expect(refusal.code).toBe("CONFLICT");
+
+    // The refusal on file is left exactly as it was. Nothing here is entitled
+    // to decide which of the two the gateway meant.
+    const rows = await paymentsOn(attempt.bookingId);
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      status: "FAILED",
+      gatewayTransactionId: null,
+      paidAt: null,
+    });
+
+    expect(await linesOf(attempt.bookingId)).toHaveLength(0);
+    expect(await folios.getBalance(attempt.bookingId)).toBe(0n);
+  });
+
+  it("leaves the account alone when a refusal arrives after the money did", async () => {
+    // The same contradiction pointing the other way, and the more dangerous of
+    // the two: read as a redelivered refusal, it would answer "refused" about a
+    // payment that is on the guest's account and settled their balance.
+    const attempt = await anAttempt();
+
+    gateway.verification = takenBy(attempt.reference, "14528934");
+
     expect(await payments.handleIpn(A_CALLBACK)).toBe("RECORDED");
+
+    gateway.verification = {
+      verified: true,
+      transaction: {
+        status: "FAILED",
+        reference: attempt.reference,
+        amount: AMOUNT,
+      },
+    };
+
+    const refusal = await refused(payments.handleIpn(A_CALLBACK));
+
+    expect(refusal.code).toBe("CONFLICT");
 
     const rows = await paymentsOn(attempt.bookingId);
 
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
-      attemptReference: attempt.reference,
       status: "SUCCESS",
-      gatewayTransactionId: "14528932",
+      gatewayTransactionId: "14528934",
     });
-    expect(await folios.getBalance(attempt.bookingId)).toBe(-AMOUNT);
 
-    // And the row it wrote carries the reference, so the gateway's next
-    // delivery of the same callback collides with it rather than adding a third.
-    expect(await payments.handleIpn(A_CALLBACK)).toBe("ALREADY_RECORDED");
-    expect(await paymentsOn(attempt.bookingId)).toHaveLength(1);
+    // The money the second callback says did not move is still on the account.
+    expect(await linesOf(attempt.bookingId)).toHaveLength(1);
+    expect(await folios.getBalance(attempt.bookingId)).toBe(-AMOUNT);
+  });
+
+  it("posts nothing when a second gateway transaction claims one attempt", async () => {
+    // Not a replay — a replay names the same transaction, and this names
+    // another. `payment_gateway_transaction_unique_key` is what refuses it, and
+    // reading that refusal as idempotency would drop a real second payment on
+    // the floor while telling the gateway it had been recorded.
+    const first = await anAttempt();
+    const second = await anAttemptOn(first.bookingId);
+
+    gateway.verification = takenBy(first.reference, "14528935");
+
+    expect(await payments.handleIpn(A_CALLBACK)).toBe("RECORDED");
+
+    gateway.verification = takenBy(second.reference, "14528935");
+
+    const refusal = await refused(payments.handleIpn(A_CALLBACK));
+
+    expect(refusal.code).toBe("CONFLICT");
+
+    // One payment, one line, and the second attempt still outstanding.
+    expect(await paymentsUnder("14528935")).toHaveLength(1);
+    expect(await linesOf(first.bookingId)).toHaveLength(1);
+
+    const stillOpen = (await paymentsOn(first.bookingId)).filter(
+      (row) => row.attemptReference === second.reference,
+    );
+
+    expect(stillOpen[0]).toMatchObject({ status: "PENDING" });
   });
 });
 
