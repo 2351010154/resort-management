@@ -459,10 +459,10 @@ describe("the attempt a callback names", () => {
 
 describe("a callback contradicting what the attempt already says", () => {
   it("posts nothing when the gateway reports success over a refusal it filed", async () => {
-    // The payer's return and the IPN are the same claim over the same
-    // signature, so both reach this handler and they can arrive in either
-    // order. A refusal filed first and a success after is money the gateway
-    // says it took against an attempt already closed the other way — and
+    // A gateway reports more than once about one attempt and nothing orders
+    // the deliveries, so this handler sees them in whatever order they land. A
+    // refusal filed first and a success after is money the gateway says it took
+    // against an attempt already closed the other way — and
     // `status = 'PENDING'` alone cannot tell that from a replay, which is the
     // reading that would answer "already recorded" and post nothing at all.
     const attempt = await anAttempt();

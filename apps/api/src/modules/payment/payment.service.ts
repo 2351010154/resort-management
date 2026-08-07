@@ -216,6 +216,30 @@ export type CallbackOutcome =
   | "STILL_OPEN";
 
 /**
+ * What a callback and this property's own record turned out to disagree about.
+ *
+ * Carried as `data` on every `CONFLICT` {@link PaymentService.handleIpn} raises,
+ * because those are one status code over three different disagreements and a
+ * caller has something different to say about each — the route that answers a
+ * gateway has to name the figure when it is the figure, and must not name it
+ * when it is not. The sentence each refusal carries is written for the person
+ * who will have to reconcile it, and a caller matching on that prose breaks the
+ * first time one of them is reworded.
+ *
+ * Three members and not a boolean, and none of them is a state anything is
+ * stored in: the header above says why a disagreement writes nothing and adds no
+ * `payment_status`. This names what was disagreed about, for the length of one
+ * throw.
+ */
+export type CallbackDisagreement =
+  /** The gateway's figure is not the figure the attempt was opened for. */
+  | "AMOUNT"
+  /** The attempt is already filed as something this callback contradicts. */
+  | "OUTCOME"
+  /** The gateway's transaction is already recorded against another attempt. */
+  | "TRANSACTION";
+
+/**
  * Thrown to abandon a transaction whose attempt is already resolved exactly as
  * this callback claims.
  *
@@ -463,6 +487,7 @@ export class PaymentService {
       if (claimed) {
         if (claimed.asked !== transaction.amount) {
           throw new ORPCError("CONFLICT", {
+            data: disagreedAbout("AMOUNT"),
             message:
               "The gateway reports an amount this property did not open the " +
               "attempt for, so nothing has been posted and the attempt is " +
@@ -495,6 +520,7 @@ export class PaymentService {
       }
 
       throw new ORPCError("CONFLICT", {
+        data: disagreedAbout("OUTCOME"),
         message:
           `The gateway reports this attempt was paid under transaction ` +
           `${transaction.gatewayTransactionId}, but it is already filed as ` +
@@ -512,6 +538,7 @@ export class PaymentService {
       // back the `code` they carry, and none of them is `23505`.
       if (sqlStateOf(error) === UNIQUE_VIOLATION) {
         throw new ORPCError("CONFLICT", {
+          data: disagreedAbout("TRANSACTION"),
           message:
             `Transaction ${transaction.gatewayTransactionId} is already ` +
             "recorded against another attempt, so nothing has been posted",
@@ -577,6 +604,7 @@ export class PaymentService {
       }
 
       throw new ORPCError("CONFLICT", {
+        data: disagreedAbout("OUTCOME"),
         message:
           `The gateway reports this attempt was refused, but it is already ` +
           `filed as ${held.status} — the money it says did not move is on the ` +
@@ -608,6 +636,33 @@ export class PaymentService {
 
     return held;
   }
+}
+
+/** The `data` a `CONFLICT` from {@link PaymentService.handleIpn} carries. */
+export function disagreedAbout(disagreement: CallbackDisagreement): {
+  readonly disagreement: CallbackDisagreement;
+} {
+  return { disagreement };
+}
+
+/**
+ * What a refusal disagreed about, or nothing if it did not say.
+ *
+ * The reading half of {@link disagreedAbout}, written beside it so the two
+ * cannot drift. `data` is `unknown` by the time a caller holds the error, and an
+ * error carrying no `data` at all is the ordinary case — everything this service
+ * raises that is not a `CONFLICT`.
+ */
+export function disagreementOf(data: unknown): CallbackDisagreement | undefined {
+  if (typeof data !== "object" || data === null) {
+    return undefined;
+  }
+
+  const named = (data as { disagreement?: unknown }).disagreement;
+
+  return named === "AMOUNT" || named === "OUTCOME" || named === "TRANSACTION"
+    ? named
+    : undefined;
 }
 
 /**

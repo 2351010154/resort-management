@@ -127,10 +127,10 @@ const CORRELATION_HEADER = "x-request-id";
 
     // M6, and after both of the modules it reaches into: `FolioModule` for the
     // account a verified callback posts to, `BookingModule` for the rollover
-    // rule that dates the posting. It registers no route today — the payer's
-    // return and the gateway's IPN are their own piece of work — so what
-    // registering it buys is the binding of `PAYMENT_GATEWAY` to the one adapter
-    // that knows what VNPay is, which is the whole of `FR-PAY-01`.
+    // rule that dates the posting. It registers the two routes VNPay calls —
+    // both unguarded, and both governed by the guard `AuthModule` installs like
+    // every other route here — and the binding of `PAYMENT_GATEWAY` to the one
+    // adapter that knows what VNPay is, which is the whole of `FR-PAY-01`.
     PaymentModule,
 
     // Last, and after every module that could register a sweep. `JobsModule`

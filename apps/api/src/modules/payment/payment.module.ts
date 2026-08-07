@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { BookingModule } from "../booking/booking.module.js";
 import { FolioModule } from "../folio/folio.module.js";
+import { PaymentController } from "./payment.controller.js";
 import { PaymentService } from "./payment.service.js";
 import { PAYMENT_GATEWAY } from "./ports/payment-gateway.port.js";
 import { VnpayAdapter } from "./vnpay.adapter.js";
@@ -10,12 +11,18 @@ import { VnpayAdapter } from "./vnpay.adapter.js";
 //
 // **The binding is what this module is for.** `PAYMENT_GATEWAY` is a symbol
 // because an interface is a type and erases, and `VnpayAdapter` is the only
-// thing in the application that knows what VNPay is. Everything above the token
-// — the service here, and the two routes `FR-PAY-03` still needs — is written
-// against `PaymentGateway`, so `FR-PAY-06`'s second gateway is a second adapter
-// and one changed line in this file rather than a change to any caller.
-// `booking.module.ts` binds `FOLIO_PORT` the same way and has already been
-// through exactly that swap once, which is the evidence the arrangement works.
+// thing in the application that knows how to speak to VNPay. Everything above
+// the token is written against `PaymentGateway`, so `FR-PAY-06`'s second gateway
+// is a second adapter and one changed line in this file rather than a change to
+// any caller. `booking.module.ts` binds `FOLIO_PORT` the same way and has
+// already been through exactly that swap once, which is the evidence the
+// arrangement works.
+//
+// The controller is the one thing here that also names VNPay, and it names its
+// *protocol* rather than its host or its checksum: the two callback routes have
+// no caller but the gateway, so their paths and the pairs they answer with are
+// VNPay's specification. `payment.controller.ts` argues that at the top, and the
+// second gateway registers a second controller beside it in this same list.
 //
 // `useClass` and not `useExisting`: no other module provides the adapter, so
 // there is no instance to point at and this is where it is constructed. It takes
@@ -37,16 +44,19 @@ import { VnpayAdapter } from "./vnpay.adapter.js";
 // Nothing runs the other way — a booking has no need of a payment — so there is
 // no cycle to break.
 //
-// The service is exported before this module has a controller, which is the
-// arrangement `folio.module.ts` and `guest.module.ts` both opened with. The
-// payer's return and the gateway's IPN are their own piece of work; a controller
-// registered now would be routes that answer nothing, and the dependency graph
-// would say this module serves traffic when it does not.
+// The service is still exported, and now for one caller rather than none: the
+// route that opens an attempt belongs to the guest funnel and will be asked for
+// from outside this module. The two routes registered here are not that — they
+// are the gateway's half of the conversation, and they are here because the
+// callback and the account it posts to have to be reachable from one place.
 //
 // `DatabaseModule` is global, so nothing is imported for the transaction the
-// service opens or for the executor it hands each write.
+// service opens or for the executor it hands each write. `ConfigModule` is
+// global too, which is what lets the controller read the origin it hands the
+// payer back to without this module importing anything for it.
 @Module({
   imports: [BookingModule, FolioModule],
+  controllers: [PaymentController],
   providers: [
     { provide: PAYMENT_GATEWAY, useClass: VnpayAdapter },
     PaymentService,
