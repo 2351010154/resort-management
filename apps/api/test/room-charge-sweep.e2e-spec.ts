@@ -1,0 +1,673 @@
+// The sweep that charges the night — `FR-FOL-01` and `FR-FOL-02`, against a
+// real Postgres.
+//
+// `folio-service.e2e-spec.ts` proves what a gross figure becomes once somebody
+// posts it. What it cannot prove is that anybody ever does: until this sweep
+// runs, a guest checks in, sleeps five nights and departs owing nothing, because
+// §4's check-out guard sums a folio nothing was ever written to. So what is
+// asserted here is which stays the sweep charges, which it walks past, and — the
+// claim the whole design turns on — *what a night costs*.
+//
+// Three of those are worth naming, because each is money the property or the
+// guest would lose:
+//
+// - a night is charged at what the guest agreed to, extras included, and the
+//   nights of a stay sum to `quoted_stay_total_gross` to the đồng;
+// - a stay that is not in the building, and a date the stay does not cover, are
+//   charged nothing;
+// - a second run over the same business date posts nothing, in the same
+//   transaction and in a later one — the property `job-runner.service.ts`
+//   enforces on every run, checked against the real sweep rather than a probe.
+//
+// The stays are taken by the desk before they arrive and checked in on their
+// arrival date, which is two `BookingService` instances over two stopped clocks:
+// a booking cannot be created into the past and a guest cannot be admitted
+// before the day they are due. That is the property's own day moving, and it is
+// the only thing that puts a guest in the building.
+//
+// **The rows are committed rather than rolled back**, for the reason
+// `folio-service.e2e-spec.ts` gives: the balance is read through `getBalance`,
+// which takes a booking id and no executor, so fixtures written inside an open
+// transaction would be invisible to the method under test. The ledger is
+// therefore truncated on the way in and on the way out.
+//
+// No Nest application is booted for the behaviour — the subject is a sweep, a
+// service and the rows underneath them. One case does boot the container, and
+// only to answer the question the wiring turns on: whether the sweep is
+// registered at all. A sweep that works and is in nobody's registry is the exact
+// shape of the gap this file closes.
+//
+// The tax figures are deliberately unreal — 12.34% VAT over a 3.21% service
+// charge. §8 forbids the tree from carrying a real rate, and a fixture that read
+// like the property's would be that defect wearing a test's clothes. Nothing
+// below asserts the split itself; that is the other file's claim, and this one
+// only requires that the three lines sum back to the night.
+
+import "reflect-metadata";
+
+import { parseDate } from "@internationalized/date";
+import type {
+  Party,
+  RatePlanCode,
+  RoomTypeCode,
+  StayDate,
+  VndAmount,
+} from "@mariva/shared";
+import { Test } from "@nestjs/testing";
+import { and, eq, inArray, sql } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { migrate } from "drizzle-orm/node-postgres/migrator";
+import pg from "pg";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { AppModule } from "../src/app.module.js";
+import type { Env } from "../src/config/env.js";
+import { booking, bookingNight } from "../src/database/schema/booking.js";
+import { systemConfig } from "../src/database/schema/config.js";
+import { folio, folioPosting } from "../src/database/schema/folio.js";
+import { roomCondition } from "../src/database/schema/housekeeping.js";
+import { staffUser } from "../src/database/schema/identity.js";
+import * as schema from "../src/database/schema/index.js";
+import { room, roomType, typeInventory } from "../src/database/schema/inventory.js";
+import { rateCalendar } from "../src/database/schema/pricing.js";
+import { seedDatabase } from "../src/database/seed/seed.js";
+import { JobRunner } from "../src/jobs/job-runner.service.js";
+import { JobsModule } from "../src/jobs/jobs.module.js";
+import { AssignmentService } from "../src/modules/booking/assignment.service.js";
+import { BookingService } from "../src/modules/booking/booking.service.js";
+import { BusinessDateService } from "../src/modules/booking/business-date.service.js";
+import { FolioStubService } from "../src/modules/booking/ports/folio-stub.service.js";
+import { StayQuoteService } from "../src/modules/booking/stay-quote.service.js";
+import { FolioService } from "../src/modules/folio/folio.service.js";
+import { RoomChargeSweep } from "../src/modules/folio/room-charge-sweep.js";
+import { GuestService } from "../src/modules/guest/guest.service.js";
+import { HousekeepingService } from "../src/modules/housekeeping/housekeeping.service.js";
+import { InventoryService } from "../src/modules/inventory/inventory.service.js";
+import { SystemConfigService } from "../src/modules/system-config/system-config.service.js";
+
+const SEED_FROM = parseDate("2027-06-01");
+
+/** The day the desk takes every stay below — before all of them arrive. */
+const BOOKED_ON = SEED_FROM;
+
+const ARRIVAL = "2027-06-10";
+const DEPARTURE = "2027-06-13";
+
+/** The nights a three-night stay sells, arrival first — never the departure. */
+const NIGHTS = [ARRIVAL, "2027-06-11", "2027-06-12"] as const;
+
+const FIRST_NIGHT = parseDate(ARRIVAL);
+const THE_DAY_THEY_LEAVE = parseDate(DEPARTURE);
+const THE_DAY_BEFORE_THEY_ARRIVE = parseDate("2027-06-09");
+
+/** A configuration nobody could mistake for a property's real one. */
+const CONFIGURED = {
+  vatRateBps: 1_234,
+  reducedVatFrom: null,
+  reducedVatTo: null,
+  vatIncludesServiceCharge: true,
+  serviceChargeRateBps: 321,
+  businessDateRolloverHour: 11,
+} satisfies typeof systemConfig.$inferInsert;
+
+// The two figures `seed.ts` writes into `rate_plan` and `property_tariff`, named
+// here rather than imported: an expectation computed from the same constant the
+// code reads would agree with it however wrong both were.
+const BREAKFAST_PER_PERSON = 250_000n;
+const EXTRA_PERSON_PER_NIGHT = 600_000n;
+
+/**
+ * Three calendar prices chosen so the plan's percentage does not divide.
+ *
+ * `NONREF` is `STANDARD` − 10%, which on the seed's own round figures truncates
+ * nothing and would let a sweep that applied the percentage per night pass. On
+ * these it does not: night by night the three come to 3,099,997 ₫, and the stay
+ * was sold at 3,099,998 ₫. The đồng is the whole argument for charging a night
+ * as the difference of two stay totals, so the fixture has to be able to lose it.
+ */
+const UNEVEN_PRICES = [1_111_111n, 999_999n, 1_333_333n] as const;
+
+/** What that stay was quoted, and what its nights must come to. */
+const UNEVEN_STAY_TOTAL = 3_099_998n;
+const UNEVEN_NIGHTS = [999_999n, 900_000n, 1_199_999n] as const;
+
+const A_RECEPTIONIST = {
+  email: "le.tan.folio@mariva.test",
+  fullName: "Nguyễn Thị Hạnh",
+} as const;
+
+const ROLLOVER_HOUR = 4;
+const HOLD_TTL_MINUTES = 20;
+
+/**
+ * The property's day, stopped — the same device the other sweep suites use. The
+ * hour and the zone stay the real service's; only the instant it reads is fixed.
+ */
+class StoppedClock extends BusinessDateService {
+  constructor(private readonly today: StayDate) {
+    super({ BUSINESS_DATE_ROLLOVER_HOUR: ROLLOVER_HOUR } as Env);
+  }
+
+  override current(): StayDate {
+    return this.today;
+  }
+}
+
+let pool: pg.Pool;
+let db: ReturnType<typeof drizzle<typeof schema>>;
+let folios: FolioService;
+let sweep: RoomChargeSweep;
+let deskId: string;
+
+// Every stay registers a guest, and a CCCD identifies one person. Counted rather
+// than drawn, so a failing run reproduces.
+let guestOrdinal = 0;
+
+/** The desk, on a given day. */
+function deskAt(today: StayDate): BookingService {
+  const inventory = new InventoryService();
+  const clock = new StoppedClock(today);
+
+  return new BookingService(
+    inventory,
+    new StayQuoteService(),
+    clock,
+    new AssignmentService(
+      inventory,
+      clock,
+      new StayQuoteService(),
+      new HousekeepingService(),
+    ),
+    new GuestService(),
+    new HousekeepingService(),
+    // The check-out guard is not exercised here and this suite never closes a
+    // stay, so the port's simplest implementation is the honest one — see
+    // `folio-stub.service.ts` on why it is shared rather than rewritten.
+    new FolioStubService(),
+    { BOOKING_HOLD_TTL_MINUTES: HOLD_TTL_MINUTES } as Env,
+  );
+}
+
+/** The rooms service, on a given day. */
+function roomsAt(today: StayDate): AssignmentService {
+  return new AssignmentService(
+    new InventoryService(),
+    new StoppedClock(today),
+    new StayQuoteService(),
+    new HousekeepingService(),
+  );
+}
+
+beforeAll(async () => {
+  const connectionString = process.env.DATABASE_URL;
+
+  if (!connectionString) {
+    throw new Error("DATABASE_URL is unset — vitest.config.ts loads .env.test");
+  }
+
+  pool = new pg.Pool({ connectionString });
+  db = drizzle({ client: pool, schema });
+
+  await migrate(db, { migrationsFolder: "./src/database/migrations" });
+  await clearTheLedger();
+  await seedDatabase(db, { from: SEED_FROM, bookings: 0 });
+  await store(CONFIGURED);
+
+  // Removed first rather than upserted: the uniqueness on this table is over
+  // `lower(email)`, which is an index `on conflict` cannot name.
+  await db.delete(staffUser).where(eq(staffUser.email, A_RECEPTIONIST.email));
+
+  const [staff] = await db
+    .insert(staffUser)
+    .values({
+      ...A_RECEPTIONIST,
+      role: "RECEPTIONIST",
+      passwordHash: "not-a-real-hash",
+    })
+    .returning({ id: staffUser.id });
+
+  deskId = staff!.id;
+
+  folios = new FolioService(db, new SystemConfigService());
+  sweep = new RoomChargeSweep(folios);
+});
+
+// Each case starts against the property as the seed laid it down, and against an
+// empty ledger — a case reading a folio another one left behind is reading an
+// account nobody opened.
+beforeEach(async () => {
+  await clearTheLedger();
+  await db.execute(
+    sql`truncate registration, room_assignment, booking, guest restart identity cascade`,
+  );
+  await db.update(typeInventory).set({ soldRooms: 0 });
+  await db.delete(roomCondition);
+});
+
+afterAll(async () => {
+  // The rows this file committed, taken back the only way a write-once table
+  // allows. Left standing, a folio would hold a booking the next file's
+  // `seedDatabase` cannot clear, and the failure would surface a file away from
+  // its cause.
+  await clearTheLedger();
+  await pool?.end();
+});
+
+describe("the night a guest is sleeping", () => {
+  it("posts it as the charge, the service charge and the tax", async () => {
+    const stay = await checkedInStay();
+
+    const posted = await runSweep(FIRST_NIGHT);
+
+    expect(posted).toHaveLength(1);
+
+    const lines = await linesOf(await folioOf(stay));
+
+    expect(lines).toHaveLength(3);
+    expect(lines.map((line) => line.type).sort()).toEqual([
+      "ROOM_CHARGE",
+      "SERVICE_CHARGE_FEE",
+      "VAT",
+    ]);
+
+    const charge = byType(lines, "ROOM_CHARGE");
+
+    // The id the sweep answers with is the charge, which is the row a correction
+    // is issued against — the two derived lines name it, so it is the handle on
+    // the whole night rather than on a third of it.
+    expect(posted).toEqual([charge.id]);
+    expect(byType(lines, "SERVICE_CHARGE_FEE").parentPostingId).toBe(charge.id);
+    expect(byType(lines, "VAT").parentPostingId).toBe(charge.id);
+
+    for (const line of lines) {
+      // No person wrote these. `schema/folio.ts` keeps the column null for the
+      // writers with nobody behind them, and the sweep's own predicate reads it
+      // back to recognise its work — so a placeholder account here would be a
+      // sweep that could no longer tell its lines from the desk's.
+      expect(line.postedBy).toBeNull();
+      expect(line.businessDate).toBe(ARRIVAL);
+    }
+  });
+
+  it("charges a plain stay exactly the calendar price of that night", async () => {
+    // `STANDARD` moves the room rate by nothing and two adults are the included
+    // occupancy, so the night the guest agreed to is the night the calendar
+    // published — and the three lines have to sum back to it.
+    const stay = await checkedInStay();
+
+    await runSweep(FIRST_NIGHT);
+
+    expect(await folios.getBalance(stay)).toBe(await priceOf(stay, ARRIVAL));
+  });
+
+  it("charges the plan's breakfast and the extra head on the night they are had", async () => {
+    // §3 prices both per night. A sweep that posted only the calendar price
+    // would bill a family of three for a bare room every night of their stay,
+    // and the stay would settle for less than it was sold at.
+    const stay = await checkedInStay({
+      type: "PREMIER",
+      plan: "BB",
+      party: { adults: 2, children: [{ age: 8 }] },
+    });
+
+    await runSweep(FIRST_NIGHT);
+
+    expect(await folios.getBalance(stay)).toBe(
+      (await priceOf(stay, ARRIVAL)) +
+        // Every head over six eats — three of them.
+        BREAKFAST_PER_PERSON * 3n +
+        // One head beyond the included two, and the cheapest head is the
+        // eight-year-old at half the rate.
+        EXTRA_PERSON_PER_NIGHT / 2n,
+    );
+  });
+});
+
+describe("a stay the sweep must not charge", () => {
+  it("leaves one whose guest is not in the building", async () => {
+    // A `CONFIRMED` stay is a room held for somebody who may still not come.
+    // What that becomes is `FR-BOOK-04`'s no-show charge, which is `M9`'s to
+    // post — not a night's rent this sweep would have to take back.
+    const stay = await confirmedStay();
+
+    expect(await runSweep(FIRST_NIGHT)).toEqual([]);
+    expect(await folios.getBalance(stay)).toBe(0n);
+  });
+
+  it("leaves one on the morning it departs", async () => {
+    // The half-open range: the guest leaving today slept last night, and last
+    // night was charged last night. Charging the departure date would put a
+    // night nobody slept on an invoice.
+    const stay = await checkedInStay();
+
+    expect(await runSweep(THE_DAY_THEY_LEAVE)).toEqual([]);
+    expect(await folios.getBalance(stay)).toBe(0n);
+  });
+
+  it("leaves one on a date before it arrives", async () => {
+    // The manual trigger takes any business date, so it can be handed one the
+    // property has already left behind — and a stay that had not started is not
+    // rent anybody owes for that night.
+    const stay = await checkedInStay();
+
+    expect(await runSweep(THE_DAY_BEFORE_THEY_ARRIVE)).toEqual([]);
+    expect(await folios.getBalance(stay)).toBe(0n);
+  });
+});
+
+describe("the sweep as the runner requires it", () => {
+  it("changes nothing on a second pass over the same transaction", async () => {
+    const stay = await checkedInStay();
+
+    // Exactly what `JobRunner` does before it commits: run, and if anything was
+    // touched, run again and require nothing. A sweep failing this is rolled
+    // back whole rather than discovered later on a guest's invoice.
+    const [first, second] = await db.transaction(async (exec) => [
+      await sweep.run(exec, FIRST_NIGHT),
+      await sweep.run(exec, FIRST_NIGHT),
+    ]);
+
+    expect(first).toHaveLength(1);
+    expect(second).toEqual([]);
+    expect(await linesOf(await folioOf(stay))).toHaveLength(3);
+  });
+
+  it("charges nothing when the night is run again hours later", async () => {
+    // The manager re-running a night the scheduler missed, and the cron's own
+    // later ticks. Both arrive as a separate transaction, which is the case the
+    // runner's second pass cannot speak for.
+    const stay = await checkedInStay();
+    const charged = await runSweep(FIRST_NIGHT);
+
+    expect(await runSweep(FIRST_NIGHT)).toEqual([]);
+
+    expect(charged).toHaveLength(1);
+    expect(await linesOf(await folioOf(stay))).toHaveLength(3);
+  });
+
+  it("still charges the night when the desk has posted a charge against it", async () => {
+    // A late checkout billed at the desk is a room charge on today's business
+    // date, and it is not tonight's rent. The predicate reads `posted_by` for
+    // exactly this: without it, one receptionist posting anything would silently
+    // wipe a night off the account.
+    const stay = await checkedInStay();
+    const folioId = await folios.ensureFolio(db, stay);
+
+    await folios.postRoomCharge(db, {
+      folioId,
+      grossAmount: 500_000n,
+      businessDate: FIRST_NIGHT,
+      description: "Late checkout, charged at the desk",
+      postedBy: deskId,
+    });
+
+    expect(await runSweep(FIRST_NIGHT)).toHaveLength(1);
+
+    expect(await folios.getBalance(stay)).toBe(
+      500_000n + (await priceOf(stay, ARRIVAL)),
+    );
+  });
+
+  it("is registered on the scheduler, under a cron it can be found by", async () => {
+    // The one case that boots the container. `jobs.module.ts` keeps the registry
+    // as a list somebody has to edit, which buys a readable file at the cost of
+    // a sweep that can exist and never run — so the registry is asserted rather
+    // than assumed.
+    const moduleRef = await Test.createTestingModule({
+      imports: [AppModule, JobsModule],
+    }).compile();
+
+    const app = moduleRef.createNestApplication();
+    await app.init();
+
+    try {
+      const registered = app.get(JobRunner).find("room-charge");
+
+      expect(registered).toBeInstanceOf(RoomChargeSweep);
+      // Five fields, and one that fires more than once a day: the rollover hour
+      // is configuration, so a sweep pinned to a single hour would charge the
+      // wrong night the morning after somebody moved it.
+      expect(registered?.schedule).toMatch(/^\S+ \* \* \* \*$/);
+    } finally {
+      await app.close();
+    }
+  });
+});
+
+describe("the nights of a stay against the figure it was sold at", () => {
+  it("sums to the agreed total to the đồng, on prices the plan does not divide", async () => {
+    // `NFR-02` over a whole stay, and the reason a night is charged as the
+    // difference of two stay totals rather than by running §3 once a night. The
+    // three amounts below are what telescoping produces; applying the
+    // percentage per night instead yields 999,999 / 899,999 / 1,199,999, which
+    // is a đồng the guest was quoted and never billed.
+    const stay = await unevenlyPricedStay();
+
+    const charged: VndAmount[] = [];
+
+    for (const night of NIGHTS) {
+      const before = await folios.getBalance(stay);
+
+      expect(await runSweep(parseDate(night))).toHaveLength(1);
+
+      charged.push((await folios.getBalance(stay)) - before);
+    }
+
+    expect(charged).toEqual([...UNEVEN_NIGHTS]);
+    expect(await folios.getBalance(stay)).toBe(UNEVEN_STAY_TOTAL);
+    expect(await folios.getBalance(stay)).toBe(await quotedTotalOf(stay));
+  });
+});
+
+/** The sweep, through the boundary the runner opens around it. */
+async function runSweep(businessDate: StayDate): Promise<readonly string[]> {
+  return await db.transaction((exec) => sweep.run(exec, businessDate));
+}
+
+interface StayOptions {
+  readonly type?: RoomTypeCode;
+  readonly plan?: RatePlanCode;
+  readonly party?: Party;
+  readonly checkIn?: string;
+  readonly checkOut?: string;
+}
+
+/** A confirmed stay with its nights consumed, taken before it arrives. */
+async function confirmedStay(options: StayOptions = {}): Promise<string> {
+  const made = await db.transaction((tx) =>
+    deskAt(BOOKED_ON).createConfirmed(tx, {
+      roomType: options.type ?? "SUPERIOR",
+      checkIn: parseDate(options.checkIn ?? ARRIVAL),
+      checkOut: parseDate(options.checkOut ?? DEPARTURE),
+      plan: options.plan ?? "STANDARD",
+      party: options.party ?? { adults: 2, children: [] },
+    }),
+  );
+
+  return made.id;
+}
+
+/** A stay holding a room, with its party registered and its guest in it. */
+async function checkedInStay(options: StayOptions = {}): Promise<string> {
+  const id = await confirmedStay(options);
+  const checkIn = options.checkIn ?? ARRIVAL;
+  const roomNumber = await aFreeRoom(options.type ?? "SUPERIOR");
+
+  await db.transaction((tx) =>
+    roomsAt(BOOKED_ON).assign(tx, { bookingId: id, roomNumber }),
+  );
+
+  guestOrdinal += 1;
+
+  await db.transaction((tx) =>
+    deskAt(parseDate(checkIn)).checkIn(tx, {
+      bookingId: id,
+      guests: [
+        {
+          fullName: "Trần Thị Mai",
+          // One person per stay: a CCCD identifies a human being, and two stays
+          // sharing one would be the same guest in two rooms.
+          cccdNumber: `0793010${String(40_000 + guestOrdinal)}`,
+          nationality: "VN",
+        },
+      ],
+    }),
+  );
+
+  return id;
+}
+
+/**
+ * A checked-in stay whose nights were published at {@link UNEVEN_PRICES}.
+ *
+ * The calendar is moved for the three nights, the stay is sold against it, and
+ * the published prices are put back — a rate a manager edits is data, and the
+ * booking freezes what it was sold at, so nothing downstream reads the calendar
+ * again. Restoring keeps this file's edit out of every suite that runs after it.
+ */
+async function unevenlyPricedStay(): Promise<string> {
+  const [type] = await db
+    .select({ id: roomType.id })
+    .from(roomType)
+    .where(eq(roomType.code, "DELUXE"))
+    .limit(1);
+
+  const published = await db
+    .select({
+      stayDate: rateCalendar.stayDate,
+      grossPerNight: rateCalendar.grossPerNight,
+    })
+    .from(rateCalendar)
+    .where(
+      and(
+        eq(rateCalendar.roomTypeId, type!.id),
+        inArray(rateCalendar.stayDate, [...NIGHTS]),
+      ),
+    );
+
+  try {
+    for (const [index, night] of NIGHTS.entries()) {
+      await db
+        .update(rateCalendar)
+        .set({ grossPerNight: UNEVEN_PRICES[index]! })
+        .where(
+          and(
+            eq(rateCalendar.roomTypeId, type!.id),
+            eq(rateCalendar.stayDate, night),
+          ),
+        );
+    }
+
+    return await checkedInStay({ type: "DELUXE", plan: "NONREF" });
+  } finally {
+    for (const night of published) {
+      await db
+        .update(rateCalendar)
+        .set({ grossPerNight: night.grossPerNight })
+        .where(
+          and(
+            eq(rateCalendar.roomTypeId, type!.id),
+            eq(rateCalendar.stayDate, night.stayDate),
+          ),
+        );
+    }
+  }
+}
+
+/**
+ * A room of that type nothing is holding.
+ *
+ * The lowest-numbered one, and it is free because every case truncates the
+ * assignments before it runs. Looked up rather than written down: the numbering
+ * is `seed.ts`'s display-order rule, and a suite that hard-coded it would fail
+ * on a property whose mix changed rather than on a sweep that broke.
+ */
+async function aFreeRoom(code: RoomTypeCode): Promise<string> {
+  const [found] = await db
+    .select({ number: room.number })
+    .from(room)
+    .innerJoin(roomType, eq(roomType.id, room.roomTypeId))
+    .where(eq(roomType.code, code))
+    .orderBy(room.number)
+    .limit(1);
+
+  if (!found) throw new Error(`the property owns no ${code} room`);
+
+  return found.number;
+}
+
+/** The account one stay runs up. */
+async function folioOf(bookingId: string): Promise<string> {
+  const [account] = await db
+    .select({ id: folio.id })
+    .from(folio)
+    .where(eq(folio.bookingId, bookingId));
+
+  if (!account) throw new Error(`booking ${bookingId} has no folio`);
+
+  return account.id;
+}
+
+/** Every line on one account, oldest first. */
+async function linesOf(
+  folioId: string,
+): Promise<readonly (typeof folioPosting.$inferSelect)[]> {
+  return await db
+    .select()
+    .from(folioPosting)
+    .where(eq(folioPosting.folioId, folioId))
+    .orderBy(folioPosting.postedAt, folioPosting.id);
+}
+
+/** The one line of a type this case posted. */
+function byType(
+  lines: readonly (typeof folioPosting.$inferSelect)[],
+  type: (typeof folioPosting.$inferSelect)["type"],
+): typeof folioPosting.$inferSelect {
+  const found = lines.filter((line) => line.type === type);
+
+  if (found.length !== 1) {
+    throw new Error(`expected one ${type} line, found ${found.length}`);
+  }
+
+  return found[0]!;
+}
+
+/** The calendar price one night was sold at, as the booking froze it. */
+async function priceOf(bookingId: string, night: string): Promise<VndAmount> {
+  const [priced] = await db
+    .select({ standardGross: bookingNight.standardGross })
+    .from(bookingNight)
+    .where(
+      and(
+        eq(bookingNight.bookingId, bookingId),
+        eq(bookingNight.stayDate, night),
+      ),
+    );
+
+  if (!priced) throw new Error(`booking ${bookingId} has no night on ${night}`);
+
+  return priced.standardGross;
+}
+
+/** What the stay was sold for, from the row that froze it. */
+async function quotedTotalOf(bookingId: string): Promise<VndAmount> {
+  const [sold] = await db
+    .select({ total: booking.quotedStayTotalGross })
+    .from(booking)
+    .where(eq(booking.id, bookingId));
+
+  return sold!.total;
+}
+
+/** The one configuration row, replaced. */
+async function store(values: typeof systemConfig.$inferInsert): Promise<void> {
+  await db.execute(sql`truncate system_config`);
+  await db.insert(systemConfig).values(values);
+}
+
+/** Both ledger tables, emptied. A posting cannot be deleted, so `truncate` is
+ *  the only way back — it needs rights over the table rather than over its rows,
+ *  which is the distinction `schema/folio.ts` draws. */
+async function clearTheLedger(): Promise<void> {
+  await db.execute(sql`truncate folio_posting, folio restart identity cascade`);
+}
