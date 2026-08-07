@@ -41,6 +41,11 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
+# Font binaries a download drops in whatever directory it was started from. The
+# web app takes its faces from next/font, which fetches and self-hosts them at
+# build time, so one of these in the tree only ever landed here by accident.
+*.font
+
 # Visual regression baseline screenshots (generated, large binaries). Capture
 # them with apps/web/scripts/capture-visual-baseline.mjs before comparing; a
 # clone has none.
