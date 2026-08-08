@@ -98,10 +98,21 @@ export class HousekeepingController {
       // `business-date.service.ts`'s rule and not a sum a client should be
       // doing. Present, the date named, which is how a board is read for a
       // night that has already been closed.
-      const businessDate = input.businessDate ?? this.businessDates.current();
+      //
+      // Resolved inside the transaction the board was going to open anyway,
+      // because the rollover hour is a `system_config` row: asked for out here
+      // it would cost this route a second connection, and the tiles would be
+      // read against a day resolved in a different snapshot.
+      const { businessDate, rooms } = await this.transactions.run(
+        async (exec) => {
+          const on =
+            input.businessDate ?? (await this.businessDates.current(exec));
 
-      const rooms = await this.transactions.run((exec) =>
-        this.housekeeping.getBoard(exec, businessDate),
+          return {
+            businessDate: on,
+            rooms: await this.housekeeping.getBoard(exec, on),
+          };
+        },
       );
 
       return {

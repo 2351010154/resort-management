@@ -57,12 +57,24 @@
 // no request. Its boundary is the run, and the run has two entry points, so the
 // boundary lives at the thing they share. The rule the rest of the tree depends
 // on is untouched — a sweep still takes an executor and still opens nothing.
+//
+// ## Which date "today" is, is resolved here too
+//
+// Both entry points can be asked to run over the day the property is currently
+// having, and neither can answer that question itself: the rollover hour is a
+// `system_config` row, so it is a read and it wants an executor. Resolving it
+// here puts it inside the run's own transaction — one connection for the whole
+// run, and the same snapshot the sweep works in — rather than making a
+// controller open a transaction of its own to ask what day it is. A date the
+// caller named is passed through untouched, which is what re-running a night
+// that failed depends on.
 
 import type { StayDate } from "@mariva/shared";
 import { Inject, Injectable } from "@nestjs/common";
 import { sql } from "drizzle-orm";
 import { PinoLogger } from "nestjs-pino";
 import { TransactionRunner } from "../database/transaction-runner.js";
+import { BusinessDateService } from "../modules/booking/business-date.service.js";
 import {
   type JobRun,
   type JobTrigger,
@@ -105,6 +117,7 @@ export class JobRunner {
   constructor(
     @Inject(SWEEP_JOBS) private readonly jobs: readonly SweepJob[],
     private readonly transactions: TransactionRunner,
+    private readonly businessDates: BusinessDateService,
     private readonly logger: PinoLogger,
   ) {
     this.logger.setContext("JobRunner");
@@ -127,31 +140,44 @@ export class JobRunner {
    * the pass that checked it. Anything thrown — the sweep's own refusal, a
    * deadlock, a sweep that failed to settle — rolls the whole run back, and the
    * caller decides whether that is a retry or a page.
+   *
+   * `null` for `on` is "the day the property is having", which is what the cron
+   * always means and what a manual trigger means when nobody named a date. A
+   * date given is the date used, so re-running last night is a re-run and not
+   * another pass over today.
    */
   async run(
     job: SweepJob,
-    businessDate: StayDate,
+    on: StayDate | null,
     trigger: JobTrigger,
   ): Promise<JobRun> {
     const startedAt = Date.now();
 
-    const affected = await this.transactions.run(async (exec) => {
-      await exec.execute(
-        sql`select pg_advisory_xact_lock(hashtext(${LOCK_NAMESPACE}::text), hashtext(${job.name}::text))`,
-      );
+    const { businessDate, affected } = await this.transactions.run(
+      async (exec) => {
+        await exec.execute(
+          sql`select pg_advisory_xact_lock(hashtext(${LOCK_NAMESPACE}::text), hashtext(${job.name}::text))`,
+        );
 
-      const touched = await job.run(exec, businessDate);
+        // After the lock rather than before it. A run that waited behind another
+        // one is asking what day it is *now*, and a sweep that fired at 03:59:59
+        // and waited past the rollover should close the date it actually runs on
+        // rather than the one it queued on.
+        const businessDate = on ?? (await this.businessDates.current(exec));
 
-      if (touched.length > 0) {
-        const residue = await job.run(exec, businessDate);
+        const touched = await job.run(exec, businessDate);
 
-        if (residue.length > 0) {
-          throw new NonIdempotentSweepError(job.name, residue);
+        if (touched.length > 0) {
+          const residue = await job.run(exec, businessDate);
+
+          if (residue.length > 0) {
+            throw new NonIdempotentSweepError(job.name, residue);
+          }
         }
-      }
 
-      return touched.length;
-    });
+        return { businessDate, affected: touched.length };
+      },
+    );
 
     // One line per run, including the empty ones. A sweep that quietly stopped
     // firing is the failure this log answers, and it cannot be seen in a log

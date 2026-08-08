@@ -80,21 +80,32 @@ export class SearchController {
   operational(@Access() access: AccessDecision | undefined) {
     return implement(contract.search.operational).handler(async ({ input }) => {
       const filters = asFilters(input);
-      // The property's own day, resolved once — the 04:00 rollover is
-      // `business-date.service.ts`'s rule, and the room tiles and the occupancy
-      // column have to be answered against the same answer to it.
-      const businessDate = this.businessDates.current();
 
+      // The property's own day, resolved once and inside the transaction the
+      // search was going to open anyway — the 04:00 rollover is
+      // `business-date.service.ts`'s rule, and the room tiles and the occupancy
+      // column have to be answered against the same answer to it. Resolved in
+      // here rather than above it because the hour is a `system_config` row: read
+      // outside the boundary it would cost this path a second connection, and it
+      // would come from a different snapshot than the rows it is used to filter.
       if (narrowedToRooms(access)) {
-        const rooms = await this.transactions.run((exec) =>
-          this.search.searchRooms(exec, filters, businessDate),
+        const rooms = await this.transactions.run(async (exec) =>
+          this.search.searchRooms(
+            exec,
+            filters,
+            await this.businessDates.current(exec),
+          ),
         );
 
         return { scope: "rooms" as const, rooms: rooms.map(onWire) };
       }
 
-      const found = await this.transactions.run((exec) =>
-        this.search.search(exec, filters, businessDate),
+      const found = await this.transactions.run(async (exec) =>
+        this.search.search(
+          exec,
+          filters,
+          await this.businessDates.current(exec),
+        ),
       );
 
       return {

@@ -236,8 +236,12 @@ async function schedulerOver(
   return new JobScheduler(
     { ...app.get<Env>(ENV), JOBS_SCHEDULER_ENABLED: enabled },
     pool,
-    new JobRunner(jobs, app.get(TransactionRunner), runnerLogger),
-    app.get(BusinessDateService),
+    new JobRunner(
+      jobs,
+      app.get(TransactionRunner),
+      app.get(BusinessDateService),
+      runnerLogger,
+    ),
     schedulerLogger,
   );
 }
@@ -452,7 +456,7 @@ describe("triggering a sweep by hand", () => {
   });
 
   it("falls back to the property's own business date", async () => {
-    const today = app.get(BusinessDateService).current().toString();
+    const today = (await app.get(BusinessDateService).current(db)).toString();
 
     const response = await trigger(managerToken, settling.name);
 

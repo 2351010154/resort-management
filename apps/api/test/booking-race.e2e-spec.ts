@@ -35,7 +35,7 @@ import { migrate } from "drizzle-orm/node-postgres/migrator";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AppModule } from "../src/app.module.js";
-import type { Env } from "../src/config/env.js";
+import { SystemConfigService } from "../src/modules/system-config/system-config.service.js";
 import { type Database, DRIZZLE } from "../src/database/database.module.js";
 import { booking } from "../src/database/schema/booking.js";
 import { roomType, typeInventory } from "../src/database/schema/inventory.js";
@@ -47,8 +47,6 @@ const SEED_FROM = parseDate("2027-06-01");
 
 /** The property's day. Every stay below arrives well after it. */
 const TODAY = parseDate("2027-06-10");
-
-const ROLLOVER_HOUR = 4;
 
 /** `FR-INV-02`'s number, and the reason this file exists. */
 const SIMULTANEOUS_GUESTS = 50;
@@ -98,10 +96,10 @@ const RECEPTIONIST = {
  */
 class StoppedClock extends BusinessDateService {
   constructor() {
-    super({ BUSINESS_DATE_ROLLOVER_HOUR: ROLLOVER_HOUR } as Env);
+    super(new SystemConfigService());
   }
 
-  override current(): StayDate {
+  override async current(): Promise<StayDate> {
     return TODAY;
   }
 }

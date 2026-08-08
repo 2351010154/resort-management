@@ -120,12 +120,12 @@ export const envSchema = z.object({
   // edits, `MANAGER` only looks — while `property_tariff` sits under the rates
   // row a `MANAGER` owns, so a column there would widen the audience for it.
   //
-  // `system_config.business_date_rollover_hour` exists now and this variable
-  // seeds it, which is what §8 means by "seeded from environment at boot". But
-  // unlike the three money figures below, this one is **still read at run time**:
-  // `BusinessDateService` takes the hour from here, not from the row, so this is
-  // the value that decides what day the property is on. Issue #21 is the swap and
-  // says what it costs. Until it lands, editing the row moves nothing.
+  // This variable seeds `system_config.business_date_rollover_hour`, which is
+  // what §8 means by "seeded from environment at boot", and that is the whole of
+  // what it does. Like the three money figures below, nothing reads it at run
+  // time: `BusinessDateService` takes the hour from the row, so the row is what
+  // decides what day the property is on and changing this after the first boot
+  // changes nothing until an `ADMIN` edits the row.
   BUSINESS_DATE_ROLLOVER_HOUR: z.coerce
     .number()
     .int()

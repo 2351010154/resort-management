@@ -31,7 +31,7 @@ import { eq, sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AppModule } from "../src/app.module.js";
-import type { Env } from "../src/config/env.js";
+import { SystemConfigService } from "../src/modules/system-config/system-config.service.js";
 import { type Database, DRIZZLE } from "../src/database/database.module.js";
 import { booking } from "../src/database/schema/booking.js";
 import { roomCondition } from "../src/database/schema/housekeeping.js";
@@ -69,10 +69,10 @@ const A_NIGHT = 1_000_000n;
  *  the zone stay the real service's. */
 class PropertyDay extends BusinessDateService {
   constructor(private today: StayDate) {
-    super({ BUSINESS_DATE_ROLLOVER_HOUR: 4 } as Env);
+    super(new SystemConfigService());
   }
 
-  override current(): StayDate {
+  override async current(): Promise<StayDate> {
     return this.today;
   }
 }

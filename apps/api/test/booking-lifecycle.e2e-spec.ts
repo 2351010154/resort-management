@@ -30,6 +30,7 @@ import { migrate } from "drizzle-orm/node-postgres/migrator";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Env } from "../src/config/env.js";
+import { SystemConfigService } from "../src/modules/system-config/system-config.service.js";
 import { booking, bookingNight } from "../src/database/schema/booking.js";
 import * as schema from "../src/database/schema/index.js";
 import { roomType, typeInventory } from "../src/database/schema/inventory.js";
@@ -61,8 +62,6 @@ const EXTRA_PERSON_PER_NIGHT = 600_000n;
 
 const HOLD_TTL_MINUTES = 15;
 const MS_PER_MINUTE = 60_000;
-const ROLLOVER_HOUR = 4;
-
 /**
  * The property's day, stopped.
  *
@@ -75,10 +74,10 @@ const ROLLOVER_HOUR = 4;
  */
 class StoppedClock extends BusinessDateService {
   constructor(private readonly today: StayDate) {
-    super({ BUSINESS_DATE_ROLLOVER_HOUR: ROLLOVER_HOUR } as Env);
+    super(new SystemConfigService());
   }
 
-  override current(): StayDate {
+  override async current(): Promise<StayDate> {
     return this.today;
   }
 }

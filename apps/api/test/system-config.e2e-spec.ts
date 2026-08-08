@@ -7,6 +7,13 @@
 // that a value an `ADMIN` changed is read by the very next posting rather than
 // by the one after a restart.
 //
+// The clock is here for the same reason the rates are. §2 promises that "a
+// property that runs its audit at 06:00 changes one row, not a deploy", and the
+// only way to hold `BusinessDateService` to that is to edit the row underneath a
+// service that is already running and ask it again — which is what the cases
+// under "the day the property is on" do, with the instant held fixed so that
+// nothing but the row can have moved the answer.
+//
 // The refusals are the reason it exists. `property-and-tariff.md` §8 files the
 // VAT rate and the period the reduced rate covers as two separate answers the
 // accountant still owes (`ASM-01`), so there is exactly one rate behind the
@@ -46,6 +53,7 @@ import {
   type SystemConfigRow,
 } from "../src/database/schema/config.js";
 import * as schema from "../src/database/schema/index.js";
+import { BusinessDateService } from "../src/modules/booking/business-date.service.js";
 import { SystemConfigSeeder } from "../src/modules/system-config/system-config.seeder.js";
 import { SystemConfigService } from "../src/modules/system-config/system-config.service.js";
 
@@ -64,6 +72,13 @@ const CONFIGURED: SystemConfigValues = {
 
 /** What an `ADMIN` edits a rate to, mid-stay, in the cases that watch for it. */
 const EDITED_RATE_BPS = 4_321;
+
+/**
+ * The audit hour a property moves to, and the reason it is earlier rather than
+ * later: with one instant asked about across the edit, an hour on either side of
+ * it is what makes the two answers different dates rather than the same one.
+ */
+const EARLIER_ROLLOVER_HOUR = 9;
 
 /** A relief period, and a date on either side of each of its ends. */
 const WINDOW_OPENS = "2077-03-01";
@@ -312,6 +327,79 @@ describe("a database nobody has configured", () => {
     await expect(config.businessDateRolloverHour(db)).rejects.toThrow(
       /system_config holds no row/,
     );
+  });
+});
+
+describe("the day the property is on", () => {
+  // §2's promise, and the one this file exists to hold the row to: "a property
+  // that runs its audit at 06:00 changes one row, not a deploy". The instant is
+  // fixed and only the row moves, so a service that had kept the hour anywhere —
+  // in the environment it was seeded from, or in a field it read once at boot —
+  // answers the same date twice and fails here.
+  const DURING_THE_ARGUMENT = new Date("2077-05-05T03:30:00Z");
+
+  it("moves when an ADMIN edits the hour, with nothing redeployed", async () => {
+    const businessDates = new BusinessDateService(config);
+
+    // 03:30Z is 10:30 in Ho Chi Minh City: before an 11:00 rollover, so the
+    // property is still working the previous date.
+    await store(CONFIGURED);
+
+    expect((await businessDates.current(db, DURING_THE_ARGUMENT)).toString()).toBe(
+      "2077-05-04",
+    );
+
+    // The edit an `ADMIN` makes, and nothing else. No restart, no new instance,
+    // no second construction of the service — the same object is asked again.
+    await db
+      .update(systemConfig)
+      .set({ businessDateRolloverHour: EARLIER_ROLLOVER_HOUR });
+
+    expect((await businessDates.current(db, DURING_THE_ARGUMENT)).toString()).toBe(
+      "2077-05-05",
+    );
+  });
+
+  it("is read through the executor the caller is inside", async () => {
+    // The same argument the tax figures make, and it lands harder here: a stay
+    // is written with the business date stamped on it, so an hour read on
+    // another connection could date a booking from a row the transaction that
+    // writes it cannot see.
+    const businessDates = new BusinessDateService(config);
+
+    await store(CONFIGURED);
+
+    try {
+      await db.transaction(async (tx) => {
+        await tx
+          .update(systemConfig)
+          .set({ businessDateRolloverHour: EARLIER_ROLLOVER_HOUR });
+
+        expect(
+          (await businessDates.current(tx, DURING_THE_ARGUMENT)).toString(),
+        ).toBe("2077-05-05");
+
+        // Uncommitted, so the pool still sees the hour as it was.
+        expect(
+          (await businessDates.current(db, DURING_THE_ARGUMENT)).toString(),
+        ).toBe("2077-05-04");
+
+        throw new Rollback();
+      });
+    } catch (error) {
+      if (!(error instanceof Rollback)) throw error;
+    }
+  });
+
+  it("stops rather than guesses when nobody has configured the property", async () => {
+    // The same refusal a posting gets, and for the same reason: an assumed
+    // rollover hour is a business date nobody chose, stamped on every stay
+    // taken until somebody noticed.
+    await db.execute(sql`truncate system_config`);
+
+    await expect(
+      new BusinessDateService(config).current(db, DURING_THE_ARGUMENT),
+    ).rejects.toThrow(/system_config holds no row/);
   });
 });
 

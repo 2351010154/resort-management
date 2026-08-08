@@ -32,7 +32,7 @@ import { migrate } from "drizzle-orm/node-postgres/migrator";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AppModule } from "../src/app.module.js";
-import type { Env } from "../src/config/env.js";
+import { SystemConfigService } from "../src/modules/system-config/system-config.service.js";
 import { type Database, DRIZZLE } from "../src/database/database.module.js";
 import { seedDatabase } from "../src/database/seed/seed.js";
 import { BusinessDateService } from "../src/modules/booking/business-date.service.js";
@@ -46,8 +46,6 @@ import { permits } from "../src/modules/identity/rbac/roles.js";
 import { StaffUserService } from "../src/modules/identity/staff-user.service.js";
 
 const SEED_FROM = parseDate("2027-06-01");
-
-const ROLLOVER_HOUR = 4;
 
 // The property's day. The in-house stay arrives on it, which is what makes one
 // room genuinely occupied without the clock moving.
@@ -115,10 +113,10 @@ const AN_UPCOMING_STAY = {
 /** The property's day, stopped — the device every booking suite here uses. */
 class StoppedClock extends BusinessDateService {
   constructor() {
-    super({ BUSINESS_DATE_ROLLOVER_HOUR: ROLLOVER_HOUR } as Env);
+    super(new SystemConfigService());
   }
 
-  override current(): StayDate {
+  override async current(): Promise<StayDate> {
     return TODAY;
   }
 }
