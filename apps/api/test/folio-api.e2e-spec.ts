@@ -1,4 +1,4 @@
-// The folio API, end to end — the four routes `matrix.ts` already governs, over
+// The folio API, end to end — the five routes `matrix.ts` already governs, over
 // HTTP against a real Postgres, the real capability guard and both realms.
 //
 // `folio-service.e2e-spec.ts` proves what a gross figure becomes once somebody
@@ -25,6 +25,18 @@
 // 4. **A correction is a line the account gains.** The reversal route adds rows
 //    and removes none, and a line named against a stay it is not on is refused
 //    rather than credited to whoever it does belong to.
+// 5. **The close asks the invoice provider nothing.** `FR-FOL-04` promises that
+//    a provider timeout never rolls back a checkout, and the route keeps that
+//    promise by having no way to reach one — `e-invoice.job.ts` makes the closed
+//    row itself the request for an invoice, drained later by a sweep. So the
+//    provider is replaced below by one that counts what it is asked and is
+//    refusing outright while the account is being agreed: a close that waited on
+//    it would fail loudly here rather than pass quietly in production.
+// 6. **An account is agreed once.** A second close is refused with the instant
+//    of the first, and the row the sweep reads is left exactly as the first
+//    close wrote it — one stay awaiting one invoice, however often the desk
+//    asks. Whether the sweep then issues exactly one document is
+//    `folio-close.e2e-spec.ts`'s claim and is not restated here.
 //
 // The routes are reached through `AppModule` and nothing is registered here, so
 // this suite fails if `folio.module.ts` ever stops carrying the controller —
@@ -42,15 +54,24 @@ import { parseDate } from "@internationalized/date";
 import type { StayDate } from "@mariva/shared";
 import type { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
-import { sql } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AppModule } from "../src/app.module.js";
 import { type Database, DRIZZLE } from "../src/database/database.module.js";
 import { systemConfig } from "../src/database/schema/config.js";
+import { folio as folioTable } from "../src/database/schema/folio.js";
 import { seedDatabase } from "../src/database/seed/seed.js";
 import { BusinessDateService } from "../src/modules/booking/business-date.service.js";
+import { LocalEInvoiceService } from "../src/modules/folio/local-e-invoice.service.js";
+import {
+  type CorrectInvoiceInput,
+  E_INVOICE_PORT,
+  type EInvoicePort,
+  type IssuedInvoice,
+  type IssueInvoiceInput,
+} from "../src/modules/folio/ports/e-invoice.port.js";
 import {
   capability,
   type CapabilityKey,
@@ -157,6 +178,43 @@ class RecordingMailer {
   }
 }
 
+/**
+ * Whoever issues the property's invoices, counted and switchable.
+ *
+ * Two devices in one, and each answers a claim the close route has to keep.
+ * Every call is recorded, because the number the route must make is nought: the
+ * close commits state and `EInvoiceJob` asks the provider minutes later, on a
+ * connection no request handler holds. And {@link down} takes the provider away
+ * entirely — the sharpest form of `FR-FOL-04`'s timeout — so a close that ever
+ * did await one would answer 500 and roll its transaction back, which is a
+ * failing test rather than a stay that cannot be checked out because a third
+ * party is having an afternoon.
+ */
+class RecordingIssuer implements EInvoicePort {
+  readonly asked: IssueInvoiceInput[] = [];
+  down = false;
+
+  private readonly local = new LocalEInvoiceService();
+
+  async issue(input: IssueInvoiceInput): Promise<IssuedInvoice> {
+    this.asked.push(input);
+
+    if (this.down) {
+      throw new Error("the provider is down");
+    }
+
+    return await this.local.issue(input);
+  }
+
+  async adjust(input: CorrectInvoiceInput): Promise<IssuedInvoice> {
+    return await this.local.adjust(input);
+  }
+
+  async replace(input: CorrectInvoiceInput): Promise<IssuedInvoice> {
+    return await this.local.replace(input);
+  }
+}
+
 interface StaffAccount {
   readonly email: string;
   readonly fullName: string;
@@ -229,6 +287,7 @@ let app: INestApplication;
 let db: Database;
 let http: () => request.Agent;
 let mailer: RecordingMailer;
+let issuer: RecordingIssuer;
 const tokens = new Map<StaffRole, string>();
 
 /**
@@ -247,6 +306,7 @@ let guestStayId: string;
 
 beforeAll(async () => {
   mailer = new RecordingMailer();
+  issuer = new RecordingIssuer();
 
   const moduleRef = await Test.createTestingModule({
     imports: [AppModule],
@@ -255,6 +315,12 @@ beforeAll(async () => {
     .useClass(StoppedClock)
     .overrideProvider(MailerService)
     .useValue(mailer)
+    // `folio.module.ts` does not export this token, on purpose — what issues the
+    // property's invoices is that module's business. A testing override reaches
+    // it anyway, and does so without widening the boundary for production code,
+    // which is what makes the count below assertable at all.
+    .overrideProvider(E_INVOICE_PORT)
+    .useValue(issuer)
     .compile();
 
   app = moduleRef.createNestApplication();
@@ -349,6 +415,8 @@ async function aStay(): Promise<string> {
 
 const folioPath = (bookingId: string) => `/bookings/${bookingId}/folio`;
 
+const closurePath = (bookingId: string) => `${folioPath(bookingId)}/closure`;
+
 /** The account as one role reads it. */
 async function readFolio(
   bookingId: string,
@@ -385,6 +453,41 @@ async function postPayment(
   }).expect(200);
 
   return response.body;
+}
+
+/** A stay charged for its night and paid for in full, so its account comes to
+ *  nothing and the desk can agree it. The three lines a gross figure decomposes
+ *  into sum back to that figure, so one payment of it settles the account. */
+async function aSettledStay(): Promise<string> {
+  const bookingId = await aStay();
+
+  await postCharge(bookingId, A_CHARGE, "One night, to be settled and agreed");
+  await postPayment(bookingId, A_CHARGE, "Card, ****4242");
+
+  return bookingId;
+}
+
+/**
+ * The folio row as the database holds it, which is the queue `EInvoiceJob`
+ * reads.
+ *
+ * Not off the route: `folioSchema` carries no `invoiceReference`, deliberately —
+ * there is no number at the moment of the close — and it is precisely the null
+ * in that column that makes a closed account one outstanding request for an
+ * invoice. So the enqueue is counted where it actually lives.
+ */
+async function folioRowOf(bookingId: string) {
+  const [row] = await db
+    .select({
+      id: folioTable.id,
+      state: folioTable.state,
+      closedAt: folioTable.closedAt,
+      invoiceReference: folioTable.invoiceReference,
+    })
+    .from(folioTable)
+    .where(eq(folioTable.bookingId, bookingId));
+
+  return row;
 }
 
 const lineOfType = (folio: Folio, type: string) =>
@@ -436,19 +539,34 @@ const ROUTES: readonly {
     capability: "folio.reverse-posting",
     action: "write",
   },
+  {
+    name: "close",
+    method: "post",
+    path: closurePath,
+    capability: "folio.close-invoice",
+    action: "write",
+  },
 ];
 
 describe("the capability each folio route declares", () => {
-  // §4's obligation for the four rows these routes add. No body is sent to the
+  // §4's obligation for the five rows these routes add. No body is sent to the
   // writes — the guard runs before the handler, so an admitted caller answers
   // 400 and a refused one answers 403 either way, and no money moves while the
   // matrix is being asserted.
+  //
+  // Asked of the stay nothing is ever posted to, and that is not tidiness. The
+  // close takes no body, so an admitted caller's request is valid and reaches
+  // the handler; against an account with lines on it, one of these probes could
+  // agree the very folio the rest of the file goes on to charge, and the damage
+  // would surface three describes away from its cause. With no account opened
+  // the handler can only answer 404, which is not 403 and is all this block
+  // asks.
   for (const route of ROUTES) {
     for (const role of STAFF_ROLES) {
       const admitted = permits(staffGrant(route.capability, role), route.action);
 
       it(`${admitted ? "admits" : "refuses"} ${role} on ${route.name}`, async () => {
-        const response = await as(role, route.method, route.path(stayId));
+        const response = await as(role, route.method, route.path(emptyStayId));
 
         if (admitted) {
           expect(response.status).not.toBe(403);
@@ -463,7 +581,7 @@ describe("the capability each folio route declares", () => {
     // 401 and not 403 — nobody at all is asked to sign in, where somebody
     // holding the wrong role is refused.
     for (const route of ROUTES) {
-      await http()[route.method](route.path(stayId)).send().expect(401);
+      await http()[route.method](route.path(emptyStayId)).send().expect(401);
     }
   });
 
@@ -800,5 +918,169 @@ describe("an amount the routes refuse", () => {
       grossAmount: A_CHARGE.toString(),
       description: "   ",
     }).expect(400);
+  });
+});
+
+describe("agreeing the account", () => {
+  beforeAll(() => {
+    // The provider is taken away for every case below, and left away. Nothing
+    // in this suite draws an invoice — `EInvoiceJob` runs on a schedule pg-boss
+    // does not start under `NODE_ENV=test` — so the only thing this can break is
+    // a close that reached for an issuer, which is the thing it is here to
+    // catch. `folio-close.e2e-spec.ts` owns what the job does once it runs.
+    issuer.down = true;
+  });
+
+  afterAll(() => {
+    issuer.down = false;
+  });
+
+  it("refuses a stay whose account has not been settled", async () => {
+    const bookingId = await aStay();
+
+    await postCharge(bookingId, A_CHARGE, "One night, not yet paid for");
+
+    const refusal = await as("RECEPTIONIST", "post", closurePath(bookingId));
+
+    expect(refusal.status).toBe(409);
+    // The service's own sentence, carrying the figure still outstanding — the
+    // one thing a receptionist can act on. The route composes no refusal of its
+    // own: a second wording of this would be a second answer to keep level with
+    // the ledger, and the figure in it would be read outside the row lock that
+    // makes the figure true.
+    expect(refusal.body.message).toContain(A_CHARGE.toString());
+
+    // Nothing half-happened. A folio left `CLOSED` on a refused close is an
+    // account no line can be added to and no invoice can be drawn from.
+    const account = await readFolio(bookingId);
+
+    expect(account.state).toBe("OPEN");
+    expect(account.closedAt).toBeNull();
+  });
+
+  it("refuses a stay no account has been opened for", async () => {
+    // The service's refusal and not the read's: a folio is opened by the first
+    // thing posted to it, so there is nothing here to agree.
+    const bookingId = await aStay();
+    const refusal = await as("RECEPTIONIST", "post", closurePath(bookingId));
+
+    expect(refusal.status).toBe(404);
+  });
+
+  it("agrees one that comes to nothing, and answers with the closed account", async () => {
+    const bookingId = await aSettledStay();
+
+    const response = await as(
+      "RECEPTIONIST",
+      "post",
+      closurePath(bookingId),
+    ).expect(200);
+
+    const agreed: Folio = response.body;
+
+    expect(agreed.bookingId).toBe(bookingId);
+    expect(agreed.state).toBe("CLOSED");
+    expect(agreed.closedAt).not.toBeNull();
+    expect(BigInt(agreed.summary.outstanding)).toBe(0n);
+
+    // The lines travel back with it. They are what the invoice will be drawn
+    // from, and they are read on the connection that closed the account rather
+    // than by a second call that would be a later moment.
+    expect(agreed.postings.length).toBeGreaterThan(0);
+
+    // The instant is Postgres' and not this process's, so this is a window
+    // rather than an equality — what it proves is that the moment came out of
+    // the close and not out of a fixture.
+    expect(new Date(agreed.closedAt!).getTime()).toBeGreaterThan(0);
+  });
+
+  it("asks the invoice provider nothing, even to agree an account", async () => {
+    // `FR-FOL-04`: a provider timeout never rolls back a checkout. The provider
+    // here is not slow but refusing outright, which is the same failure with the
+    // waiting taken out, and the close is untouched by it — issuance was never
+    // in this transaction. `e-invoice.job.ts` calls the committed row the
+    // enqueue, and the row is what the assertions below read.
+    //
+    // First that the recorder is what the graph would actually hand a caller
+    // reaching for an issuer. Without this the empty list further down is a fact
+    // about an override that silently did not take, which is the one way a claim
+    // of the form "nothing was called" can pass while being false.
+    expect(app.get<EInvoicePort>(E_INVOICE_PORT)).toBe(issuer);
+
+    const bookingId = await aSettledStay();
+
+    const response = await as(
+      "RECEPTIONIST",
+      "post",
+      closurePath(bookingId),
+    ).expect(200);
+
+    expect((response.body as Folio).state).toBe("CLOSED");
+
+    // The direct form of the claim: the route made no call at all. A close that
+    // awaited the issuer would have thrown against a provider that is down, and
+    // the 200 above would already have failed — this says the stronger thing,
+    // that it would not have called even one that answered.
+    expect(issuer.asked).toEqual([]);
+
+    // Closed and awaiting a number, which is the request the sweep drains.
+    const enqueued = await folioRowOf(bookingId);
+
+    expect(enqueued?.state).toBe("CLOSED");
+    expect(enqueued?.invoiceReference).toBeNull();
+  });
+
+  it("agrees the account once, however often the desk asks", async () => {
+    const bookingId = await aSettledStay();
+
+    const first = await as(
+      "RECEPTIONIST",
+      "post",
+      closurePath(bookingId),
+    ).expect(200);
+
+    const agreed: Folio = first.body;
+    const second = await as("MANAGER", "post", closurePath(bookingId));
+
+    // Refused rather than quietly accepted, and the refusal names when the
+    // first close happened: a desk that closes twice has one stay it thinks is
+    // still open, and a person needs to know which checkout they are looking at.
+    expect(second.status).toBe(409);
+    expect(second.body.message).toContain(agreed.closedAt);
+
+    // The row is exactly as the first close left it. That row *is* the request
+    // for an invoice — one stay, closed, still awaiting a number — so an
+    // unchanged row is the whole of "no second document was asked for". A second
+    // `closedAt` would also be a second date on a legal instrument.
+    const after = await folioRowOf(bookingId);
+
+    expect(after?.closedAt?.toISOString()).toBe(agreed.closedAt);
+    expect(after?.invoiceReference).toBeNull();
+    expect(issuer.asked).toEqual([]);
+  });
+
+  it("leaves the agreed account taking no further lines", async () => {
+    // `FR-FOL-01`'s other half, over the route the desk actually uses: the
+    // ledger's trigger refuses the posting, and the service reads that refusal
+    // back as a sentence rather than a fault.
+    const bookingId = await aSettledStay();
+
+    await as("RECEPTIONIST", "post", closurePath(bookingId)).expect(200);
+
+    const refused = await as(
+      "RECEPTIONIST",
+      "post",
+      `${folioPath(bookingId)}/charges`,
+      {
+        grossAmount: A_CHARGE.toString(),
+        description: "A night keyed after the account was agreed",
+      },
+    );
+
+    expect(refused.status).toBe(409);
+    expect(refused.body.message).toContain("closed");
+
+    // And the account still settles, because nothing was written.
+    expect(BigInt((await readFolio(bookingId)).summary.outstanding)).toBe(0n);
   });
 });
