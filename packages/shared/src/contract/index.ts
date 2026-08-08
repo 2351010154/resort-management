@@ -18,6 +18,7 @@ import { jobs } from "./jobs.js";
 import { payment } from "./payment.js";
 import { pricing } from "./pricing.js";
 import { search } from "./search.js";
+import { systemConfig } from "./system-config.js";
 
 export const contract = {
   health,
@@ -31,6 +32,7 @@ export const contract = {
   payment,
   jobs,
   search,
+  systemConfig,
 };
 
 export type Contract = typeof contract;
@@ -100,3 +102,7 @@ export {
   SEARCH_RESULT_LIMIT,
   searchResultsSchema,
 } from "./search.js";
+export {
+  systemConfigurationSchema,
+  updateSystemConfigInput,
+} from "./system-config.js";
