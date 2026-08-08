@@ -4,6 +4,7 @@ import { FolioModule } from "../folio/folio.module.js";
 import { PaymentController } from "./payment.controller.js";
 import { PaymentService } from "./payment.service.js";
 import { PAYMENT_GATEWAY } from "./ports/payment-gateway.port.js";
+import { ReconciliationService } from "./reconciliation.service.js";
 import { VnpayAdapter } from "./vnpay.adapter.js";
 
 // Taking the money and putting it on the account — `FR-PAY-01`, `FR-PAY-03`, and
@@ -54,13 +55,22 @@ import { VnpayAdapter } from "./vnpay.adapter.js";
 // service opens or for the executor it hands each write. `ConfigModule` is
 // global too, which is what lets the controller read the origin it hands the
 // payer back to without this module importing anything for it.
+//
+// `ReconciliationService` is provided and exported beside the service, and it
+// has no route here on purpose. `FR-PAY-05`'s comparison belongs to this module
+// because a discrepancy is a fact about payments; the nightly sweep that hands
+// it the gateway's report and the screen that shows what it found are their own
+// pieces of work, and both reach it through this export rather than by
+// constructing a second one. It takes no gateway — the report is an argument —
+// so the binding above does not reach it and neither does anything VNPay said.
 @Module({
   imports: [BookingModule, FolioModule],
   controllers: [PaymentController],
   providers: [
     { provide: PAYMENT_GATEWAY, useClass: VnpayAdapter },
     PaymentService,
+    ReconciliationService,
   ],
-  exports: [PaymentService],
+  exports: [PaymentService, ReconciliationService],
 })
 export class PaymentModule {}
