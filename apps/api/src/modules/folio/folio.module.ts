@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { BusinessDateService } from "../booking/business-date.service.js";
 import { SystemConfigModule } from "../system-config/system-config.module.js";
+import { EInvoiceJob } from "./e-invoice.job.js";
 import { FolioController } from "./folio.controller.js";
 import { FolioService } from "./folio.service.js";
 import { LocalEInvoiceService } from "./local-e-invoice.service.js";
@@ -41,6 +42,15 @@ import { E_INVOICE_PORT } from "./ports/e-invoice.port.js";
 // same: what issues the invoice is this module's business, and a token reachable
 // from elsewhere is a second caller of a provider that is about to be replaced.
 //
+// `EInvoiceJob` is provided and exported here, and it is the one sweep in the
+// tree that is not provided by `jobs.module.ts`. That file's convention exists
+// so "which sweeps run" is answerable from its registry, and the registry still
+// names this one — what it cannot do is construct it, because construction
+// needs `E_INVOICE_PORT` and the paragraph above is the reason that token does
+// not leave this module. Exporting the token to satisfy a class that lives in
+// this folder would be trading the boundary that matters for the one that
+// reads well.
+//
 // `BusinessDateService` is provided here rather than imported from
 // `BookingModule`, where it lives, for the reason `housekeeping.module.ts` gives
 // about the same class: that module imports this one for `FOLIO_PORT`, so
@@ -54,8 +64,9 @@ import { E_INVOICE_PORT } from "./ports/e-invoice.port.js";
   providers: [
     { provide: E_INVOICE_PORT, useClass: LocalEInvoiceService },
     BusinessDateService,
+    EInvoiceJob,
     FolioService,
   ],
-  exports: [FolioService],
+  exports: [EInvoiceJob, FolioService],
 })
 export class FolioModule {}

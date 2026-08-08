@@ -43,6 +43,15 @@ const FOREIGN_KEY_VIOLATION = "23503";
 // rewrite the ledger from every other error a function might raise.
 const APPEND_ONLY_VIOLATION = "MV001";
 
+// Raised by `folio_posting_refuse_closed_folio()` and
+// `folio_refuse_reissued_invoice()`, both added in `0016` with the close that
+// makes their states reachable. Same class and same purpose as the code above.
+const CLOSED_FOLIO_VIOLATION = "MV002";
+const REISSUED_INVOICE_VIOLATION = "MV003";
+
+/** A provider's number, in the shape `LocalEInvoiceService` mints them. */
+const A_REFERENCE = "LOCAL-INV-2f0c8a91-6d3e-4f52-9a17-8b40c5e71d63";
+
 const BUSINESS_DATE = "2027-09-02";
 const DEPARTURE_DATE = "2027-09-05";
 
@@ -143,6 +152,125 @@ describe("one account per stay", () => {
         .where(eq(folio.id, folioId));
 
       expect(closed?.closedAt).toBeInstanceOf(Date);
+    });
+  });
+});
+
+describe("an account that has been agreed", () => {
+  it("takes no further lines", async () => {
+    // `FR-FOL-01`, and the half of it `0011_folio_ledger.sql` could not state:
+    // until something closed a folio the state was unreachable, so the guard
+    // arrived with the close in `0016`. Asserted here rather than against the
+    // service for the reason the whole file exists — the invoice was drawn from
+    // the lines standing at the close, and a support script can reach this table
+    // as easily as a route can.
+    await onAFolio(async (tx, folioId) => {
+      await close(tx, folioId);
+
+      const refusal = await refused(tx, (savepoint) =>
+        savepoint.insert(folioPosting).values(aRoomCharge(folioId)),
+      );
+
+      expect(refusal.code).toBe(CLOSED_FOLIO_VIOLATION);
+    });
+  });
+
+  it("still takes them while it is open", async () => {
+    // The other direction, so the trigger above is shown to refuse the closed
+    // account rather than every account.
+    await onAFolio(async (tx, folioId) => {
+      await post(tx, aRoomCharge(folioId));
+
+      expect(await balanceOf(tx, folioId)).toBe(1_000_000n);
+    });
+  });
+
+  it("carries the provider's number for the invoice drawn on it", async () => {
+    await onAFolio(async (tx, folioId) => {
+      await close(tx, folioId);
+
+      await tx
+        .update(folio)
+        .set({ invoiceReference: A_REFERENCE })
+        .where(eq(folio.id, folioId));
+
+      const [invoiced] = await tx
+        .select({ reference: folio.invoiceReference })
+        .from(folio)
+        .where(eq(folio.id, folioId));
+
+      expect(invoiced?.reference).toBe(A_REFERENCE);
+    });
+  });
+
+  it("refuses that number on an account still open", async () => {
+    // An invoice drawn from lines that can still change has no honest reading,
+    // and the null on a closed folio is what the issuing job looks for.
+    await onAFolio(async (tx, folioId) => {
+      const refusal = await refused(tx, (savepoint) =>
+        savepoint
+          .update(folio)
+          .set({ invoiceReference: A_REFERENCE })
+          .where(eq(folio.id, folioId)),
+      );
+
+      expect(refusal.code).toBe(CHECK_VIOLATION);
+      expect(refusal.constraint).toBe("folio_invoice_reference_only_when_closed");
+    });
+  });
+
+  it("refuses to write a second number over the first", async () => {
+    // `FR-FOL-04` makes the provider's number the legal reference. A retry that
+    // overwrote it would leave the property holding a number the tax authority
+    // has no record of, and nothing pointing at the one it does.
+    await onAFolio(async (tx, folioId) => {
+      await close(tx, folioId);
+      await invoice(tx, folioId, A_REFERENCE);
+
+      const refusal = await refused(tx, (savepoint) =>
+        savepoint
+          .update(folio)
+          .set({ invoiceReference: "LOCAL-INV-somebody-else" })
+          .where(eq(folio.id, folioId)),
+      );
+
+      expect(refusal.code).toBe(REISSUED_INVOICE_VIOLATION);
+    });
+  });
+
+  it("refuses to take the number back off", async () => {
+    // A folio whose reference was cleared re-enters the issuing job's queue and
+    // is invoiced a second time, which is the same defect by a longer route.
+    await onAFolio(async (tx, folioId) => {
+      await close(tx, folioId);
+      await invoice(tx, folioId, A_REFERENCE);
+
+      const refusal = await refused(tx, (savepoint) =>
+        savepoint
+          .update(folio)
+          .set({ invoiceReference: null })
+          .where(eq(folio.id, folioId)),
+      );
+
+      expect(refusal.code).toBe(REISSUED_INVOICE_VIOLATION);
+    });
+  });
+
+  it("lets the same number be written again", async () => {
+    // Not a second issuance: the row already says this, so nothing changes and
+    // the trigger has nothing to refuse. It is what keeps a retry that lost its
+    // answer from turning into an exception.
+    await onAFolio(async (tx, folioId) => {
+      await close(tx, folioId);
+      await invoice(tx, folioId, A_REFERENCE);
+      await invoice(tx, folioId, A_REFERENCE);
+
+      const [invoiced] = await tx
+        .select({ reference: folio.invoiceReference })
+        .from(folio)
+        .where(eq(folio.id, folioId));
+
+      expect(invoiced?.reference).toBe(A_REFERENCE);
     });
   });
 });
@@ -890,6 +1018,28 @@ function aRoomCharge(
     businessDate: BUSINESS_DATE,
     ...overrides,
   };
+}
+
+/** Agrees the account, the way `FolioService.close` leaves it. Both columns
+ *  together, because `folio_closed_at_exactly_when_closed` refuses either
+ *  alone. */
+async function close(tx: Tx, folioId: string): Promise<void> {
+  await tx
+    .update(folio)
+    .set({ state: "CLOSED", closedAt: new Date() })
+    .where(eq(folio.id, folioId));
+}
+
+/** Stores the provider's number against a closed account. */
+async function invoice(
+  tx: Tx,
+  folioId: string,
+  reference: string,
+): Promise<void> {
+  await tx
+    .update(folio)
+    .set({ invoiceReference: reference })
+    .where(eq(folio.id, folioId));
 }
 
 /** Writes a line and hands back its id. */

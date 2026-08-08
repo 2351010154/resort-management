@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { BookingModule } from "../modules/booking/booking.module.js";
 import { HoldExpirySweep } from "../modules/booking/hold-expiry-sweep.js";
 import { NoShowSweep } from "../modules/booking/no-show-sweep.js";
+import { EInvoiceJob } from "../modules/folio/e-invoice.job.js";
 import { FolioModule } from "../modules/folio/folio.module.js";
 import { RoomChargeSweep } from "../modules/folio/room-charge-sweep.js";
 import { JobRunner } from "./job-runner.service.js";
@@ -13,7 +14,8 @@ import { SWEEP_JOBS, type SweepJob } from "./sweep-job.js";
 // docs/architecture/repository-structure.md §apps/api, and `prd-m4.md`'s third
 // scope decision, which fixes the shape of this: a minimal scheduler carrying a
 // hand-edited list of sweeps, every one of them idempotent and reachable by
-// hand. It opened at two and takes a third with `M6`'s ledger; what the decision
+// hand. It opened at two and `M6`'s ledger brought two more, the night's rent
+// and the invoice drawn once a stay's account is agreed; what the decision
 // pinned was the scheduler's smallness, not a count.
 //
 // This is not a domain module. It owns no table and answers no question about
@@ -41,6 +43,13 @@ import { SWEEP_JOBS, type SweepJob } from "./sweep-job.js";
 // from this one file; what it owns — the question it asks and the rows it
 // writes — stays in its own module.
 //
+// `EInvoiceJob` is the exception and is provided by `FolioModule`, which
+// exports it for the registry below. It is constructed from `E_INVOICE_PORT`,
+// and `folio.module.ts` argues at length that the token binding whoever issues
+// the property's invoices does not leave that module. The registry still names
+// the job, so this file still answers what runs; it just does not build this
+// one.
+//
 // `DatabaseModule` is global, so nothing is imported for the pool pg-boss
 // borrows or for the transaction runner that opens a run's boundary.
 @Module({
@@ -54,7 +63,7 @@ import { SWEEP_JOBS, type SweepJob } from "./sweep-job.js";
       // the factory collects them in that order. Discovery by decorator scan
       // would save the line and cost the ability to read this file and know
       // what runs.
-      inject: [HoldExpirySweep, NoShowSweep, RoomChargeSweep],
+      inject: [HoldExpirySweep, NoShowSweep, RoomChargeSweep, EInvoiceJob],
       useFactory: (...jobs: SweepJob[]): readonly SweepJob[] => jobs,
     },
     HoldExpirySweep,
