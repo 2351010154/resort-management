@@ -1,12 +1,13 @@
 // The stay's account over the wire — `FR-FOL-01`'s ledger, `FR-FOL-02`'s three
-// lines, and the corrections filed against them.
+// lines, the corrections filed against them, and the moment the desk agrees the
+// whole of it.
 //
-// Four routes, four rows of the RBAC matrix, and no route here that the matrix
+// Five routes, five rows of the RBAC matrix, and no route here that the matrix
 // does not already govern: `folio.read`, `folio.post-charge`,
-// `folio.post-payment` and `folio.reverse-posting`. The refund rows, the close
-// and the invoice adjustment exist in the matrix too and are deliberately not
-// here — each has service work of its own, and a route declared before that
-// work exists is a promise the client would be held to.
+// `folio.post-payment`, `folio.reverse-posting` and `folio.close-invoice`. The
+// refund rows and the invoice adjustment exist in the matrix too and are
+// deliberately not here — each has service work of its own, and a route declared
+// before that work exists is a promise the client would be held to.
 //
 // **Addressed by the stay, not by the folio's id.** There is exactly one account
 // per booking — `schema/folio.ts` makes that a unique key — and nothing tells
@@ -210,6 +211,24 @@ export const reversePostingInput = z.object({
   postingId: z.uuid(),
 });
 
+/**
+ * Agreeing the account — `FR-FOL-01`'s close, and the moment `FR-FOL-04` hangs
+ * the invoice off.
+ *
+ * The stay, and nothing beside it. There is no amount to send: the close is the
+ * desk agreeing what the lines already come to, and a figure travelling with it
+ * would be a second opinion about a sum the ledger has already taken — the
+ * service refuses an account that does not settle and names what is still
+ * outstanding, which is the only figure anybody needs to see.
+ *
+ * There is no invoice reference either, in or out. The number does not exist at
+ * the moment of the close and will not until whoever issues the property's
+ * invoices has been asked; `e-invoice.job.ts` argues why the close's own commit
+ * is the asking, and a field that was null on every close would read as a
+ * document that failed to issue rather than one nobody has issued yet.
+ */
+export const closeFolioInput = z.object({ ...bookingIdFields });
+
 export const folio = {
   read: oc
     .route({ method: "GET", path: "/bookings/{bookingId}/folio" })
@@ -236,4 +255,20 @@ export const folio = {
     .route({ method: "POST", path: "/bookings/{bookingId}/folio/reversals" })
     .input(reversePostingInput)
     .output(folioPostingReceiptSchema),
+
+  close: oc
+    // A nominalised act rather than a collection, the way `booking.ts` spells
+    // `/confirmation` and `/cancellation`. The three routes above append to the
+    // ledger, and the same charge sent twice is honestly two lines; this one
+    // happens to the account once and the second attempt is refused, so a plural
+    // that invited a second posting would be the wrong shape for it.
+    .route({ method: "POST", path: "/bookings/{bookingId}/folio/closure" })
+    .input(closeFolioInput)
+    // The account, not a receipt. Nothing was posted — the close writes state
+    // and no line — so {@link folioPostingReceiptSchema} has no `posted` to
+    // carry and its `min(1)` says as much. What the desk needs back is the
+    // agreed account itself: the state, the instant it was agreed at, and the
+    // lines the invoice will be drawn from, all as one read on the connection
+    // that closed it.
+    .output(folioSchema),
 };

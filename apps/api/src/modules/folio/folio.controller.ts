@@ -1,11 +1,12 @@
-// The four folio routes the RBAC matrix already governs — reading the account,
-// posting a charge, posting a payment, and correcting a line.
+// The five folio routes the RBAC matrix already governs — reading the account,
+// posting a charge, posting a payment, correcting a line, and agreeing the whole
+// of it.
 //
-// Four routes and four rows, and no route here names a key the matrix does not
-// have. The refund rows, the close and the invoice adjustment sit in the same
-// section and are deliberately absent: each has service work of its own, and a
-// route with no capability behind it is unreachable for everyone, which is the
-// intended failure mode rather than a gap to be worked around.
+// Five routes and five rows, and no route here names a key the matrix does not
+// have. The refund rows and the invoice adjustment sit in the same section and
+// are deliberately absent: each has service work of its own, and a route with no
+// capability behind it is unreachable for everyone, which is the intended
+// failure mode rather than a gap to be worked around.
 //
 // **The transaction is opened here**, as `housekeeping.controller.ts` and
 // `closure.controller.ts` argue and `database.module.ts` requires. The read is
@@ -180,6 +181,55 @@ export class FolioController {
           posted: [...posted],
           folio: onWire(await this.account(exec, input.bookingId)),
         };
+      }),
+    );
+  }
+
+  /**
+   * `FR-FOL-01`'s close, and — by the same commit — `FR-FOL-04`'s request for
+   * an invoice.
+   *
+   * **Nothing here waits on the provider, and there is nothing here that
+   * could.** `FR-FOL-04` requires that a provider timeout never roll back a
+   * checkout, and this route honours it by having no way to reach a provider:
+   * `E_INVOICE_PORT` is not injected, so the only thing this transaction does is
+   * write the state. `e-invoice.job.ts` argues why that commit *is* the enqueue
+   * — a folio standing at `CLOSED` with no reference is the request, written by
+   * the transaction that decided to close it — and the sweep that drains it runs
+   * on a connection this request never touches. A close that awaited a number
+   * would be a checkout an issuer could refuse.
+   *
+   * **The account is read back inside the same transaction that closed it**, so
+   * the state, the instant and the lines the invoice will be drawn from are the
+   * ones the close committed. Read afterwards on another connection they would
+   * be a later moment, and on a closed folio that is a meaningful difference:
+   * the sweep may have written the reference by then, and the desk would be
+   * shown an account it did not agree.
+   *
+   * **The refusals are the service's, unaltered.** An account that is short, one
+   * that is over-paid, one already agreed and one that was never opened are four
+   * different sentences and each names the figure or the instant a receptionist
+   * needs; a second wording composed here would be a second answer to keep level
+   * with the ledger. So this handler adds no check of its own — in particular it
+   * does not read the account first to decide whether the close will be allowed,
+   * because the balance is only true under the row lock the service takes, and a
+   * check made before it is a check made in the wrong moment.
+   *
+   * **Nobody is attributed.** Every other write here takes the principal off the
+   * session, because it authors a line and `folio_posting.posted_by` names who.
+   * The close authors no line and `schema/folio.ts` gives the folio no column
+   * for who agreed it, so there is nothing this handler could honestly record —
+   * and a principal accepted and dropped would read as an attribution that is
+   * being made somewhere.
+   */
+  @RequiresCapability("folio.close-invoice")
+  @Implement(contract.folio.close)
+  close() {
+    return implement(contract.folio.close).handler(async ({ input }) =>
+      this.transactions.run(async (exec) => {
+        await this.folios.close(exec, input.bookingId);
+
+        return onWire(await this.account(exec, input.bookingId));
       }),
     );
   }
