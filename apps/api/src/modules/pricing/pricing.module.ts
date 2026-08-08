@@ -24,8 +24,9 @@ import { StayRestrictionService } from "./stay-restriction.service.js";
 // in `inventory.module.ts` — so an export would be an interface with no
 // implementation behind the need for it.
 //
-// `DatabaseModule` is global, so nothing is imported here for the Drizzle
-// client the services inject.
+// `DatabaseModule` and `AuditModule` are both global, so nothing is imported
+// here for the `TransactionRunner` the controllers open a boundary with or the
+// `AuditService` the three writes file their rows through.
 @Module({
   controllers: [RateController, StayRestrictionController],
   providers: [RatePlanService, RateCalendarService, StayRestrictionService],

@@ -50,6 +50,11 @@ export * from "./folio.js";
 // than one per delivery. Owned by `modules/payment`.
 export * from "./payment.js";
 
+// The change log every state-changing action writes to — who changed which row
+// of which table, when, and what it looked like on either side. Owned by
+// `modules/audit`; written by the module that owns the row being changed.
+export * from "./audit.js";
+
 // The guest realm: Better Auth's four core tables. Their in-file names are
 // Better Auth's own (`user`, `session`, …) because its Drizzle adapter indexes
 // the schema object it is given by those keys. Everything outside

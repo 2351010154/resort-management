@@ -6,6 +6,7 @@ import { ENV, type Env } from "./config/env.js";
 import { DatabaseModule } from "./database/database.module.js";
 import { HealthModule } from "./health/health.module.js";
 import { JobsModule } from "./jobs/jobs.module.js";
+import { AuditModule } from "./modules/audit/audit.module.js";
 import { AuthModule } from "./modules/auth/auth.module.js";
 import { BookingModule } from "./modules/booking/booking.module.js";
 import { GuestModule } from "./modules/guest/guest.module.js";
@@ -97,6 +98,15 @@ const CORRELATION_HEADER = "x-request-id";
     NotificationModule,
     IdentityModule,
     AuthModule,
+
+    // Immediately after `AuthModule`, and the order is load-bearing rather than
+    // tidy. `AuditModule` registers the global interceptor that lifts the
+    // acting member of staff into scope, and it reads that from the decision
+    // `AccessGuard` leaves on the request — so the module installing the guard
+    // has to be registered before the module that depends on its output.
+    // Global, so every module that writes state can inject `AuditService`
+    // without an import line somebody has to remember.
+    AuditModule,
 
     // M6, and before every module that will read it. It registers no route
     // today; what it registers is the boot provider that writes `system_config`

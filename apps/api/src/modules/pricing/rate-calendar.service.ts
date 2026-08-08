@@ -15,12 +15,25 @@
 // one statement: a night at a time would be 400 round trips for a season, and a
 // failure halfway through would leave the property advertising two prices for
 // one Christmas.
+//
+// Every method takes a `DbExecutor` rather than reaching for the client.
+// `database.module.ts` gives the general argument; the one that applies here is
+// `FR-AUD-01`: the row recording a reprice and the reprice itself have to be one
+// commit, and a service holding its own client cannot be composed into the
+// caller's transaction to make them one.
 
 import type { RoomTypeCode, StayDate, VndAmount } from "@mariva/shared";
-import { Inject, Injectable } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
 import { sql } from "drizzle-orm";
-import { type Database, DRIZZLE } from "../../database/database.module.js";
+import type { DbExecutor } from "../../database/database.module.js";
+import {
+  type AuditEntryInput,
+  AuditService,
+} from "../audit/audit.service.js";
 import { roomTypeIdFor } from "./room-type-id.js";
+
+/** The table these edits are filed against. */
+const AUDITED_TABLE = "rate_calendar";
 
 /** One night of the range, priced or not yet published. */
 export interface CalendarNight {
@@ -39,9 +52,17 @@ interface NightRow extends Record<string, unknown> {
   readonly gross_per_night: string | null;
 }
 
+/** What one upserted night was, and is. Both snapshots are Postgres's own
+ *  rendering of the row, carried as text — `audit.service.ts` on why. */
+interface PricedRow extends Record<string, unknown> {
+  readonly row_id: string;
+  readonly before_state: string | null;
+  readonly after_state: string;
+}
+
 @Injectable()
 export class RateCalendarService {
-  constructor(@Inject(DRIZZLE) private readonly db: Database) {}
+  constructor(private readonly audit: AuditService) {}
 
   /**
    * Every night of the range, including the ones with no row.
@@ -52,10 +73,10 @@ export class RateCalendarService {
    * than taken. Returning only the rows that exist would leave them counting
    * dates to find the hole.
    */
-  async read(range: NightRange): Promise<CalendarNight[]> {
-    const roomTypeId = await roomTypeIdFor(this.db, range.roomType);
+  async read(exec: DbExecutor, range: NightRange): Promise<CalendarNight[]> {
+    const roomTypeId = await roomTypeIdFor(exec, range.roomType);
 
-    const { rows } = await this.db.execute<NightRow>(sql`
+    const { rows } = await exec.execute<NightRow>(sql`
       select
         -- generate_series over two dates steps in an interval and so yields
         -- timestamps. Cast back, or every date on the wire carries a midnight
@@ -83,32 +104,84 @@ export class RateCalendarService {
   }
 
   /**
-   * Sets one price across the range, over whatever was there.
+   * Sets one price across the range, over whatever was there, and records who.
    *
    * An upsert and not an insert: repricing a season the property has already
    * published is the common edit, and a caller made to delete first would have
    * a window where the nights are unpriced and the funnel is quoting nothing.
    * The same body sent twice leaves the same prices, which is what makes the
    * route a PUT.
+   *
+   * **The previous price is read in the same statement that overwrites it.**
+   * `FR-AUD-01` wants the before as well as the after, and this is the only
+   * statement in which the before still exists — the `do update` at the foot of
+   * it is what destroys it. A separate `select` first would be a second
+   * statement under `read committed`, so a concurrent reprice landing between
+   * the two would be recorded as having been overwritten by this one when it was
+   * the other way round. Both branches of the `case` below are reachable and
+   * mean different things: a night nobody had priced is an `INSERT`, and a night
+   * with a price is an `UPDATE` whose `before` is the figure the property was
+   * advertising until this call.
+   *
+   * `FOR UPDATE` is deliberately absent from the `before` branch, and it is not
+   * an oversight — it was tried. Locking a row that this same statement's upsert
+   * has already touched yields no row at all, so the pre-image comes back empty
+   * and every reprice files as though the night had never been priced. The
+   * snapshot the CTE already shares with the upsert is what makes the pair
+   * consistent; the lock would only have narrowed a window it cannot see anyway.
    */
   async set(
+    exec: DbExecutor,
     range: NightRange & { grossPerNight: VndAmount },
   ): Promise<number> {
-    const roomTypeId = await roomTypeIdFor(this.db, range.roomType);
+    const roomTypeId = await roomTypeIdFor(exec, range.roomType);
 
-    const { rows } = await this.db.execute(sql`
-      insert into rate_calendar (room_type_id, stay_date, gross_per_night)
-      select ${roomTypeId}, night::date, ${range.grossPerNight.toString()}::bigint
-      from generate_series(
-        ${range.from.toString()}::date,
-        ${range.to.toString()}::date,
-        interval '1 day'
-      ) as night
-      on conflict (room_type_id, stay_date)
-        do update set gross_per_night = excluded.gross_per_night
-      returning id
+    const { rows } = await exec.execute<PricedRow>(sql`
+      with nights as (
+        select night::date as stay_date
+        from generate_series(
+          ${range.from.toString()}::date,
+          ${range.to.toString()}::date,
+          interval '1 day'
+        ) as night
+      ),
+      -- What the property was charging for these nights, read under the same
+      -- snapshot the upsert below runs against.
+      before as (
+        select rc.stay_date, to_jsonb(rc)::text as state
+        from rate_calendar rc
+        join nights n on n.stay_date = rc.stay_date
+        where rc.room_type_id = ${roomTypeId}
+      ),
+      upserted as (
+        insert into rate_calendar (room_type_id, stay_date, gross_per_night)
+        select ${roomTypeId}, n.stay_date, ${range.grossPerNight.toString()}::bigint
+        from nights n
+        on conflict (room_type_id, stay_date)
+          do update set gross_per_night = excluded.gross_per_night
+        returning id, stay_date, to_jsonb(rate_calendar)::text as state
+      )
+      select
+        u.id as row_id,
+        b.state as before_state,
+        u.state as after_state
+      from upserted u
+      left join before b on b.stay_date = u.stay_date
+      order by u.stay_date
     `);
+
+    await this.audit.record(exec, AUDITED_TABLE, rows.map(asEntry));
 
     return rows.length;
   }
+}
+
+/** One upserted night as the log records it. */
+function asEntry(row: PricedRow): AuditEntryInput {
+  return {
+    rowId: row.row_id,
+    action: row.before_state === null ? "INSERT" : "UPDATE",
+    before: row.before_state,
+    after: row.after_state,
+  };
 }
