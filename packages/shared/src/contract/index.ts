@@ -9,6 +9,7 @@
 
 import { availability } from "./availability.js";
 import { booking } from "./booking.js";
+import { folio } from "./folio.js";
 import { guest } from "./guest.js";
 import { health } from "./health.js";
 import { housekeeping } from "./housekeeping.js";
@@ -25,6 +26,7 @@ export const contract = {
   booking,
   housekeeping,
   guest,
+  folio,
   jobs,
   search,
 };
@@ -50,6 +52,18 @@ export {
   roomTypeChangeSchema,
   shortenedStaySchema,
 } from "./booking.js";
+export {
+  folioPostingReceiptSchema,
+  folioPostingSchema,
+  folioSchema,
+  folioStateSchema,
+  folioSummarySchema,
+  postChargeInput,
+  postingTypeSchema,
+  postPaymentInput,
+  readFolioInput,
+  reversePostingInput,
+} from "./folio.js";
 export {
   cccdRevealSchema,
   guestRecordSchema,

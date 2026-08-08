@@ -49,13 +49,14 @@ import { randomUUID } from "node:crypto";
 import type { StayDate, VndAmount } from "@mariva/shared";
 import { Inject, Injectable } from "@nestjs/common";
 import { ORPCError } from "@orpc/nest";
-import { eq, or, sql } from "drizzle-orm";
+import { asc, eq, or, sql } from "drizzle-orm";
 import {
   type Database,
   type DbExecutor,
   DRIZZLE,
 } from "../../database/database.module.js";
 import { folio, folioPosting } from "../../database/schema/folio.js";
+import { staffUser } from "../../database/schema/identity.js";
 import { sqlStateOf } from "../../database/sql-state.js";
 // A type, so it erases: `booking.module.ts` imports this module to bind the
 // port, and a value imported back the other way would be a cycle. The port is
@@ -118,6 +119,48 @@ export interface ReversalRequest {
   readonly postedBy: string;
 }
 
+/**
+ * A line as a reader of the account sees it.
+ *
+ * `businessDate` stays the ISO text the column holds rather than being parsed
+ * into a `StayDate` and printed back out again — the same crossing
+ * `search.service.ts` declines to make for a stay's boundaries, and for the same
+ * reason: nothing between the query and the wire does arithmetic on it.
+ *
+ * `postedBy` is the member of staff by name and not by id, which is what the
+ * question behind the column actually is: an accountant reading a correction
+ * wants to know who filed it. Null for a line no person authored.
+ */
+export interface FolioLine {
+  readonly id: string;
+  readonly type: (typeof folioPosting.$inferSelect)["type"];
+  readonly amount: VndAmount;
+  readonly description: string;
+  readonly businessDate: string;
+  readonly reversesPostingId: string | null;
+  readonly parentPostingId: string | null;
+  readonly postedAt: Date;
+  readonly postedBy: string | null;
+}
+
+/** The three figures `NFR-02` states, derived from the lines below them. */
+export interface FolioSummary {
+  readonly charged: VndAmount;
+  readonly credited: VndAmount;
+  readonly outstanding: VndAmount;
+}
+
+/** One stay's account, whole. */
+export interface FolioAccount {
+  readonly id: string;
+  readonly bookingId: string;
+  readonly state: (typeof folio.$inferSelect)["state"];
+  readonly openedAt: Date;
+  readonly closedAt: Date | null;
+  readonly summary: FolioSummary;
+  readonly lines: readonly FolioLine[];
+}
+
 @Injectable()
 export class FolioService implements FolioPort {
   constructor(
@@ -151,6 +194,77 @@ export class FolioService implements FolioPort {
     // Null on an account with no lines, and on a booking with no account at
     // all: the aggregate answers once either way.
     return BigInt(summed?.balance ?? "0");
+  }
+
+  /**
+   * The whole account: what it is, every line on it, and what they come to.
+   *
+   * Null when the stay has no account — which is both a booking nobody has
+   * posted anything for and a booking id that names nothing. The two are one
+   * answer here because the folio table is the only one this reads; the caller
+   * turns it into the refusal a reader can act on.
+   *
+   * **The balance is summed from the rows being returned, not queried beside
+   * them.** {@link getBalance} asks Postgres for the sum because the port hands
+   * it a booking id and nothing else; here the lines are already in hand, and a
+   * second `sum()` would be a figure that could disagree with the list printed
+   * under it. `NFR-02`'s identity is the addition below and nothing stores its
+   * result — `schema/folio.ts` refuses to hold the column that would.
+   *
+   * Two statements rather than a join, because a folio with no lines is an
+   * ordinary answer — the account was opened and the first posting failed, or
+   * the sweep has not run — and a join would return one row of nulls that the
+   * caller has to tell apart from a real line.
+   */
+  async read(
+    exec: DbExecutor,
+    bookingId: string,
+  ): Promise<FolioAccount | null> {
+    const [account] = await exec
+      .select({
+        id: folio.id,
+        state: folio.state,
+        openedAt: folio.createdAt,
+        closedAt: folio.closedAt,
+      })
+      .from(folio)
+      .where(eq(folio.bookingId, bookingId))
+      .limit(1);
+
+    if (!account) {
+      return null;
+    }
+
+    // Left, not inner: `postedBy` is null on every line the sweep and the
+    // gateway wrote, and an inner join would silently drop exactly the postings
+    // nobody authored — which on a room-only stay is all of them.
+    const lines = await exec
+      .select({
+        id: folioPosting.id,
+        type: folioPosting.type,
+        amount: folioPosting.amount,
+        description: folioPosting.description,
+        businessDate: folioPosting.businessDate,
+        reversesPostingId: folioPosting.reversesPostingId,
+        parentPostingId: folioPosting.parentPostingId,
+        postedAt: folioPosting.postedAt,
+        postedBy: staffUser.fullName,
+      })
+      .from(folioPosting)
+      .leftJoin(staffUser, eq(staffUser.id, folioPosting.postedBy))
+      .where(eq(folioPosting.folioId, account.id))
+      // The trading day first, then the moment inside it, then the id so the
+      // order is total. `FR-FOL-02`'s three lines go in as one statement and
+      // therefore share an instant, so their order among themselves is the id's
+      // and means nothing — `parentPostingId` is what ties the sale to what was
+      // levied on it, and that is what a renderer groups on.
+      .orderBy(
+        asc(folioPosting.businessDate),
+        asc(folioPosting.postedAt),
+        asc(folioPosting.id),
+      );
+
+    return { ...account, bookingId, summary: summarise(lines), lines };
   }
 
   /**
@@ -407,4 +521,33 @@ export class FolioService implements FolioPort {
       throw error;
     }
   }
+}
+
+/**
+ * The account's three figures, split by what each line did to the balance.
+ *
+ * By sign and not by posting type, and that is the whole of the design. A
+ * reversal carries whichever sign undoes the line it names — undoing a payment
+ * is positive and undoing a charge is negative — so a split that read "payments"
+ * off the `PAYMENT` rows would report an undone room charge as money the guest
+ * handed over, and one that enumerated types would need editing every time
+ * `posting_type` gained a member.
+ *
+ * `outstanding` is `charged - credited`, which is algebraically the plain sum of
+ * the amounts. That is `NFR-02`'s identity, and it holds by construction rather
+ * than by the three figures being computed to agree.
+ */
+function summarise(lines: readonly { amount: VndAmount }[]): FolioSummary {
+  let charged = 0n;
+  let credited = 0n;
+
+  for (const line of lines) {
+    if (line.amount >= 0n) {
+      charged += line.amount;
+    } else {
+      credited -= line.amount;
+    }
+  }
+
+  return { charged, credited, outstanding: charged - credited };
 }
