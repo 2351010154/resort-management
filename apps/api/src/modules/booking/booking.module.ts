@@ -4,6 +4,7 @@ import { FolioService } from "../folio/folio.service.js";
 import { GuestModule } from "../guest/guest.module.js";
 import { HousekeepingModule } from "../housekeeping/housekeeping.module.js";
 import { InventoryModule } from "../inventory/inventory.module.js";
+import { SystemConfigModule } from "../system-config/system-config.module.js";
 import { AssignmentController } from "./assignment.controller.js";
 import { AssignmentService } from "./assignment.service.js";
 import { BookingController } from "./booking.controller.js";
@@ -39,6 +40,12 @@ import { StayQuoteService } from "./stay-quote.service.js";
 // consumes the nights, and a service reached through Nest would read it on a
 // different connection with a different snapshot.
 //
+// `SystemConfigModule` is imported for `BusinessDateService`, which reads the
+// rollover hour off the `system_config` row rather than out of the environment —
+// §2's "changes one row, not a deploy". The same import `FolioModule` makes for
+// the tax figures, and for the same reason: the row is the authority and the
+// reader is the one class that knows how to ask it.
+//
 // `DatabaseModule` is global, so nothing is imported for the executor type or
 // the `ENV` token the services take.
 //
@@ -67,7 +74,13 @@ import { StayQuoteService } from "./stay-quote.service.js";
 // housekeeping board for what a room is, the guest table for who a person is —
 // and changes nothing, which is why it needs neither a port nor an export.
 @Module({
-  imports: [FolioModule, GuestModule, HousekeepingModule, InventoryModule],
+  imports: [
+    FolioModule,
+    GuestModule,
+    HousekeepingModule,
+    InventoryModule,
+    SystemConfigModule,
+  ],
   controllers: [BookingController, AssignmentController, SearchController],
   providers: [
     AssignmentService,

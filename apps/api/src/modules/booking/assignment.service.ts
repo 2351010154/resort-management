@@ -266,7 +266,7 @@ export class AssignmentService {
       current.roomTypeCode,
     );
 
-    const from = this.moveDate(current);
+    const from = await this.moveDate(exec, current);
 
     // The old row keeps every night up to the move and stops there. When the
     // move lands on the night the guest arrived — the room was wrong the moment
@@ -421,7 +421,7 @@ export class AssignmentService {
       // has not arrived leaves nothing behind.
       const from =
         current.row.state === "CHECKED_IN"
-          ? this.moveDate(current)
+          ? await this.moveDate(exec, current)
           : checkIn;
 
       if (from.toString() === current.assignment.row.checkInDate) {
@@ -634,7 +634,7 @@ export class AssignmentService {
 
     const arrival = parseDate(current.row.checkInDate);
     const departure = parseDate(current.row.checkOutDate);
-    const today = this.businessDate.current();
+    const today = await this.businessDate.current(exec);
 
     if (input.checkOut.compare(departure) > 0) {
       throw new ORPCError("BAD_REQUEST", {
@@ -966,8 +966,11 @@ export class AssignmentService {
    * arrival, which is a row `room_assignment_covers_at_least_one_night` refuses
    * — correctly, and with a message about nights that would tell nobody why.
    */
-  private moveDate(current: LockedBooking): StayDate {
-    const today = this.businessDate.current();
+  private async moveDate(
+    exec: DbExecutor,
+    current: LockedBooking,
+  ): Promise<StayDate> {
+    const today = await this.businessDate.current(exec);
     const arrival = parseDate(current.row.checkInDate);
     const from = today.compare(arrival) > 0 ? today : arrival;
 

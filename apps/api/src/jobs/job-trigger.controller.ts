@@ -16,15 +16,11 @@ import { contract } from "@mariva/shared";
 import { Controller } from "@nestjs/common";
 import { Implement, implement, ORPCError } from "@orpc/nest";
 import { RequiresCapability } from "../common/auth/access.decorators.js";
-import { BusinessDateService } from "../modules/booking/business-date.service.js";
 import { JobRunner } from "./job-runner.service.js";
 
 @Controller()
 export class JobTriggerController {
-  constructor(
-    private readonly runner: JobRunner,
-    private readonly businessDates: BusinessDateService,
-  ) {}
+  constructor(private readonly runner: JobRunner) {}
 
   @RequiresCapability("operations.night-audit-trigger")
   @Implement(contract.jobs.trigger)
@@ -43,11 +39,13 @@ export class JobTriggerController {
         });
       }
 
-      // Absent, today — the operator's meaning. Present, the date named, which
-      // is what makes a second run over the same date something a test can ask
-      // for rather than something it has to wait for.
-      const businessDate = input.businessDate ?? this.businessDates.current();
-      const run = await this.runner.run(job, businessDate, "MANUAL");
+      // Absent, today — the operator's meaning, and `null` is how the runner is
+      // told to work that out inside the run's own transaction, since the
+      // rollover hour is a `system_config` row and this controller opens no
+      // boundary. Present, the date named, which is what makes a second run over
+      // the same date something a test can ask for rather than something it has
+      // to wait for.
+      const run = await this.runner.run(job, input.businessDate ?? null, "MANUAL");
 
       return {
         job: run.job,

@@ -46,7 +46,10 @@
 //
 // The rollover hour is deliberately unreal — 11:00, where the property runs
 // 04:00 — so that a posting dated from the calendar rather than from the
-// business date cannot pass by coincidence.
+// business date cannot pass by coincidence. It is written into `system_config`
+// below, because that row is where `BusinessDateService` reads it from; a file
+// that set it in an environment variable would be asserting against a value
+// nothing consults.
 
 import "reflect-metadata";
 
@@ -57,8 +60,8 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { type Env, parseEnv } from "../src/config/env.js";
 import { booking } from "../src/database/schema/booking.js";
+import { systemConfig } from "../src/database/schema/config.js";
 import { folio, folioPosting } from "../src/database/schema/folio.js";
 import * as schema from "../src/database/schema/index.js";
 import { roomType } from "../src/database/schema/inventory.js";
@@ -80,6 +83,24 @@ const REPLAYS = 10;
 
 /** Not the property's 04:00 — see the note at the top. */
 const ROLLOVER_HOUR = 11;
+
+/**
+ * The one row, as this file needs it.
+ *
+ * Only the hour matters here — a payment posts one line and levies nothing — but
+ * the row has no defaults and cannot exist half-supplied, so the tax figures are
+ * given too. They are deliberately not a property's: §8 forbids the tree to
+ * carry a rate, and a fixture that read like a real one would be that defect in
+ * a test's clothes.
+ */
+const CONFIGURED = {
+  vatRateBps: 1_234,
+  reducedVatFrom: null,
+  reducedVatTo: null,
+  vatIncludesServiceCharge: true,
+  serviceChargeRateBps: 321,
+  businessDateRolloverHour: ROLLOVER_HOUR,
+} satisfies typeof systemConfig.$inferInsert;
 
 /**
  * When the gateway says it took the money: 09:10 in Ho Chi Minh City on
@@ -137,6 +158,12 @@ beforeAll(async () => {
     sql`truncate room_assignment, booking_night, booking, type_inventory, room, room_type, staff_session, staff_user restart identity cascade`,
   );
 
+  // Written here rather than left to whatever booted last: the business date
+  // every posting below is dated by is read off this row, so the file that
+  // asserts the date is the file that states the hour.
+  await db.execute(sql`truncate system_config`);
+  await db.insert(systemConfig).values(CONFIGURED);
+
   const [created] = await db
     .insert(roomType)
     .values({
@@ -160,7 +187,7 @@ beforeAll(async () => {
   payments = new PaymentService(
     gateway,
     folios,
-    new BusinessDateService(propertyEnv()),
+    new BusinessDateService(new SystemConfigService()),
     new TransactionRunner(db),
   );
 });
@@ -807,7 +834,7 @@ describe("a posting the ledger refuses", () => {
       new PaymentService(
         gateway,
         new LedgerThatRefuses(db, new SystemConfigService()),
-        new BusinessDateService(propertyEnv()),
+        new BusinessDateService(new SystemConfigService()),
         new TransactionRunner(db),
       ).handleIpn(A_CALLBACK),
     );
@@ -932,17 +959,6 @@ async function aBooking(): Promise<string> {
     .returning({ id: booking.id });
 
   return stay!.id;
-}
-
-/** The environment the business date is read through — see the note at the top. */
-function propertyEnv(): Env {
-  return parseEnv({
-    NODE_ENV: "test",
-    DATABASE_URL: process.env.DATABASE_URL,
-    BETTER_AUTH_SECRET: "guest-realm-secret-of-quite-sufficient-length",
-    STAFF_JWT_SECRET: "staff-realm-secret-that-differs-and-is-long",
-    BUSINESS_DATE_ROLLOVER_HOUR: String(ROLLOVER_HOUR),
-  });
 }
 
 /** Both ledger tables and the payments hanging off them, emptied. A posting

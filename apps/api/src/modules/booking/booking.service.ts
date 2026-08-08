@@ -370,7 +370,7 @@ export class BookingService {
 
     const arrival = parseDate(current.booking.checkInDate);
     const departure = parseDate(current.booking.checkOutDate);
-    const today = this.businessDate.current();
+    const today = await this.businessDate.current(exec);
 
     // §1 defines the state as "arrival night passed without check-in", so a stay
     // the property has not reached yet cannot be one. Without this a booking
@@ -475,7 +475,7 @@ export class BookingService {
 
     const arrival = parseDate(current.booking.checkInDate);
     const departure = parseDate(current.booking.checkOutDate);
-    const today = this.businessDate.current();
+    const today = await this.businessDate.current(exec);
 
     const held = await this.assignments.current(exec, input.bookingId);
 
@@ -576,7 +576,7 @@ export class BookingService {
     roomNumber?: string,
   ): Promise<{ roomId: string; roomNumber: string }> {
     validateArrivalWindow({
-      businessDate: this.businessDate.current(),
+      businessDate: await this.businessDate.current(exec),
       arrivalDate: parseDate(current.booking.checkInDate),
       departureDate: parseDate(current.booking.checkOutDate),
       earlyCheckInEnabled: this.env.BOOKING_EARLY_CHECK_IN_ENABLED,
@@ -732,7 +732,7 @@ export class BookingService {
 
     const departure = parseDate(current.booking.checkOutDate);
     const arrival = parseDate(current.booking.checkInDate);
-    const today = this.businessDate.current();
+    const today = await this.businessDate.current(exec);
 
     // Clamped to the arrival, because early check-in is §7's first ⚑ and a
     // guest admitted before their arrival date can leave before it too. The
@@ -837,7 +837,7 @@ export class BookingService {
     // comparison is strictly-before and not before-or-equal. A back-dated
     // correction is `M6`'s audited path and not a side effect of taking a
     // booking.
-    const today = this.businessDate.current();
+    const today = await this.businessDate.current(exec);
 
     if (input.checkIn.compare(today) < 0) {
       throw new ORPCError("CONFLICT", {

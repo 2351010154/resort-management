@@ -21,9 +21,10 @@ import { SWEEP_JOBS, type SweepJob } from "./sweep-job.js";
 // themselves belong to whichever requirement asked for them.
 //
 // `BookingModule` is imported for two providers. `BusinessDateService` is what
-// the scheduled path asks what day it is — reading the rollover hour out of the
-// environment here instead would be a second implementation of the 04:00 rule,
-// and the two would agree right up until one of them was changed.
+// `JobRunner` asks what day it is when neither entry point named a date —
+// reading the rollover hour out of the `system_config` row here instead would be
+// a second implementation of the 04:00 rule, and the two would agree right up
+// until one of them was changed.
 // `BookingService` is what `HoldExpirySweep` cancels through and what
 // `NoShowSweep` transitions through, for the same kind of reason, which each of
 // `hold-expiry-sweep.ts` and `no-show-sweep.ts` argues where it belongs.

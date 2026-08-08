@@ -415,7 +415,10 @@ export class PaymentService {
           amount: transaction.amount,
           // The trading day the money moved in, which is not necessarily the
           // one this callback arrived in.
-          businessDate: this.businessDates.current(transaction.paidAt),
+          businessDate: await this.businessDates.current(
+            exec,
+            transaction.paidAt,
+          ),
           // The gateway's id is carried into the line the guest reads because
           // it is the one string that ties an invoice back to the gateway's own
           // daily report — which is the comparison `FR-PAY-05` makes.

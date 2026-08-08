@@ -35,6 +35,7 @@ import pg from "pg";
 import "reflect-metadata";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Env } from "../src/config/env.js";
+import { SystemConfigService } from "../src/modules/system-config/system-config.service.js";
 import { booking, bookingNight } from "../src/database/schema/booking.js";
 import { roomCondition } from "../src/database/schema/housekeeping.js";
 import * as schema from "../src/database/schema/index.js";
@@ -76,16 +77,15 @@ const A_GUEST = {
 
 const A_PARTY = { adults: 2, children: [] } as const;
 
-const ROLLOVER_HOUR = 4;
 const HOLD_TTL_MINUTES = 20;
 
 /** The property's day, stopped — the same device the other suites use. */
 class StoppedClock extends BusinessDateService {
   constructor(private readonly today: StayDate) {
-    super({ BUSINESS_DATE_ROLLOVER_HOUR: ROLLOVER_HOUR } as Env);
+    super(new SystemConfigService());
   }
 
-  override current(): StayDate {
+  override async current(): Promise<StayDate> {
     return this.today;
   }
 }

@@ -32,7 +32,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import pg from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import type { Env } from "../src/config/env.js";
+import { SystemConfigService } from "../src/modules/system-config/system-config.service.js";
 import * as schema from "../src/database/schema/index.js";
 import { booking } from "../src/database/schema/booking.js";
 import { roomCondition } from "../src/database/schema/housekeeping.js";
@@ -66,8 +66,6 @@ const DEPARTURE = "2027-06-15";
 /** Mid-stay: two nights slept, three still to come. */
 const TODAY = parseDate("2027-06-12");
 
-const ROLLOVER_HOUR = 4;
-
 let pool: pg.Pool;
 let db: ReturnType<typeof drizzle<typeof schema>>;
 let assignments: AssignmentService;
@@ -82,10 +80,10 @@ let reference = 9_000;
  */
 class StoppedClock extends BusinessDateService {
   constructor(private readonly today: StayDate) {
-    super({ BUSINESS_DATE_ROLLOVER_HOUR: ROLLOVER_HOUR } as Env);
+    super(new SystemConfigService());
   }
 
-  override current(): StayDate {
+  override async current(): Promise<StayDate> {
     return this.today;
   }
 }

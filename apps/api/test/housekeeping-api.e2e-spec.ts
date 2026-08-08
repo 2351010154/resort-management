@@ -35,7 +35,7 @@ import { migrate } from "drizzle-orm/node-postgres/migrator";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AppModule } from "../src/app.module.js";
-import type { Env } from "../src/config/env.js";
+import { SystemConfigService } from "../src/modules/system-config/system-config.service.js";
 import { type Database, DRIZZLE } from "../src/database/database.module.js";
 import { guest } from "../src/database/schema/guest.js";
 import {
@@ -68,8 +68,6 @@ const DEPARTURE = "2027-06-13";
 // A day the stay above does not cover, for the query that asks the board about
 // a different date than today.
 const AFTER_THE_STAY = "2027-06-20";
-
-const ROLLOVER_HOUR = 4;
 
 // Superiors, per `seed.ts`'s numbering: the twelve take 201–210 and then 301,
 // 302. Three rooms, because the three claims below must not interfere — the
@@ -110,10 +108,10 @@ const TILE_FIELDS = [
 /** The property's day, stopped — the device every booking suite here uses. */
 class StoppedClock extends BusinessDateService {
   constructor() {
-    super({ BUSINESS_DATE_ROLLOVER_HOUR: ROLLOVER_HOUR } as Env);
+    super(new SystemConfigService());
   }
 
-  override current(): StayDate {
+  override async current(): Promise<StayDate> {
     return TODAY;
   }
 }
