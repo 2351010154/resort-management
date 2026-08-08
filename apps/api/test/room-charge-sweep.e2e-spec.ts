@@ -164,10 +164,24 @@ class StoppedClock extends BusinessDateService {
  */
 const warnings: { detail: Record<string, unknown>; message: string }[] = [];
 
+/**
+ * The errors it raised, kept apart from the warnings.
+ *
+ * Two levels and two lists, because the sweep uses the difference to say which
+ * of two things happened: an arrear is a night somebody has to re-run, and a
+ * stay with no priced night is an invariant that has failed. A case asserting
+ * one of them finds the other list empty, which is what makes the levels a
+ * behaviour rather than a formatting choice.
+ */
+const errors: { detail: Record<string, unknown>; message: string }[] = [];
+
 const log = {
   setContext: () => {},
   warn: (detail: Record<string, unknown>, message: string) => {
     warnings.push({ detail, message });
+  },
+  error: (detail: Record<string, unknown>, message: string) => {
+    errors.push({ detail, message });
   },
 } as unknown as PinoLogger;
 
@@ -255,6 +269,7 @@ beforeAll(async () => {
 // account nobody opened.
 beforeEach(async () => {
   warnings.length = 0;
+  errors.length = 0;
   await clearTheLedger();
   await db.execute(
     sql`truncate registration, room_assignment, booking, guest restart identity cascade`,
@@ -460,6 +475,96 @@ describe("a night that was never charged", () => {
   });
 });
 
+describe("a stay in house with no price for tonight", () => {
+  // `booking_night` is written by the transaction that writes the stay, so this
+  // is a broken invariant rather than a case the property meets. What is at
+  // stake is the blast radius: the runner's boundary is the whole run, so the
+  // question each case below asks is whether one unpriceable stay is allowed to
+  // take every other guest's night with it.
+
+  it("does not stop the stays it can price from being charged", async () => {
+    const broken = await checkedInStay();
+    // A room type of its own: two stays are in the building at once here, and
+    // `aFreeRoom` hands back the lowest-numbered room of the type it is asked
+    // for, which is the same room twice.
+    const priced = await checkedInStay({ type: "PREMIER" });
+
+    await stripThePriceOf(broken, ARRIVAL);
+
+    // One charge, not none and not two. Thrown instead, this rolls back inside
+    // the runner's transaction and neither guest is charged — on this run and on
+    // every hourly run after it, until somebody repairs the row.
+    expect(await runSweep(FIRST_NIGHT)).toHaveLength(1);
+
+    expect(await linesOf(await folioOf(priced))).toHaveLength(3);
+    await expect(folioOf(broken)).rejects.toThrow(/has no folio/);
+  });
+
+  it("names it, at a level of its own", async () => {
+    const broken = await checkedInStay();
+
+    await stripThePriceOf(broken, ARRIVAL);
+    await runSweep(FIRST_NIGHT);
+
+    // `error` and not `warn`. An arrear is a night a person re-runs at their
+    // convenience; this is `booking_night` failing to cover a stay it is written
+    // beside, and reported at the arrears' level it would be read as one.
+    expect(errors).toHaveLength(1);
+    expect(errors[0]?.detail).toMatchObject({
+      businessDate: ARRIVAL,
+      stays: 1,
+      naming: [broken],
+    });
+
+    expect(warnings).toEqual([]);
+  });
+
+  it("charges the night once the price is put back", async () => {
+    // The recovery, and the reason carrying on rather than stopping loses
+    // nothing: the row is repaired, somebody re-runs the date, and the night
+    // lands at the rates and on the day it belongs to.
+    const stay = await checkedInStay();
+    const night = await stripThePriceOf(stay, ARRIVAL);
+
+    expect(await runSweep(FIRST_NIGHT)).toEqual([]);
+
+    await db.insert(bookingNight).values(night);
+
+    expect(await runSweep(FIRST_NIGHT)).toHaveLength(1);
+    expect(await linesOf(await folioOf(stay))).toHaveLength(3);
+  });
+
+  it("is the only record of the night, because the arrears report cannot see it", async () => {
+    // Why this is an error and not a warning beside the arrears. That report
+    // reads `booking_night` and names the rows it finds uncharged; a night with
+    // no row is invisible to it, on this run and on every run after it. So the
+    // line raised here is the only place the night is ever mentioned, and a
+    // later run says nothing about it at all.
+    const stay = await checkedInStay();
+
+    await stripThePriceOf(stay, ARRIVAL);
+    await runSweep(FIRST_NIGHT);
+
+    expect(errors).toHaveLength(1);
+
+    errors.length = 0;
+    warnings.length = 0;
+
+    // The next night is priced, so it is charged like any other — and nothing
+    // anywhere goes back to the arrival night.
+    expect(await runSweep(SECOND_NIGHT)).toHaveLength(1);
+
+    expect(warnings).toEqual([]);
+    expect(errors).toEqual([]);
+
+    const dated = (await linesOf(await folioOf(stay))).map(
+      (line) => line.businessDate,
+    );
+
+    expect(new Set(dated)).toEqual(new Set(["2027-06-11"]));
+  });
+});
+
 describe("the sweep as the runner requires it", () => {
   it("changes nothing on a second pass over the same transaction", async () => {
     const stay = await checkedInStay();
@@ -511,6 +616,73 @@ describe("the sweep as the runner requires it", () => {
     expect(await folios.getBalance(stay)).toBe(
       500_000n + (await priceOf(stay, ARRIVAL)),
     );
+  });
+
+  it("changes nothing on a second pass when a stay could not be priced", async () => {
+    // The pairing that would have been easy to get wrong: a stay the sweep walks
+    // past is still selected on the second pass, because nothing was charged for
+    // it. It has to be walked past again silently rather than counted as work,
+    // or the runner reads the run as non-idempotent and rolls the other guest's
+    // night back.
+    const broken = await checkedInStay();
+    const priced = await checkedInStay({ type: "PREMIER" });
+
+    await stripThePriceOf(broken, ARRIVAL);
+
+    const [first, second] = await db.transaction(async (exec) => [
+      await sweep.run(exec, FIRST_NIGHT),
+      await sweep.run(exec, FIRST_NIGHT),
+    ]);
+
+    expect(first).toHaveLength(1);
+    expect(second).toEqual([]);
+    expect(await linesOf(await folioOf(priced))).toHaveLength(3);
+  });
+
+  it("reports a run once, however many passes the runner takes over it", async () => {
+    // The runner calls a sweep twice inside one transaction whenever the first
+    // pass touched anything, and neither report's answer moves between the two.
+    // Said on both, one incident reads as two to whoever is triaging it.
+    await checkedInStay();
+    const broken = await checkedInStay({ type: "PREMIER" });
+
+    await stripThePriceOf(broken, "2027-06-11");
+
+    await db.transaction(async (exec) => {
+      await sweep.run(exec, SECOND_NIGHT);
+      await sweep.run(exec, SECOND_NIGHT);
+    });
+
+    // One of each, not two. Both stays are carrying an uncharged arrival night,
+    // so the arrears line names them together — the count that matters here is
+    // the number of lines, not the number of stays on them.
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]?.detail).toMatchObject({ stays: 2, nights: 2 });
+
+    expect(errors).toHaveLength(1);
+    expect(errors[0]?.detail).toMatchObject({ stays: 1, naming: [broken] });
+  });
+
+  it("reports each date it is asked about, even inside one transaction", async () => {
+    // A run is a transaction and a date, not a transaction. Nothing asks this
+    // sweep for two dates in one boundary today; keyed on the transaction alone
+    // it would answer the second date as though it were the first date's second
+    // pass, and the night it could not price would go unsaid.
+    const broken = await checkedInStay();
+
+    await stripThePriceOf(broken, ARRIVAL);
+    await stripThePriceOf(broken, "2027-06-11");
+
+    await db.transaction(async (exec) => {
+      await sweep.run(exec, FIRST_NIGHT);
+      await sweep.run(exec, SECOND_NIGHT);
+    });
+
+    expect(errors).toHaveLength(2);
+    expect(errors.map((raised) => raised.detail.businessDate)).toEqual([
+      ARRIVAL,
+      "2027-06-11",
+    ]);
   });
 
   it("is registered on the scheduler, under a cron it can be found by", async () => {
@@ -699,6 +871,37 @@ async function aFreeRoom(code: RoomTypeCode): Promise<string> {
   if (!found) throw new Error(`the property owns no ${code} room`);
 
   return found.number;
+}
+
+/**
+ * Takes one night's price off a stay, and hands the row back to put it again.
+ *
+ * The only way to reach the state from outside: `booking_night` is written by
+ * the transaction that writes the stay and an extension appends to both, so
+ * nothing a caller can ask for produces a stay in house on a night it has no
+ * price for. Deleting the row is the shape the defect would take — a partial
+ * write, a repair somebody made by hand — without a fixture pretending it is
+ * ordinary.
+ */
+async function stripThePriceOf(
+  bookingId: string,
+  night: string,
+): Promise<typeof bookingNight.$inferInsert> {
+  const [removed] = await db
+    .delete(bookingNight)
+    .where(
+      and(
+        eq(bookingNight.bookingId, bookingId),
+        eq(bookingNight.stayDate, night),
+      ),
+    )
+    .returning();
+
+  if (!removed) {
+    throw new Error(`booking ${bookingId} has no priced night on ${night}`);
+  }
+
+  return removed;
 }
 
 /** The account one stay runs up. */
