@@ -383,6 +383,33 @@ export const CAPABILITIES = [
       ADMIN: "full",
     }),
   },
+  // Opening a gateway attempt, next to the row it is the other half of. The
+  // grants are "Post payment"'s exactly, because it is the same authority
+  // reached the other way round: posting a payment files money the desk has
+  // already been handed, and this sends the payer somewhere to hand it over.
+  // A role trusted to record a settlement is trusted to ask for one — and the
+  // narrower reading, receptionist only, would leave the accountant chasing an
+  // unpaid balance with no way to raise a payment link.
+  //
+  // The guest realm is denied, and that is this milestone's boundary rather
+  // than a judgement about guests paying online. A guest cannot show that a
+  // booking is theirs yet — `schema/guest.ts` puts the join between a guest
+  // account and a stay at M7 — so a guest-realm grant would let any signed-in
+  // caller open a payment page against any stay whose id they had.
+  {
+    key: "payment.open-attempt",
+    section: "Folio and money",
+    row: "Open a gateway payment attempt",
+    unauthenticated: false,
+    guest: "denied",
+    staff: staff({
+      RECEPTIONIST: "full",
+      ACCOUNTANT: "full",
+      MANAGER: "full",
+      ADMIN: "full",
+    }),
+    note: "Staff open it; the guest funnel is M7",
+  },
   {
     key: "folio.refund-policy",
     section: "Folio and money",

@@ -15,6 +15,7 @@ import { health } from "./health.js";
 import { housekeeping } from "./housekeeping.js";
 import { inventory } from "./inventory.js";
 import { jobs } from "./jobs.js";
+import { payment } from "./payment.js";
 import { pricing } from "./pricing.js";
 import { search } from "./search.js";
 
@@ -27,6 +28,7 @@ export const contract = {
   housekeeping,
   guest,
   folio,
+  payment,
   jobs,
   search,
 };
@@ -80,6 +82,7 @@ export {
 } from "./housekeeping.js";
 export { closeRoomInput, roomClosureSchema } from "./inventory.js";
 export { jobRunSchema, triggerJobInput } from "./jobs.js";
+export { openedPaymentSchema, openPaymentAttemptInput } from "./payment.js";
 export {
   isUnrestricted,
   pricingRangeQuery,

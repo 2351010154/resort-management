@@ -1,5 +1,6 @@
-// The two routes VNPay calls, against the answers VNPay's specification says it
-// reads.
+// The three routes this controller answers: the two VNPay calls, against the
+// answers VNPay's specification says it reads, and the one the desk calls, on
+// what it hands the service.
 //
 // `test/payment-callbacks.e2e-spec.ts` drives the same two routes with real
 // signatures, the real adapter, a real Postgres and the real guard, and that is
@@ -19,6 +20,13 @@
 // constants to assert against the library's constants would pass whatever they
 // said, including the day one of them changed. `00`, `01`, `02`, `04`, `97` and
 // `99` are VNPay's published IPN table, and this file is where they are pinned.
+//
+// The third route is here for the two arguments the *caller* never supplies —
+// the address the payer is handed back to, and the address the payer is calling
+// from. Both are read off this process rather than off the body, and a body that
+// could set either is the whole failure this file's last block guards against.
+// `test/payment-api.e2e-spec.ts` proves the rest of it: the capability, the two
+// realms, and an attempt that actually reaches the table.
 
 import "reflect-metadata";
 
@@ -37,7 +45,11 @@ import {
   type Mock,
   vi,
 } from "vitest";
-import { UNGUARDED_KEY } from "../../common/auth/access.decorators.js";
+import {
+  CAPABILITY_KEY,
+  type CapabilityRequirement,
+  UNGUARDED_KEY,
+} from "../../common/auth/access.decorators.js";
 import { ENV, type Env, parseEnv } from "../../config/env.js";
 import { PaymentController } from "./payment.controller.js";
 import {
@@ -53,6 +65,13 @@ import type {
 import { PAYMENT_GATEWAY } from "./ports/payment-gateway.port.js";
 
 const WEB_ORIGIN = "https://mariva.test";
+
+/** Deliberately not the web origin, so a handler that reached for the wrong one
+ *  builds a url this file can tell apart. */
+const API_URL = "https://api.mariva.test";
+
+/** The stay the desk is collecting against. */
+const A_BOOKING = "9f1d4e2a-1c3b-4a5d-8e7f-0a1b2c3d4e5f";
 
 /** A reference in the shape the service mints — 64 characters of hex. */
 const REFERENCE = "0123456789abcdef".repeat(4);
@@ -73,16 +92,18 @@ const A_CALLBACK = {
 
 let app: INestApplication;
 let handleIpn: Mock<PaymentService["handleIpn"]>;
+let createPaymentRequest: Mock<PaymentService["createPaymentRequest"]>;
 let verifyCallback: Mock<PaymentGateway["verifyCallback"]>;
 
 beforeEach(async () => {
   handleIpn = vi.fn<PaymentService["handleIpn"]>();
+  createPaymentRequest = vi.fn<PaymentService["createPaymentRequest"]>();
   verifyCallback = vi.fn<PaymentGateway["verifyCallback"]>();
 
   const moduleRef = await Test.createTestingModule({
     controllers: [PaymentController],
     providers: [
-      { provide: PaymentService, useValue: { handleIpn } },
+      { provide: PaymentService, useValue: { handleIpn, createPaymentRequest } },
       {
         provide: PAYMENT_GATEWAY,
         useValue: {
@@ -343,15 +364,96 @@ describe("where the payer's browser is sent", () => {
   });
 });
 
-describe("what the two routes declare about access", () => {
+describe("the attempt the desk opens", () => {
+  beforeEach(() => {
+    createPaymentRequest.mockResolvedValue({
+      paymentUrl: "https://sandbox.vnpayment.invalid/pay?vnp_TxnRef=abc",
+      reference: REFERENCE,
+    });
+  });
+
+  it("answers with where to send the payer and what the attempt is called", async () => {
+    const response = await openAttempt();
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      paymentUrl: "https://sandbox.vnpayment.invalid/pay?vnp_TxnRef=abc",
+      reference: REFERENCE,
+    });
+  });
+
+  it("sends the gateway back to the route that receives the payer", async () => {
+    // Built from `API_URL` and not from `WEB_ORIGIN`: what goes to VNPay is the
+    // address of a route in this process, and handing it the web origin would
+    // send every payer to a page the site has never had.
+    await openAttempt();
+
+    expect(createPaymentRequest.mock.calls[0]?.[0].returnUrl).toBe(
+      `${API_URL}/payments/vnpay/return`,
+    );
+  });
+
+  it("takes the payer's address off the connection, never off the body", async () => {
+    // The address is a fraud signal the gateway screens on, so a caller that
+    // could state its own would be choosing what it is screened for. Supertest
+    // calls over loopback, which is what the connection honestly reports.
+    await openAttempt({ payerIpAddress: "203.0.113.9" });
+
+    const opened = createPaymentRequest.mock.calls[0]?.[0];
+
+    expect(opened?.payerIpAddress).not.toBe("203.0.113.9");
+    expect(opened?.payerIpAddress).toMatch(/127\.0\.0\.1|::1|::ffff:127\.0\.0\.1/);
+  });
+
+  it("ignores a caller trying to choose where the payer is handed back to", async () => {
+    // Not a check in the handler. The contract has no such field, so the
+    // parsed input never carries one and the handler has nothing to read it
+    // from — which is why the answer is an ordinary 200 against this property's
+    // own address rather than a refusal. Asserted because the failure it
+    // forecloses is an open redirect carrying the gateway's own signed
+    // parameters onward to whoever asked for it.
+    await openAttempt({ returnUrl: "https://phishing.invalid/paid" });
+
+    expect(createPaymentRequest.mock.calls[0]?.[0].returnUrl).toBe(
+      `${API_URL}/payments/vnpay/return`,
+    );
+  });
+
+  it("hands the service the đồng as an amount and not as text", async () => {
+    // `money.ts` carries an amount over the wire as decimal text and decodes it
+    // at the contract. A handler that passed the string through would have the
+    // adapter scale a `string` by a hundred.
+    await openAttempt();
+
+    expect(createPaymentRequest.mock.calls[0]?.[0].amount).toBe(1_200_000n);
+  });
+
+  it("lets the service's own refusal travel as the answer", async () => {
+    // The two refusals `createPaymentRequest` makes are written for the person
+    // who typed the figure, and this route adds no check that would pre-empt
+    // them. What it must not do is turn one into a 500.
+    createPaymentRequest.mockRejectedValue(
+      new ORPCError("BAD_REQUEST", {
+        message: "the amount has to be more than nothing",
+      }),
+    );
+
+    const response = await openAttempt({ amount: "0" });
+
+    expect(response.status).toBe(400);
+  });
+});
+
+describe("what the three routes declare about access", () => {
   // Asserted as metadata rather than by calling them without a session, because
   // the guard is global and this module does not install it — `rbac-matrix.md`
   // §2 makes a route that declares neither unreachable, and the declaration is
-  // what this file owns. `test/payment-callbacks.e2e-spec.ts` boots the real
-  // application and proves the guard honours it.
+  // what this file owns. `test/payment-callbacks.e2e-spec.ts` and
+  // `test/payment-api.e2e-spec.ts` boot the real application and prove the guard
+  // honours all three.
   const reflector = new Reflector();
 
-  it("both are unguarded, and both say why", () => {
+  it("the gateway's two are unguarded, and both say why", () => {
     const reasons = [
       reflector.get<string>(UNGUARDED_KEY, PaymentController.prototype.ipn),
       reflector.get<string>(
@@ -367,6 +469,22 @@ describe("what the two routes declare about access", () => {
       expect(reason).toMatch(/signature/i);
     }
   });
+
+  it("the desk's names a capability, and is not unguarded", () => {
+    const requirement = reflector.get<CapabilityRequirement>(
+      CAPABILITY_KEY,
+      PaymentController.prototype.openAttempt,
+    );
+
+    expect(requirement).toEqual({ key: "payment.open-attempt", action: "write" });
+
+    // Both would be a contradiction the guard has to break a tie on. Opening an
+    // attempt writes a row and asks a gateway for money; nothing about it is
+    // reachable without a session.
+    expect(
+      reflector.get(UNGUARDED_KEY, PaymentController.prototype.openAttempt),
+    ).toBeUndefined();
+  });
 });
 
 /** The IPN, as VNPay calls it: a `GET` carrying the transaction in the query. */
@@ -381,6 +499,18 @@ function payerReturn(): request.Test {
   return request(app.getHttpServer())
     .get("/payments/vnpay/return")
     .query(A_CALLBACK);
+}
+
+/** The desk opening an attempt. The amount travels as text, which is the only
+ *  way `money.ts` lets a đồng cross the wire. */
+function openAttempt(overrides: Record<string, unknown> = {}): request.Test {
+  return request(app.getHttpServer())
+    .post(`/bookings/${A_BOOKING}/payment-attempts`)
+    .send({
+      amount: "1200000",
+      description: "Deposit against the stay",
+      ...overrides,
+    });
 }
 
 /** What the port answers for a redirect the gateway did sign. */
@@ -419,5 +549,6 @@ function environment(): Env {
     BETTER_AUTH_SECRET: "guest-realm-secret-of-quite-sufficient-length",
     STAFF_JWT_SECRET: "staff-realm-secret-that-differs-and-is-long",
     WEB_ORIGIN,
+    API_URL,
   });
 }

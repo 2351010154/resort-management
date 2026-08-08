@@ -1,16 +1,35 @@
-// Where the gateway reports, and where the payer lands — the two routes
-// `FR-PAY-03` still needed, and the only ones in this application whose caller
-// is neither a person nor a browser this property handed a session to.
+// One payment's whole conversation: where the property asks for the money —
+// `FR-PAY-02` — and then where the gateway reports what became of it and where
+// the payer lands, which is `FR-PAY-03`.
 //
-// **These are VNPay's routes, and the file is shaped by that.** Everything else
-// under `modules/` answers through `contract` in `@mariva/shared`, because the
-// caller on the other end is this property's own web app and the contract is
-// what makes the two agree at compile time. Neither route below has that
-// caller. The path, the method, the parameter names and the shape of the answer
-// are all VNPay's specification, and a contract written over them would be this
-// codebase declaring a shape it does not own and cannot change. So they are
-// plain Nest routes — `guest-auth.controller.ts` mounts Better Auth's own
-// surface for the same reason, and gives it.
+// **Two of the three are VNPay's routes, and the file is shaped by that.**
+// Everything else under `modules/` answers through `contract` in
+// `@mariva/shared`, because the caller on the other end is this property's own
+// web app and the contract is what makes the two agree at compile time. The IPN
+// and the payer's return have no such caller. Their paths, their methods, their
+// parameter names and the shape of their answers are all VNPay's specification,
+// and a contract written over them would be this codebase declaring a shape it
+// does not own and cannot change. So they are plain Nest routes —
+// `guest-auth.controller.ts` mounts Better Auth's own surface for the same
+// reason, and gives it.
+//
+// **The third is the property's own, and it is the only one that holds a
+// capability.** Opening an attempt is the desk asking a gateway to collect
+// against a stay: the caller is this property's web app, the shape is this
+// property's to choose, and `rbac-matrix.md` §2 governs it like every other
+// staff route. So it is declared in `contract/payment.ts` and guarded by
+// `payment.open-attempt`. It is answered here rather than beside the folio
+// because the attempt and the callback that resolves it are one conversation —
+// and because `payment.module.ts` registers one controller for this module.
+//
+// **VNPay's two paths are written on their handlers rather than on the class**,
+// which is what lets the three live together. A `@Controller` prefix is
+// prepended to a contract route as well as to a plain one, and `FR-PAY-02`'s
+// address belongs to a stay rather than to a gateway. Spelling the segments out
+// twice buys something worth more than it costs: {@link GATEWAY_RETURN_PATH} is
+// both the route the payer comes back to and the url handed to the gateway when
+// an attempt is opened, so the address VNPay is told to use and the address that
+// answers it cannot drift apart.
 //
 // That is also why this file names a gateway where `payment.service.ts` refuses
 // to. `FR-PAY-01` keeps gateway vocabulary out of the *property's* code, and the
@@ -20,23 +39,23 @@
 // exactly as it is a second adapter beside `vnpay.adapter.ts` — and the service
 // between them does not change either time.
 //
-// **Both are `GET`, because that is how VNPay calls them.** The IPN arrives with
-// the whole transaction in the query string and the payer's return is a browser
-// redirect carrying the same parameters; neither has a body, and a `POST`
-// handler here would be a route the gateway can never reach. The address of each
-// is registered per terminal in VNPay's merchant admin —
+// **Both of the gateway's are `GET`, because that is how VNPay calls them.** The
+// IPN arrives with the whole transaction in the query string and the payer's
+// return is a browser redirect carrying the same parameters; neither has a body,
+// and a `POST` handler for either would be a route the gateway can never reach.
+// The address of each is registered per terminal in VNPay's merchant admin —
 // `docs/architecture/infrastructure.md` §Payments — so staging and production
 // name the same two paths under their own `API_URL`.
 //
-// **Neither can hold a session, and the decorator says which credential stands
-// in.** The gateway has no account here and the payer arrives redirected from
-// somebody else's site, so `rbac-matrix.md` §2's deny-by-default has to be
-// answered with something other than a capability. For the IPN it is the
-// signature, verified inside the maintained library behind the port — that *is*
-// the authentication, and it is why an unsigned callback is refused rather than
-// filed as a failed payment. For the return it is weaker and the route is built
-// to need less: a signed redirect proves the gateway sent the payer, and nothing
-// below acts on it.
+// **Neither of those two can hold a session, and the decorator says which
+// credential stands in.** The gateway has no account here and the payer arrives
+// redirected from somebody else's site, so `rbac-matrix.md` §2's
+// deny-by-default has to be answered with something other than a capability.
+// For the IPN it is the signature, verified inside the maintained library
+// behind the port — that *is* the authentication, and it is why an unsigned
+// callback is refused rather than filed as a failed payment. For the return it
+// is weaker and the route is built to need less: a signed redirect proves the
+// gateway sent the payer, and nothing below acts on it.
 //
 // **What the IPN's answer means.** `RspCode` is not a verdict on the payment. It
 // says whether this property received the notification and finished acting on
@@ -56,8 +75,9 @@
 // maintained here, failing closed on the day they change — against an attacker
 // who still could not produce a signature.
 
-import { Controller, Get, Inject, Query, Redirect } from "@nestjs/common";
-import { ORPCError } from "@orpc/nest";
+import { contract } from "@mariva/shared";
+import { Controller, Get, Inject, Ip, Query, Redirect } from "@nestjs/common";
+import { Implement, implement, ORPCError } from "@orpc/nest";
 import { InjectPinoLogger, type PinoLogger } from "nestjs-pino";
 import {
   InpOrderAlreadyConfirmed,
@@ -67,7 +87,10 @@ import {
   IpnSuccess,
   IpnUnknownError,
 } from "vnpay";
-import { Unguarded } from "../../common/auth/access.decorators.js";
+import {
+  RequiresCapability,
+  Unguarded,
+} from "../../common/auth/access.decorators.js";
 import { ENV, type Env } from "../../config/env.js";
 import {
   type CallbackOutcome,
@@ -90,6 +113,23 @@ interface Acknowledgement {
   readonly RspCode: string;
   readonly Message: string;
 }
+
+/**
+ * Where VNPay posts its report of an attempt. Registered per terminal in the
+ * merchant admin, so changing it is a deployment step and not only an edit.
+ */
+const GATEWAY_IPN_PATH = "payments/vnpay/ipn";
+
+/**
+ * Where VNPay sends the payer's browser afterwards — read twice, and that is the
+ * point of naming it.
+ *
+ * Once as the route that answers, and once as the `returnUrl` given to the
+ * gateway on every attempt this property opens. Two literals would be two
+ * strings that agree until somebody moves the route, at which point every payer
+ * would be redirected to a 404 with their payment already taken.
+ */
+const GATEWAY_RETURN_PATH = "payments/vnpay/return";
 
 /**
  * Where the payer is handed back to on the site they started from.
@@ -125,7 +165,9 @@ const CAPTIONS: Readonly<Record<"SUCCESS" | "FAILED" | "PENDING", Caption>> = {
  *  or proxy may cache this one as though it were the page. */
 const SEE_THE_FUNNEL = 303;
 
-@Controller("payments/vnpay")
+// No prefix, and the header says why: a prefix here would be prepended to the
+// contract route as well, and that route's address belongs to a stay.
+@Controller()
 export class PaymentController {
   constructor(
     private readonly payments: PaymentService,
@@ -139,6 +181,43 @@ export class PaymentController {
     @Inject(ENV) private readonly env: Env,
     @InjectPinoLogger(PaymentController.name) private readonly logger: PinoLogger,
   ) {}
+
+  /**
+   * The desk asking a gateway to collect against a stay — `FR-PAY-02`.
+   *
+   * **The handler adds no rule of its own, and that is deliberate.**
+   * {@link PaymentService.createPaymentRequest} already refuses an amount of
+   * nothing or less, and refuses it before a row is written or a payer is sent
+   * anywhere; both refusals carry an `ORPCError` and reach the caller as the 400
+   * they were written to be. A copy of either check here would be a second place
+   * for one decision to live, and the two would agree until one was reworded.
+   *
+   * **Two of the five fields the service needs are the request's, not the
+   * body's.** A caller that could name its own `returnUrl` could send the payer
+   * anywhere afterwards, on a page carrying the gateway's own signed parameters —
+   * so the address is this property's, built from the route below. A caller that
+   * could state its own address would be choosing what the gateway screens it
+   * for, which is a fraud signal that means nothing; so it is read off the
+   * connection.
+   *
+   * What comes back says where to send the payer and what this property will
+   * call the attempt afterwards. It says nothing about money having moved:
+   * `contract/payment.ts` argues that at length, and the row this just committed
+   * is `PENDING` until a callback resolves it.
+   */
+  @RequiresCapability("payment.open-attempt")
+  @Implement(contract.payment.openAttempt)
+  openAttempt(@Ip() payerIpAddress: string) {
+    return implement(contract.payment.openAttempt).handler(async ({ input }) =>
+      this.payments.createPaymentRequest({
+        bookingId: input.bookingId,
+        amount: input.amount,
+        description: input.description,
+        returnUrl: this.gatewayReturnUrl(),
+        payerIpAddress,
+      }),
+    );
+  }
 
   /**
    * The gateway's own report of what became of an attempt — the delivery this
@@ -159,7 +238,7 @@ export class PaymentController {
       "signature the maintained library verifies on the callback is what " +
       "stands in for one",
   )
-  @Get("ipn")
+  @Get(GATEWAY_IPN_PATH)
   async ipn(
     @Query() callback: Record<string, unknown>,
   ): Promise<Acknowledgement> {
@@ -193,7 +272,7 @@ export class PaymentController {
       "gateway with no session, and the gateway's signature is the only thing " +
       "vouching for what it carries. Nothing here acts on money",
   )
-  @Get("return")
+  @Get(GATEWAY_RETURN_PATH)
   @Redirect()
   async payerReturn(
     @Query() redirect: Record<string, unknown>,
@@ -354,6 +433,19 @@ export class PaymentController {
     );
 
     return disagreement === "AMOUNT" ? IpnInvalidAmount : IpnUnknownError;
+  }
+
+  /**
+   * The address the gateway is told to send the payer back to.
+   *
+   * Absolute, because it leaves this process and is read by somebody else's
+   * server. `API_URL` is where this API answers as the browser sees it, and the
+   * path is rooted rather than resolved against it: Nest mounts every route at
+   * the origin's root, so a base carrying a path of its own would produce a url
+   * no route here answers.
+   */
+  private gatewayReturnUrl(): string {
+    return new URL(`/${GATEWAY_RETURN_PATH}`, this.env.API_URL).toString();
   }
 
   /** The payer, sent on to the site with a caption and nothing else. */
