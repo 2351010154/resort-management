@@ -53,6 +53,7 @@ export {
   shortenedStaySchema,
 } from "./booking.js";
 export {
+  closeFolioInput,
   folioPostingReceiptSchema,
   folioPostingSchema,
   folioSchema,
