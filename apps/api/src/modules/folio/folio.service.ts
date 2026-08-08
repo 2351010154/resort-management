@@ -39,17 +39,35 @@
 // beside it. The three then either arrive together or not at all, whatever
 // boundary the caller opened.
 //
-// **Nothing is refused for being posted to a closed folio, yet.** `FR-FOL-01`
-// says a closed account takes no further lines, and that rule belongs with the
-// close that creates the state — the same reason the trigger that would enforce
-// it is not in the ledger's migration. Nothing in the tree closes a folio today,
-// so the state is unreachable rather than unguarded.
+// **The close is the one act here that reads before it writes.** Everything
+// else on this service writes unguarded and reads the refusal off the SQLSTATE,
+// because a constraint can say what it refused. A balance cannot: it is a sum
+// over another table, so no `CHECK` on `folio` can see it, and the sentence
+// `FR-FOL-01` asks for — an account is agreed only when it comes to nothing —
+// has nowhere else to live. So {@link FolioService.close} takes the account's
+// row lock first, sums under it, and refuses with the figure still outstanding,
+// which is the one answer a receptionist can act on.
+//
+// The lock is what makes the sum true a moment later. Without it the balance is
+// read, a charge lands on another connection, and the close writes `CLOSED`
+// over an account that no longer settles — `NFR-02` broken by two statements
+// that were each correct. Held, the two orders both end well: a posting already
+// in flight is waited for and counted, and one that arrives afterwards meets the
+// trigger `migrations/0016` puts on the ledger and is refused. That trigger is
+// `FR-FOL-01`'s other half, and this file said where it would go — with the
+// close that creates the state, which is here.
+//
+// **What the close does not do is issue the invoice.** `FR-FOL-04` requires
+// that a provider timeout never roll back a checkout, and nothing in this
+// transaction can honour that if the transaction is also waiting on a provider.
+// So the close commits the state and nothing else; `e-invoice.job.ts` reads the
+// account it left behind and argues why that commit is the enqueue.
 
 import { randomUUID } from "node:crypto";
 import type { StayDate, VndAmount } from "@mariva/shared";
 import { Inject, Injectable } from "@nestjs/common";
 import { ORPCError } from "@orpc/nest";
-import { asc, eq, or, sql } from "drizzle-orm";
+import { and, asc, eq, or, sql } from "drizzle-orm";
 import {
   type Database,
   type DbExecutor,
@@ -67,6 +85,10 @@ import { decomposeGross } from "./tax-decomposition.js";
 
 const FOREIGN_KEY_VIOLATION = "23503";
 const UNIQUE_VIOLATION = "23505";
+// This system's own, raised by the trigger `migrations/0016` puts on the ledger
+// — five characters in a class the standard reserves for implementations, so a
+// closed account is told apart from any other refusal without reading a message.
+const CLOSED_FOLIO_VIOLATION = "MV002";
 
 /** A line a folio is asked to write, less what every line carries. */
 interface PostingRequest {
@@ -148,6 +170,23 @@ export interface FolioSummary {
   readonly charged: VndAmount;
   readonly credited: VndAmount;
   readonly outstanding: VndAmount;
+}
+
+/**
+ * The account as the close left it.
+ *
+ * The instant comes back because it is the invoice's date — `schema/folio.ts`
+ * says the invoice is issued when the desk closed the folio — and because it is
+ * Postgres' `now()` rather than this process's, so the caller that has to print
+ * it should be told what was stored rather than guess.
+ *
+ * No invoice reference. There is not one yet, and there will not be for as long
+ * as the queue takes: a field that was null on every close would read as a
+ * document that failed to issue rather than one nobody has issued yet.
+ */
+export interface ClosedFolio {
+  readonly id: string;
+  readonly closedAt: Date;
 }
 
 /** One stay's account, whole. */
@@ -297,6 +336,93 @@ export class FolioService implements FolioPort {
 
       throw error;
     }
+  }
+
+  /**
+   * Agrees the account and stops it — `FR-FOL-01`, and the moment `FR-FOL-04`
+   * hangs the invoice off.
+   *
+   * **The row is locked before the balance is read, and that order is the whole
+   * guarantee.** `FOR UPDATE` on the folio conflicts with the share lock the
+   * ledger's trigger takes when a posting is written, so the two acts cannot
+   * interleave: a charge already being written is waited for and included in the
+   * sum, and one that arrives after this commits reads `CLOSED` and is refused.
+   * Reading the balance first and locking afterwards would close accounts that
+   * settled a millisecond ago, which is the failure `NFR-02` reports weeks later
+   * as a ledger that does not add up. The lock only lasts as long as the
+   * caller's transaction, which every write in this tree is handed — a caller
+   * that passed the client instead would be holding a row lock that Postgres
+   * released at the end of the statement, and would get the balance it happened
+   * to see. `database.module.ts` says whose job that boundary is.
+   *
+   * **A second close is refused rather than passed over.** It would be easy to
+   * make idempotent — the account is already closed, which is what the caller
+   * wanted — and it would be the wrong answer twice over. A desk that closes
+   * twice has one stay it thinks is open, and `FR-FOL-04` reads a closed folio
+   * as one invoice: a close that succeeded silently is a second act with a
+   * legal document behind it, so the refusal carries the moment the first one
+   * happened and lets a person work out which checkout they are looking at.
+   *
+   * The balance is summed here rather than through {@link getBalance} because
+   * that method reads on the pool by a booking id, deliberately —
+   * `booking/ports/folio.port.ts` says why — and a close that asked it would be
+   * summing on a connection outside the lock it just took.
+   */
+  async close(exec: DbExecutor, bookingId: string): Promise<ClosedFolio> {
+    const [account] = await exec
+      .select({ id: folio.id, state: folio.state, closedAt: folio.closedAt })
+      .from(folio)
+      .where(eq(folio.bookingId, bookingId))
+      .limit(1)
+      .for("update");
+
+    if (!account) {
+      throw new ORPCError("NOT_FOUND", {
+        message:
+          "That stay has no account, so there is nothing to agree — " +
+          "a folio is opened by the first thing posted to it",
+      });
+    }
+
+    if (account.state === "CLOSED") {
+      throw new ORPCError("CONFLICT", {
+        message: `That account was already closed at ${account.closedAt?.toISOString()} and has an invoice of its own`,
+      });
+    }
+
+    const [summed] = await exec
+      .select({ balance: sql<string | null>`sum(${folioPosting.amount})` })
+      .from(folioPosting)
+      .where(eq(folioPosting.folioId, account.id));
+
+    // Null on an account nobody posted to, which settles at nothing and closes
+    // — a stay that ran up no charge owes none.
+    const outstanding = BigInt(summed?.balance ?? "0");
+
+    if (outstanding !== 0n) {
+      throw new ORPCError("CONFLICT", {
+        message:
+          outstanding > 0n
+            ? `That account is short by ${outstanding} ₫ and cannot be agreed until it is settled`
+            : `That account is over-paid by ${-outstanding} ₫ — the difference is refunded before it is agreed`,
+      });
+    }
+
+    // Postgres' clock and not this process's, for the reason `sweep-job.ts`
+    // gives: inside a transaction `now()` is the transaction's own start, so the
+    // instant stored is the one every statement of this close shares and is
+    // identical on whichever connection took it.
+    //
+    // The state is named in the predicate as well as in the lock above. It costs
+    // nothing and it is what makes the statement refuse rather than overwrite,
+    // should this ever be called from a path that did not take the lock.
+    const [closed] = await exec
+      .update(folio)
+      .set({ state: "CLOSED", closedAt: sql`now()` })
+      .where(and(eq(folio.id, account.id), eq(folio.state, "OPEN")))
+      .returning({ id: folio.id, closedAt: folio.closedAt });
+
+    return { id: closed!.id, closedAt: closed!.closedAt! };
   }
 
   /**
@@ -483,11 +609,14 @@ export class FolioService implements FolioPort {
    * Writes lines and hands back their ids, with Postgres' refusal read as an
    * answer rather than a fault.
    *
-   * Two SQLSTATEs are translated and the rest are re-thrown as they are. `23503`
-   * is a key naming a row that is not there — the folio, or the staff account a
-   * line is attributed to. `23505` can only be
+   * Three SQLSTATEs are translated and the rest are re-thrown as they are.
+   * `23503` is a key naming a row that is not there — the folio, or the staff
+   * account a line is attributed to. `23505` can only be
    * `folio_posting_reversal_unique_key` on this table, because it is the only
    * uniqueness a posting can violate; every other column is free to repeat.
+   * `MV002` is the account having been agreed and invoiced before this line
+   * arrived, which is not a fault of the line and is why it is answered rather
+   * than raised.
    */
   private async write(
     exec: DbExecutor,
@@ -515,6 +644,14 @@ export class FolioService implements FolioPort {
           message:
             "That line, or one of the lines levied on it, has already been " +
             "reversed — a mistake is corrected once",
+        });
+      }
+
+      if (state === CLOSED_FOLIO_VIOLATION) {
+        throw new ORPCError("CONFLICT", {
+          message:
+            "That account was closed and invoiced as it then stood, so it takes " +
+            "no further lines — a change after the close is an invoice adjustment",
         });
       }
 
