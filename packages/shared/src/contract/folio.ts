@@ -2,12 +2,20 @@
 // lines, the corrections filed against them, and the moment the desk agrees the
 // whole of it.
 //
-// Five routes, five rows of the RBAC matrix, and no route here that the matrix
-// does not already govern: `folio.read`, `folio.post-charge`,
-// `folio.post-payment`, `folio.reverse-posting` and `folio.close-invoice`. The
-// refund rows and the invoice adjustment exist in the matrix too and are
-// deliberately not here — each has service work of its own, and a route declared
-// before that work exists is a promise the client would be held to.
+// Seven routes, seven rows of the RBAC matrix, and no route here that the
+// matrix does not already govern: `folio.read`, `folio.post-charge`,
+// `folio.post-payment`, `folio.reverse-posting`, `folio.close-invoice`,
+// `folio.refund-policy` and `folio.refund-override`. The invoice adjustment
+// exists in the matrix too and is deliberately not here — it has service work of
+// its own, and a route declared before that work exists is a promise the client
+// would be held to.
+//
+// **The two refunds are two routes, and that is `FR-PAY-04`.** `rbac-matrix.md`
+// §2 states it as a prohibition — "not one endpoint with an amount check" — and
+// the shapes below are what make the split real rather than declared: the policy
+// route takes no amount at all, so the figure it posts cannot be influenced by
+// the caller who reaches it, and the discretionary route takes one because
+// departing from §4's grid is the whole of what a manager is doing there.
 //
 // **Addressed by the stay, not by the folio's id.** There is exactly one account
 // per booking — `schema/folio.ts` makes that a unique key — and nothing tells
@@ -212,6 +220,52 @@ export const reversePostingInput = z.object({
 });
 
 /**
+ * §4's grid, applied — `FR-PAY-04`, and the stay is the whole of the request.
+ *
+ * **No amount, and that absence is what separates this route from the one below
+ * it.** `property-and-tariff.md` §4 says every charge in the grid is computed by
+ * `refund.policy`, so the figure is `cancellation-calculator.ts`'s over the
+ * per-night prices the booking froze — never a total divided by a count, and
+ * never a number that travelled here. A caller able to send one would be
+ * exercising the override's authority under the cheaper capability, which is
+ * exactly the collapse `rbac-matrix.md` §2 refuses.
+ *
+ * **No event either, and for the same reason one step further back.** Which row
+ * of the grid fired is a fact the booking already records — it was cancelled, it
+ * never arrived, or the guest is leaving early — and each row prices
+ * differently. A caller naming the event would be choosing the row; a caller
+ * naming the *instant* of a cancellation would be choosing whether the free
+ * window closed, which is a penalty waived by a request body.
+ */
+export const postPolicyRefundInput = z.object({ ...bookingIdFields });
+
+/**
+ * Money handed back outside the grid — `FR-PAY-04`'s other half.
+ *
+ * The amount is the caller's here, because departing from §4 is the whole of
+ * what this route is: `rbac-matrix.md` §2 puts waiving a cell at `MANAGER`+ and
+ * gives it a declaration of its own.
+ *
+ * Positive, like every other figure a caller sends. `schema/folio.ts` holds the
+ * sign convention and the service applies it in one place — a refund is stored
+ * positive, because handing money back undoes a payment and returns the stay to
+ * owing what it owed.
+ *
+ * The reason is required and has no default. A discretionary refund is somebody
+ * departing from the property's own policy, and a credit on an invoice with no
+ * account of why is one an accountant cannot answer for months later — the
+ * ledger is append-only, so the explanation cannot be added afterwards either.
+ */
+export const postOverrideRefundInput = z.object({
+  ...bookingIdFields,
+  amount: vndAmountInputSchema.refine(
+    (amount) => amount > 0n,
+    "a refund is money handed back, so the amount is what the guest receives",
+  ),
+  reason: descriptionSchema,
+});
+
+/**
  * Agreeing the account — `FR-FOL-01`'s close, and the moment `FR-FOL-04` hangs
  * the invoice off.
  *
@@ -256,9 +310,36 @@ export const folio = {
     .input(reversePostingInput)
     .output(folioPostingReceiptSchema),
 
+  postPolicyRefund: oc
+    // Two collections rather than one with a modifier on it, because the two
+    // are not one act performed with different authority: this one posts the
+    // grid's own figure and the next posts a manager's. A single `/refunds`
+    // taking an optional amount would put both behind whichever capability the
+    // route declared, and the declaration is the guarantee.
+    //
+    // One or two lines come back, and both are the grid's: §4's charge, which
+    // names which row it is, and — when the stay is over-paid once that charge
+    // stands against it — the money going back. A stay that still owes after the
+    // charge is answered with the charge alone, which is honest rather than
+    // empty: `folio` on the response carries what is left outstanding.
+    .route({
+      method: "POST",
+      path: "/bookings/{bookingId}/folio/policy-refunds",
+    })
+    .input(postPolicyRefundInput)
+    .output(folioPostingReceiptSchema),
+
+  postOverrideRefund: oc
+    .route({
+      method: "POST",
+      path: "/bookings/{bookingId}/folio/override-refunds",
+    })
+    .input(postOverrideRefundInput)
+    .output(folioPostingReceiptSchema),
+
   close: oc
     // A nominalised act rather than a collection, the way `booking.ts` spells
-    // `/confirmation` and `/cancellation`. The three routes above append to the
+    // `/confirmation` and `/cancellation`. The five routes above append to the
     // ledger, and the same charge sent twice is honestly two lines; this one
     // happens to the account once and the second attempt is refused, so a plural
     // that invited a second posting would be the wrong shape for it.
