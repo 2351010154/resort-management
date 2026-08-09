@@ -127,6 +127,13 @@
       "when": 1786166545168,
       "tag": "0017_payment_discrepancy",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1786254191138,
+      "tag": "0018_cancellation_waiver_and_instant",
+      "breakpoints": true
     }
   ]
 }
