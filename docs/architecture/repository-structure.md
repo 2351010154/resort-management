@@ -23,9 +23,9 @@ frontends render it and nothing else. No Next.js server action, route handler,
 or admin screen may reach the database directly — that is what turns one brain
 into three that disagree.
 
-Jira project `SCRUM` owns execution state. Files under `plans/` preserve
-requirements, rationale, and work-package boundaries; they do not mirror Jira
-status, assignment, sprint, or delivery evidence.
+GitHub issues own execution state. Files under `plans/` preserve
+requirements, rationale, and work-package boundaries; they do not mirror issue
+status, assignment, milestone, or delivery evidence.
 
 ## Rules that survive contact with growth
 

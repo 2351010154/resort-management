@@ -21,8 +21,8 @@ One database, one set of business rules, two front doors.
 
 > [!NOTE]
 > **This is a system under construction, not a finished product.** The
-> [SCRUM Jira project](https://hungphat2018-1785053353783.atlassian.net/issues/?jql=project%20%3D%20SCRUM)
-> owns current delivery status, assignment, priority, sprint, dates and blockers.
+> [GitHub issues](https://github.com/2351010154/resort-management/issues)
+> own current delivery status, assignment, labels, milestones and blockers.
 > Repository documentation records durable requirements, decisions and rationale;
 > a documented target is not evidence that it has shipped.
 
@@ -149,7 +149,7 @@ sells a room.
 The intended funnel boundary and route rationale live in
 [`repository-structure.md`](docs/architecture/repository-structure.md). Inspect
 [`apps/web/app`](apps/web/app) for the routes that exist and the
-[SCRUM Jira project](https://hungphat2018-1785053353783.atlassian.net/issues/?jql=project%20%3D%20SCRUM)
+[GitHub issues](https://github.com/2351010154/resort-management/issues)
 for delivery state.
 
 ## Getting started
@@ -299,7 +299,7 @@ Written as the system is built, not assembled at the end.
 | --- | --- |
 | [`docs/orientation.md`](docs/orientation.md) | What the system is, the invariant, and where to resume work |
 | [`docs/README.md`](docs/README.md) | The **authority map** — which document owns which fact, and the precedence order when two disagree |
-| [`docs/screens.md`](docs/screens.md) | Intended screen and route map; Jira owns delivery state |
+| [`docs/screens.md`](docs/screens.md) | Intended screen and route map; issues own delivery state |
 
 | Design fact | Owner |
 | --- | --- |
@@ -320,8 +320,8 @@ stored copy earns nothing but the chance to disagree with them.
 
 > [!TIP]
 > Markdown under `plans/` is versionable stateful evidence, not the live tracker.
-> `pnpm backlog:view` generates an ignored HTML view. Use the
-> [SCRUM Jira project](https://hungphat2018-1785053353783.atlassian.net/issues/?jql=project%20%3D%20SCRUM)
+> `pnpm backlog:view` generates an ignored HTML view. Use
+> [GitHub issues](https://github.com/2351010154/resort-management/issues)
 > for current execution state.
 
 ### Vocabulary
@@ -350,7 +350,7 @@ Two enumerations worth knowing before reading any module:
 
 ## Delivery planning
 
-The [SCRUM Jira project](https://hungphat2018-1785053353783.atlassian.net/issues/?jql=project%20%3D%20SCRUM)
-owns the current plan and its execution fields. Durable scope and acceptance criteria
+[GitHub issues](https://github.com/2351010154/resort-management/issues)
+own the current plan and its execution fields. Durable scope and acceptance criteria
 live in [`docs/product-requirements.md`](docs/product-requirements.md);
 documents under `plans/` are historical or working planning evidence and may age.

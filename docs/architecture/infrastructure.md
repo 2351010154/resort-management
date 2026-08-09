@@ -71,7 +71,7 @@ One internal `PaymentGateway` port — `createPayment` / `verifyCallback` /
   gateway transaction id is mandatory, not defensive.
 - **Refunds are restricted in the VNPay sandbox** and must be requested during
   merchant onboarding (`M0-04`;
-  [SCRUM-14](https://hungphat2018-1785053353783.atlassian.net/browse/SCRUM-14)),
+  [#32](https://github.com/2351010154/resort-management/issues/32)),
   not discovered at P3.
 - IPN URLs are configured per terminal in the merchant admin, so staging and
   production need separate terminals. Both addresses are the same two paths
@@ -96,7 +96,7 @@ with a box unticked.
 provisions bind Mariva's operating entity and registered activity is still
 unresolved; the tax agent's written answer is the authority (`M0-06`).
 The provider/accountant decision shares the same execution record:
-[SCRUM-12](https://hungphat2018-1785053353783.atlassian.net/browse/SCRUM-12).
+[#29](https://github.com/2351010154/resort-management/issues/29).
 
 If applicability is confirmed, the target is **hóa đơn điện tử khởi tạo từ máy
 tính tiền** and the following constraints shape the build. If it is not

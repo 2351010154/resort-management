@@ -5,8 +5,8 @@ journeys fit together. It does not report whether a screen is implemented.
 
 Inspect [`apps/web/app`](../apps/web/app/) for current public routes and
 [`apps/admin`](../apps/admin/) for the current staff surface. Use the
-[SCRUM Jira project](https://hungphat2018-1785053353783.atlassian.net/issues/?jql=project%20%3D%20SCRUM)
-for status, assignment, priority, sprint, dates and blockers.
+[GitHub issues](https://github.com/2351010154/resort-management/issues)
+for status, assignment, labels, milestones and blockers.
 
 ## Guest surfaces
 
