@@ -69,7 +69,6 @@ import type pg from "pg";
 import { type Db, PgBoss } from "pg-boss";
 import { ENV, type Env } from "../config/env.js";
 import { PG_POOL } from "../database/database.module.js";
-import { BusinessDateService } from "../modules/booking/business-date.service.js";
 import { JobRunner } from "./job-runner.service.js";
 import type { SweepJob } from "./sweep-job.js";
 
@@ -115,7 +114,6 @@ export class JobScheduler
     @Inject(ENV) private readonly env: Env,
     @Inject(PG_POOL) private readonly pool: pg.Pool,
     private readonly runner: JobRunner,
-    private readonly businessDates: BusinessDateService,
     // Contextualised here rather than declared with `@InjectPinoLogger` —
     // `job-runner.service.ts` says which evaluation order that decorator
     // depends on and why this module cannot assume it.
@@ -233,13 +231,10 @@ export class JobScheduler
       job.name,
       { pollingIntervalSeconds: POLLING_INTERVAL_SECONDS },
       async () => {
-        // The scheduled run always asks what day it is now. A date is only
-        // named explicitly by the person re-running one that failed.
-        const run = await this.runner.run(
-          job,
-          this.businessDates.current(),
-          "SCHEDULE",
-        );
+        // The scheduled run always asks what day it is now, which is what `null`
+        // says — the runner resolves it inside the run's own transaction. A date
+        // is only named explicitly by the person re-running one that failed.
+        const run = await this.runner.run(job, null, "SCHEDULE");
 
         // Returned, not just logged: pg-boss stores it on the completed job,
         // which is where "what did last night's sweep actually do" is answered

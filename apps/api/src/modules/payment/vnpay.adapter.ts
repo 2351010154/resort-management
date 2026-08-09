@@ -14,6 +14,15 @@
 // authenticate VNPay's *responses* rather than its callbacks. The one thing a
 // caller here must not do is decide for itself that a callback looks right.
 //
+// **But `isVerified` means "no signature disagreed", which is weaker.** Both
+// merchant calls compute theirs as `if (responseData?.vnp_SecureHash && …)`, so
+// an answer that carries no hash at all is reported as verified — a stranger who
+// could answer in VNPay's place would only have to omit the field the check
+// hangs on. `requireSignature` asks first whether there was anything to check.
+// It computes nothing and takes nothing on trust; it is the difference between
+// "VNPay said this" and "nobody said otherwise", which is a distinction the
+// property's money depends on and the library does not draw.
+//
 // **The two clocks are not the library's.** VNPay stamps `yyyyMMddHHmmss` in
 // GMT+7, and `vnpay`'s own `dateFormat`/`parseDate` read and write those digits
 // through the *host process's* local timezone — correct on a server running
@@ -270,7 +279,10 @@ export class VnpayAdapter implements PaymentGateway {
     // `isVerified` is the library checking VNPay's signature on the *response*.
     // Unverified, this is not VNPay answering, and a refund id taken from it
     // would be a number the property records against money it cannot prove
-    // moved.
+    // moved. Asked in two parts because the library answers only the second:
+    // whether a signature was sent, and then whether it was this property's.
+    requireSignature(result);
+
     if (!result.isVerified || !result.isSuccess) {
       throw new ORPCError("BAD_GATEWAY", {
         status: 502,
@@ -310,6 +322,8 @@ export class VnpayAdapter implements PaymentGateway {
       },
       { logger: { loggerFn: ignoreLogger } },
     );
+
+    requireSignature(result);
 
     if (!result.isVerified) {
       throw new ORPCError("BAD_GATEWAY", {
@@ -433,6 +447,32 @@ function wholeDong(reported: unknown): VndAmount | undefined {
   return typeof reported === "number" && Number.isSafeInteger(reported)
     ? BigInt(reported)
     : undefined;
+}
+
+/**
+ * Refuses a merchant-call answer that carried no signature for anyone to check.
+ *
+ * Only the two outbound calls need this. A *callback* is refused by the port's
+ * own reading of `isVerified`, and one arriving without a hash fails that check
+ * on the way in; these two are answers to requests this property made, and the
+ * library's guard on them stops short. Separate from the `isVerified` refusal
+ * beside each call rather than folded into it, because they are different
+ * accusations: one says somebody signed this and it was not VNPay, the other
+ * says nobody signed it at all.
+ *
+ * Nothing is computed. The field is read for its presence and never compared,
+ * which is the line `FR-PAY-02` draws.
+ */
+function requireSignature(answer: { readonly vnp_SecureHash?: string }): void {
+  if (typeof answer.vnp_SecureHash === "string" && answer.vnp_SecureHash !== "") {
+    return;
+  }
+
+  throw new ORPCError("BAD_GATEWAY", {
+    status: 502,
+    message:
+      "The answer carried no signature at all, so nothing in it is VNPay's word",
+  });
 }
 
 /** A gateway-issued identifier as text. Absent, empty and `0` are all "none". */

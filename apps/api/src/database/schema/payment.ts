@@ -44,10 +44,13 @@
 // **It carries its own partial unique index, for the guarantee the first one
 // cannot give.** An attempt the gateway *refused* has no transaction id —
 // `GatewayTransaction` will not name one for money nobody paid — so nothing
-// keyed on that column reaches it, and a redelivered refusal wrote a second
-// `FAILED` row. Keyed on the attempt instead, one attempt is one row whatever
-// became of it. Partial with the same predicate and for the same reason: the
-// money the property collects itself was opened under no attempt at all.
+// keyed on that column reaches it. Keyed on the attempt instead, one attempt is
+// one row whatever became of it, and that is what lets a callback be resolved by
+// a single conditional `UPDATE` and, when it matches nothing, by a single read
+// of the row it was aimed at: both are statements about *the* attempt, and only
+// this index makes "the" the right word. Partial with the same predicate and for
+// the same reason as the other: the money the property collects itself was
+// opened under no attempt at all.
 //
 // **The row's status is written more than once, and that is not the ledger's
 // rule bent.** `folio_posting` is append-only because `FR-FOL-01` says a mistake
@@ -199,8 +202,9 @@ export const payment = pgTable(
     // resolved through, which a unique index already serves.
     //
     // The index above cannot make this claim: a refused attempt carries no
-    // transaction id, so nothing keyed on one reaches it and the gateway's
-    // second delivery of a refusal writes a second `FAILED` row. Partial for the
+    // transaction id, so nothing keyed on one reaches it. This is what lets
+    // `payment.service.ts` resolve a callback with one conditional `UPDATE` and
+    // read the outcome off one row when it matches nothing. Partial for the
     // reason the other one is, and stated the same way rather than left to
     // Postgres' rule about nulls in a unique index.
     uniqueIndex("payment_attempt_reference_unique_key")

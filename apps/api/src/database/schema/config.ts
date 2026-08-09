@@ -114,10 +114,10 @@ export const systemConfig = pgTable(
     // System config — `ADMIN` edits it and `MANAGER` only looks — while
     // everything in `property_tariff` sits under the rates row a `MANAGER` owns.
     //
-    // The column is here and the seeder fills it, but **nothing reads it yet**:
-    // `BusinessDateService` still takes the hour from the environment, so an
-    // edit to this column does not move a business date. Issue #21 is the swap.
-    // Stated rather than left to be discovered, because a column that looks
+    // The seeder fills it once and `BusinessDateService` reads it on every
+    // question about what day it is, so an edit here moves the property's day
+    // with the next request — which is what §2 means by "changes one row, not a
+    // deploy". Nothing holds the value between reads; a column that looks
     // authoritative and is not is the shape this whole file argues against.
     businessDateRolloverHour: smallint("business_date_rollover_hour").notNull(),
   },

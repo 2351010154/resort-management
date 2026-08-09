@@ -63,7 +63,10 @@ One internal `PaymentGateway` port — `createPayment` / `verifyCallback` /
   [SCRUM-14](https://hungphat2018-1785053353783.atlassian.net/browse/SCRUM-14)),
   not discovered at P3.
 - IPN URLs are configured per terminal in the merchant admin, so staging and
-  production need separate terminals.
+  production need separate terminals. Both addresses are the same two paths
+  under each environment's own `API_URL`: `GET /payments/vnpay/ipn` for the
+  gateway's report, `GET /payments/vnpay/return` for the payer's browser. Only
+  the first is acted on — the return redirect confirms nothing about money.
 - **MoMo is conditional** (P3.5), gated on measured VNPay-only abandonment. It
   costs a second signature scheme, IPN shape, refund API and reconciliation job.
   Its IPN must be answered within 15 seconds — the handler ACKs and the work
