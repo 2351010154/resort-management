@@ -81,6 +81,27 @@ export const envSchema = z.object({
 
   MAIL_FROM: z.string().min(1).default("Mariva <no-reply@mariva.local>"),
 
+  // Where `FR-PAY-05` pages when the night's reconciliation finds money the two
+  // reports disagree about. One URL and no vendor: PagerDuty's Events API,
+  // Slack, ntfy and every on-call tool worth having accept a POST, so which one
+  // rings a phone at 03:00 is the property's decision and its routing rules —
+  // not a client library in this tree that would have to be kept current.
+  //
+  // Absent, `OpsAlertService` writes the page to the log at `warn` instead of
+  // sending it, so a developer sees exactly what would have been dispatched
+  // without an endpoint to point at. `RESEND_API_KEY` makes the same trade.
+  //
+  // The production check below is conditional rather than flat, and the
+  // condition is the gateway credential. Reconciliation compares the property's
+  // record of *gateway* money against the gateway's own — `reconciliation.
+  // service.ts` selects on `attempt_reference is not null`, which is exactly the
+  // money that did not come over the desk — so a property with no terminal has
+  // no attempts, no discrepancies and nothing to page about. Requiring a pager
+  // there would refuse a boot over an alert that could never fire. The moment a
+  // terminal is configured the money is real, and silence stops being an
+  // acceptable answer.
+  OPS_ALERT_WEBHOOK_URL: z.url().optional(),
+
   // The merchant terminal `FR-PAY-02`'s adapter signs with. `config.ts` says why
   // they are here and not in `system_config`: a secret in a table an `ADMIN`
   // screen reads has a wider audience than the process that uses it.
@@ -279,6 +300,24 @@ export const envSchema = z.object({
     {
       path: ["VNPAY_SECRET_KEY"],
       message: "and VNPAY_TMN_CODE are set together, or neither is set",
+    },
+  )
+  // A production property taking card money has somewhere for the night's
+  // disagreements to land. `FR-PAY-05`'s whole value is that a callback that
+  // never arrived — a guest charged, their folio still showing the amount
+  // outstanding — is found the next morning rather than a month later by the
+  // bank reconciliation, and a discrepancy nobody is told about is found by
+  // neither. Conditional on the terminal because a property with no gateway
+  // takes no gateway money; `OPS_ALERT_WEBHOOK_URL` above argues that at length.
+  .refine(
+    (env) =>
+      env.NODE_ENV !== "production" ||
+      !env.VNPAY_TMN_CODE ||
+      Boolean(env.OPS_ALERT_WEBHOOK_URL),
+    {
+      path: ["OPS_ALERT_WEBHOOK_URL"],
+      message:
+        "is required in production once VNPAY_TMN_CODE is set — gateway money moves nightly and a discrepancy nobody is paged about is one nobody finds",
     },
   )
   // The money figures, each refused separately so the message names the one
