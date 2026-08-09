@@ -234,9 +234,9 @@ export const reversePostingInput = z.object({
  *
  * **No amount, and that absence is what separates this route from the one below
  * it.** `property-and-tariff.md` §4 says every charge in the grid is computed by
- * `refund.policy`, so the figure is `cancellation-calculator.ts`'s over the
- * per-night prices the booking froze — never a total divided by a count, and
- * never a number that travelled here. A caller able to send one would be
+ * `folio.refund-policy`, so the figure is `cancellation-calculator.ts`'s over
+ * the per-night prices the booking froze — never a total divided by a count,
+ * and never a number that travelled here. A caller able to send one would be
  * exercising the override's authority under the cheaper capability, which is
  * exactly the collapse `rbac-matrix.md` §2 refuses.
  *

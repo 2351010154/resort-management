@@ -220,8 +220,8 @@ assumption rather than a quotation, and it is the one the funnel implements.
 ## 4. Cancellation, no-show, early departure
 
 Deadline is **18:00 ICT** on the cutoff date. All charges are computed by
-`refund.policy`; anything outside this table is `refund.override` and a
-different capability declaration — see
+`folio.refund-policy`; anything outside this table is `folio.refund-override`
+and a different capability declaration — see
 [`rbac-matrix.md`](rbac-matrix.md) §2.
 
 | Event | `STANDARD` / `BB` | `NONREF` |
