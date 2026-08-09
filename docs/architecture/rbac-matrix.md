@@ -123,6 +123,7 @@ Legend: ✅ full · 👁 read-only · ⚠ conditional, see notes · — denied
 |---|:-:|:-:|:-:|:-:|:-:|:-:|---|
 | Room type + room CRUD | — | — | — | — | ✅ | ✅ | |
 | Rate plans, rate calendar, promotions | — | 👁 | — | 👁 | ✅ | ✅ | |
+| Read the service catalog | — | 👁 | — | 👁 | 👁 | 👁 | What is for sale; posting one is a folio row |
 | Stay restrictions (min/max, CTA/CTD) | — | 👁 | — | — | ✅ | ✅ | |
 | Rate override on a booking | — | — | — | — | ✅ | ✅ | ⚑ Beyond the plan's price |
 | Overbooking limits (P6.5) | — | — | — | — | ✅ | ✅ | |

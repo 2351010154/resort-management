@@ -61,7 +61,14 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AppModule } from "../src/app.module.js";
 import { type Database, DRIZZLE } from "../src/database/database.module.js";
 import { systemConfig } from "../src/database/schema/config.js";
-import { folio as folioTable } from "../src/database/schema/folio.js";
+import {
+  folio as folioTable,
+  folioPosting,
+} from "../src/database/schema/folio.js";
+import {
+  BREAKFAST_PER_PERSON_GROSS,
+  SERVICE_CATALOG,
+} from "../src/database/seed/property.js";
 import { seedDatabase } from "../src/database/seed/seed.js";
 import { BusinessDateService } from "../src/modules/booking/business-date.service.js";
 import { LocalEInvoiceService } from "../src/modules/folio/local-e-invoice.service.js";
@@ -496,6 +503,16 @@ async function folioRowOf(bookingId: string) {
   return row;
 }
 
+/** The catalog row a posted line names, which the wire deliberately omits. */
+async function catalogIdOn(postingId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ serviceCatalogId: folioPosting.serviceCatalogId })
+    .from(folioPosting)
+    .where(eq(folioPosting.id, postingId));
+
+  return row?.serviceCatalogId ?? null;
+}
+
 const lineOfType = (folio: Folio, type: string) =>
   folio.postings.find((posting) => posting.type === type);
 
@@ -528,6 +545,17 @@ const ROUTES: readonly {
     name: "postCharge",
     method: "post",
     path: (id) => `${folioPath(id)}/charges`,
+    capability: "folio.post-charge",
+    action: "write",
+  },
+  {
+    // Under the same row as the charge above it, and that is the matrix's own
+    // reading rather than a convenience: "Post charge (room, service, minibar)"
+    // names this act. Two routes sharing a key is not what §2 forbids — what it
+    // forbids is one route whose authority depends on its body.
+    name: "postServiceItem",
+    method: "post",
+    path: (id) => `${folioPath(id)}/service-items`,
     capability: "folio.post-charge",
     action: "write",
   },
@@ -884,6 +912,136 @@ describe("a correction", () => {
     await as("ACCOUNTANT", "post", `${folioPath(stayId)}/reversals`, {
       postingId: "00000000-0000-4000-8000-000000000000",
     }).expect(404);
+  });
+});
+
+describe("selling a catalog item over the route", () => {
+  // Against the seeded catalog rather than a fixture of this file's own, which
+  // is the point: `FR-FOL-03`'s acceptance names §6's eight items, and a suite
+  // that inserted its own would prove the code works on rows the property does
+  // not have. `BREAKFAST` is one of the two §6 prices; `MINIBAR` is one of the
+  // six it leaves unset.
+  const serviceItemsPath = (bookingId: string) =>
+    `${folioPath(bookingId)}/service-items`;
+
+  // One stay for every case that actually posts, and the assertions are scoped
+  // to the sale they made rather than to the account's total. Rooms are finite
+  // here — the seed seats a real property and `aStay()` consumes inventory — so
+  // a describe that opened an account per case would starve the files after it
+  // of the very thing they need, which is a failure with no relation to what it
+  // would be reporting.
+  let sellingStayId: string;
+
+  beforeAll(async () => {
+    sellingStayId = await aStay();
+  });
+
+  /** One sale: the item's own line and the two percentages levied on it. */
+  const saleTotal = (folio: Folio, saleId: string) =>
+    sumOf(
+      folio.postings.filter(
+        (posting) => posting.id === saleId || posting.parentPostingId === saleId,
+      ),
+    );
+
+  it("lists what is for sale, without the withdrawn or the unpriced hidden", async () => {
+    const response = await as("RECEPTIONIST", "get", "/service-catalog").expect(
+      200,
+    );
+
+    const items: {
+      code: string;
+      name: string;
+      unitPriceGross: string | null;
+      taxClass: string;
+    }[] = response.body;
+
+    expect(items).toHaveLength(SERVICE_CATALOG.length);
+
+    const breakfast = items.find((item) => item.code === "BREAKFAST");
+    const minibar = items.find((item) => item.code === "MINIBAR");
+
+    expect(breakfast?.unitPriceGross).toBe(
+      BREAKFAST_PER_PERSON_GROSS.toString(),
+    );
+    // Null over the wire and not "0" — the desk reads this to know it owes a
+    // figure of its own, and a zero would read as a complimentary item.
+    expect(minibar?.unitPriceGross).toBeNull();
+    expect(minibar?.taxClass).toBe("STANDARD");
+  });
+
+  it("posts a priced item at the catalog's figure, times the count", async () => {
+    const posted = await as(
+      "RECEPTIONIST",
+      "post",
+      serviceItemsPath(sellingStayId),
+      { code: "BREAKFAST", quantity: 2 },
+    ).expect(200);
+
+    const folio: Folio = posted.body.folio;
+    const saleId: string = posted.body.posted[0];
+
+    expect(saleTotal(folio, saleId)).toBe(BREAKFAST_PER_PERSON_GROSS * 2n);
+
+    // The line names the catalog row, which is what the tax class on that row
+    // is for and what `M8` will group by. The wire does not carry the id, so
+    // the claim is made where it is stored.
+    const sale = folio.postings.find((posting) => posting.id === saleId);
+
+    expect(sale?.type).toBe("SERVICE_ITEM");
+    expect(sale?.description).toBe("2 × Breakfast");
+    expect(await catalogIdOn(saleId)).not.toBeNull();
+  });
+
+  it("refuses a figure the property has already published", async () => {
+    // Against the stay nothing is ever posted to, so the claim below is about
+    // this request and not about a folio some earlier case opened.
+    await as("RECEPTIONIST", "post", serviceItemsPath(emptyStayId), {
+      code: "BREAKFAST",
+      quantity: 1,
+      grossAmount: "1",
+    }).expect(400);
+
+    // Nothing was written, and the folio the failed request would have opened
+    // was rolled back with it.
+    expect(await folioRowOf(emptyStayId)).toBeUndefined();
+  });
+
+  it("takes the desk's figure for an item nobody has priced", async () => {
+    const consumed = 415_000n;
+
+    const posted = await as(
+      "RECEPTIONIST",
+      "post",
+      serviceItemsPath(sellingStayId),
+      { code: "MINIBAR", quantity: 3, grossAmount: consumed.toString() },
+    ).expect(200);
+
+    // The count did not scale it — three items came to one agreed total.
+    expect(saleTotal(posted.body.folio, posted.body.posted[0])).toBe(consumed);
+  });
+
+  it("refuses to invent one the catalog does not hold", async () => {
+    await as("RECEPTIONIST", "post", serviceItemsPath(sellingStayId), {
+      code: "MINIBAR",
+      quantity: 1,
+    }).expect(400);
+  });
+
+  it("refuses a code nothing is sold under", async () => {
+    await as("RECEPTIONIST", "post", serviceItemsPath(sellingStayId), {
+      code: "NO_SUCH_ITEM",
+      quantity: 1,
+    }).expect(404);
+  });
+
+  it("refuses a count that is not a whole item", async () => {
+    for (const quantity of [0, -1, 1.5]) {
+      await as("RECEPTIONIST", "post", serviceItemsPath(stayId), {
+        code: "BREAKFAST",
+        quantity,
+      }).expect(400);
+    }
   });
 });
 
