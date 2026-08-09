@@ -5,6 +5,9 @@ import { NoShowSweep } from "../modules/booking/no-show-sweep.js";
 import { EInvoiceJob } from "../modules/folio/e-invoice.job.js";
 import { FolioModule } from "../modules/folio/folio.module.js";
 import { RoomChargeSweep } from "../modules/folio/room-charge-sweep.js";
+import { NotificationModule } from "../modules/notification/notification.module.js";
+import { PaymentModule } from "../modules/payment/payment.module.js";
+import { ReconciliationJob } from "../modules/payment/reconciliation.job.js";
 import { JobRunner } from "./job-runner.service.js";
 import { JobScheduler } from "./job-scheduler.service.js";
 import { JobTriggerController } from "./job-trigger.controller.js";
@@ -50,10 +53,21 @@ import { SWEEP_JOBS, type SweepJob } from "./sweep-job.js";
 // the job, so this file still answers what runs; it just does not build this
 // one.
 //
+// `PaymentModule` is imported for `ReconciliationService` and for the
+// `PAYMENT_GATEWAY` binding behind it, which `ReconciliationJob` needs together:
+// the comparison is one module's and the report it compares has to be fetched
+// through the port that module binds. Constructing either here would be a second
+// `VnpayAdapter` reading the same terminal, and a second comparison for the
+// screen that shows what it found to disagree with.
+//
+// `NotificationModule` is imported for `OpsAlertService`, which is how a
+// discrepancy reaches a person. Same reason once more — how anything leaves this
+// process is decided in one place, and `notification.module.ts` is it.
+//
 // `DatabaseModule` is global, so nothing is imported for the pool pg-boss
 // borrows or for the transaction runner that opens a run's boundary.
 @Module({
-  imports: [BookingModule, FolioModule],
+  imports: [BookingModule, FolioModule, PaymentModule, NotificationModule],
   controllers: [JobTriggerController],
   providers: [
     {
@@ -63,12 +77,19 @@ import { SWEEP_JOBS, type SweepJob } from "./sweep-job.js";
       // the factory collects them in that order. Discovery by decorator scan
       // would save the line and cost the ability to read this file and know
       // what runs.
-      inject: [HoldExpirySweep, NoShowSweep, RoomChargeSweep, EInvoiceJob],
+      inject: [
+        HoldExpirySweep,
+        NoShowSweep,
+        RoomChargeSweep,
+        EInvoiceJob,
+        ReconciliationJob,
+      ],
       useFactory: (...jobs: SweepJob[]): readonly SweepJob[] => jobs,
     },
     HoldExpirySweep,
     NoShowSweep,
     RoomChargeSweep,
+    ReconciliationJob,
     JobRunner,
     JobScheduler,
   ],
