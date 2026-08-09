@@ -894,7 +894,11 @@ describe("cancelling a booking that holds a room", () => {
 
     await db.transaction(
       async (tx) =>
-        await deskAt(SEED_FROM).cancel(tx, id, "GUEST_REQUEST"),
+        await deskAt(SEED_FROM).cancel(tx, {
+          bookingId: id,
+          reason: "GUEST_REQUEST",
+          waivedBy: null,
+        }),
     );
 
     expect(await heldBy(id)).toHaveLength(0);

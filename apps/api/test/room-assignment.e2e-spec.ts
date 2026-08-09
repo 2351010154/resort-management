@@ -188,7 +188,13 @@ async function bookingIn(
       quotedStayTotalGross: 5_000_000n,
       quotedPercentAdjustment: 0,
       quotedExtraPersonPerNightGross: 600_000n,
+      // Both columns a cancellation owes, and both biconditional with the
+      // state: `booking_reason_exactly_when_cancelled` wants the reason and
+      // `booking_records_a_cancellation_instant_exactly_when_cancelled` wants
+      // the moment §4 would price it by.
       cancellationReason: state === "CANCELLED" ? "GUEST_REQUEST" : null,
+      cancelledAt:
+        state === "CANCELLED" ? new Date("2027-06-09T12:00:00Z") : null,
       // `booking_hold_expiry_exactly_when_held` holds every writer to it: a
       // hold without a TTL is a room nothing would ever release.
       holdExpiresAt: state === "HELD" ? new Date("2027-06-09T12:00:00Z") : null,

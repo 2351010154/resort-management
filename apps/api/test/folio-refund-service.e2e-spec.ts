@@ -345,6 +345,97 @@ describe("§4's grid, as the lines it becomes", () => {
   });
 });
 
+describe("a penalty a manager set aside", () => {
+  it("posts the grid's line at nothing, and says the grid decided nothing", async () => {
+    // The bug this pair of columns exists to close. The waiver is granted under
+    // `booking.cancel-waiver` and the grid is applied later under
+    // `folio.refund-policy`, by somebody else, in another request — so the
+    // booking row is the only thing that can carry the first decision to the
+    // second. Without it the penalty landed in full, on a route whose holder has
+    // no `folio.reverse-posting` to take it back.
+    //
+    // A line still goes on. `NONE` is a row of §4's grid rather than the absence
+    // of one, and an account that recorded nothing could not tell a waived stay
+    // from one nobody ever priced.
+    const { bookingId } = await aCancelledStay({
+      at: AFTER_THE_DEADLINE,
+      waived: true,
+    });
+
+    await refundToPolicy(bookingId);
+    const charge = await policyChargeOn(bookingId);
+
+    expect(charge.amount).toBe(0n);
+    expect(charge.chargeBasis).toBe("NONE");
+  });
+
+  it("charges the same stay in full when nobody waived it", async () => {
+    // The other side of the case above, and the regression guard: identical in
+    // every fact except the waiver, so the difference in the figure is the
+    // waiver and cannot be anything else.
+    const { bookingId } = await aCancelledStay({ at: AFTER_THE_DEADLINE });
+
+    await refundToPolicy(bookingId);
+    const charge = await policyChargeOn(bookingId);
+
+    expect(charge.amount).toBe(FIRST_NIGHT);
+    expect(charge.chargeBasis).toBe("FIRST_NIGHT");
+  });
+
+  it("waives a guest's change of mind, because the reason prices nothing", async () => {
+    // The case a reason-gated design could not express. §4's grid is keyed on
+    // the event and the rate plan and has no reason column, so waiving is
+    // orthogonal to why the stay ended: a manager may set the penalty aside on
+    // a `GUEST_REQUEST`, which is the reason a property would least expect to
+    // forgive and precisely the one a "waive only our own faults" rule would
+    // have refused.
+    const { bookingId } = await aCancelledStay({
+      at: AFTER_THE_DEADLINE,
+      reason: "GUEST_REQUEST",
+      waived: true,
+    });
+
+    await refundToPolicy(bookingId);
+
+    expect((await policyChargeOn(bookingId)).amount).toBe(0n);
+  });
+
+  it("waives the plan that has no free window either", async () => {
+    // `NONREF` charges the whole stay in every row of the grid, so a waiver that
+    // only reached the refundable column would leave the largest penalty in the
+    // table unwaivable — and `property-and-tariff.md` §4 says every cell.
+    const { bookingId } = await aCancelledStay({
+      at: AFTER_THE_DEADLINE,
+      plan: "NONREF",
+      waived: true,
+    });
+
+    await refundToPolicy(bookingId);
+    const charge = await policyChargeOn(bookingId);
+
+    expect(charge.amount).toBe(0n);
+    expect(charge.chargeBasis).toBe("NONE");
+  });
+
+  it("hands back the whole prepayment, and settles the account", async () => {
+    // What a waiver means in money. The charge is nothing, so what the account
+    // is over-paid by is everything the guest handed over — computed by the
+    // ledger's own subtraction, exactly as an unwaived refund is.
+    const { bookingId } = await aCancelledStay({
+      at: AFTER_THE_DEADLINE,
+      waived: true,
+    });
+
+    await paid(bookingId, FULL_STAY);
+
+    const posted = await refundToPolicy(bookingId);
+
+    expect(posted).toHaveLength(2);
+    expect((await refundOn(bookingId)).amount).toBe(FULL_STAY);
+    expect(await folios.getBalance(bookingId)).toBe(0n);
+  });
+});
+
 describe("what the account is over-paid by, once §4's charge stands", () => {
   it("hands back the difference between the payment and the penalty", async () => {
     // §4's cell is a penalty and not a settlement total, so the money returned
@@ -663,6 +754,9 @@ async function aStay(stay: {
   plan?: RatePlanCode;
   endedAt?: Date;
   reason?: CancellationReason;
+  /** Set when a manager put §4's grid aside, which is a fact about the row and
+   *  never about the reason code beside it. */
+  waived?: boolean;
   nights?: readonly VndAmount[];
   /**
    * The departure the stay currently claims, where an early one has moved it
@@ -675,14 +769,29 @@ async function aStay(stay: {
 }): Promise<string> {
   bookingOrdinal += 1;
 
+  const cancelled = stay.state === "CANCELLED";
+  // The moment the cancellation arrived, which is the one fact §4's deadline is
+  // measured against. Its own column rather than `updated_at`, so a case that
+  // writes an instant here is stating the fact rather than leaning on the row
+  // not having been touched since.
+  const cancelledAt = cancelled ? (stay.endedAt ?? new Date()) : null;
+  // Both waiver columns or neither —
+  // `booking_names_a_waiver_authority_exactly_when_waived`. The manager is the
+  // one this suite opened.
+  const waivedAt = stay.waived ? cancelledAt : null;
+
   const [created] = await db
     .insert(booking)
     .values({
       reference: `MRV-REFUND-${String(bookingOrdinal).padStart(4, "0")}`,
       state: stay.state,
       // `booking_reason_exactly_when_cancelled` makes the pair a biconditional.
-      cancellationReason:
-        stay.state === "CANCELLED" ? (stay.reason ?? "GUEST_REQUEST") : null,
+      cancellationReason: cancelled
+        ? (stay.reason ?? "GUEST_REQUEST")
+        : null,
+      cancelledAt,
+      penaltyWaivedAt: waivedAt,
+      penaltyWaivedBy: waivedAt === null ? null : deskId,
       roomTypeId,
       checkInDate: CHECK_IN,
       checkOutDate: stay.departsOn ?? CHECK_OUT,
@@ -691,10 +800,6 @@ async function aStay(stay: {
       quotedStayTotalGross: FULL_STAY,
       quotedPercentAdjustment: 0,
       quotedExtraPersonPerNightGross: 600_000n,
-      // A cancelled booking is terminal, so the last touch is the cancellation —
-      // which is where the service reads the instant §4's deadline is measured
-      // against.
-      updatedAt: stay.endedAt ?? new Date(),
     })
     .returning({ id: booking.id });
 
@@ -719,11 +824,15 @@ async function aStay(stay: {
 async function aCancelledStay(cancellation: {
   at: Date;
   plan?: RatePlanCode;
+  reason?: CancellationReason;
+  waived?: boolean;
 }): Promise<{ bookingId: string }> {
   return {
     bookingId: await aStay({
       state: "CANCELLED",
       plan: cancellation.plan,
+      reason: cancellation.reason,
+      waived: cancellation.waived,
       endedAt: cancellation.at,
     }),
   };

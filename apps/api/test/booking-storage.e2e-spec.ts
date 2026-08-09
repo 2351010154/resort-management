@@ -23,6 +23,7 @@ import { migrate } from "drizzle-orm/node-postgres/migrator";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { booking, bookingNight } from "../src/database/schema/booking.js";
+import { staffUser } from "../src/database/schema/identity.js";
 import * as schema from "../src/database/schema/index.js";
 import {
   room,
@@ -37,11 +38,18 @@ const FOREIGN_KEY_VIOLATION = "23503";
 const CHECK_IN = "2027-05-10";
 const CHECK_OUT = "2027-05-13";
 
+/** When a cancelled stay stopped happening. A constant, so a row that carries it
+ *  is carrying the instant the case put there and not the clock's. */
+const CANCELLED_AT = new Date("2027-05-06T11:00:00Z");
+
 let pool: pg.Pool;
 let db: ReturnType<typeof drizzle<typeof schema>>;
 
 let deluxeId: string;
 let room301Id: string;
+/** The authority a waived penalty names. The column keys to `staff_user`, so a
+ *  waiver needs somebody on the roll to have granted it. */
+let managerId: string;
 
 // References are unique and this suite writes many bookings, so they are
 // counted rather than drawn: a random one would make a failing run harder to
@@ -84,8 +92,20 @@ beforeAll(async () => {
   await migrate(db, { migrationsFolder: "./src/database/migrations" });
 
   await db.execute(
-    sql`truncate room_assignment, booking_night, booking, type_inventory, room, room_type restart identity cascade`,
+    sql`truncate room_assignment, booking_night, booking, type_inventory, room, room_type, staff_session, staff_user restart identity cascade`,
   );
+
+  const [manager] = await db
+    .insert(staffUser)
+    .values({
+      email: "quan.ly@mariva.test",
+      fullName: "Nguyễn Thị Hạnh",
+      role: "MANAGER",
+      passwordHash: "not-a-real-hash",
+    })
+    .returning({ id: staffUser.id });
+
+  managerId = manager!.id;
 
   const [deluxe] = await db
     .insert(roomType)
@@ -119,11 +139,14 @@ afterAll(async () => {
 
 describe("the state and its reason", () => {
   it("refuses a cancellation that says nothing about why", async () => {
-    // §4's grid prices a cancellation by its reason. A cancelled booking
-    // without one cannot be priced at all, and the row would sit there looking
-    // ordinary until a refund had to be computed from it.
+    // A cancellation reason is the audit record of why the stay ended, and a
+    // cancelled booking without one is a cancellation somebody started and did
+    // not finish. The instant is supplied so the refusal names this constraint
+    // rather than the one beside it — the fixture's own rule.
     const refusal = await refused(
-      db.insert(booking).values(aBooking({ state: "CANCELLED" })),
+      db
+        .insert(booking)
+        .values(aBooking({ state: "CANCELLED", cancelledAt: CANCELLED_AT })),
     );
 
     expect(refusal.code).toBe(CHECK_VIOLATION);
@@ -147,12 +170,145 @@ describe("the state and its reason", () => {
     const [cancelled] = await db
       .insert(booking)
       .values(
-        aBooking({ state: "CANCELLED", cancellationReason: "HOLD_EXPIRED" }),
+        aBooking({
+          state: "CANCELLED",
+          cancellationReason: "HOLD_EXPIRED",
+          cancelledAt: CANCELLED_AT,
+        }),
       )
       .returning();
 
     expect(cancelled?.state).toBe("CANCELLED");
     expect(cancelled?.cancellationReason).toBe("HOLD_EXPIRED");
+  });
+});
+
+describe("the instant a stay stopped happening", () => {
+  it("refuses a cancellation that does not say when", async () => {
+    // §4's free window closes at 18:00 three days before arrival, so a
+    // cancellation with no instant cannot be put on either side of it and the
+    // grid would have to guess. `updated_at` used to stand in and cannot: the
+    // state is terminal but the row is not, and any later touch of it moves a
+    // cancellation across that deadline without anybody cancelling anything.
+    const refusal = await refused(
+      db.insert(booking).values(
+        aBooking({
+          state: "CANCELLED",
+          cancellationReason: "GUEST_REQUEST",
+        }),
+      ),
+    );
+
+    expect(refusal.code).toBe(CHECK_VIOLATION);
+    expect(refusal.constraint).toBe(
+      "booking_records_a_cancellation_instant_exactly_when_cancelled",
+    );
+  });
+
+  it("refuses an instant on a booking that is still live", async () => {
+    // The other direction: a confirmed stay carrying the moment it was
+    // cancelled would be priced by §4 as though it had ended.
+    const refusal = await refused(
+      db.insert(booking).values(aBooking({ cancelledAt: CANCELLED_AT })),
+    );
+
+    expect(refusal.code).toBe(CHECK_VIOLATION);
+    expect(refusal.constraint).toBe(
+      "booking_records_a_cancellation_instant_exactly_when_cancelled",
+    );
+  });
+
+  it("leaves no cancelled booking without one, migrations applied", async () => {
+    // The backfill in `0018`, asserted where it lands rather than as a claim
+    // about a file: every row this suite has written is `CANCELLED` with an
+    // instant or is neither, which is the constraint holding over the table the
+    // migration left behind.
+    const [counted] = await db.execute<{ missing: string }>(
+      sql`select count(*)::text as missing from booking where state = 'CANCELLED' and cancelled_at is null`,
+    ).then((result) => result.rows);
+
+    expect(counted?.missing).toBe("0");
+  });
+});
+
+describe("the authority a waived penalty is recorded against", () => {
+  it("refuses an instant with nobody behind it", async () => {
+    // Half a waiver is worse than none. §4's grid is set aside by a manager and
+    // the account has to be able to name them; an instant alone is an authority
+    // no invoice can attribute.
+    const refusal = await refused(
+      db.insert(booking).values(
+        aBooking({
+          state: "CANCELLED",
+          cancellationReason: "STAFF_ERROR",
+          cancelledAt: CANCELLED_AT,
+          penaltyWaivedAt: CANCELLED_AT,
+        }),
+      ),
+    );
+
+    expect(refusal.code).toBe(CHECK_VIOLATION);
+    expect(refusal.constraint).toBe(
+      "booking_names_a_waiver_authority_exactly_when_waived",
+    );
+  });
+
+  it("refuses a name with no waiver behind it", async () => {
+    // The other half, and the one the folio reads: `penalty_waived_at` is what
+    // makes the grid post nothing, so a manager recorded against a decision the
+    // row does not say was taken would be a penalty waived silently.
+    const refusal = await refused(
+      db.insert(booking).values(
+        aBooking({
+          state: "CANCELLED",
+          cancellationReason: "STAFF_ERROR",
+          cancelledAt: CANCELLED_AT,
+          penaltyWaivedBy: managerId,
+        }),
+      ),
+    );
+
+    expect(refusal.code).toBe(CHECK_VIOLATION);
+    expect(refusal.constraint).toBe(
+      "booking_names_a_waiver_authority_exactly_when_waived",
+    );
+  });
+
+  it("stores a waiver that says both when and by whom", async () => {
+    const [waived] = await db
+      .insert(booking)
+      .values(
+        aBooking({
+          state: "CANCELLED",
+          cancellationReason: "GUEST_REQUEST",
+          cancelledAt: CANCELLED_AT,
+          penaltyWaivedAt: CANCELLED_AT,
+          penaltyWaivedBy: managerId,
+        }),
+      )
+      .returning();
+
+    expect(waived?.penaltyWaivedAt).toEqual(CANCELLED_AT);
+    expect(waived?.penaltyWaivedBy).toBe(managerId);
+  });
+
+  it("refuses a waiver granted by nobody on the staff roll", async () => {
+    // The key is the point of the column being a `uuid` and not a name: a
+    // manager who left is a row `staff_user` keeps, and an id belonging to
+    // nobody is an authority that cannot be checked.
+    const refusal = await refused(
+      db.insert(booking).values(
+        aBooking({
+          state: "CANCELLED",
+          cancellationReason: "GUEST_REQUEST",
+          cancelledAt: CANCELLED_AT,
+          penaltyWaivedAt: CANCELLED_AT,
+          penaltyWaivedBy: crypto.randomUUID(),
+        }),
+      ),
+    );
+
+    expect(refusal.code).toBe(FOREIGN_KEY_VIOLATION);
   });
 });
 
