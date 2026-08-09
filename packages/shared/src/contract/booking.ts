@@ -7,9 +7,18 @@
 // case that would otherwise be tempting to collapse: policy and override are two
 // endpoints with two capabilities, never one endpoint with an amount check
 // inside it. So {@link booking.cancel} and {@link booking.cancelWithWaiver}
-// exist twice over, and the thing that separates a receptionist's cancellation
-// from a manager's waiver is which route was called — a fact the audit log can
-// record — rather than a branch nobody can see from outside.
+// exist twice over, and that reasoning is untouched.
+//
+// **The guard is not the record.** Which route a caller could reach is an
+// authorisation event: it decides who is admitted and leaves nothing on the
+// booking behind it, and no booking write files an `audit_entry` row — the
+// table is real, system config and the pricing writes are the only things that
+// put anything in it, and no trigger does it for anybody else. What separates a
+// receptionist's cancellation from a manager's waiver afterwards is
+// `penalty_waived_at` and `penalty_waived_by`, written only by
+// {@link booking.cancelWithWaiver} and read by `folio.service.ts` when
+// `property-and-tariff.md` §4's grid is priced on a later request, under a
+// third capability that a receptionist holds.
 //
 // **Nothing here decides anything.** Every route is one service method, and the
 // two schemas around it exist to say what may arrive and what leaves. The
@@ -389,9 +398,12 @@ export const booking = {
     // path and not a field: the penalty a manager waives is computed off the
     // same grid either way, so an endpoint that took a `waive: true` would put
     // the authority to waive inside the body of a route a receptionist can
-    // reach. `M6` posts a charge for the first of these and none for the second;
-    // at `M4` neither posts anything, and the record of who authorised which is
-    // the route that was called.
+    // reach. What arrives is the body the policy route takes too; what differs
+    // is what this route leaves behind — `penalty_waived_at`, and the manager
+    // off the session in `penalty_waived_by`. `folio.service.ts` reads the pair
+    // when it prices `property-and-tariff.md` §4's grid on a later request,
+    // under a capability a receptionist holds, and posts `NONE` above the grid
+    // rather than the penalty a manager had already set aside.
     .route({
       method: "POST",
       path: "/bookings/{bookingId}/cancellation-waiver",

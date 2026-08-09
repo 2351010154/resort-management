@@ -48,7 +48,7 @@ import {
 } from "@mariva/shared";
 import { Inject, Injectable } from "@nestjs/common";
 import { ORPCError } from "@orpc/nest";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { ENV, type Env } from "../../config/env.js";
 import type { DbExecutor } from "../../database/database.module.js";
 import {
@@ -233,12 +233,24 @@ export class BookingService {
    * grid and persists nothing, and `refund.policy` and `refund.override` are two
    * endpoints with two capabilities — a service that returned an amount from the
    * cancellation itself would collapse them into one.
+   *
+   * What *is* recorded here is the waiver, when the caller reached the route
+   * that grants one. The amount stays the folio's; whether the grid applies at
+   * all is a manager's decision, and this is the only moment it can be written
+   * down — `booking.controller.ts` says why a capability guard cannot stand in
+   * for the column.
    */
   async cancel(
     exec: DbExecutor,
-    bookingId: string,
-    reason: CancellationReason,
+    cancellation: {
+      bookingId: string;
+      reason: CancellationReason;
+      /** The manager who set §4's penalty aside, or null at the policy price. */
+      waivedBy: string | null;
+    },
   ): Promise<Booking> {
+    const { bookingId, reason, waivedBy } = cancellation;
+
     const current = await this.forUpdate(exec, bookingId);
     const next = applyTransition(current.booking.state, "CANCELLED");
 
@@ -274,6 +286,20 @@ export class BookingService {
       .set({
         state: next,
         cancellationReason: reason,
+        // Postgres' clock and not this process's. §4's free window is decided by
+        // this instant against an 18:00 deadline, and a node that has drifted
+        // would move a cancellation across it — the same argument
+        // `schema/folio.ts` makes for `posted_at` defaulting to `now()`. The
+        // executor is inside the caller's transaction, so this is the instant
+        // the transaction started and the same one every row it writes carries.
+        cancelledAt: sql`now()`,
+        // Both columns or neither —
+        // `booking_names_a_waiver_authority_exactly_when_waived`. The instant is
+        // the cancellation's own, because the waiver is granted in the act of
+        // cancelling rather than afterwards: there is no route that waives a
+        // penalty on a stay that is already cancelled.
+        penaltyWaivedAt: waivedBy === null ? null : sql`now()`,
+        penaltyWaivedBy: waivedBy,
         // A cancelled hold no longer holds anything, and
         // `booking_hold_expiry_exactly_when_held` refuses the row that kept its
         // expiry.
