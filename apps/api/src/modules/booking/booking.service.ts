@@ -230,9 +230,10 @@ export class BookingService {
    * departure, which is §5's and posts a policy charge.
    *
    * The refund is not computed here. `cancellation-calculator.ts` prices §4's
-   * grid and persists nothing, and `refund.policy` and `refund.override` are two
-   * endpoints with two capabilities — a service that returned an amount from the
-   * cancellation itself would collapse them into one.
+   * grid and persists nothing, and `folio.refund-policy` and
+   * `folio.refund-override` are two endpoints with two capabilities — a service
+   * that returned an amount from the cancellation itself would collapse them
+   * into one.
    */
   async cancel(
     exec: DbExecutor,
