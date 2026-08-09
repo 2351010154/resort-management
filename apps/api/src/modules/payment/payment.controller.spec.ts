@@ -1,6 +1,10 @@
-// The three routes this controller answers: the two VNPay calls, against the
-// answers VNPay's specification says it reads, and the one the desk calls, on
-// what it hands the service.
+// Three of the five routes this controller answers: the two VNPay calls,
+// against the answers VNPay's specification says it reads, and the one the desk
+// calls, on what it hands the service. The two reconciliation reads are proved
+// against real rows in `test/payment-reconciliation-api.e2e-spec.ts`, because
+// what they answer is a question about a database and nothing about them has a
+// failure mode a stand-in could stage — only their declarations are asserted
+// here, beside the other three.
 //
 // `test/payment-callbacks.e2e-spec.ts` drives the same two routes with real
 // signatures, the real adapter, a real Postgres and the real guard, and that is
@@ -51,6 +55,7 @@ import {
   UNGUARDED_KEY,
 } from "../../common/auth/access.decorators.js";
 import { ENV, type Env, parseEnv } from "../../config/env.js";
+import { TransactionRunner } from "../../database/transaction-runner.js";
 import { PaymentController } from "./payment.controller.js";
 import {
   type CallbackDisagreement,
@@ -63,6 +68,7 @@ import type {
   PaymentGateway,
 } from "./ports/payment-gateway.port.js";
 import { PAYMENT_GATEWAY } from "./ports/payment-gateway.port.js";
+import { ReconciliationService } from "./reconciliation.service.js";
 
 const WEB_ORIGIN = "https://mariva.test";
 
@@ -115,6 +121,22 @@ beforeEach(async () => {
           refund: unreached("sends money back"),
           queryTransaction: unreached("asks the gateway about an attempt"),
         } satisfies PaymentGateway,
+      },
+      // Neither the comparison nor a transaction is reachable from the three
+      // routes this file drives, so both are present as things that throw if one
+      // ever becomes reachable — the arrangement the port's other methods are in
+      // above, and for the same reason.
+      {
+        provide: ReconciliationService,
+        useValue: {
+          reconcile: unreached("reconciles a day"),
+          runs: unreached("lists reconciled days"),
+          reconciledDay: unreached("reads one reconciled day"),
+        },
+      },
+      {
+        provide: TransactionRunner,
+        useValue: { run: unreached("opens a transaction") },
       },
       { provide: ENV, useValue: environment() },
       // The handler logs on every path; the assertions are about what it
@@ -444,7 +466,7 @@ describe("the attempt the desk opens", () => {
   });
 });
 
-describe("what the three routes declare about access", () => {
+describe("what the five routes declare about access", () => {
   // Asserted as metadata rather than by calling them without a session, because
   // the guard is global and this module does not install it — `rbac-matrix.md`
   // §2 makes a route that declares neither unreachable, and the declaration is
@@ -484,6 +506,23 @@ describe("what the three routes declare about access", () => {
     expect(
       reflector.get(UNGUARDED_KEY, PaymentController.prototype.openAttempt),
     ).toBeUndefined();
+  });
+
+  it("the accountant's two name the reconciliation row, and name it as reads", () => {
+    // The action is the half worth pinning. Both routes only look — the table is
+    // append-only and nothing here writes to it — so a role the matrix later
+    // hands a 👁 over gateway reconciliation must reach them, and `write` is the
+    // declaration that would quietly refuse them.
+    for (const route of [
+      PaymentController.prototype.listReconciliations,
+      PaymentController.prototype.readReconciliation,
+    ]) {
+      expect(
+        reflector.get<CapabilityRequirement>(CAPABILITY_KEY, route),
+      ).toEqual({ key: "payment.reconcile", action: "read" });
+
+      expect(reflector.get(UNGUARDED_KEY, route)).toBeUndefined();
+    }
   });
 });
 
