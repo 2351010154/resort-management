@@ -198,11 +198,15 @@ export class PaymentController {
   constructor(
     private readonly payments: PaymentService,
     private readonly reconciliations: ReconciliationService,
-    // The boundary the two-statement read below is taken inside, opened here as
-    // `transaction-runner.ts` requires and every other controller does: a run
-    // row and the discrepancies filed under it are one answer, and on two
-    // connections they would be two moments with a sweep free to commit in
-    // between.
+    // The boundary the two-statement read below is taken inside, opened here
+    // because that is where `transaction-runner.ts` puts every one of them and
+    // a service opens none — and not because it buys a snapshot. It does not:
+    // the runner takes Drizzle's default `read committed`, so the run row and
+    // the discrepancies under it are still two statements at two moments.
+    // Their answer is coherent for a reason that belongs to the writer rather
+    // than to this boundary — `reconciliation.job.ts` commits a run row and
+    // that night's discrepancies together, writing the run last — so a run this
+    // read can see is one whose rows it can see too.
     private readonly transactions: TransactionRunner,
     // The port, and never the adapter — `FR-PAY-01`. The return route needs a
     // signature checked and nothing else, and the one method that does it is
@@ -266,18 +270,25 @@ export class PaymentController {
    *
    * Both bounds are optional and the service assembles whichever arrived; the
    * contract says why absent is a better default than a window invented here.
+   *
+   * `hasMore` is carried through rather than recomputed. The service applies
+   * the ceiling and is the only thing that knows a day fell past it, and a
+   * handler deriving the flag from the length of what it was handed would be
+   * guessing at the very case the flag exists for — a list of exactly the
+   * ceiling, which is what both a complete answer and a truncated one look
+   * like from here.
    */
   @RequiresCapability("payment.reconcile", "read")
   @Implement(contract.payment.listReconciliations)
   listReconciliations() {
     return implement(contract.payment.listReconciliations).handler(
-      async ({ input }) => ({
-        runs: (
-          await this.transactions.run((exec) =>
-            this.reconciliations.runs(exec, input),
-          )
-        ).map(runOnWire),
-      }),
+      async ({ input }) => {
+        const listed = await this.transactions.run((exec) =>
+          this.reconciliations.runs(exec, input),
+        );
+
+        return { runs: listed.runs.map(runOnWire), hasMore: listed.hasMore };
+      },
     );
   }
 

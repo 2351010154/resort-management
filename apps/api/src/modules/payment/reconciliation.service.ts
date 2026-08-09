@@ -218,8 +218,12 @@ export interface Reconciliation {
  * a year, which is longer than any question anybody asks of a reconciliation
  * screen — and a day older than that is still reachable by naming the range it
  * falls in, which is what the two optional bounds are for.
+ *
+ * Exported so that a test asserting the ceiling asserts *this* ceiling. Written
+ * out beside the assertion instead, it would be a second home for the number
+ * and would go on passing against the old one the day somebody moved it.
  */
-const LONGEST_RUN_LIST = 400;
+export const LONGEST_RUN_LIST = 400;
 
 /** Which reconciled days to list. Both ends optional and both inclusive. */
 export interface ReconciledDayRange {
@@ -243,6 +247,23 @@ export interface ReconciliationRunSummary {
   readonly businessDate: string;
   readonly reconciledAt: Date;
   readonly discrepancyCount: number;
+}
+
+/**
+ * The days that were looked at, and whether naming a narrower range would show
+ * more of them.
+ *
+ * `hasMore` exists because {@link LONGEST_RUN_LIST} is a cap on the answer and
+ * not on the question. A caller may name a range wider than the cap, and the
+ * list it gets back is then the newest days in that range rather than the range
+ * it asked about — a difference no amount of reading `runs` can recover, since
+ * a list of exactly the ceiling is the same list either way. So the truncation
+ * is stated rather than inferred, and a reader that has to be exact about a
+ * long range knows to split it.
+ */
+export interface ReconciliationRunList {
+  readonly runs: readonly ReconciliationRunSummary[];
+  readonly hasMore: boolean;
 }
 
 /** One disagreement on file, as it was observed and never since edited. */
@@ -351,13 +372,22 @@ export class ReconciliationService {
    * {@link LONGEST_RUN_LIST} is reached by naming the range it falls in rather
    * than by paging back through every night the property has traded.
    *
+   * **The cap is reported and not merely applied.** A range wider than the
+   * ceiling comes back as the newest nights inside it, which is a different
+   * answer from the one that was asked for and is indistinguishable from a
+   * complete one — both are a list of exactly {@link LONGEST_RUN_LIST} days. So
+   * one row beyond the ceiling is asked for, never returned, and its existence
+   * becomes `hasMore`. That is the whole cost of letting a caller tell a full
+   * answer from a truncated one, and the alternative is a screen that quietly
+   * stops at a day the property went on trading past.
+   *
    * The bounds are inclusive at both ends and either may be absent — the
    * contract says why — so the predicate is assembled from whichever arrived.
    */
   async runs(
     exec: DbExecutor,
     range: ReconciledDayRange,
-  ): Promise<readonly ReconciliationRunSummary[]> {
+  ): Promise<ReconciliationRunList> {
     const bounds: SQL[] = [];
 
     if (range.from) {
@@ -372,7 +402,7 @@ export class ReconciliationService {
       );
     }
 
-    return await exec
+    const listed = await exec
       .select({
         businessDate: paymentReconciliationRun.businessDate,
         reconciledAt: paymentReconciliationRun.reconciledAt,
@@ -392,7 +422,15 @@ export class ReconciliationService {
         paymentReconciliationRun.reconciledAt,
       )
       .orderBy(desc(paymentReconciliationRun.businessDate))
-      .limit(LONGEST_RUN_LIST);
+      // The extra row is the question "is there a day after these", asked as
+      // part of the same statement rather than as a second count over the same
+      // predicate. It is dropped below and never reaches a caller.
+      .limit(LONGEST_RUN_LIST + 1);
+
+    return {
+      runs: listed.slice(0, LONGEST_RUN_LIST),
+      hasMore: listed.length > LONGEST_RUN_LIST,
+    };
   }
 
   /**
@@ -406,10 +444,22 @@ export class ReconciliationService {
    * the two this is. `null` here is the second case, and the caller turns it
    * into a refusal rather than into an empty day.
    *
-   * They belong in one transaction for the same reason `folio.controller.ts`
-   * wraps its read: on two connections they would be two moments, and a sweep
-   * committing between them would produce a day reported as clean that already
-   * had exceptions on it.
+   * **The two of them agree without being one moment, and the sweep is what
+   * makes that so.** They are read inside one transaction because
+   * `transaction-runner.ts` puts every executor boundary at the controller and
+   * a service opens none — not because a transaction fixes an instant to read
+   * from. It does not: the runner takes Drizzle's default isolation, which is
+   * `read committed`, so each statement below takes its own snapshot and a
+   * commit landing between them is visible to the second.
+   *
+   * What rules out the answer that would matter — a day handed back as clean
+   * that already had exceptions filed against it — is the order the sweep
+   * writes in. `reconciliation.job.ts` inserts the run row *after* the
+   * discrepancies for that date, inside the transaction that carries both, so
+   * the run becomes visible only as part of a commit its rows are already in.
+   * A reader that finds a run here is therefore reading after that commit, and
+   * there is no interleaving where the first statement sees the run and the
+   * second misses what it was committed alongside.
    *
    * Ordered by attempt reference, which is `compare`'s own order — so a day read
    * twice lists the same rows the same way, and a row's position does not move

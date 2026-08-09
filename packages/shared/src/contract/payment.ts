@@ -191,9 +191,18 @@ export const reconciliationRunSchema = z.object({
  * bounded because a property accumulates one of these a day forever — the
  * ceiling is `reconciliation.service.ts`'s, and naming a range is how a day
  * older than it is reached.
+ *
+ * **`hasMore` is what keeps the ceiling from being a silent edit to the
+ * question.** A range wider than it answers with the newest days inside that
+ * range, and a full list is not evidence of anything on its own: a caller
+ * counting the rows cannot tell a range that held exactly that many from one
+ * that held a year more. True says the days before the oldest one here were
+ * dropped, and the way to see them is a narrower range — there is no cursor,
+ * because the range is already the address of any window a reader wants.
  */
 export const reconciliationRunsPageSchema = z.object({
   runs: z.array(reconciliationRunSchema),
+  hasMore: z.boolean(),
 });
 
 /**
