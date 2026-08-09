@@ -129,7 +129,6 @@ interface Offer {
   perNightGross: string;
   stayTotalGross: string;
   isAvailable: boolean;
-  extraBedPerNightGross: string | null;
 }
 
 type StayOfferResponse = { plan: string; offers: Offer[] };
@@ -480,14 +479,18 @@ describe("the availability search", () => {
       .expect(400);
   });
 
-  it("quotes no extra-bed price, because nobody has decided when one is charged", async () => {
-    // property-and-tariff.md §9 leaves the extra-bed rule with the owner and
-    // says no pricing path may infer it from bed capacity. The Deluxe takes an
-    // extra bed and still carries no price for one.
+  it("carries no extra-bed price at all, because a required bed is not charged", async () => {
+    // property-and-tariff.md §1: a bed is mandatory when the heads needing
+    // bedding exceed what the bedding sleeps, and the property carries it in for
+    // nothing — the maximum occupancy is a promise and the bed is how it is
+    // kept. §3's extra-person charge, already inside the totals here, is the
+    // whole price of that head. §6's priced extra bed is posted at the desk, so
+    // no offer holds a field for one — not even a null one.
     const { offers } = await search({ checkIn: TUESDAY, checkOut: WEDNESDAY });
 
+    expect(offers.length).toBeGreaterThan(0);
     expect(
-      offers.every((offer) => offer.extraBedPerNightGross === null),
+      offers.every((offer) => !("extraBedPerNightGross" in offer)),
     ).toBe(true);
   });
 

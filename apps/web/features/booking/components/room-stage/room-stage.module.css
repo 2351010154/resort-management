@@ -347,9 +347,9 @@
   color: var(--stone-deep);
 }
 
-/* The extra bed, for the three types that take one. A sentence rather than a
-   fifth fact — see `room-stage.tsx` — so it is set as one, at the weight of the
-   quiet half of a fact. */
+/* The extra bed, on the one type whose maximum is above what its bedding
+   sleeps. A sentence rather than a fifth fact — see `room-stage.tsx` — so it is
+   set as one, at the weight of the quiet half of a fact. */
 .extra {
   font-size: var(--plate-xs, var(--text-xs));
   line-height: 1.5;

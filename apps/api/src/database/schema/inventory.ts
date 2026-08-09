@@ -76,6 +76,12 @@ export const roomType = pgTable(
     // bed is what closes the gap, which is the difference between an extra bed a
     // guest needs and one they are merely offered.
     beddingSleeps: smallint("bedding_sleeps").notNull(),
+    // Whether a bed fits and the desk may carry one in — never whether a party
+    // requires one. That is `bedsRequired` in `@mariva/shared`, off the two
+    // columns above, and reading this one for it would answer "must" with
+    // "can". Two of the three types that take a bed have no gap to close: a bed
+    // there is one a guest asked for, and §6 is what prices it.
+    //
     // No default. A type that does not say whether it takes an extra bed should
     // fail the insert, not quietly become a type that does not.
     takesExtraBed: boolean("takes_extra_bed").notNull(),

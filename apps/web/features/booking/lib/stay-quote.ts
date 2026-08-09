@@ -43,17 +43,18 @@ export { partySize };
 /**
  * The ⚑ prices this screen quotes against while it runs on a fixture.
  *
- * The property now stores two of the three — the extra person in
- * `property_tariff`, breakfast on `rate_plan` — and the quote endpoint applies
- * both. This interface is what the fixture supplies until the funnel reads that
- * endpoint, at which point it goes with the fixture. The extra bed is the one
- * figure nothing on the server will supply, because §9 has not decided when it
- * is charged.
+ * The property stores both of them — the extra person in `property_tariff`,
+ * breakfast on `rate_plan` — and the quote endpoint applies both. This interface
+ * is what the fixture supplies until the funnel reads that endpoint, at which
+ * point it goes with the fixture.
+ *
+ * There is no third figure. §1 charges nothing for the bed a party's occupancy
+ * requires, and §6's priced extra bed is posted at the desk for one a guest asked
+ * for — so nothing this file quotes has a bed in it.
  */
 export interface TariffRates {
   readonly extraPersonPerNight: VndAmount;
   readonly breakfastPerPersonPerNight: VndAmount;
-  readonly extraBedPerNight: VndAmount;
 }
 
 /**
@@ -159,9 +160,6 @@ export function quoteStay(input: QuoteInput): RoomTypeOffer[] {
       perNightGross: nights.length > 0 ? total / BigInt(nights.length) : 0n,
       stayTotalGross: total,
       isAvailable: sellable && !input.soldOutTypes.has(type.code),
-      extraBedPerNightGross: type.takesExtraBed
-        ? input.rates.extraBedPerNight
-        : null,
     };
   });
 }
@@ -186,10 +184,14 @@ export function occupancyFit(
   };
 }
 
-/** Whether an extra bed is a thing this party needs, on this type. */
-export function needsExtraBed(type: RoomType, party: Party): boolean {
-  return type.takesExtraBed && partySize(party) > type.beddingSleeps;
-}
+// There is no `needsExtraBed` here any more, and its absence is deliberate.
+// §1's rule counts the heads that need their own bedding — an under-6 shares
+// existing bedding and does not — so a version reading `partySize` would put a
+// bed in for a four-year-old. The rule is `bedsRequired` in `@mariva/shared`,
+// beside the bands the API prices against, because a bed rule written twice is
+// a card and a folio free to disagree about whether one is in the room. Nothing
+// on this screen asks it: the guest is not offered a bed and is not charged for
+// one, and the room's plate states the bed as a fact about the type.
 
 /**
  * The five types split by what the guest can actually do with them.

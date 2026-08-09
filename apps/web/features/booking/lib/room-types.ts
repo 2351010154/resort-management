@@ -29,11 +29,15 @@ export interface RoomType {
   /** Hard ceiling — `property-and-tariff.md` §1. Occupancy above it is a
    *  rejection, not a price. */
   readonly maxOccupancy: number;
-  /** How many the standard bedding sleeps. Below `maxOccupancy` only where an
-   *  extra bed is what closes the gap, which is what makes the extra bed a
-   *  thing the guest needs rather than a thing they are offered. */
+  /** How many the standard bedding sleeps — §1. Below `maxOccupancy` only where
+   *  an extra bed is what closes the gap, and that gap is the whole rule: §1
+   *  requires a bed exactly when the heads needing bedding exceed this number,
+   *  and charges nothing for it. The stage states the bed off this comparison. */
   readonly beddingSleeps: number;
-  /** Whether the type takes an extra bed at all — §1. */
+  /** Whether a bed fits and the desk may carry one in — §1. Not that the type
+   *  reaches its maximum with one: two of the three that take a bed have no gap
+   *  to close, and a bed there is one a guest asked for and pays §6 for. The bed
+   *  §1 requires is free, and this column is not what decides one is required. */
   readonly takesExtraBed: boolean;
   /** Square metres. Rendered with the aspect as the one distinguishing fact. */
   readonly squareMetres: number;
