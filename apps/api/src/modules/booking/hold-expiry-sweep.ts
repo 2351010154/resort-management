@@ -102,7 +102,13 @@ export class HoldExpirySweep implements SweepJob {
     const cancelled: string[] = [];
 
     for (const { id } of expired) {
-      await this.bookings.cancel(exec, id, "HOLD_EXPIRED");
+      // Never waived. The sweep is a clock and not an authority, and §4 prices
+      // an abandoned hold by the same grid as any other cancellation.
+      await this.bookings.cancel(exec, {
+        bookingId: id,
+        reason: "HOLD_EXPIRED",
+        waivedBy: null,
+      });
       cancelled.push(id);
     }
 

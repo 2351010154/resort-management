@@ -4,7 +4,6 @@ import { describe, expect, it } from "vitest";
 import { ROOM_TYPES, roomType } from "./room-types";
 import {
   indexNights,
-  needsExtraBed,
   nightsInRange,
   occupancyFit,
   type Party,
@@ -19,7 +18,6 @@ import {
 const RATES: TariffRates = {
   extraPersonPerNight: 600_000n,
   breakfastPerPersonPerNight: 250_000n,
-  extraBedPerNight: 350_000n,
 };
 
 const ROOM_GROSS = 2_000_000n;
@@ -34,7 +32,8 @@ function freeNight(iso: string): NightRate {
   };
 }
 
-function quote(
+/** Every type's offer for the range, all five priced off the same night rate. */
+function quoteAll(
   party: Party,
   plan: "STANDARD" | "BB" | "NONREF",
   checkIn = "2026-08-10",
@@ -62,7 +61,19 @@ function quote(
     soldOutTypes: new Set(),
   });
 
-  return offers.find((offer) => offer.code === "PANORAMA_SUITE")!;
+  return offers;
+}
+
+/** The one offer the plan-arithmetic assertions read. */
+function quote(
+  party: Party,
+  plan: "STANDARD" | "BB" | "NONREF",
+  checkIn?: string,
+  checkOut?: string,
+) {
+  return quoteAll(party, plan, checkIn, checkOut).find(
+    (offer) => offer.code === "PANORAMA_SUITE",
+  )!;
 }
 
 const couple: Party = { adults: 2, children: [] };
@@ -187,24 +198,30 @@ describe("occupancy is a fit test, not a filter", () => {
 });
 
 describe("the extra bed", () => {
-  // §1: an extra bed is a service item, and it is only a thing the guest needs when
-  // the party is larger than the beds already in the room.
-  it("is needed when the party exceeds the standard bedding", () => {
-    expect(
-      needsExtraBed(roomType("JUNIOR_SUITE"), { adults: 3, children: [] }),
-    ).toBe(true);
+  // §1 makes a required bed free, so a quote has nothing to say about one. How
+  // many beds a party requires is `bedsRequired` in `@mariva/shared`, tested
+  // beside the bands the API prices against; what belongs here is that no offer
+  // this file builds carries a bed price for the funnel to print.
+  it("never puts a price on an offer, on any type", () => {
+    const offers = quoteAll({ adults: 3, children: [] }, "STANDARD");
+
+    expect(offers).toHaveLength(5);
+    for (const offer of offers) {
+      expect(offer).not.toHaveProperty("extraBedPerNightGross");
+    }
   });
 
-  it("is not needed when the beds already sleep the party", () => {
-    expect(
-      needsExtraBed(roomType("PANORAMA_SUITE"), { adults: 4, children: [] }),
-    ).toBe(false);
-  });
+  it("does not make a party of three cost more on a type that needs one", () => {
+    // The Junior Suite is the one type §1's rule can fire on. Its third head is
+    // priced by §3's band and by nothing else, so the difference between it and
+    // the Premier — which sleeps three in beds it already has — is the room
+    // rate, and here the fixture gives both the same one.
+    const offers = quoteAll({ adults: 3, children: [] }, "STANDARD");
+    const byCode = new Map(offers.map((offer) => [offer.code, offer]));
 
-  it("is never offered on a type that does not take one", () => {
-    expect(
-      needsExtraBed(roomType("PREMIER"), { adults: 3, children: [] }),
-    ).toBe(false);
+    expect(byCode.get("JUNIOR_SUITE")?.stayTotalGross).toBe(
+      byCode.get("PREMIER")?.stayTotalGross,
+    );
   });
 });
 
@@ -232,7 +249,6 @@ describe("the partition into cards and demoted rows", () => {
       perNightGross: ROOM_GROSS,
       stayTotalGross: ROOM_GROSS,
       isAvailable: free.includes(type.code),
-      extraBedPerNightGross: type.takesExtraBed ? 350_000n : null,
     }));
   }
 

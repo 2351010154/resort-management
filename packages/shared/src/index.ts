@@ -4,6 +4,7 @@
 export * from "./booking-refusal.js";
 export * from "./booking-state.js";
 export * from "./contract/index.js";
+export * from "./extra-bed.js";
 export * from "./housekeeping-status.js";
 export * from "./money.js";
 export * from "./occupancy-pricing.js";

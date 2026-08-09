@@ -87,11 +87,13 @@ describe("the guest record", () => {
 
 describe("the registration", () => {
   it("records the fact and never revises it", () => {
-    // The statutory residence record — `ASM-02` is still waiting on written
-    // legal advice for how long it must be kept. A record with an update path
-    // is not a record of anything, so there is no column to update: an entry
-    // made in error is corrected by registering the right guest, leaving both
-    // facts visible.
+    // The statutory residence record. A record with an update path is not a
+    // record of anything, so there is no column to update: an entry made in
+    // error is corrected by registering the right guest, leaving both facts
+    // visible. The same shape satisfies `ASM-02`'s retention floor — a
+    // do-not-delete-before, reportedly 36 months under Nghị định 96/2016/NĐ-CP
+    // Điều 44 but secondary-sourced and unverified — because a table with no
+    // delete path cannot delete anything early.
     const columns = Object.keys(registration);
 
     expect(columns).toContain("registeredAt");

@@ -1,14 +1,16 @@
 // Who a party is, and what the heads beyond the rate cost — `FR-PRC-04`.
 //
-// Authority is `docs/architecture/property-and-tariff.md` §3. It settles the
-// age bands and it does not settle the extra *bed*, and keeping those two apart
-// is the whole discipline of this file. §9 leaves the bed rule with the owner
-// and states that no pricing path may infer it from bed capacity, so nothing
-// here reads `takesExtraBed` or `beddingSleeps` — an extra person is a charge on
-// a head, an extra bed is a service line, and this module does not know the
-// second exists. A party of three is priced the same whether the third head
-// sleeps in existing bedding or on a bed somebody has to carry in, because that
-// is the only answer that does not assume the owner's.
+// Authority is `docs/architecture/property-and-tariff.md` §3, and keeping the
+// age bands apart from the extra *bed* is the whole discipline of this file. §1
+// settles the bed and settles it as free: one is mandatory when the heads
+// needing bedding exceed what the bedding sleeps, and the property carries it in
+// at no charge, because the advertised maximum is a promise and the bed is how
+// it is kept. So nothing here reads `takesExtraBed` or `beddingSleeps` — an
+// extra person is a charge on a head, and a required bed is not a charge at all.
+// A party of three is priced the same whether the third head sleeps in existing
+// bedding or on a bed somebody has to carry in, and these bands are the entire
+// price of that head either way. `extra-bed.ts` one file over decides how many
+// beds go in and deliberately returns no money.
 //
 // It lives in `@mariva/shared` for the reason `INCLUDED_OCCUPANCY` does, one
 // file over: the API prices against these bands and the funnel quotes against

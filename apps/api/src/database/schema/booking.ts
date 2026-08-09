@@ -35,6 +35,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import { staffUser } from "./identity.js";
 import { roomType } from "./inventory.js";
 import { ratePlanCodeEnum } from "./pricing.js";
 
@@ -122,6 +123,34 @@ export const booking = pgTable(
       withTimezone: true,
       mode: "date",
     }),
+
+    // ── How the stay ended, and on whose authority ───────────────────────────
+    // The moment the cancellation arrived. §4's free window turns on an instant
+    // — "by 18:00, three days before arrival" — so the grid prices a
+    // cancellation by *when* it was made and by nothing else about the row.
+    // `updated_at` used to stand in for it on the grounds that `CANCELLED` is
+    // terminal, which is true of the state and not of the row: an audit
+    // backfill, a reference rewrite or any later touch moves that column and
+    // none of them cancelled anything. Written by Postgres' `now()` in the same
+    // statement as the state, so the instant is the database's rather than an
+    // application clock's.
+    cancelledAt: timestamp("cancelled_at", { withTimezone: true, mode: "date" }),
+    // Who set §4's penalty aside, and when. A capability is an authorisation
+    // event and not durable state: the folio prices the stay on a later request
+    // by a different member of staff, and a waiver it cannot read is a waiver
+    // that did not happen. `rbac-matrix.md` §2 gives the waiver its own route
+    // and `MANAGER`+ its own row; these two columns are what survives the
+    // request that guard admitted.
+    //
+    // Deliberately not the cancellation reason's job. §4's grid is keyed on the
+    // event and the rate plan and has no reason column, so waiving is orthogonal
+    // to why the stay ended — a manager may waive a guest's change of mind, and
+    // a property error priced by the grid is still priced by the grid.
+    penaltyWaivedAt: timestamp("penalty_waived_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
+    penaltyWaivedBy: uuid("penalty_waived_by").references(() => staffUser.id),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
       .defaultNow(),
@@ -152,6 +181,29 @@ export const booking = pgTable(
     check(
       "booking_reason_exactly_when_cancelled",
       sql`(${table.state} = 'CANCELLED') = (${table.cancellationReason} is not null)`,
+    ),
+    // Both directions again, and the second one is what makes the column worth
+    // trusting. A cancelled booking with no instant cannot be put on either side
+    // of §4's 18:00 deadline, so the grid would have to guess; an instant on a
+    // live booking is a cancellation the row is not in, which a later read would
+    // price as though the stay had ended.
+    check(
+      "booking_records_a_cancellation_instant_exactly_when_cancelled",
+      sql`(${table.state} = 'CANCELLED') = (${table.cancelledAt} is not null)`,
+    ),
+    // Both or neither, because half a waiver is worse than none. An instant with
+    // nobody behind it is an authority no invoice can name, and a name with no
+    // instant is a member of staff recorded against a decision the row does not
+    // say was taken. The folio reads the instant to skip the grid, so the half
+    // that would waive silently is exactly the half this refuses.
+    //
+    // It does not also say a waiver implies `CANCELLED`. The check above already
+    // ties the state to its instant, and a waiver's own two columns are the pair
+    // that carries the weight here — a wider condition would only be a second
+    // place to edit when §4 gains a cell.
+    check(
+      "booking_names_a_waiver_authority_exactly_when_waived",
+      sql`(${table.penaltyWaivedAt} is null) = (${table.penaltyWaivedBy} is null)`,
     ),
     // Same shape, same argument: a hold with no expiry is held forever, and an
     // expiry on anything else is a sweep waiting to cancel a stay that is

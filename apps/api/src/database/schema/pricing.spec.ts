@@ -152,11 +152,13 @@ describe("the property tariff", () => {
     );
   });
 
-  it("holds no extra-bed column, because nobody has decided when one is charged", () => {
-    // §9 leaves with the owner both when a bed is mandatory and whether its
-    // charge stacks with the extra-person one, and says no pricing path may
-    // infer the rule from bed capacity. A column here would be that inference,
-    // and it would be read long before anybody noticed it had been guessed.
+  it("holds no extra-bed column, and never will, because a required bed is free", () => {
+    // §1 makes a bed mandatory when the heads needing bedding exceed what the
+    // bedding sleeps, and makes that bed free — the advertised maximum is a
+    // promise and the bed is how the property keeps it. §3's extra-person charge
+    // is the whole price of the head, and §6's priced bed is a service-catalog
+    // item the desk posts. Neither is a property tariff, so this table will
+    // never hold an extra-bed price. The absence is permanent, not pending.
     const columns = Object.keys(propertyTariff);
 
     // Asserted first, so the absence below cannot pass by reading an object

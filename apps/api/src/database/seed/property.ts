@@ -262,9 +262,11 @@ export const SERVICE_CATALOG: readonly ServiceItemSeed[] = [
     unitPriceGross: null,
     taxClass: "STANDARD",
   },
-  // ⚑ Proposed — §6, per night. What it does *not* settle is §9's question:
-  // when a bed is mandatory, and whether this line stacks with or replaces the
-  // extra-person charge, is the owner's and no posting path may infer it.
+  // ⚑ Proposed — §6, per night. What it prices is narrower than the name: §1
+  // requires a bed when the heads needing bedding exceed what the bedding
+  // sleeps and charges nothing for that one, so this line is a bed a guest
+  // asked for where their occupancy did not require it. The desk posts it; no
+  // quote reaches it.
   {
     code: "EXTRA_BED",
     name: "Extra bed",

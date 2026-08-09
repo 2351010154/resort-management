@@ -32,10 +32,12 @@ const NOT_NULL_VIOLATION = "23502";
 const UNDEFINED_COLUMN = "42703";
 
 // What a boot seed would write from the environment. Provisional to the last
-// digit — `ASM-01` is unanswered — which is why they are values in a test
-// fixture and a row in a table rather than anything the tree carries.
+// digit — `ASM-01` is answered from published sources and not by a practising
+// accountant — which is why they are values in a test fixture and a row in a
+// table rather than anything the tree carries.
 const SEEDED = {
-  vatRateBps: 800,
+  standardVatRateBps: 1_000,
+  reducedVatRateBps: 800,
   reducedVatFrom: "2026-01-01",
   reducedVatTo: "2026-12-31",
   vatIncludesServiceCharge: true,
@@ -81,7 +83,8 @@ describe("the seeded configuration", () => {
 
     expect(stored).toEqual({
       isTheConfiguration: true,
-      vatRateBps: 800,
+      standardVatRateBps: 1_000,
+      reducedVatRateBps: 800,
       reducedVatFrom: "2026-01-01",
       reducedVatTo: "2026-12-31",
       vatIncludesServiceCharge: true,
@@ -91,9 +94,10 @@ describe("the seeded configuration", () => {
   });
 
   it("keeps the window open at either end", async () => {
-    // Null is unbounded and not missing. It is how the property runs until the
-    // accountant answers `ASM-01`: one configured rate, applying to every
-    // business date, with no relief period asserted.
+    // Both ends nullable, because a relief period can genuinely be half-open and
+    // because a property may claim none at all. What the *absence* of a window
+    // then means for a rate is the service's question, not the column's:
+    // `system-config.e2e-spec.ts` asserts that it resolves to the standard rate.
     await db
       .insert(systemConfig)
       .values({ ...SEEDED, reducedVatFrom: null, reducedVatTo: null });
@@ -119,7 +123,29 @@ describe("the seeded configuration", () => {
     );
 
     expect(refusal.code).toBe(NOT_NULL_VIOLATION);
-    expect(refusal.column).toBe("vat_rate_bps");
+    // Which of the two rates Postgres names first is its physical column order
+    // and not a decision this file makes, so the claim is that a VAT rate is
+    // what stopped the write. The case below pins one column exactly.
+    expect(refusal.column).toMatch(/vat_rate_bps$/);
+  });
+
+  it("refuses a row that supplies the reduced rate and not the standard one", async () => {
+    // The half-configured shape the second column exists to make impossible.
+    // Relief lapses back into the standard rate, so a row carrying only the
+    // reduced one has no answer for any date outside the window — and, with no
+    // window set, no answer for any date at all. Refused by the column rather
+    // than discovered at a posting.
+    const refusal = await refused(
+      db.execute(sql`
+        insert into system_config
+          (reduced_vat_rate_bps, vat_includes_service_charge,
+           service_charge_rate_bps, business_date_rollover_hour)
+        values (800, true, 500, 4)
+      `),
+    );
+
+    expect(refusal.code).toBe(NOT_NULL_VIOLATION);
+    expect(refusal.column).toBe("standard_vat_rate_bps");
   });
 });
 
@@ -132,9 +158,10 @@ describe("a configuration key this system does not have", () => {
     const refusal = await refused(
       db.execute(sql`
         insert into system_config
-          (vat_rate_bps, vat_includes_service_charge, service_charge_rate_bps,
+          (standard_vat_rate_bps, reduced_vat_rate_bps,
+           vat_includes_service_charge, service_charge_rate_bps,
            business_date_rollover_hour, loyalty_earn_rate)
-        values (800, true, 500, 4, 10000)
+        values (1000, 800, true, 500, 4, 10000)
       `),
     );
 
@@ -148,22 +175,40 @@ describe("a figure outside its scale", () => {
     // percent instead of of the whole. It would multiply every tax line by
     // eight rather than by 0.08.
     const refusal = await refused(
-      db.insert(systemConfig).values({ ...SEEDED, vatRateBps: 20_000 }),
+      db.insert(systemConfig).values({ ...SEEDED, reducedVatRateBps: 20_000 }),
     );
 
     expect(refusal.code).toBe(CHECK_VIOLATION);
-    expect(refusal.constraint).toBe("system_config_vat_rate_within_bounds");
+    expect(refusal.constraint).toBe(
+      "system_config_reduced_vat_rate_within_bounds",
+    );
+  });
+
+  it("bounds the standard rate by a constraint of its own", async () => {
+    // Two rates, two constraints. One `CHECK` naming both columns would refuse
+    // the row without saying which figure was the typo, and the person reading
+    // that message typed one of the two.
+    const refusal = await refused(
+      db.insert(systemConfig).values({ ...SEEDED, standardVatRateBps: 20_000 }),
+    );
+
+    expect(refusal.code).toBe(CHECK_VIOLATION);
+    expect(refusal.constraint).toBe(
+      "system_config_standard_vat_rate_within_bounds",
+    );
   });
 
   it("refuses a negative VAT rate", async () => {
     // A negative rate credits tax back to the guest on every line, which
     // balances and is wrong.
     const refusal = await refused(
-      db.insert(systemConfig).values({ ...SEEDED, vatRateBps: -800 }),
+      db.insert(systemConfig).values({ ...SEEDED, reducedVatRateBps: -800 }),
     );
 
     expect(refusal.code).toBe(CHECK_VIOLATION);
-    expect(refusal.constraint).toBe("system_config_vat_rate_within_bounds");
+    expect(refusal.constraint).toBe(
+      "system_config_reduced_vat_rate_within_bounds",
+    );
   });
 
   it("refuses a service charge above 100%", async () => {
@@ -183,13 +228,17 @@ describe("a figure outside its scale", () => {
     // Zero is a coherent configuration and not a typo: a zero-rated supply and
     // a property that levies no service charge are both real. Refusing them
     // would make the constraint a policy nobody wrote down.
-    await db
-      .insert(systemConfig)
-      .values({ ...SEEDED, vatRateBps: 0, serviceChargeRateBps: 0 });
+    await db.insert(systemConfig).values({
+      ...SEEDED,
+      standardVatRateBps: 0,
+      reducedVatRateBps: 0,
+      serviceChargeRateBps: 0,
+    });
 
     const [stored] = await db.select().from(systemConfig);
 
-    expect(stored?.vatRateBps).toBe(0);
+    expect(stored?.standardVatRateBps).toBe(0);
+    expect(stored?.reducedVatRateBps).toBe(0);
     expect(stored?.serviceChargeRateBps).toBe(0);
   });
 
@@ -245,7 +294,7 @@ describe("a second configuration", () => {
     await db.insert(systemConfig).values(SEEDED);
 
     const refusal = await refused(
-      db.insert(systemConfig).values({ ...SEEDED, vatRateBps: 1_000 }),
+      db.insert(systemConfig).values({ ...SEEDED, reducedVatRateBps: 900 }),
     );
 
     expect(refusal.code).toBe(UNIQUE_VIOLATION);
@@ -258,9 +307,10 @@ describe("a second configuration", () => {
     const refusal = await refused(
       db.execute(sql`
         insert into system_config
-          (is_the_configuration, vat_rate_bps, vat_includes_service_charge,
-           service_charge_rate_bps, business_date_rollover_hour)
-        values (false, 800, true, 500, 4)
+          (is_the_configuration, standard_vat_rate_bps, reduced_vat_rate_bps,
+           vat_includes_service_charge, service_charge_rate_bps,
+           business_date_rollover_hour)
+        values (false, 1000, 800, true, 500, 4)
       `),
     );
 

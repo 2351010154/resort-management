@@ -30,13 +30,14 @@
 //
 // What this does NOT price, and deliberately:
 //
-// - **`extraBedPerNightGross`**. §6 makes the extra bed a service-catalog item,
-//   and §9 leaves with the owner both when one is mandatory and whether its
-//   charge stacks with the extra-person one — stating that no pricing path may
-//   infer the rule from bed capacity. The field is nullable precisely so an
-//   offer can be quoted without asserting it. A party of three is quoted the
-//   same here whether or not the type needs a bed carried in, which is the only
-//   answer that does not assume the owner's.
+// - **The extra bed.** An offer carries no field for one, and the absence is the
+//   answer rather than a gap in it. §1 makes a bed mandatory when the heads
+//   needing bedding exceed what the bedding sleeps, and makes that bed free: the
+//   advertised maximum is a promise and the bed is how the property keeps it. §3's
+//   extra-person charge — which this service does apply — is the whole price of
+//   the extra head, so a party of three is quoted the same here whether or not a
+//   bed has to be carried in. §6's priced extra bed is a desk posting for one a
+//   guest asked for, and a folio line is not an offer.
 // - **Promotions** (`FR-PRC-03`).
 
 import {
@@ -231,7 +232,6 @@ export class AvailabilityService {
             !row.closed_to_departure &&
             row.minimum_stay <= nights &&
             (row.maximum_stay === null || row.maximum_stay >= nights),
-          extraBedPerNightGross: null,
         };
       });
 

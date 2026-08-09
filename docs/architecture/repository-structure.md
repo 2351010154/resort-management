@@ -23,9 +23,9 @@ frontends render it and nothing else. No Next.js server action, route handler,
 or admin screen may reach the database directly — that is what turns one brain
 into three that disagree.
 
-Jira project `SCRUM` owns execution state. Files under `plans/` preserve
-requirements, rationale, and work-package boundaries; they do not mirror Jira
-status, assignment, sprint, or delivery evidence.
+GitHub issues own execution state. Files under `plans/` preserve
+requirements, rationale, and work-package boundaries; they do not mirror issue
+status, assignment, milestone, or delivery evidence.
 
 ## Rules that survive contact with growth
 
@@ -82,7 +82,7 @@ src/
     migrations/    SQL. Constraints, extensions, and indexes live here
   health/          Liveness. Operational, so not under modules/
   modules/<domain>/
-  jobs/            Scheduled work: night audit, ID-scan retention sweep
+  jobs/            Scheduled work: the runner, the scheduler, the sweep contract
 test/              e2e and the concurrency suite
 ```
 
@@ -120,7 +120,7 @@ answerable without reading a single business rule.
 |---|---|
 | `identity` | Staff accounts and the permission matrix; imports the shared staff-role contract |
 | `auth` | Two separate realms: staff sessions and guest accounts |
-| `guest` | Guest profiles, ID records and scans, VIP tier, loyalty |
+| `guest` | Guest profiles, the registration record, VIP tier, loyalty |
 | `inventory` | Room types, rooms, per-night type inventory, availability queries |
 | `pricing` | Rate plans, rate calendar, stay restrictions, promotions |
 | `booking` | Lifecycle state machine, holds, room assignment, cancellation |

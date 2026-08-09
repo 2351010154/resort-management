@@ -33,9 +33,27 @@ guest walks into an occupied room.
 **Why no `EXPIRED` state.** An abandoned hold and a guest cancellation differ in
 *reason*, not in what the system must do. Both release inventory and end the
 booking. `CANCELLED` carries a reason code — `HOLD_EXPIRED`, `GUEST_REQUEST`,
-`STAFF_ERROR`, `PAYMENT_FAILED`, `OVERBOOK_WALK`, `FORCE_MAJEURE` — and the
-reason drives the penalty, not the state. Adding a seventh state buys nothing
-and doubles the transition table.
+`STAFF_ERROR`, `PAYMENT_FAILED`, `OVERBOOK_WALK`, `FORCE_MAJEURE` — so the
+distinction is recorded without a seventh state, which would buy nothing and
+double the transition table.
+
+**What the reason code is, and is not.** It is the audit record of *why* the stay
+ended, and it prices nothing. `property-and-tariff.md` §4's grid is keyed on the
+event — cancellation against its deadline, no-show, early departure — and the
+rate plan, and it has no reason column; `cancellation-calculator.ts` mirrors that
+exactly and takes no reason. Setting a cell aside is an authority rather than a
+reason: waiving any cell is `MANAGER` or above (§4 again, and `rbac-matrix.md`
+§5 decision 2), granted through `booking.cancel-waiver` and recorded on the
+booking as `penalty_waived_at` and `penalty_waived_by`. The two are orthogonal on
+purpose — a manager may waive a `GUEST_REQUEST`, and a `STAFF_ERROR` nobody
+waived is still priced by the grid — because a reason code the guest supplies
+would otherwise decide what the property charges.
+
+The instant a cancellation arrived is `cancelled_at`, written by the database in
+the transaction that ends the stay. §4's free window turns on it against an 18:00
+deadline, so it is a column of its own rather than a reading of `updated_at`:
+`CANCELLED` is terminal but the row is not, and any later touch would move a
+cancellation across that deadline.
 
 ## 2. Transitions
 

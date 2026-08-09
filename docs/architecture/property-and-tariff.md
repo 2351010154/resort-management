@@ -11,10 +11,9 @@ provisional in whole rather than in named rows. That is the difference from
 [`booking-state-machine.md`](booking-state-machine.md), where the surrounding
 design is settled and only listed rows are open.
 
-**§8 is the exception and it is not ⚑.** Four inputs are somebody else's
+**§8 is the exception and it is not ⚑.** Three inputs are somebody else's
 answer, they are time-sensitive, and they are never fixed in this file or any
-other — they are configuration. Read §8 before writing a tax calculation or a
-retention rule.
+other — they are configuration. Read §8 before writing a tax calculation.
 
 Supersedes backlog decisions `D1`, `D3`, `D4` and the structural half of `D2`
 and `D7`.
@@ -47,14 +46,36 @@ once rather than per type: §3 charges an extra person per night above it and up
 the maximum, and a per-type value would imply the property varies what "the rate"
 covers when it does not.
 
-**"Beds sleep" is not "max occupancy".** The columns describe physical capacity;
-they do not settle the commercial rule for a party above included occupancy.
-The owner still has to decide when an extra bed is mandatory and whether its
-service line stacks with or replaces the extra-person charge (§9).
+**"Beds sleep" is not "max occupancy".** The columns describe physical capacity,
+and the gap between them is exactly where an extra bed goes.
 
-When an extra bed is charged, it posts to the folio as a **service item**, never
-as a rate modifier. The unresolved question is whether that line is mandatory
-and cumulative, not how it is represented.
+**An extra bed is mandatory exactly when the heads that need their own bedding
+exceed what the bedding sleeps** — `bedsRequired = max(0, heads aged 6+ − beds
+sleep)`. §3 already settles who needs bedding: a head under 6 is free, sharing
+existing bedding, so an under-6 never puts a bed in a room. The rule keys on **beds
+sleep** and never on the extra-bed column: that column says a bed *can* go in,
+this rule says one *must*. Under the mix above it fires on the Junior Suite
+alone — three bedding-needing heads against bedding for two. The Deluxe is 2/2
+and the Panorama Suite 4/4, so no party that either can legally hold requires
+one.
+
+**Both still take one, and the column is doing its job there.** "Takes an extra
+bed" means a bed fits and the desk may carry one in — not that the type reaches
+its maximum with one. That is what gives §6's priced bed something to price: a
+guest in a Deluxe who wants the second sleeping place the room does not have is
+asking for a bed their occupancy never required, and pays for it. Read the
+column the other way and those two rows look like seed bugs, which they are not.
+
+**A mandatory bed carries no charge.** The Junior Suite's advertised maximum of
+3 is a promise, and the bed is how the property keeps it; charging for it bills
+the guest to receive the occupancy they were sold. §3's age-banded extra-person
+charge is the entire price of that third head. §6's priced extra bed survives for
+a bed a guest *requests* where occupancy does not require one — the desk posts
+that line, and no quote reaches it.
+
+An extra bed posts to the folio as a **service item**, never as a rate modifier.
+That was always about representation, and it still is: what changed is that a
+bed the party requires is now a line the property does not raise.
 
 The last four columns were added when `/booking` was built: a room card that says
 nothing concrete is five near-identical blocks, and
@@ -165,9 +186,16 @@ Friday evening and departs Sunday, so Sunday night is not premium.
 Extra person is charged per night, and only up to the type's max occupancy in
 §1. Occupancy above the maximum is not a price, it is a rejection.
 
-This does **not** decide the extra-bed rule. Until the owner answers the question
-in §9, a quote must not assume that an extra-person charge either includes an
-extra bed or automatically stacks with one.
+**The bed a party requires is not charged, so these bands are the whole price of
+the extra head.** §1 decides when a bed has to be carried in and decides that the
+property carries it in for nothing. Nothing here reads bed capacity: the same
+third head costs the same in a Junior Suite that needs a bed as in a Premier that
+does not.
+
+Charging the bed *instead of* the head would contradict the table above. A bed is
+one per room-night and cannot be halved, so a nine-year-old third head would pay
+§6's 350,000 ₫ rather than half of the extra-person rate below — 300,000 ₫ — and
+the child band would be inverted by the very rule meant to apply it.
 
 **Extra person: 600,000 ₫ per night, gross.** ⚑ Proposed. The rate the bands above
 are percentages *of*; without it none of them resolve to a number.
@@ -260,13 +288,18 @@ price is ⚑.
 Breakfast · Laundry · Minibar · Airport transfer · Late checkout · Extra bed ·
 Spa treatment · Local tour
 
-Two of the eight now have a price, because `/booking` cannot render a card without
-them. Both ⚑ proposed, both gross:
+Two of the eight now have a price. Both ⚑ proposed, both gross:
 
-| Item | Price | Why the funnel needs it |
+| Item | Price | Why it carries one |
 |---|---|---|
 | Breakfast | 250,000 ₫ per person per night | `BB` is `STANDARD` + breakfast, so the plan cannot be quoted without it |
-| Extra bed | 350,000 ₫ per night | The card offers it as its own line on the three types that take one |
+| Extra bed | 350,000 ₫ per night | The desk posts it when a guest asks for a bed their occupancy does not require |
+
+**The extra bed is desk-posted and never quoted.** §1 charges nothing for the bed
+a party's occupancy requires, so neither the guest funnel nor the availability API
+carries an extra-bed price at all — no field, not a null one. This row prices a
+bed somebody asked for, on a folio, posted by a receptionist. It is the one of
+the two above that `/booking` does *not* need.
 
 The other six are still unset and block nothing — nothing on the guest funnel
 quotes them.
@@ -305,22 +338,72 @@ Four inputs are not the developer's and not this document's. They are
 **system-configuration rows**, seeded from environment at boot, editable by
 `ADMIN` without a deploy — the row already exists in `rbac-matrix.md` §3 System.
 
-| Value | Whose answer | Tracked as |
-|---|---|---|
-| VAT rate | Accountant | `D2`; [SCRUM-12](https://hungphat2018-1785053353783.atlassian.net/browse/SCRUM-12) |
-| Reduced-VAT applicability, and the period it applies to | Accountant — **statutory and time-limited** | `D2`; [SCRUM-12](https://hungphat2018-1785053353783.atlassian.net/browse/SCRUM-12) |
-| Whether the VAT tax base includes service charge | Accountant — this changes every gross/net calculation | `D2`; [SCRUM-86](https://hungphat2018-1785053353783.atlassian.net/browse/SCRUM-86) |
-| Statutory retention floor `N` for registration records and CCCD scans | Lawyer | `D2`, `M0-05`; [SCRUM-13](https://hungphat2018-1785053353783.atlassian.net/browse/SCRUM-13); the R2 lifecycle rule reads it (`R3#6`) |
+| Value | Whose answer | Seeded as | Tracked as |
+|---|---|---|---|
+| Standard VAT rate | Accountant | ⚑ 10% | `D2`; [#30](https://github.com/2351010154/resort-management/issues/30) |
+| Reduced VAT rate | Accountant — **statutory and time-limited** | ⚑ 8% | `D2`; [#30](https://github.com/2351010154/resort-management/issues/30) |
+| The period the reduced rate applies to | Accountant — **statutory and time-limited** | ⚑ 1 Jul 2025 → 31 Dec 2026 | `D2`; [#30](https://github.com/2351010154/resort-management/issues/30) |
+| Whether the VAT tax base includes service charge | Accountant — this changes every gross/net calculation | ⚑ yes | `D2`; [#30](https://github.com/2351010154/resort-management/issues/30) |
 
 **`const VAT_RATE = 0.08` anywhere in the tree is a defect,** and the expensive
 kind: it does not throw, it silently mis-invoices, and the invoices are legal
-documents issued by a third party that cannot be quietly reissued. Vietnam's
-reduced-VAT relief has been extended by successive resolutions with end dates;
-whatever the rate is on the day this is read, it is not permanent.
+documents issued by a third party that cannot be quietly reissued. The **Seeded
+as** column above records what the property runs on; the value itself reaches the
+row from the environment at boot, so it lives in `.env.example` as a commented
+seed and in test fixtures, and in neither `.ts` source nor migration SQL. A
+`.default(800)` on the column and a `DEFAULT 800` in a migration are the same
+defect as the constant, wearing a schema's clothes.
 
-The same argument applies to `N`. A hardcoded retention window either deletes
-records the law requires kept, or keeps ID scans past the window `R3#6` asserts
-is empty.
+**Both rates are configured, because relief lapses into a rate and not into
+nothing.** This section once listed a single VAT rate, and the table behind it
+held one — on the reasoning that a second would settle `ASM-01` by guessing.
+That reasoning had the failure mode backwards. Statutory relief is a temporary
+reduction from a standard rate that never went away, so a reduced-VAT period
+with an end date has a rate on the far side of it by construction. With only one
+rate stored, a posting on a date outside a window that was set had to be refused
+— which made *correctly* recording the relief period a scheduled outage at the
+front desk on the day it lapsed. Two rates cost nothing on the dates the window
+covers and cover the day it ends. Neither is a guess: both are `NOT NULL` with no
+default and arrive from the environment, so a deployment that supplied one and
+not the other does not boot.
+
+**Provenance of the seeded figures, as at 2026-08-09.** A 10% standard rate with
+an 8% reduction that accommodation services are in scope for, running 1 July 2025
+to 31 December 2026 — National Assembly Resolution 204/2025/QH15 (17 June 2025)
+and Decree 174/2025/NĐ-CP (30 June 2025). **Researched from published sources and
+not confirmed by a practising accountant.** `ASM-01` is therefore answered
+provisionally rather than closed: the figures are good enough to run on and are
+exactly the kind of answer that must stay a data edit. Vietnam's relief has been
+extended by successive resolutions with end dates; whatever the period is on the
+day this is read, it is not permanent.
+
+**What the lapse does to the property's own revenue, which the owner should
+know before the date arrives.** `decomposeGross` holds the **gross** figure fixed
+and derives net as the residual — §5 requires the guest to pay the price they
+were quoted, so the tax rise cannot be added on top. When the window closes and
+VAT goes 8% → 10%, the guest pays exactly what they paid the night before and the
+property's **net room revenue falls**, because a larger VAT line is subtracted
+from the same gross. That is not only an accounting line: §7 accrues loyalty
+points on net room revenue, so the same night earns a guest slightly fewer points
+after the lapse than before it. Neither effect is a defect — both follow from
+quoting gross — but a property that wants to hold net revenue flat across the
+lapse has to raise its **rates**, and that is a `MANAGER` decision in
+`rate_calendar`, made deliberately and in advance, not a consequence of the tax
+edit.
+
+**The argument does not extend to the retention floor, and it used to.** While
+an R2 lifecycle rule read `N` to expire identity-document images, it belonged in
+the table above for exactly the reason given there: a number compiled into the
+tree would have deleted on a schedule the lawyer never set. `FR-GST-02` stores no
+image, so that consumer is gone and nothing else ever read the value. What is
+left is a floor on the registration record — a *do-not-delete-before*, not a
+delete trigger — and nothing in the tree deletes a registration, so the floor is
+honoured by the absence of a delete path rather than by a setting. Reportedly 36
+months under Nghị định 96/2016/NĐ-CP Điều 44, **from secondary sources this
+repository has not checked against the primary text**; that is a number to
+confirm with the lawyer, not to seed. A configuration row nothing reads is worse
+than its absence, which is the case `pricing.ts` and `schema/config.ts` already
+make: a reader cannot tell an unset value from an unbuilt one.
 
 ## 9. Still open
 
@@ -331,7 +414,8 @@ is empty.
 | Room sizes, bedding and aspects | mine, ⚑ proposed for `/booking` — data | §1 |
 | Extra-person and breakfast rates | mine, ⚑ proposed — now stored and editable, in `property_tariff` and `rate_plan` rather than in this file | §3, §6 |
 | Loyalty earn rate, tier thresholds, perks and expiry | mine, ⚑ proposed — config | §7 |
-| When an extra bed is mandatory, and whether its service line stacks with or replaces the extra-person charge | owner — no pricing path may infer this from bed capacity | §1, §3, §6; [SCRUM-87](https://hungphat2018-1785053353783.atlassian.net/browse/SCRUM-87) |
+| Whether the Deluxe (2) and the Panorama Suite (4) are capped too low, now that the bed closing a gap is free | owner — a raised maximum is extra-person revenue with no bed charge against it, but a Deluxe holding three undercuts the Premier the mix positions for a family of three | §1; [#35](https://github.com/2351010154/resort-management/issues/35) |
 | Whether minimum-stay and closed-to-arrival are a **public** contract | mine — §3 lists them under admin **Rates** only, and the guest calendar's restricted-cell state depends on reading them from `/booking` | §3 |
-| The four §8 inputs | accountant, lawyer — written answers required | `D2`, `M0-05` |
-| Diagram notation | professor | `D8`; [SCRUM-16](https://hungphat2018-1785053353783.atlassian.net/browse/SCRUM-16) |
+| Whether §8's seeded tax figures are right | accountant — the four are seeded from published statutory sources as at 2026-08-09 and run the property today; what is still owed is a written confirmation, not a value | `D2` |
+| A VAT rate per **tax class**, once one item needs one | accountant — §8 prices the *time* axis (standard against reduced, by business date) and that half is built. The *item* axis is not, and the condition that will force it is named: the relief excludes goods subject to excise tax, so §6's **Minibar** line stays at the standard rate even on a date inside the window. The day that line is priced and sold, one rate per date stops being enough and `service_catalog.tax_class` gains a rate behind it. Not work to do now — there is one class, and no item yet carries a price that would be taxed differently | §6, §8 |
+| Diagram notation | professor | `D8`; [#34](https://github.com/2351010154/resort-management/issues/34) |

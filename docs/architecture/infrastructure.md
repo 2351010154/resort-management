@@ -7,9 +7,19 @@ evidence:
 
 Region is **AWS `ap-southeast-1` (Singapore)** wherever a region is selectable —
 the nearest mature region to Vietnam. No vendor here has a Vietnam region.
-Offshore storage of guest ID data is a provisional design choice, not an
-accepted legal conclusion. It requires written legal advice before opening
-(`M0-05`; [SCRUM-13](https://hungphat2018-1785053353783.atlassian.net/browse/SCRUM-13)).
+
+**Offshore is permitted; the paperwork is the obligation.** No identity-document
+image is stored anywhere — that is `FR-GST-02`, and it removes the sharpest
+piece of this question — but Postgres still holds guest names, CCCD numbers and
+stay records, and Luật 91/2025/QH15 with Nghị định 356/2025/NĐ-CP Điều 20 reaches
+data held in Vietnam and moved to a storage system outside it. That is Neon, Fly
+and R2 in `ap-southeast-1`, described exactly. What it takes is a filed
+transfer-impact dossier, not a change of region: Decree 53/2022 localisation
+binds a domestic enterprise only on both a listed service category *and* a
+written Minister of Public Security decision, neither of which this system
+attracts. The dossier is the lawyer's, and it gates **opening** rather than any
+milestone that builds this
+(`M0-05`; [#31](https://github.com/2351010154/resort-management/issues/31)).
 
 ## Hosting
 
@@ -19,7 +29,7 @@ accepted legal conclusion. It requires written legal advice before opening
 | Postgres (development) | Local Docker | Testcontainers already requires Docker; Neon is for deployed environments only |
 | API host | Fly.io, region `sin` | pg-boss needs a long-running process — this rules serverless out |
 | Web + admin | Vercel, function region `sin1` | ⚠ Hobby is non-commercial; a booking site is commercial use |
-| Object storage | Cloudflare R2 | $0 egress, presigned URLs, and **object lifecycle rules** |
+| Object storage | Cloudflare R2 | $0 egress, and **object lifecycle rules** — the encrypted weekly dump expires by bucket configuration, not by a cron |
 | Email | Resend | 3,000/mo free; SPF, DKIM and DMARC on all tiers |
 | Errors, uptime, heartbeat | Better Stack | `/health` probe **and** a heartbeat the night audit checks into |
 | Secrets | `fly secrets` + Vercel env vars | Never committed; parsed by a zod schema at boot |
@@ -35,18 +45,19 @@ disabled, so it genuinely suspends.
   problem takes the recovery with it. Weekly `pg_dump` → R2, encrypted, 8-week
   lifecycle, plus **one restore drill executed and timed**. Verified means done,
   not claimed.
-- **Two R2 buckets**: `mariva-assets` and `mariva-id-scans`. ID scans never
-  share a bucket with room photos — different access path, different lifecycle,
-  different audit expectations.
-- **The R2 lifecycle rule enforces ID-scan retention; a job only verifies it.**
-  Retention becomes bucket configuration rather than a cron that can fail
-  silently. The object key carries the checkout date; `N` stays a config value
-  and must not be seeded as a legal fact until written advice establishes the
-  applicable floor.
-- Access to a scan is a short-TTL presigned GET issued by the API after the role
-  check. **Issuance** is what gets audit-logged, not the fetch. The registration
-  record itself stays in Postgres under statutory retention — only the image
-  expires.
+- **One R2 bucket**: `mariva-assets`, room photos and the encrypted dumps above.
+  There is no second bucket, because there is no identity-document image to put
+  in one — `FR-GST-02` checks the card, records the particulars and discards the
+  picture, so the private bucket, its lifecycle rule, the presigned-GET view path
+  and the issuance audit log all describe an object that never exists. The
+  cheapest retention policy is the one with nothing to retain.
+- **The registration record is what survives, and nothing deletes it.** It lives
+  in Postgres, append-only. A statutory floor may oblige keeping it for some
+  years — reportedly 36 months under Nghị định 96/2016/NĐ-CP Điều 44, a figure
+  this repository has only from secondary sources and has not checked against the
+  primary text — but a floor forbids an early delete rather than scheduling a
+  late one. Nothing here deletes it, so the floor is already met by doing
+  nothing, and no job, column or config row is owed to it.
 
 ## Payments
 
@@ -60,7 +71,7 @@ One internal `PaymentGateway` port — `createPayment` / `verifyCallback` /
   gateway transaction id is mandatory, not defensive.
 - **Refunds are restricted in the VNPay sandbox** and must be requested during
   merchant onboarding (`M0-04`;
-  [SCRUM-14](https://hungphat2018-1785053353783.atlassian.net/browse/SCRUM-14)),
+  [#32](https://github.com/2351010154/resort-management/issues/32)),
   not discovered at P3.
 - IPN URLs are configured per terminal in the merchant admin, so staging and
   production need separate terminals. Both addresses are the same two paths
@@ -85,7 +96,7 @@ with a box unticked.
 provisions bind Mariva's operating entity and registered activity is still
 unresolved; the tax agent's written answer is the authority (`M0-06`).
 The provider/accountant decision shares the same execution record:
-[SCRUM-12](https://hungphat2018-1785053353783.atlassian.net/browse/SCRUM-12).
+[#29](https://github.com/2351010154/resort-management/issues/29).
 
 If applicability is confirmed, the target is **hóa đơn điện tử khởi tạo từ máy
 tính tiền** and the following constraints shape the build. If it is not
@@ -126,5 +137,6 @@ nothing but the paper-fallback runbook.
 
 Everything gated on someone else's process — VNPay onboarding documents and
 timeline, whether Nghị định 70/2025 binds this entity's activity codes, the
-statutory retention floor, offshore residency of CCCD scans — lives in
-milestone `M0` of [`../../plans/backlog.md`](../../plans/backlog.md).
+registration record's statutory retention floor, the cross-border transfer
+dossier for guest personal data held in Singapore — lives in milestone `M0` of
+[`../../plans/backlog.md`](../../plans/backlog.md).

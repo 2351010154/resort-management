@@ -48,6 +48,7 @@
 import { oc } from "@orpc/contract";
 import { z } from "zod";
 import { vndAmountInputSchema, vndAmountSchema } from "../money.js";
+import { chargeBasisSchema } from "../policy-charge.js";
 import { isoStayDateSchema } from "../stay-date.js";
 
 const bookingIdFields = { bookingId: z.uuid() };
@@ -110,6 +111,15 @@ export const folioPostingSchema = z.object({
   reversesPostingId: z.uuid().nullable(),
   /** The sale this line was levied on. Null on the sale itself. */
   parentPostingId: z.uuid().nullable(),
+  /**
+   * Which row of `property-and-tariff.md` §4's grid a policy charge is, and null
+   * on every other type — `folio_posting_names_a_basis_exactly_when_a_policy_charge`
+   * permits the column nowhere else. It travels because a penalty of nothing and
+   * a penalty nobody applied are the same figure and not the same fact: `NONE`
+   * is a row of the grid, so a reader shown only the amount cannot tell a free
+   * cancellation from a waived one from a charge that was never levied.
+   */
+  chargeBasis: chargeBasisSchema.nullable(),
   postedAt: z.iso.datetime(),
   postedBy: z.string().nullable(),
 });

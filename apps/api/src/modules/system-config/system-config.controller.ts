@@ -1,24 +1,23 @@
 // The two routes behind `system.config` — `FR-IDN-03`, which says the VAT rate
-// and its applicability window, the tax-base rule, the retention floor, the
-// business-date rollover and the gateway credentials are "data, editable by
-// ADMIN without a deploy".
+// and its applicability window, the tax-base rule, the business-date rollover
+// and the gateway credentials are "data, editable by ADMIN without a deploy".
 //
 // The matrix row gives `MANAGER` 👁 and `ADMIN` ✅, and that split is the second
 // argument to `@RequiresCapability` and nothing else. No role is named in this
 // file and no handler asks who is calling: a manager may open the screen and
 // read what a posting will charge, and only an `ADMIN` may change it.
 //
-// **Two figures the row's words promise are not here, and their absence is the
-// honest answer rather than an omission.** The retention floor `N` is `ASM-02`,
-// the lawyer's unanswered question, and `schema/config.ts` argues that seeding a
-// provisional retention window either deletes records the law requires kept or
-// keeps ID scans past the window `R3#6` asserts is empty. Gateway credentials
-// stay in the environment by the same file's decision: a secret in a table an
-// `ADMIN` screen reads is a secret with a wider audience than the process that
-// spends it. There is therefore no credential this route could mask, because
-// there is none it could reach — and `onWire` below states the six fields it
-// answers with by name, so a column added to that table later does not join the
-// response by being spread into it.
+// **One figure the row's words promise is not here, and its absence is the
+// honest answer rather than an omission.** Gateway credentials stay in the
+// environment by `schema/config.ts`'s decision: a secret in a table an `ADMIN`
+// screen reads is a secret with a wider audience than the process that spends
+// it. There is therefore no credential this route could mask, because there is
+// none it could reach — and `onWire` below states the seven fields it answers
+// with by name, so a column added to that table later does not join the
+// response by being spread into it. A statutory retention floor is not among
+// the promises either: `FR-GST-02` stores no identity-document image, so the
+// only thing that would have read such a number no longer exists, and
+// `schema/config.ts` declines to store a value with no reader.
 //
 // **A read opens a transaction too.** `database.module.ts` draws the boundary at
 // the controller and hands one a `TransactionRunner` rather than the Drizzle
@@ -29,7 +28,7 @@
 // **Nothing is cached, here or under here.** That is the requirement rather
 // than an implementation detail: an edit has to be read by the next posting and
 // not by the next restart, and there is nowhere on this path for a value to be
-// held between the two. It holds for all six figures. The tax rates are read by
+// held between the two. It holds for all seven figures. The tax rates are read by
 // `folio.service.ts` at the moment it splits a gross figure, and the rollover
 // hour is read by `BusinessDateService` on every question about what day it is
 // — so a `PATCH` here moves the property's own day on the very next request,
@@ -102,7 +101,7 @@ function onColumn(
 }
 
 /**
- * The configuration as the wire carries it — the six figures, named.
+ * The configuration as the wire carries it — the seven figures, named.
  *
  * Named rather than spread, and that is the whole security property of this
  * file. A spread of the row would carry `is_the_configuration`, which is a
@@ -113,7 +112,8 @@ function onColumn(
  */
 function onWire(configured: SystemConfigRow) {
   return {
-    vatRateBps: configured.vatRateBps,
+    standardVatRateBps: configured.standardVatRateBps,
+    reducedVatRateBps: configured.reducedVatRateBps,
     reducedVatFrom: configured.reducedVatFrom,
     reducedVatTo: configured.reducedVatTo,
     vatIncludesServiceCharge: configured.vatIncludesServiceCharge,

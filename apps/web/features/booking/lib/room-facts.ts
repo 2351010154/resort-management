@@ -28,8 +28,8 @@ import type { RoomType } from "./room-types";
  *
  * Middle dots between concrete values, which is the arrival's own shape for
  * this — `design-foundations.md` §6, "68 m² · garden". The extra bed is **not**
- * here: it is an allowance rather than a property of the room, it costs money,
- * and the stage states both in one sentence instead of hinting at one of them.
+ * here: it is true of one type of the five, `property-and-tariff.md` §1 makes it
+ * free, and the stage states it in one sentence instead of the row hinting at it.
  */
 export function roomFacts(type: RoomType): string {
   const guests =

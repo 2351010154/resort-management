@@ -534,19 +534,9 @@ export const CAPABILITIES = [
     }),
     note: "Audit-logged per call",
   },
-  {
-    key: "guest.id-scan.view",
-    section: "Guest personal data",
-    row: "View ID scan image",
-    unauthenticated: false,
-    guest: "denied",
-    staff: staff({
-      RECEPTIONIST: "conditional",
-      MANAGER: "full",
-      ADMIN: "full",
-    }),
-    note: "Short-TTL signed URL, issuance audit-logged. RCP: in-house or within retention window. ACCOUNTANT denied — §5 decision 5",
-  },
+  // No viewing row and no deletion row, mirroring §3: both would be permissions
+  // over an object that does not exist, because the scan is read for its
+  // particulars and never stored.
   {
     key: "guest.id-scan.upload",
     section: "Guest personal data",
@@ -554,16 +544,7 @@ export const CAPABILITIES = [
     unauthenticated: false,
     guest: "conditional",
     staff: staff({ RECEPTIONIST: "full", MANAGER: "full", ADMIN: "full" }),
-    note: "Own, for guest",
-  },
-  {
-    key: "guest.id-scan.delete",
-    section: "Guest personal data",
-    row: "Delete ID scan",
-    unauthenticated: false,
-    guest: "denied",
-    staff: staff({}),
-    note: "R2 lifecycle rule only — no manual path exists",
+    note: "Own, for guest. Transcribe-and-discard — the image is never stored (FR-GST-02)",
   },
 
   // ── Reports and audit ────────────────────────────────────────────────────

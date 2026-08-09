@@ -36,14 +36,17 @@ import { ROOM_TYPES } from "./room-types";
 import type { TariffRates } from "./stay-quote";
 
 /**
- * ⚑ Proposed. `property-and-tariff.md` §3 names the extra-person band and §6
- * the service catalog, and leaves every price unset — these are the numbers this
- * screen cannot render without. Gross, per §5.
+ * ⚑ Proposed. `property-and-tariff.md` §3 names the extra-person band and `BB`'s
+ * breakfast and leaves both figures unset — these are the two numbers this screen
+ * cannot render without. Gross, per §5.
+ *
+ * §6's extra bed is not among them. §1 charges nothing for the bed a party's
+ * occupancy requires, and the priced one is a desk posting for a bed a guest
+ * asked for, so the funnel has nothing to quote it against.
  */
 export const TARIFF_RATES: TariffRates = {
   extraPersonPerNight: 600_000n,
   breakfastPerPersonPerNight: 250_000n,
-  extraBedPerNight: 350_000n,
 };
 
 /** ⚑ Proposed base gross rate per type, on a low-season weeknight. */
