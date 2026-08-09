@@ -113,7 +113,7 @@ authority named in [`README.md`](README.md) and wins.
 | ID | Requirement | Acceptance criteria | Lands |
 |---|---|---|---|
 | `FR-GST-01` | Guest profile: personal data, VIP tier (derived — `FR-GST-04`), loyalty points (`FR-GST-05`), stay history — always scoped to the requester's own record | Ownership checked in the handler; role alone never grants access | M7 |
-| `FR-GST-02` | ID scans upload to a private bucket; viewing is a short-TTL signed URL issued after the role check, issuance audit-logged; **no manual delete path exists** — a lifecycle rule enforces retention and a job only verifies it | 0 scans older than `N` days after checkout (NFR-08). Cites `ASM-02` | M7 |
+| `FR-GST-02` | An identity document is **checked, transcribed and discarded**: staff read the CCCD to complete the lưu trú declaration and the particulars land on the registration record, and the image is never persisted. No bucket, no stored object, no view path, nothing to delete | No object-storage key, path column or signed-URL route for a scan exists anywhere in the tree; the registration record carries the particulars and nothing else. Nghị định 96/2016/NĐ-CP Điều 44 obliges checking the document and recording the information before room handover — never holding the card, and never holding a picture of it | M7 |
 | `FR-GST-03` | CCCD numbers are masked by default; unmasking is a distinct capability, audit-logged per call | Per [`architecture/rbac-matrix.md`](architecture/rbac-matrix.md) §3 Guest personal data | M4 |
 | `FR-GST-04` | VIP tier is a **derived value**, never hand-set: computed from rolling-12-month stay count or net room revenue against configured thresholds (`FR-IDN-03`-style config, editable without deploy; ⚑ defaults in [`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) §7), recomputed at business-date rollover; tier perks are fixed non-monetary benefits (late checkout, upgrade when available, welcome amenity) plus a member discount applied through the promotions path (`FR-PRC-03`) | Net room revenue **excludes VAT and service charge**, so a change to the `ASM-01` tax config cannot silently move tier boundaries; a tier change writes an audit row; tier matches recomputation from booking and folio history, asserted by test | M7/M9 |
 | `FR-GST-05` | Loyalty points are real and **accrual-only in v1**: one append-only ledger row per closed folio, earned per configured unit of net room revenue (⚑ defaults in [`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) §7), posted at **folio close** — never at booking or payment, so a cancelled or no-show booking structurally accrues nothing; points expire at a fixed configured calendar date; balance = Σ ledger rows, never a mutable counter | Accrual is idempotent per folio by unique constraint — the `FR-PAY-03` pattern; accrual reads the final settled folio total, so an early departure or discretionary refund cannot overstate points; no redemption endpoint exists (non-goal) | M7 |
@@ -224,7 +224,7 @@ authority named in [`README.md`](README.md) and wins.
 | `NFR-05` | `/booking` funnel bundle | **0 bytes** of `three`/`gsap`/`lenis` | CI bundle budget |
 | `NFR-06` | MoMo IPN ACK (if built) | **< 15 s** p100 | Handler ACKs, work queued |
 | `NFR-07` | Realm separation | Cross-realm request → 403, both directions | Guard suite (`FR-AUTH-01`) |
-| `NFR-08` | ID-scan retention | **0** objects older than `N` days post-checkout | Lifecycle rule + verify job (`FR-GST-02`); cites `ASM-02` |
+| `NFR-08` | Identity-document images at rest | **0** — no bucket, key, path column or view route exists to hold one | Structural, not a measurement: `FR-GST-02` keeps the storage path from ever existing |
 | `NFR-09` | Audit coverage of state-changing endpoints | **100%** | Asserted by test (`FR-AUD-01`) |
 | `NFR-10` | Test coverage on `inventory` + `folio` + `pricing` | **≥ 85%**; UI coverage deliberately untargeted | Coverage report |
 | `NFR-11` | Keyboard-only check-in | **0** mouse events end to end | Playwright E2E at M7 |
@@ -237,7 +237,7 @@ authority named in [`README.md`](README.md) and wins.
 Every ⚑ mark in the architecture files is a developer default written down so
 it stops being a blocker: the whole of
 [`architecture/property-and-tariff.md`](architecture/property-and-tariff.md)
-§1–§7, **six** RBAC decisions
+§1–§7, **five** RBAC decisions
 ([`architecture/rbac-matrix.md`](architecture/rbac-matrix.md) §5), **two**
 state-machine decisions
 ([`architecture/booking-state-machine.md`](architecture/booking-state-machine.md)

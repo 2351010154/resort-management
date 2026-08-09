@@ -25,7 +25,7 @@ Two things the implementation had to settle that this document did not say:
   stranger can load.
 
 **Status:** proposed defaults. Derived from the advisory reports plus ordinary
-hotel practice. **Six** decisions are the owner's call, not an engineering one.
+hotel practice. **Five** decisions are the owner's call, not an engineering one.
 Each is marked ⚑ wherever it bites — §1, §2 or a matrix row — so one decision
 can mark two rows and the mark count is not the decision count. **§5 is the
 authority for the number.** Everything else can stand as written.
@@ -61,7 +61,7 @@ token on a guest route is 403. Not 401 — the token is valid, the realm is wron
   default refuses a 👁 role and gets reported, where the other default would
   hand one a write path silently. ⚠ satisfies a write — it is a full grant whose
   scope the guard cannot see, and the handler still owes that check.
-- **`ADMIN` ⊇ `MANAGER`.** ⚑ §5 decision 6. Admin adds user management, system config and
+- **`ADMIN` ⊇ `MANAGER`.** ⚑ §5 decision 5. Admin adds user management, system config and
   operational plumbing on top of every manager permission. At one property with
   one owner, forcing an account switch to void an invoice is friction that gets
   bypassed. The audit log records the actor, so attribution survives.
@@ -151,9 +151,14 @@ Legend: ✅ full · 👁 read-only · ⚠ conditional, see notes · — denied
 |---|:-:|:-:|:-:|:-:|:-:|:-:|---|
 | Read guest record, CCCD masked | — | ✅ | — | ✅ | ✅ | ✅ | |
 | Unmask CCCD number | — | ⚠ | — | — | ✅ | ✅ | Audit-logged per call |
-| View ID scan image | — | ⚠ | — | — ⚑ | ✅ | ✅ | Short-TTL signed URL, issuance audit-logged. RCP: in-house or within retention window. ⚑ `ACCOUNTANT` denied — §5 decision 5 |
-| Upload ID scan | ⚠ | ✅ | — | — | ✅ | ✅ | Own, for guest |
-| Delete ID scan | — | — | — | — | — | — | R2 lifecycle rule only — no manual path exists |
+| Upload ID scan | ⚠ | ✅ | — | — | ✅ | ✅ | Own, for guest. Transcribe-and-discard — the image is never stored (`FR-GST-02`) |
+
+No row views a scan image and no row deletes one. Neither is a permission this
+matrix withholds; both are permissions over an object that does not exist,
+because `FR-GST-02` checks the document, records its particulars on the
+registration and keeps no picture. A row granting `MANAGER` a look at a file
+nothing writes would read as an oversight the first time somebody built the
+screen.
 
 ### Reports and audit
 
@@ -170,7 +175,7 @@ Legend: ✅ full · 👁 read-only · ⚠ conditional, see notes · — denied
 | Capability | G | RCP | HK | ACC | MGR | ADM | Notes |
 |---|:-:|:-:|:-:|:-:|:-:|:-:|---|
 | Staff accounts + role assignment | — | — | — | — | — | ✅ | |
-| System config (tax rates, retention `N`, business date, gateway credentials) | — | — | — | — | 👁 | ✅ | |
+| System config (tax rates, business date, gateway credentials) | — | — | — | — | 👁 | ✅ | |
 | Trigger night audit manually | — | — | — | — | ✅ | ✅ | |
 | Job queue / dead-letter inspection | — | — | — | — | — | ✅ | |
 
@@ -197,9 +202,11 @@ the routes that exist so far.
 
 ## 5. Decisions still the owner's
 
-**Six.** This list is the count every other document quotes. Each ⚑ mark above
+**Five.** This list is the count every other document quotes. Each ⚑ mark above
 points back to a number here; a decision that touches two rows still counts
-once.
+once. It was six until `FR-GST-02` stopped storing identity-document images:
+"should `ACCOUNTANT` see ID scan images?" is not answered, it is dissolved, and
+a question with no subject left is not a decision anybody is owed.
 
 1. Can a receptionist issue any refund unsupervised, or does every refund need a
    manager? Assumed: policy-calculated refunds yes, discretionary no.
@@ -207,6 +214,4 @@ once.
 3. Can a receptionist change a room rate below the plan? Assumed no.
 4. Does the property want a separate night-auditor role? Assumed no — the job
    runs unattended; `MANAGER` covers manual reruns.
-5. Should `ACCOUNTANT` see ID scan images? Assumed no — they carry the liability
-   and answer none of the accounting questions.
-6. Should `ADMIN` really inherit `MANAGER`? Assumed yes, for the reason in §2.
+5. Should `ADMIN` really inherit `MANAGER`? Assumed yes, for the reason in §2.

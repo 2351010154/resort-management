@@ -20,11 +20,12 @@
 // What is deliberately NOT here:
 //
 // - **A retention or expiry column.** `product-requirements.md` states no
-//   retention period for the change log; `ASM-02`'s statutory floor is filed as
-//   unanswered and is scoped to registration records and CCCD scans, not to
-//   this. `config.ts` refuses to seed a provisional `N` for exactly this reason
-//   and the same refusal holds here. The rows accumulate until somebody with the
-//   answer says otherwise.
+//   retention period for the change log, and `ASM-02`'s floor is scoped to the
+//   registration record rather than to this table. That floor is a
+//   do-not-delete-before with no code that reads it — `config.ts` declines to
+//   store it for that reason, and the same reasoning lands harder here, where a
+//   column would have to be read by an expiry job this system does not have and
+//   nobody has asked for. The rows accumulate until somebody says otherwise.
 // - **A `system` or `gateway` actor.** `actor_id` is `NOT NULL` and references
 //   a real account, which is the same choice `cccd_unmask_audit.unmasked_by`
 //   made and for the reason it states: leaving room for an unattributable write
