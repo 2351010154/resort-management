@@ -32,10 +32,10 @@ export type Principal = GuestPrincipal | StaffPrincipal;
  *
  * `grant` is the interesting half. `conditional` means the matrix granted
  * access subject to something only the handler can check — that the booking
- * belongs to this guest, that the cash drawer is this receptionist's shift, that
- * the ID scan is inside its retention window. The guard cannot see any of that,
- * so it passes the request on with the condition attached rather than
- * pretending the decision is complete.
+ * belongs to this guest, that the cash drawer is this receptionist's shift,
+ * that the scan being uploaded is for this guest's own stay. The guard cannot
+ * see any of that, so it passes the request on with the condition attached
+ * rather than pretending the decision is complete.
  */
 export interface AccessDecision {
   readonly principal: Principal | null;

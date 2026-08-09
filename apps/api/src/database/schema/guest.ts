@@ -18,9 +18,13 @@
 //
 // What is deliberately *not* here:
 //
-// - **ID scan images.** `FR-GST-02` puts them in a private bucket with a
-//   lifecycle rule and no manual delete path, and it is M7's. A path column
-//   written before the bucket exists is a pointer to nothing.
+// - **ID scan images.** Not "not yet" — never. `FR-GST-02` checks the document
+//   at the desk, writes its particulars onto the registration and keeps no
+//   picture, so there is no bucket for a path column to point at and no
+//   milestone that will add one. Nghị định 96/2016/NĐ-CP Điều 44 obliges
+//   checking the card and recording the information before the room is handed
+//   over; it never obliges holding the card, and it never obliges holding an
+//   image of it.
 // - **VIP tier and loyalty points.** `FR-GST-04` derives the tier and
 //   `FR-GST-05` sums an append-only ledger; both are computed from stay and
 //   folio history at M7/M9. A stored tier here would be the hand-set value
@@ -123,10 +127,16 @@ export const guest = pgTable(
  * claiming somebody stayed.
  *
  * The rows are never updated and never deleted. They are the statutory
- * residence record — `ASM-02` is still waiting on written legal advice for how
- * many years that means — and a record that can be edited after the fact is not
- * a record of anything. A registration entered in error is corrected by
+ * residence record, and a record that can be edited after the fact is not a
+ * record of anything. A registration entered in error is corrected by
  * registering the right guest, leaving both facts visible.
+ *
+ * The never-deleted half is also what satisfies `ASM-02`'s retention floor,
+ * reportedly 36 months under Nghị định 96/2016/NĐ-CP Điều 44 — a figure taken
+ * from secondary sources and not checked against the primary text. A floor
+ * forbids deleting early; it does not schedule a delete. With no delete path
+ * here at all, the floor is met by the table's shape rather than by a number
+ * anybody has to configure, which is why none is stored.
  */
 export const registration = pgTable(
   "registration",

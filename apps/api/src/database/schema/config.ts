@@ -5,12 +5,13 @@
 // and an invoice is a legal document a third party issued and cannot quietly
 // reissue.
 //
-// So the VAT rate, the dates the reduced rate covers, whether the VAT base
+// So the two VAT rates, the dates the reduced one covers, whether the VAT base
 // includes service charge, and the service-charge rate are rows a person with
 // `system.config` edits — `ADMIN` writes and `MANAGER` reads, per
-// `rbac-matrix.md` §3 System. `ASM-01` is the accountant's unanswered question;
-// every value here is provisional and every one of them is editable without a
-// deploy, which is the whole point.
+// `rbac-matrix.md` §3 System. `ASM-01` is answered provisionally from published
+// sources rather than by a practising accountant; every value here is still
+// provisional and every one of them is editable without a deploy, which is the
+// whole point.
 //
 // **One row, and columns rather than keys.** The obvious shape for something
 // called `system_config` is `(key text, value text)`, and it was rejected for
@@ -46,20 +47,44 @@
 // must refuse rather than assume; a rate nobody chose is worse than a posting
 // that stops.
 //
+// **Two rates, because statutory relief lapses into a rate rather than into
+// nothing.** This table once held a single VAT rate and argued that a second one
+// would settle `ASM-01` by guessing. That argument was wrong about what the
+// second column *is*. Relief is a temporary reduction from a standard rate that
+// never went away, so a reduced-VAT window with an end date has, by
+// construction, a rate on the far side of it — and a table that cannot express
+// that rate guarantees a refused posting on the day the window lapses, on a
+// property that configured the window correctly. What the argument was actually
+// defending survives untouched: this file still holds no rate *value*.
+// `standard_vat_rate_bps` is `NOT NULL` with no default and is seeded from the
+// environment exactly as `reduced_vat_rate_bps` is, so it is as guess-free as
+// the first column and refuses a half-supplied row just as loudly. Which of the
+// two applies on a business date is `system-config.service.ts`'s question, and
+// it is answered from these two columns and the window rather than from anything
+// the tree knows.
+//
 // What is deliberately *not* here:
 //
-// - **A second VAT rate for dates outside the reduced window.** §8 files the
-//   rate and the reduced-VAT applicability period as two separate answers the
-//   accountant still owes (`ASM-01`), and Vietnam's relief has been extended by
-//   successive resolutions with end dates. Inventing the standard rate to sit
-//   behind the window would be this milestone settling `ASM-01` by guessing
-//   10%. The column joins this row the day the answer arrives — the same
-//   argument `property_tariff` makes about the extra-bed price.
-// - **The statutory retention floor `N`.** §8 lists it beside these four, and
-//   it is the lawyer's answer (`ASM-02`), unanswered. Seeding a provisional
-//   retention window either deletes records the law requires kept or keeps ID
-//   scans past the window `R3#6` asserts is empty. It belongs to the milestone
-//   that consumes it, with an answer in hand.
+// - **A rate per tax class.** These two columns price the *time* axis — standard
+//   against reduced, resolved by business date. A rate that differs by what is
+//   being sold is a second axis, and §5 gives every room type and service item a
+//   tax class precisely so that axis has somewhere to live when it is needed.
+//   `service.ts` records the condition that will force it: the relief excludes
+//   goods subject to excise tax, so §6's Minibar line stays at the standard rate
+//   even on a date inside the window. There is one class today and therefore
+//   nothing to price per class, and a column added ahead of that is a rate
+//   nobody would resolve against.
+// - **A statutory retention floor.** It is not absent pending an answer; it is
+//   absent because no milestone will consume it. The R2 lifecycle rule that
+//   expired identity-document images was its only reader, and `FR-GST-02` now
+//   stores no image at all. What `ASM-02` leaves is a floor over the
+//   registration record — reportedly 36 months under Nghị định 96/2016/NĐ-CP
+//   Điều 44, from secondary sources nobody here has checked against the primary
+//   text — and a floor is a *do-not-delete-before*, not a delete trigger.
+//   `guest.ts` gives `registration` no delete path, so the obligation is
+//   already met by the table's shape. A column carrying a number no code reads
+//   would be worse than its absence, by the argument the last bullet here makes
+//   about `updated_at`.
 // - **Gateway credentials.** They stay in the environment. A secret in a table
 //   an `ADMIN` screen reads is a secret with a wider audience than the process
 //   that uses it.
@@ -82,12 +107,15 @@ import { boolean, check, date, pgTable, smallint } from "drizzle-orm/pg-core";
  * also carry the precision a statutory rate actually needs — 1.5% is 150 — with
  * no representation that cannot be compared for equality.
  *
- * The reduced-VAT window is the dates on which `vatRateBps` is the applicable
- * rate. Both ends are nullable and null is *unbounded*, not missing: with
- * neither set — which is how a property that has had no relief-period answer
- * runs — the configured rate applies to every business date. Setting an end
- * date is how the day the relief lapses becomes visible in data instead of
- * being discovered in an invoice.
+ * Two VAT rates and a window between them. `reducedVatRateBps` applies on the
+ * business dates the window covers and `standardVatRateBps` applies on every
+ * other date, so no date is left without a rate and no date is charged a rate
+ * nobody configured. Both ends of the window are nullable, and null is *no
+ * relief period on that side* rather than a missing answer: with neither end
+ * set the property is asserting that it has no relief period at all, and every
+ * date resolves to the standard rate. Setting the ends is how a relief period —
+ * and the day it lapses — becomes visible in data instead of being discovered in
+ * an invoice.
  */
 export const systemConfig = pgTable(
   "system_config",
@@ -95,11 +123,20 @@ export const systemConfig = pgTable(
     // Not a uuid, deliberately — the same argument `property_tariff` makes. A
     // surrogate key would permit a second row and nothing could then refuse it.
     isTheConfiguration: boolean("is_the_configuration").primaryKey().default(true),
-    // ⚑ `ASM-01`, provisional. Basis points.
-    vatRateBps: smallint("vat_rate_bps").notNull(),
+    // ⚑ `ASM-01`, provisional. Basis points. The rate outside the window, and
+    // the rate on every date when there is no window — relief lapses back into
+    // this figure rather than into no figure at all.
+    standardVatRateBps: smallint("standard_vat_rate_bps").notNull(),
+    // ⚑ `ASM-01`, provisional. Basis points. The rate on the dates the window
+    // below covers, and on no other date.
+    reducedVatRateBps: smallint("reduced_vat_rate_bps").notNull(),
     // A date, never a timestamp — `NFR-12`, and the rule applies to a business
     // date and not to an instant. The same `mode: "string"` the rate calendar
     // uses, converted to a `StayDate` by whoever reads it.
+    //
+    // Null is *no relief period on this side*. Both null is a property stating
+    // it has no relief period, and every date then takes the standard rate; it
+    // is not a licence for the reduced rate to apply everywhere.
     reducedVatFrom: date("reduced_vat_from", { mode: "string" }),
     reducedVatTo: date("reduced_vat_to", { mode: "string" }),
     // §8: "this changes every gross/net calculation". It is a rule and not a
@@ -133,8 +170,12 @@ export const systemConfig = pgTable(
     // — so only the impossible is refused. A negative rate would credit tax
     // back to the guest on every line.
     check(
-      "system_config_vat_rate_within_bounds",
-      sql`${table.vatRateBps} between 0 and 10000`,
+      "system_config_standard_vat_rate_within_bounds",
+      sql`${table.standardVatRateBps} between 0 and 10000`,
+    ),
+    check(
+      "system_config_reduced_vat_rate_within_bounds",
+      sql`${table.reducedVatRateBps} between 0 and 10000`,
     ),
     // Zero here is a property that levies no service charge, which §5 does not
     // describe but which is a coherent configuration rather than a typo.

@@ -5,8 +5,8 @@ journeys fit together. It does not report whether a screen is implemented.
 
 Inspect [`apps/web/app`](../apps/web/app/) for current public routes and
 [`apps/admin`](../apps/admin/) for the current staff surface. Use the
-[SCRUM Jira project](https://hungphat2018-1785053353783.atlassian.net/issues/?jql=project%20%3D%20SCRUM)
-for status, assignment, priority, sprint, dates and blockers.
+[GitHub issues](https://github.com/2351010154/resort-management/issues)
+for status, assignment, labels, milestones and blockers.
 
 ## Guest surfaces
 
@@ -125,12 +125,15 @@ each appears on the stay detail only when the booking's state allows it —
 cancellation while the policy window is open, feedback once the stay is
 checked out.
 
-Identity documents deliberately do not get an account screen. For a guest the
-scan is write-only — upload and replace, never view or delete
-([`architecture/rbac-matrix.md`](architecture/rbac-matrix.md) §3) — and its
-retention is anchored to a stay's checkout rather than to the account, so the
-upload lives on the stay detail of an upcoming booking as a pre-check-in
-convenience. The account area shows at most whether a document is on file.
+Identity documents deliberately do not get an account screen, and the reason is
+stronger than layout: there is nothing to show. A scan is read once to fill in
+the declaration and then discarded, never stored
+([`architecture/rbac-matrix.md`](architecture/rbac-matrix.md) §3,
+`FR-GST-02`), so the guest side is write-only in the literal sense — upload,
+and nothing comes back. It belongs to a specific arrival rather than to the
+account, so it lives on the stay detail of an upcoming booking as a pre-check-in
+convenience. The account area shows at most that the arrival's declaration is
+complete, never a document on file.
 
 ## Staff surfaces
 
@@ -202,9 +205,10 @@ Guests shows the record with its identity number masked; the number carries a
 reveal control that shows the value in place, writes one audit entry, and
 re-masks when the staff member leaves the record. Revealing is per field and
 per visit so an audit entry means exactly "this person looked at this number
-once" — the strongest story the audit log can tell. Viewing a scan image works
-the same way through its short-TTL link, within the role and retention limits
-the RBAC matrix sets.
+once" — the strongest story the audit log can tell. There is no scan image
+beside it to open: the document is checked at the desk and its particulars go on
+the registration, so the masked number and its reveal control are the whole of
+what this screen holds about an identity document.
 
 Rooms keeps its two kinds of "unavailable" on the room's detail, framed so
 they cannot be confused: *mark out of order* is immediate and touches room

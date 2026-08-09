@@ -28,26 +28,35 @@
 // `system_config` for the business date it is posting on, so there is no rate,
 // no percentage and no basis point in this file for a reader to be tempted by.
 //
-// **One class today, for the reason `config.ts` holds one rate.** §6 names
-// eight items and gives none of them a class; §5 says only that each carries
-// one. The set of classes that can mean anything is the set `system_config` can
-// price, and that table holds exactly one rate — deliberately, because a second
-// would settle `ASM-01` by guessing. A `REDUCED`, an `EXEMPT` or a zero-rated
-// class declared now would be eight assignments nobody made, on a catalog whose
-// own document makes none, and a posting resolving one of them would have no
-// rate to find. The class joins the enum with the accountant's answer and the
-// column that prices it, together.
+// **One class today, and the reason survived `config.ts` growing a second
+// rate.** §6 names eight items and gives none of them a class; §5 says only that
+// each carries one. The set of classes that can mean anything is the set
+// `system_config` can price — and the two rates that table now holds are the
+// **time** axis, not the item axis. Standard against reduced, resolved by the
+// business date a line is posted on, is one rate per date for every item alike;
+// `system-config.service.ts` picks between them and hands the posting path a
+// single figure. A class is a statement about *what is being sold*, and nothing
+// in that row varies by that. So a `REDUCED`, an `EXEMPT` or a zero-rated class
+// declared now would still be eight assignments nobody made, on a catalog whose
+// own document makes none, and a posting resolving one of them would still have
+// no rate to find.
+//
+// §9 names the condition that will change it, and it is a real one rather than a
+// hypothetical: Vietnam's reduced-VAT relief excludes goods subject to excise
+// tax, so §6's Minibar line is at the standard rate even on a date inside the
+// window. The day that item is priced and sold, one rate per date stops being
+// enough — and the class joins the enum then, with the accountant's answer and
+// the column that prices it, together.
 //
 // What is deliberately *not* here:
 //
 // - **A unit.** §6 quotes breakfast per person per night and an extra bed per
 //   night, and says nothing about the other six because they have no price to
-//   qualify. A unit column would be guessed for three-quarters of the table,
-//   and for the extra bed it would be §9's open question — when a bed is
-//   mandatory and whether its line stacks with or replaces the extra-person
-//   charge — answered by a schema instead of by the owner. The column holds the
-//   gross for one of whatever the item is counted in; the count arrives with
-//   the posting.
+//   qualify. A unit column would be guessed for three-quarters of the table.
+//   The column holds the gross for one of whatever the item is counted in; the
+//   count arrives with the posting. The extra bed is counted the same way, and
+//   §1 is what decides it is ever counted at all: a bed the party's occupancy
+//   requires is free, so this row prices only one a guest asked for.
 // - **A tax amount, a rate or a service-charge figure.** Three lines out of one
 //   gross is `FR-FOL-02`'s decomposition, computed at posting time. A tax
 //   figure stored beside a price would be the rate on the day the row was

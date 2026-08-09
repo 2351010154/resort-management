@@ -133,31 +133,37 @@ export const envSchema = z.object({
     .max(23)
     .default(4),
 
-  // Three of the four figures `property-and-tariff.md` §8 says the tree may
-  // never carry, in the one place §8 sanctions them: "seeded from environment at
-  // boot". The fourth is the statutory retention floor, which is the lawyer's
-  // answer and lands with the milestone that consumes it.
+  // The figures `property-and-tariff.md` §8 says the tree may never carry, in
+  // the one place §8 sanctions them: "seeded from environment at boot".
   //
   // Nothing reads these at run time. They are read from `system_config` —
   // `SystemConfigSeeder` writes the row once and the row is the authority from
   // then on, so changing one of these after the first boot changes nothing until
   // an `ADMIN` edits it.
   //
-  // Every one is ⚑ provisional pending `ASM-01`, the accountant's unanswered
-  // question, which is why they are configuration rather than an answer.
+  // Every one is ⚑ provisional. `ASM-01` is answered from published statutory
+  // sources and not by a practising accountant, which is exactly why they stay
+  // configuration rather than becoming an answer.
   //
-  // None of the three carries a `.default()`. §8 forbids the tree to know a tax
-  // rate, and a default is the tree knowing one — the same argument the
-  // `system_config` columns make about themselves, which a default here would
-  // undo one layer up: an unconfigured production deploy would invoice at a
-  // figure nobody approved, and never say so. Unset, they are supplied below
-  // for development and refused below for production.
+  // None carries a `.default()`. §8 forbids the tree to know a tax rate, and a
+  // default is the tree knowing one — the same argument the `system_config`
+  // columns make about themselves, which a default here would undo one layer up:
+  // an unconfigured production deploy would invoice at a figure nobody approved,
+  // and never say so. Unset, they are supplied below for development and refused
+  // below for production.
   //
   // Basis points, whole integers — a hundredth of a percent each, so 800 is 8%.
   // The ceiling is the table's: above 10000 the figure is a typo in a
   // basis-points field, and a typo that reaches a posting multiplies a room
   // charge by hundreds.
-  VAT_RATE_BPS: z.coerce.number().int().min(0).max(10_000).optional(),
+  //
+  // Two rates and not one, because statutory relief lapses back into a standard
+  // rate rather than into no rate. `system_config` holds both and resolves
+  // between them by business date; a deployment that supplied only the reduced
+  // one would have no answer for the day the window closes.
+  STANDARD_VAT_RATE_BPS: z.coerce.number().int().min(0).max(10_000).optional(),
+
+  REDUCED_VAT_RATE_BPS: z.coerce.number().int().min(0).max(10_000).optional(),
 
   // §5 puts the service charge at 5% over room and service lines.
   SERVICE_CHARGE_RATE_BPS: z.coerce
@@ -172,15 +178,15 @@ export const envSchema = z.object({
   // formulas at compile time.
   VAT_INCLUDES_SERVICE_CHARGE: z.stringbool().optional(),
 
-  // The business dates `VAT_RATE_BPS` covers. **Unset by default, and unset is
-  // unbounded rather than missing**: one rate applying to every date, which is
-  // how a property runs until it has a relief-period answer.
+  // The business dates `REDUCED_VAT_RATE_BPS` covers. Every other date takes
+  // `STANDARD_VAT_RATE_BPS`, so a date is never left without a rate.
   //
-  // Setting them is how the day the relief lapses becomes visible in data
-  // instead of in an invoice — and it is a decision with teeth, because there is
-  // only one rate behind the window. A date outside a window that is set has no
-  // rate at all, and `SystemConfigService` refuses to post on it rather than
-  // assuming one nobody chose.
+  // **Unset by default, and unset means no relief period rather than an
+  // unbounded one**: a property that names neither end is one whose every date
+  // sits at the standard rate. Setting them is how a relief period, and the day
+  // it lapses, becomes visible in data instead of in an invoice — and the lapse
+  // is now a rate change rather than a stopped posting, because the rate on the
+  // far side of the window is configured beside it.
   REDUCED_VAT_FROM: calendarDateSchema.optional(),
   REDUCED_VAT_TO: calendarDateSchema.optional(),
 
@@ -275,15 +281,29 @@ export const envSchema = z.object({
       message: "and VNPAY_TMN_CODE are set together, or neither is set",
     },
   )
-  // The three money figures, each refused separately so the message names the
-  // one that is missing. An invoice is a legal document issued to somebody
-  // else, and a rate nobody chose cannot be withdrawn from one after the fact —
-  // so a production boot without them stops here, where the fix is a variable,
-  // rather than at a posting, where it is an amended invoice.
+  // The money figures, each refused separately so the message names the one
+  // that is missing. An invoice is a legal document issued to somebody else,
+  // and a rate nobody chose cannot be withdrawn from one after the fact — so a
+  // production boot without them stops here, where the fix is a variable, rather
+  // than at a posting, where it is an amended invoice.
+  //
+  // The standard rate is required whether or not a relief window is set, because
+  // it is the rate on every date outside one — including every date at all when
+  // no window is set.
   .refine(
-    (env) => env.NODE_ENV !== "production" || env.VAT_RATE_BPS !== undefined,
+    (env) =>
+      env.NODE_ENV !== "production" || env.STANDARD_VAT_RATE_BPS !== undefined,
     {
-      path: ["VAT_RATE_BPS"],
+      path: ["STANDARD_VAT_RATE_BPS"],
+      message:
+        "is required in production — it is the rate on every date the reduced-VAT window does not cover, and an invoice at a rate nobody chose cannot be withdrawn",
+    },
+  )
+  .refine(
+    (env) =>
+      env.NODE_ENV !== "production" || env.REDUCED_VAT_RATE_BPS !== undefined,
+    {
+      path: ["REDUCED_VAT_RATE_BPS"],
       message:
         "is required in production — no rate is assumed, and an invoice at a rate nobody chose cannot be withdrawn",
     },
@@ -340,7 +360,8 @@ export const envSchema = z.object({
     ...env,
     JOBS_SCHEDULER_ENABLED:
       env.JOBS_SCHEDULER_ENABLED ?? env.NODE_ENV !== "test",
-    VAT_RATE_BPS: env.VAT_RATE_BPS ?? 800,
+    STANDARD_VAT_RATE_BPS: env.STANDARD_VAT_RATE_BPS ?? 1000,
+    REDUCED_VAT_RATE_BPS: env.REDUCED_VAT_RATE_BPS ?? 800,
     SERVICE_CHARGE_RATE_BPS: env.SERVICE_CHARGE_RATE_BPS ?? 500,
     VAT_INCLUDES_SERVICE_CHARGE: env.VAT_INCLUDES_SERVICE_CHARGE ?? true,
   }));

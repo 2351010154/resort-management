@@ -619,10 +619,12 @@ async function confirm(bookingId: string): Promise<Booking> {
 
 async function cancel(
   bookingId: string,
-  reason: Parameters<BookingService["cancel"]>[2],
+  reason: Parameters<BookingService["cancel"]>[1]["reason"],
 ): Promise<Booking> {
   return await db.transaction((exec) =>
-    bookings.cancel(exec, bookingId, reason),
+    // At the policy price. Whether a manager waived §4's penalty is
+    // `folio-refund-service.e2e-spec.ts`'s subject; nothing here is about money.
+    bookings.cancel(exec, { bookingId, reason, waivedBy: null }),
   );
 }
 

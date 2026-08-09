@@ -114,18 +114,32 @@ describe("the booking row", () => {
     expect(booking.childAges.getSQLType()).toBe("smallint[]");
   });
 
-  it("leaves nullable exactly the three columns a live booking may lack", () => {
-    // A reason belongs to a cancellation, an expiry to a hold, and a breakfast
-    // figure to `BB`. Everything else is present on every booking, including
-    // the frozen quote — a booking with no price is the failure this table was
-    // reshaped to prevent.
+  it("leaves nullable exactly the columns a live booking may lack", () => {
+    // A reason and an instant belong to a cancellation, an expiry to a hold, a
+    // breakfast figure to `BB`, and a waiver to the manager who granted one.
+    // Everything else is present on every booking, including the frozen quote —
+    // a booking with no price is the failure this table was reshaped to
+    // prevent.
     expect(booking.cancellationReason.notNull).toBe(false);
+    expect(booking.cancelledAt.notNull).toBe(false);
+    expect(booking.penaltyWaivedAt.notNull).toBe(false);
+    expect(booking.penaltyWaivedBy.notNull).toBe(false);
     expect(booking.holdExpiresAt.notNull).toBe(false);
     expect(booking.quotedBreakfastPerPersonGross.notNull).toBe(false);
 
     expect(booking.quotedStayTotalGross.notNull).toBe(true);
     expect(booking.quotedPercentAdjustment.notNull).toBe(true);
     expect(booking.quotedExtraPersonPerNightGross.notNull).toBe(true);
+  });
+
+  it("times a cancellation and a waiver by the clock, not the calendar", () => {
+    // §4's free window closes at 18:00 on a stated day, so the instant a
+    // cancellation arrived decides which side of it the stay falls — a `date`
+    // here would round every cancellation to midnight and waive half of them.
+    expect(booking.cancelledAt.getSQLType()).toBe("timestamp with time zone");
+    expect(booking.penaltyWaivedAt.getSQLType()).toBe(
+      "timestamp with time zone",
+    );
   });
 
   it("declares the checks that leave a half-stated booking unrepresentable", () => {
@@ -138,11 +152,13 @@ describe("the booking row", () => {
       "booking_covers_at_least_one_night",
       "booking_has_an_adult",
       "booking_hold_expiry_exactly_when_held",
+      "booking_names_a_waiver_authority_exactly_when_waived",
       "booking_quoted_adjustment_within_bounds",
       "booking_quoted_breakfast_positive_when_set",
       "booking_quoted_extra_person_positive",
       "booking_quoted_total_positive",
       "booking_reason_exactly_when_cancelled",
+      "booking_records_a_cancellation_instant_exactly_when_cancelled",
     ]);
   });
 

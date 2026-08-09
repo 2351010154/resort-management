@@ -24,15 +24,18 @@ import { systemConfig } from "./config.js";
 
 describe("the system configuration", () => {
   it("holds the four inputs §8 forbids the tree from knowing, and the clock hour", () => {
-    // §8's table, less the statutory retention floor `N`, which is the lawyer's
-    // unanswered `ASM-02` and belongs to the milestone that consumes it — a
-    // provisional retention window either deletes records the law requires kept
-    // or keeps ID scans past the window `R3#6` asserts is empty.
+    // §8's table, plus the clock hour. `retentionYears` is asserted absent
+    // rather than merely unlisted: `ASM-02`'s floor lost its only reader when
+    // `FR-GST-02` stopped storing identity-document images, and what remains is
+    // a do-not-delete-before over `registration`, which has no delete path to
+    // gate. A column nothing reads is worse than its absence, so the absence is
+    // the thing worth holding still.
     const columns = Object.keys(systemConfig);
 
     expect(columns).toEqual(
       expect.arrayContaining([
-        "vatRateBps",
+        "standardVatRateBps",
+        "reducedVatRateBps",
         "reducedVatFrom",
         "reducedVatTo",
         "vatIncludesServiceCharge",
@@ -48,7 +51,8 @@ describe("the system configuration", () => {
     // defaulted by nothing, so the row cannot exist until somebody supplied
     // each value, and a rate nobody chose cannot be read by a posting.
     for (const column of [
-      systemConfig.vatRateBps,
+      systemConfig.standardVatRateBps,
+      systemConfig.reducedVatRateBps,
       systemConfig.serviceChargeRateBps,
       systemConfig.vatIncludesServiceCharge,
       systemConfig.businessDateRolloverHour,
@@ -64,7 +68,8 @@ describe("the system configuration", () => {
     // rate: a rate stored as 0.08 reintroduces at the multiplier exactly what
     // integer đồng removed at the amount. Basis points carry a statutory 1.5%
     // as 150 with no value that cannot be compared for equality.
-    expect(systemConfig.vatRateBps.getSQLType()).toBe("smallint");
+    expect(systemConfig.standardVatRateBps.getSQLType()).toBe("smallint");
+    expect(systemConfig.reducedVatRateBps.getSQLType()).toBe("smallint");
     expect(systemConfig.serviceChargeRateBps.getSQLType()).toBe("smallint");
     expect(systemConfig.businessDateRolloverHour.getSQLType()).toBe("smallint");
   });
@@ -76,7 +81,8 @@ describe("the system configuration", () => {
 
     expect(declared).toEqual([
       "system_config_holds_exactly_one_row",
-      "system_config_vat_rate_within_bounds",
+      "system_config_standard_vat_rate_within_bounds",
+      "system_config_reduced_vat_rate_within_bounds",
       "system_config_service_charge_rate_within_bounds",
       "system_config_rollover_hour_is_an_hour",
       "system_config_reduced_vat_window_opens_before_it_closes",
@@ -85,10 +91,11 @@ describe("the system configuration", () => {
 
   it("dates the reduced-VAT window and leaves either end open", () => {
     // A business date, never an instant — `NFR-12`, and relief applies to a
-    // date rather than to a moment in a timezone. Both ends nullable because
-    // null is unbounded and not missing: with neither set, which is how a
-    // property runs before the accountant answers `ASM-01`, the configured rate
-    // applies to every date.
+    // date rather than to a moment in a timezone. Both ends nullable because a
+    // relief period genuinely can be half-open: one that has started with no
+    // announced end, or one whose end is known and whose start predates the
+    // system. Neither end set is a property stating it has no relief period at
+    // all, which the service resolves to the standard rate.
     expect(systemConfig.reducedVatFrom.getSQLType()).toBe("date");
     expect(systemConfig.reducedVatTo.getSQLType()).toBe("date");
     expect(systemConfig.reducedVatFrom.notNull).toBe(false);
@@ -112,16 +119,31 @@ describe("the system configuration", () => {
     );
   });
 
-  it("holds no second rate for dates the reduced window does not cover", () => {
-    // §8 files the rate and the reduced-VAT period as two answers the
-    // accountant still owes. Inventing the standard rate behind the window
-    // would settle `ASM-01` by guessing, and a guessed tax rate does not throw
-    // — it invoices. The column arrives with the answer.
+  it("holds a rate for dates the reduced window does not cover", () => {
+    // Statutory relief is a temporary reduction from a standard rate that never
+    // went away, so a window with an end date has a rate on the far side of it
+    // by construction. A table that could not express that rate would guarantee
+    // a refused posting on the day the window lapsed — on a property that had
+    // configured the window correctly. Neither column is a guess: both are
+    // `NOT NULL` with no default, asserted above.
     const columns = Object.keys(systemConfig);
 
-    expect(columns).toContain("vatRateBps");
-    expect(columns).not.toContain("standardVatRateBps");
-    expect(columns).not.toContain("reducedVatRateBps");
+    expect(columns).toContain("standardVatRateBps");
+    expect(columns).toContain("reducedVatRateBps");
+    expect(columns).not.toContain("vatRateBps");
+  });
+
+  it("prices the time axis only, leaving the item axis to one tax class", () => {
+    // The rate that survived the split is still one rate per *date*. A rate that
+    // differs by what is being sold — §6's Minibar line staying at the standard
+    // rate inside the window, because the relief excludes goods subject to
+    // excise tax — is a second axis, and `service.ts` keeps it at one class
+    // until that condition is met. A per-class column here would be a rate
+    // nothing resolves against.
+    const columns = Object.keys(systemConfig).join(" ").toLowerCase();
+
+    expect(columns).not.toContain("class");
+    expect(columns).not.toContain("taxrate");
   });
 
   it("stores no gateway credential", () => {

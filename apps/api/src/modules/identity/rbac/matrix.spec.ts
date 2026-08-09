@@ -57,17 +57,19 @@ describe("the RBAC matrix", () => {
     expect(open.map((row) => row.key)).toEqual(["availability.search"]);
   });
 
-  // "Delete ID scan" is granted to nobody on purpose: the R2 lifecycle rule is
-  // the only path, and no manual one exists. Asserting it here keeps the row
-  // from being read as an oversight and quietly "fixed".
-  it("leaves ID scan deletion unreachable by every role", () => {
-    const row = capability("guest.id-scan.delete");
+  // Viewing and deleting a scan image are absent rather than denied: the scan
+  // is read for its particulars and never stored, so there is no object for a
+  // role to reach. Asserting the absence keeps somebody from restoring the rows
+  // as though the matrix had simply forgotten them.
+  it("carries no capability over a stored scan image", () => {
+    const scanRows = CAPABILITIES.filter((row) =>
+      row.key.startsWith("guest.id-scan."),
+    );
 
-    expect(row.guest).toBe("denied");
-
-    for (const role of STAFF_ROLES) {
-      expect(row.staff[role], role).toBe("denied");
-    }
+    expect(scanRows.map((row) => row.key)).toEqual([
+      "guest.id-scan.upload-own",
+      "guest.id-scan.upload",
+    ]);
   });
 
   it("refuses to look up a capability that does not exist", () => {

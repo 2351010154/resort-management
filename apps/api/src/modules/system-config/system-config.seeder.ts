@@ -46,12 +46,13 @@ export class SystemConfigSeeder implements OnApplicationBootstrap {
     try {
       // `returning` is what distinguishes "written" from "already there". A
       // conflict that did nothing returns no rows, and an operator who changed
-      // `VAT_RATE_BPS` and restarted needs to be told that it had no effect
-      // rather than left to infer it from an invoice.
+      // `REDUCED_VAT_RATE_BPS` and restarted needs to be told that it had no
+      // effect rather than left to infer it from an invoice.
       const written = await this.db
         .insert(systemConfig)
         .values({
-          vatRateBps: this.env.VAT_RATE_BPS,
+          standardVatRateBps: this.env.STANDARD_VAT_RATE_BPS,
+          reducedVatRateBps: this.env.REDUCED_VAT_RATE_BPS,
           reducedVatFrom: this.env.REDUCED_VAT_FROM ?? null,
           reducedVatTo: this.env.REDUCED_VAT_TO ?? null,
           vatIncludesServiceCharge: this.env.VAT_INCLUDES_SERVICE_CHARGE,

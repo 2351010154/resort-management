@@ -35,8 +35,12 @@ import {
   type StayDate,
 } from "@mariva/shared";
 import { Controller } from "@nestjs/common";
-import { Implement, implement } from "@orpc/nest";
-import { RequiresCapability } from "../../common/auth/access.decorators.js";
+import { Implement, implement, ORPCError } from "@orpc/nest";
+import {
+  CurrentPrincipal,
+  RequiresCapability,
+} from "../../common/auth/access.decorators.js";
+import type { Principal } from "../../common/auth/principal.js";
 import { TransactionRunner } from "../../database/transaction-runner.js";
 import {
   type Booking,
@@ -129,7 +133,11 @@ export class BookingController {
   @Implement(contract.booking.cancel)
   cancel() {
     return implement(contract.booking.cancel).handler(async ({ input }) =>
-      this.cancelled(input.bookingId, input.reason),
+      this.cancelled({
+        bookingId: input.bookingId,
+        reason: input.reason,
+        waivedBy: null,
+      }),
     );
   }
 
@@ -137,20 +145,33 @@ export class BookingController {
    * Cancelling with the penalty waived — `booking.cancel-waiver`, `MANAGER` and
    * `ADMIN`.
    *
-   * The same service call as {@link cancel}, and that is the shape
-   * `rbac-matrix.md` §2 asks for rather than a duplication to be tidied away:
-   * "policy vs override are separate endpoints, not one endpoint with an amount
-   * check". The waiver is an authority, and the record of it is which route the
-   * caller could reach. At `M4` no money is posted on either path, so the two
-   * bodies are identical; at `M6` the folio posts the grid's charge behind the
-   * first and nothing behind this one, and neither route changes shape when it
-   * does.
+   * Two endpoints and not one with a flag, which is `rbac-matrix.md` §2's own
+   * shape: "policy vs override are separate endpoints, not one endpoint with an
+   * amount check". What separates them below the guard is what this route
+   * *writes* — the waiver's instant and the manager who granted it, onto the
+   * booking. That is the correction this route needed: the capability admitted
+   * the caller and then decided nothing, because a guard is an authorisation
+   * event and the folio prices §4's grid later, on another request, under
+   * `folio.refund-policy`. A receptionist reaching that route on a waived stay
+   * was charged the grid's penalty in full and holds no capability to reverse
+   * it. With the columns written here, `folio.service.ts` reads the waiver and
+   * posts the charge at nothing.
+   *
+   * The manager comes off the session and never off the body — the same rule
+   * `folio.controller.ts` keeps for a reversal and a discretionary refund, and
+   * for the same reason: a waiver an invoice cannot attribute is an authority
+   * nobody claimed.
    */
   @RequiresCapability("booking.cancel-waiver")
   @Implement(contract.booking.cancelWithWaiver)
-  cancelWithWaiver() {
+  cancelWithWaiver(@CurrentPrincipal() principal: Principal | null) {
     return implement(contract.booking.cancelWithWaiver).handler(
-      async ({ input }) => this.cancelled(input.bookingId, input.reason),
+      async ({ input }) =>
+        this.cancelled({
+          bookingId: input.bookingId,
+          reason: input.reason,
+          waivedBy: attributedStaff(principal, "waive a cancellation penalty"),
+        }),
     );
   }
 
@@ -235,15 +256,45 @@ export class BookingController {
    * Shared because it is one transition — §3 gives `HELD → CANCELLED` and
    * `CONFIRMED → CANCELLED` one inventory effect, and the waiver changes what is
    * charged rather than what is released. What is not shared is the declaration
-   * above each route, which is the whole point of there being two.
+   * above each route and the manager carried through here, which is the whole
+   * point of there being two.
    */
-  private async cancelled(bookingId: string, reason: CancellationReason) {
+  private async cancelled(cancellation: {
+    bookingId: string;
+    reason: CancellationReason;
+    /** The manager who set §4's penalty aside, or null on the policy route. */
+    waivedBy: string | null;
+  }) {
     return onWire(
       await this.transactions.run((exec) =>
-        this.bookings.cancel(exec, bookingId, reason),
+        this.bookings.cancel(exec, cancellation),
       ),
     );
   }
+}
+
+/**
+ * The member of staff a waiver is recorded against.
+ *
+ * `booking_names_a_waiver_authority_exactly_when_waived` makes the instant and
+ * the name a pair, so there is no half a waiver to write: a caller the guard
+ * admitted who is somehow not staff is refused here rather than met with a null
+ * deeper in. Unreachable — `booking.cancel-waiver` is granted to `MANAGER` and
+ * `ADMIN` and to nobody else — and stated anyway, because a penalty set aside
+ * by nobody is precisely the record this whole route exists to leave.
+ *
+ * Declared here rather than imported: `folio.controller.ts` and
+ * `housekeeping.controller.ts` each own their own, and a shared helper would be
+ * one module's session rule governing another's columns.
+ */
+function attributedStaff(principal: Principal | null, act: string): string {
+  if (principal?.realm !== "staff") {
+    throw new ORPCError("UNAUTHORIZED", {
+      message: `Only a signed-in member of staff may ${act}`,
+    });
+  }
+
+  return principal.userId;
 }
 
 /**

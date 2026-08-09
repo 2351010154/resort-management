@@ -149,11 +149,14 @@ export function RoomStage({
   // four. `aspectMark` returns a neutral window glyph in that case and the word
   // beside it carries the fact; `room-icons.ts` is where that trade is argued.
   //
-  // The extra bed is not one of them. It is an allowance rather than a property
-  // of the room, it costs money, and three of the five types do not take one — a
-  // fact that appears and disappears across the five is a grid that changes shape
-  // under a guest walking the list. It is stated as a line under the four
-  // instead, where a price can sit in a sentence.
+  // The extra bed is not one of them, and it no longer costs anything either —
+  // `property-and-tariff.md` §1 makes the bed that closes a type's occupancy gap
+  // free, because the advertised maximum is a promise and the bed is how the
+  // property keeps it. It stays off the grid for the reason it always was: it is
+  // true of one type of the five, and a fact that appears and disappears across
+  // them is a grid that changes shape under a guest walking the list. It is
+  // stated as a line under the four instead, where a condition can sit in a
+  // sentence.
   const facts: readonly Fact[] = [
     {
       icon: "guests",
@@ -275,19 +278,25 @@ export function RoomStage({
             ))}
           </dl>
 
-          {/* The extra bed, where a price can sit in a sentence. Absent rather
-              than empty for the three types that do not take one: a fact that
-              is the same shape whether or not it is true is a fact a guest
-              cannot read past. It posts as a service item and never as a rate
-              modifier (`property-and-tariff.md` §1), which is why it is stated
-              beside the room's facts and not inside its price. */}
-          {offer.extraBedPerNightGross === null ? null : (
+          {/* The bed the maximum occupancy needs, stated as what it is: a fact
+              about the room rather than a line on the bill. Drawn only where the
+              maximum is above what the bedding sleeps — the Junior Suite alone
+              under `property-and-tariff.md` §1's mix — because anywhere else the
+              sentence would be about a bed nobody is asked to sleep on, and a
+              fact the same shape whether or not it is true is one a guest cannot
+              read past.
+
+              §1 charges nothing for it: the maximum is a promise and the bed is
+              how the property keeps it, so §3's extra-person charge inside the
+              total on the next plate is the whole price of the extra head. The
+              350,000 ₫ item in §6's catalog is a bed somebody asks the desk for,
+              and this screen never offers one. */}
+          {type.maxOccupancy > type.beddingSleeps ? (
             <p className={styles.extra}>
-              An extra bed is{" "}
-              <Money amount={roundVndForDisplay(offer.extraBedPerNightGross)} />{" "}
-              a night.
+              The bedding sleeps {type.beddingSleeps}; an extra bed makes up the
+              difference, at no charge.
             </p>
-          )}
+          ) : null}
 
           {/* What is in every room. The plainest thing on the plate on purpose —
               see `room-types.ts` for why the list came back and why it is set

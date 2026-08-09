@@ -1,7 +1,7 @@
 // Renders plans/backlog.md as a self-contained, read-only HTML page.
 //
-// plans/backlog.md is versioned planning evidence and may age. Jira project
-// SCRUM owns live execution fields; this renderer does not infer status, compute
+// plans/backlog.md is versioned planning evidence and may age. GitHub issues
+// own live execution fields; this renderer does not infer status, compute
 // delivery progress, or emit edits back to Markdown. Generated HTML is
 // disposable and ignored.
 //
@@ -816,7 +816,7 @@ tr.hidden, details.hidden, .group.hidden { display: none; }
   <h1>Mariva backlog — planning evidence</h1>
   <div class="banner">
     <span><strong>Source record:</strong> <a href="backlog.md"><code>plans/backlog.md</code></a>. This page is a read-only rendering of versioned planning evidence and may be stale.</span>
-    <span class="muted"><a href="https://hungphat2018-1785053353783.atlassian.net/issues/?jql=project%20%3D%20SCRUM">Jira project SCRUM</a> owns live status, assignee, priority, sprint, dates and blockers.</span>
+    <span class="muted"><a href="https://github.com/2351010154/resort-management/issues">GitHub issues</a> own live status, assignee, labels, milestones and blockers.</span>
     <span class="muted">Generated ${esc(generatedAt)} · regenerate with <code>pnpm backlog:view</code> · precedence: <a href="../docs/README.md"><code>docs/README.md</code></a></span>
   </div>
 </header>

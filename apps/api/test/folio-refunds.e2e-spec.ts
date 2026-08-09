@@ -82,7 +82,8 @@ const DEPARTURE = "2027-06-13";
 
 /** A configuration nobody could mistake for a property's real one. */
 const CONFIGURED = {
-  vatRateBps: 1_234,
+  standardVatRateBps: 1_234,
+  reducedVatRateBps: 2_468,
   reducedVatFrom: null,
   reducedVatTo: null,
   vatIncludesServiceCharge: true,
@@ -191,6 +192,8 @@ interface Posting {
   readonly amount: string;
   readonly description: string;
   readonly businessDate: string;
+  /** Which row of §4's grid a policy charge is, and null on every other line. */
+  readonly chargeBasis: string | null;
   readonly postedBy: string | null;
 }
 
@@ -309,14 +312,14 @@ const overrideRefundPath = (bookingId: string) =>
   `${folioPath(bookingId)}/override-refunds`;
 
 /** A stay the desk has taken, and the total it was sold for. */
-async function aStay(): Promise<{
+async function aStay(plan: string = A_STAY.plan): Promise<{
   bookingId: string;
   stayTotalGross: bigint;
 }> {
   const created = await http()
     .post("/bookings")
     .set("Authorization", `Bearer ${tokens.get("RECEPTIONIST")!}`)
-    .send(A_STAY);
+    .send({ ...A_STAY, plan });
 
   if (created.status !== 201) {
     throw new Error(`the stay was refused: ${JSON.stringify(created.body)}`);
@@ -335,20 +338,29 @@ async function aStay(): Promise<{
  * measures against is the one the cancellation wrote — a fixture that set the
  * column by hand would be testing the refund against a moment no cancellation
  * produced.
+ *
+ * The waived variant goes through the manager's route for the same reason and a
+ * stronger one: which route the caller reached is precisely what used to be the
+ * only record of the waiver, so a fixture that wrote the columns itself would
+ * prove nothing about the path that has to write them.
  */
-async function aPaidCancellation(): Promise<{
-  bookingId: string;
-  paid: bigint;
-}> {
-  const { bookingId, stayTotalGross } = await aStay();
+async function aPaidCancellation(
+  waived: { by: StaffRole; reason?: string } | null = null,
+  plan?: string,
+): Promise<{ bookingId: string; paid: bigint }> {
+  const { bookingId, stayTotalGross } = await aStay(plan);
 
   await as("RECEPTIONIST", `${folioPath(bookingId)}/payments`, {
     amount: stayTotalGross.toString(),
     description: "Prepayment, card ****4242",
   }).expect(200);
 
-  await as("RECEPTIONIST", `/bookings/${bookingId}/cancellation`, {
-    reason: "GUEST_REQUEST",
+  const [path, role] = waived
+    ? ([`/bookings/${bookingId}/cancellation-waiver`, waived.by] as const)
+    : ([`/bookings/${bookingId}/cancellation`, "RECEPTIONIST"] as const);
+
+  await as(role, path, {
+    reason: waived?.reason ?? "GUEST_REQUEST",
   }).expect(200);
 
   return { bookingId, paid: stayTotalGross };
@@ -565,6 +577,88 @@ describe("§4's grid, applied over the wire", () => {
     ).expect(409);
 
     expect(JSON.stringify(response.body)).toContain("CONFIRMED");
+  });
+});
+
+describe("a penalty a manager waived, priced by a receptionist", () => {
+  // The two capabilities meeting, which is the whole of what this file can
+  // assert and the service suite cannot. `booking.cancel-waiver` is `MANAGER`+
+  // and `folio.refund-policy` is the desk's, so the decision is taken in one
+  // request and applied in another by somebody who holds neither the waiver nor
+  // `folio.reverse-posting` — a charge that landed here could not be taken back
+  // by the person who filed it.
+
+  // The pair below is sold on `NONREF` deliberately. This file does not pin
+  // which row of the grid fires — that turns on the wall clock against §4's
+  // 18:00 deadline, and a suite asserting it would be asserting the calendar it
+  // happened to run on. `NONREF` has one answer in every row, so "waived" and
+  // "not waived" differ by the waiver in June and in December alike.
+
+  it("charges nothing, and says the grid is what charged nothing", async () => {
+    const { bookingId, paid } = await aPaidCancellation(
+      { by: "MANAGER" },
+      "NONREF",
+    );
+
+    const response = await as(
+      "RECEPTIONIST",
+      policyRefundPath(bookingId),
+    ).expect(200);
+
+    const { folio } = response.body as Receipt;
+    const charge = lineOfType(folio, "POLICY_CHARGE");
+
+    expect(charge?.amount).toBe("0");
+    // `NONE` is a row of the grid rather than the absence of one, so the account
+    // records that §4 was applied and came to nothing.
+    expect(charge?.chargeBasis).toBe("NONE");
+
+    // And the guest has the whole prepayment back, with the account settled.
+    expect(BigInt(lineOfType(folio, "REFUND")!.amount)).toBe(paid);
+    expect(sumOf(folio.postings)).toBe(0n);
+  });
+
+  it("charges the same stay in full when nobody waived it", async () => {
+    // The regression guard, and the reason the case above means anything: the
+    // two stays differ in the route the cancellation took and in nothing else.
+    const { bookingId } = await aPaidCancellation(null, "NONREF");
+
+    const response = await as(
+      "RECEPTIONIST",
+      policyRefundPath(bookingId),
+    ).expect(200);
+
+    const { folio } = response.body as Receipt;
+    const charge = lineOfType(folio, "POLICY_CHARGE");
+
+    // §4's `NONREF` column is the whole stay in every row, so the row is named
+    // whatever the calendar says. The figure is left unpinned on purpose — it is
+    // the nights as the calendar priced them, which `folio-refund-service.e2e-spec.ts`
+    // works by hand; what this file is about is that something was charged.
+    expect(charge?.chargeBasis).toBe("FULL_STAY");
+    expect(BigInt(charge!.amount)).toBeGreaterThan(0n);
+  });
+
+  it("waives a guest's change of mind as readily as the property's own fault", async () => {
+    // Reason and waiver are orthogonal, and this is the case a design that gated
+    // the waiver on the reason code could not express. §4's grid has no reason
+    // column; `GUEST_REQUEST` is the code such a rule would have refused, and it
+    // waives here exactly as `STAFF_ERROR` does.
+    for (const reason of ["GUEST_REQUEST", "STAFF_ERROR"]) {
+      const { bookingId } = await aPaidCancellation(
+        { by: "MANAGER", reason },
+        "NONREF",
+      );
+
+      const response = await as(
+        "RECEPTIONIST",
+        policyRefundPath(bookingId),
+      ).expect(200);
+
+      const { folio } = response.body as Receipt;
+
+      expect(lineOfType(folio, "POLICY_CHARGE")?.amount).toBe("0");
+    }
   });
 });
 
