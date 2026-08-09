@@ -57,6 +57,27 @@
 // `FR-FOL-01`'s other half, and this file said where it would go — with the
 // close that creates the state, which is here.
 //
+// **The policy refund reads before it writes for the same reason, and takes the
+// same lock.** `FR-PAY-04` puts §4's grid on the ledger, and what the grid
+// charges depends on the stay's own record — the plan, the nights it froze, and
+// whether it was cancelled, never arrived or is ending early. None of that is a
+// column on `folio_posting`, so no constraint can decide it and the read is
+// unavoidable. What the lock buys is that the balance summed under it is still
+// the balance when the two lines are written: the money handed back is what the
+// stay is over-paid by once the charge stands against it, and a payment landing
+// between the sum and the insert would be a guest refunded money they had just
+// paid. It also serialises two desks refunding one cancellation, which is the
+// arrangement that pays a guest twice for one stay.
+//
+// **The booking's own tables are read here, in SQL, through the caller's
+// executor.** `booking.module.ts` imports this module to bind `FOLIO_PORT`, so
+// this module cannot import that one back, and the figures §4 prices are the
+// booking's: `booking_night`'s per-night prices and the state that says what
+// ended the stay. `stay-quote.service.ts` reads across the same kind of boundary
+// and gives the sharper half of the reason — the read has to be in the
+// transaction that writes from it, and a service reached through Nest would
+// answer from another connection with another snapshot.
+//
 // **What the close does not do is issue the invoice.** `FR-FOL-04` requires
 // that a provider timeout never roll back a checkout, and nothing in this
 // transaction can honour that if the transaction is also waiting on a provider.
@@ -64,7 +85,13 @@
 // account it left behind and argues why that commit is the enqueue.
 
 import { randomUUID } from "node:crypto";
-import type { StayDate, VndAmount } from "@mariva/shared";
+import { parseDate } from "@internationalized/date";
+import {
+  type ChargeBasis,
+  nightCount,
+  type StayDate,
+  type VndAmount,
+} from "@mariva/shared";
 import { Inject, Injectable } from "@nestjs/common";
 import { ORPCError } from "@orpc/nest";
 import { and, asc, eq, or, sql } from "drizzle-orm";
@@ -73,9 +100,20 @@ import {
   type DbExecutor,
   DRIZZLE,
 } from "../../database/database.module.js";
+import { booking, bookingNight } from "../../database/schema/booking.js";
 import { folio, folioPosting } from "../../database/schema/folio.js";
 import { staffUser } from "../../database/schema/identity.js";
 import { sqlStateOf } from "../../database/sql-state.js";
+// The grid itself, imported as the pure function it is. `booking.module.ts`
+// imports this module to bind the port and importing that module back would be
+// a cycle — but `cancellation-calculator.ts` is no provider and reaches nothing:
+// it selects and scales the stored nights and persists nothing, which is why it
+// was written where §4's other rules live and why it can be called from here
+// without either module learning about the other.
+import {
+  type PolicyEvent,
+  policyCharge,
+} from "../booking/cancellation-calculator.js";
 // A type, so it erases: `booking.module.ts` imports this module to bind the
 // port, and a value imported back the other way would be a cycle. The port is
 // the only thing the two modules share, which is what it is for.
@@ -137,6 +175,51 @@ export interface PaymentRequest extends PostingRequest {
  */
 export interface ReversalRequest {
   readonly postingId: string;
+  readonly businessDate: StayDate;
+  readonly postedBy: string;
+}
+
+/**
+ * §4's grid, asked for by naming the stay and nothing else — `FR-PAY-04`.
+ *
+ * No amount and no event, which is the whole of the difference between this
+ * request and {@link OverrideRefundRequest}. Both are read off the booking:
+ * `contract/folio.ts` argues why a caller able to send either would be holding
+ * the override's authority under the policy capability.
+ *
+ * The stay is named as well as its account, because both are read — the account
+ * for its lines and the booking for what §4 prices. The caller resolves the pair
+ * ({@link FolioService.ensureFolio} answers with the folio of the booking it was
+ * given), so the two agree by construction rather than by a check here.
+ *
+ * `postedBy` is required, as a reversal's is. Applying the grid is a person
+ * deciding that a stay ended and that the property may keep part of what was
+ * paid for it — the last line on an account anybody should be able to file
+ * without a name against it.
+ */
+export interface PolicyRefundRequest {
+  readonly folioId: string;
+  readonly bookingId: string;
+  readonly businessDate: StayDate;
+  readonly postedBy: string;
+}
+
+/**
+ * Money handed back outside §4 — the manager's figure, and why.
+ *
+ * The amount is what the guest receives, positive, and stored positive: the
+ * negation a payment takes is not applied here because a refund moves the
+ * balance the other way. `schema/folio.ts` holds that convention and
+ * `folio_posting_sign_matches_type` refuses the row that ignores it.
+ *
+ * The reason is required and becomes the line's description. `FR-PAY-04` gives
+ * this route to `MANAGER`+ precisely because it departs from the property's own
+ * policy, and an append-only ledger cannot have the explanation added later.
+ */
+export interface OverrideRefundRequest {
+  readonly folioId: string;
+  readonly amount: VndAmount;
+  readonly reason: string;
   readonly businessDate: StayDate;
   readonly postedBy: string;
 }
@@ -606,6 +689,247 @@ export class FolioService implements FolioPort {
   }
 
   /**
+   * §4's grid, finally posted — `FR-PAY-04`.
+   *
+   * **Two lines, and the pair is what the grid actually means.**
+   * `property-and-tariff.md` §4 is emphatic that every cell is a penalty and not
+   * a settlement total: the figure is what the stay owes *on top of* whatever
+   * the folio already carries. So the charge goes on as a `POLICY_CHARGE`
+   * naming which row it is, and what the account is then over-paid by is the
+   * money going back. Refunding a figure computed as "what they paid less the
+   * penalty" would be the same arithmetic done where nothing can check it —
+   * here the ledger does the subtraction, and a stay that had also run up a
+   * minibar bill is refunded what it is actually owed rather than what it paid.
+   *
+   * **The basis rides on the charge because that is the only row that may carry
+   * it.** `folio_posting_names_a_basis_exactly_when_a_policy_charge` makes the
+   * column and the type a biconditional, so a `REFUND` line naming
+   * `FIRST_NIGHT` is a row the database refuses. That constraint and this
+   * arrangement want the same thing: the grid's decision is recorded once, on
+   * the charge it decided, and the refund beside it is money — an amount, not a
+   * classification. A free cancellation still posts the charge at nothing,
+   * because `NONE` is a row of the grid and not the absence of one.
+   *
+   * **The charge is not decomposed.** `FR-FOL-02` splits a *sale* into a net
+   * charge, a service charge and a tax line, and `schema/folio.ts` records that
+   * whether a policy charge carries tax at all is §4's silence and `ASM-01`'s
+   * unanswered question. A decomposition invented here would put a VAT line on
+   * a penalty nobody has ruled is a taxable supply, on an invoice.
+   *
+   * **Applied once per account, and a second attempt is refused rather than
+   * ignored.** The grid prices the whole of what ended the stay, so a second
+   * application charges the same cancellation twice; the refusal names the
+   * reversal and the override as the two honest ways forward. A charge that has
+   * been reversed does not count — the desk took it back, and the account is
+   * open to the grid again.
+   */
+  async postPolicyRefund(
+    exec: DbExecutor,
+    refund: PolicyRefundRequest,
+  ): Promise<readonly string[]> {
+    // The account's row, locked before anything is summed under it. `FOR
+    // UPDATE` conflicts with the `FOR SHARE` the ledger's trigger takes on
+    // every insert — `migrations/0016` argues that pairing where it is written
+    // — so no posting can land between the balance read below and the lines
+    // written from it, in this request or in another one. Nothing is selected
+    // out of it: the caller resolved the id, and what is wanted is the lock.
+    await exec
+      .select({ id: folio.id })
+      .from(folio)
+      .where(eq(folio.id, refund.folioId))
+      .limit(1)
+      .for("update");
+
+    const [found] = await exec
+      .select({
+        state: booking.state,
+        plan: booking.ratePlanCode,
+        checkInDate: booking.checkInDate,
+        // The departure the stay currently claims, which an early one has
+        // already moved back — `assignment.service.ts` writes it and leaves the
+        // `booking_night` rows of the nights it released standing. The gap
+        // between the two is the only record that a departure was brought
+        // forward at all, and {@link policyEventOf} is the reader of it.
+        departsOn: booking.checkOutDate,
+        // When the stay ended, for the one row of the grid that is decided by
+        // an instant. `CANCELLED` is terminal — `booking-state-machine.md` §2
+        // gives it no outgoing edge — so the last time the row was touched is
+        // the moment it was cancelled, and `schema/booking.ts` keeps no second
+        // column saying so.
+        endedAt: booking.updatedAt,
+      })
+      .from(booking)
+      .where(eq(booking.id, refund.bookingId))
+      .limit(1);
+
+    // `folio.booking_id` references this row, so the caller that resolved an
+    // account resolved a stay with it.
+    const stay = found!;
+
+    const lines = await exec
+      .select({
+        id: folioPosting.id,
+        type: folioPosting.type,
+        amount: folioPosting.amount,
+        reversesPostingId: folioPosting.reversesPostingId,
+      })
+      .from(folioPosting)
+      .where(eq(folioPosting.folioId, refund.folioId));
+
+    const reversed = new Set(
+      lines.map((line) => line.reversesPostingId).filter((id) => id !== null),
+    );
+    const standing = lines.filter((line) => !reversed.has(line.id));
+
+    if (standing.some((line) => line.type === "POLICY_CHARGE")) {
+      throw new ORPCError("CONFLICT", {
+        message:
+          "§4's charge is already on this account, and the grid prices what " +
+          "ended the stay once — reverse that line to price it again, or hand " +
+          "money back at a manager's discretion",
+      });
+    }
+
+    // Every night the booking sold, and not the range it currently covers. An
+    // early departure shortens the stay and *keeps* the released
+    // `booking_night` rows — `assignment.service.ts` says why, in as many words:
+    // they are the basis of the charge. Bounding this by the booking's current
+    // departure date would price the stay the guest is actually taking and
+    // charge nothing for the nights they gave back, which is the one figure §4's
+    // last row exists to state.
+    const nights = await exec
+      .select({ gross: bookingNight.standardGross })
+      .from(bookingNight)
+      .where(eq(bookingNight.bookingId, refund.bookingId))
+      .orderBy(asc(bookingNight.stayDate));
+
+    if (nights.length === 0) {
+      // The calculator raises a `RangeError` on this, correctly — it is a
+      // caller that assembled its input wrongly. Answered here instead, because
+      // from a route it is a stay whose stored prices are missing and a 500
+      // would say nothing about which stay or why.
+      throw new ORPCError("CONFLICT", {
+        message:
+          "That stay has no stored night prices, so §4's grid has nothing to " +
+          "scale — the per-night figures are frozen when the booking is taken",
+      });
+    }
+
+    const arrival = parseDate(stay.checkInDate);
+
+    const charge = policyCharge({
+      plan: stay.plan,
+      checkInDate: arrival,
+      nights: nights.map((night) => night.gross),
+      event: policyEventOf({
+        state: stay.state,
+        endedAt: stay.endedAt,
+        // Nights the folio has actually been charged for, which is what the
+        // calculator asks for by name — never a date subtraction. A reversed
+        // room charge is a night the property agreed did not happen, so it is
+        // not one of them, and counting it would leave the remaining-nights
+        // charge one night short.
+        nightsSpent: standing.filter((line) => line.type === "ROOM_CHARGE")
+          .length,
+        // Nights the stay was sold, less the nights it still covers. An early
+        // departure keeps the `booking_night` rows it gave back, so this is
+        // above nothing exactly when a departure was brought forward.
+        nightsReleased:
+          nights.length -
+          nightCount({ checkIn: arrival, checkOut: parseDate(stay.departsOn) }),
+      }),
+    });
+
+    const businessDate = refund.businessDate.toString();
+
+    const posting: (typeof folioPosting.$inferInsert)[] = [
+      {
+        folioId: refund.folioId,
+        type: "POLICY_CHARGE",
+        amount: charge.amount,
+        chargeBasis: charge.basis,
+        description: POLICY_CHARGE_DESCRIPTIONS[charge.basis],
+        businessDate,
+        postedBy: refund.postedBy,
+      },
+    ];
+
+    // What the account comes to once the penalty stands against it. Negative is
+    // the property holding money that is not its own — `schema/folio.ts` on the
+    // sign convention — and that figure, exactly, is the refund. Zero or
+    // positive is a stay that still owes, and there is nothing to hand back.
+    const settled =
+      lines.reduce<VndAmount>((total, line) => total + line.amount, 0n) +
+      charge.amount;
+
+    if (settled < 0n) {
+      posting.push({
+        folioId: refund.folioId,
+        type: "REFUND",
+        // Positive, undoing the payment it hands back. No `chargeBasis`: the
+        // charge above carries the grid's decision, and the check constraint
+        // permits it on no other row.
+        amount: -settled,
+        description: "Refund of the balance after the policy charge",
+        businessDate,
+        postedBy: refund.postedBy,
+      });
+    }
+
+    // One statement, so the penalty and the money it decided are one act. Two
+    // inserts would leave an account showing a charge the guest was never
+    // refunded against for as long as the second took, and permanently if it
+    // failed.
+    return await this.write(exec, posting);
+  }
+
+  /**
+   * Money handed back outside §4 — `FR-PAY-04`'s discretionary half.
+   *
+   * One line, and the caller's figure. Everything that makes the policy refund
+   * long is absent here on purpose: no grid, no event, no reading of the stay,
+   * because the amount is a manager's judgement and not something the record can
+   * be asked for. `rbac-matrix.md` §2 is why the two are separate methods
+   * reached by separate routes rather than one method with an optional amount —
+   * the capability declaration is the guarantee, and it can only guard a route.
+   *
+   * Nothing here refuses a refund larger than the account's credit. It would be
+   * a rule §4 does not state, and the two things it would stop are a manager
+   * compensating a guest beyond what they paid — which is the judgement this
+   * route exists for — and a typo, which the ledger already answers for: the
+   * balance goes positive, the stay reads as owing money, and `close` refuses
+   * the account until somebody reverses the line.
+   */
+  async postOverrideRefund(
+    exec: DbExecutor,
+    refund: OverrideRefundRequest,
+  ): Promise<string> {
+    if (refund.amount <= 0n) {
+      throw new ORPCError("BAD_REQUEST", {
+        message:
+          "A refund is money the property is handing back, so the amount is " +
+          "what the guest receives — taking money in is a payment",
+      });
+    }
+
+    const [postingId] = await this.write(exec, [
+      {
+        folioId: refund.folioId,
+        type: "REFUND",
+        // Stored as it arrived, where a payment is negated. Handing money back
+        // undoes a payment, so it increases what the stay owes and the sign
+        // check refuses it any other way round.
+        amount: refund.amount,
+        description: `Discretionary refund — ${refund.reason}`,
+        businessDate: refund.businessDate.toString(),
+        postedBy: refund.postedBy,
+      },
+    ]);
+
+    return postingId!;
+  }
+
+  /**
    * Writes lines and hands back their ids, with Postgres' refusal read as an
    * answer rather than a fault.
    *
@@ -657,6 +981,99 @@ export class FolioService implements FolioPort {
 
       throw error;
     }
+  }
+}
+
+/**
+ * What a policy charge says it is, on the invoice the guest reads.
+ *
+ * Keyed on the basis alone, and never on what ended the stay. A no-show and a
+ * late cancellation are one row of §4's grid — both charge the first night — so
+ * a wording that named the event would print two different sentences for one
+ * decision, and an accountant reconciling them would have to know the grid to
+ * see that they matched. The machine-readable half is the `charge_basis` column
+ * beside it; this is the human half, and the two cannot drift because both come
+ * from the same value.
+ */
+const POLICY_CHARGE_DESCRIPTIONS: Record<ChargeBasis, string> = {
+  NONE: "No policy charge — cancelled inside the free window",
+  FIRST_NIGHT: "Policy charge — the first night",
+  FULL_STAY: "Policy charge — the whole stay",
+  REMAINING_NIGHTS_HALF: "Policy charge — the remaining nights at 50%",
+  REMAINING_NIGHTS_FULL: "Policy charge — the remaining nights in full",
+};
+
+/**
+ * Which row of §4's grid the stay is under, read off its state.
+ *
+ * The state is the fact and the caller has no say in it, which is what makes
+ * `folio.refund-policy` a cheaper capability than the override: the three
+ * answers below price differently, and one that could be asserted in a request
+ * body would let a receptionist choose the grid row that suited the guest in
+ * front of them. `CANCELLED` is the sharpest of the three — the free window
+ * turns on an instant, so a caller supplying it would be waiving the penalty
+ * outright.
+ *
+ * The cancellation reason is deliberately not consulted. §4 prices the *event*
+ * and `cancellation-calculator.ts` takes no reason; waiving the grid because the
+ * property was at fault — a walk, a staff error, force majeure — is the
+ * departure from §4 that `rbac-matrix.md` §2 gives `MANAGER`+ and its own route.
+ * A refund that quietly charged nothing for some reason codes would be that
+ * authority granted here by omission.
+ *
+ * **Being in the building is not on its own an early departure**, and the
+ * difference is the whole of what makes the last row safe to grant a
+ * receptionist. `state` says a guest is `CHECKED_IN` and says nothing about
+ * whether they are leaving: `assignment.service.ts` shortens a stay by moving
+ * `check_out_date` back and keeps the `booking_night` rows it released,
+ * deliberately, because "they are the basis of the charge". So the nights sold
+ * against the nights still covered is the record that a departure was brought
+ * forward, and it is read here rather than assumed. Without it the grid prices
+ * every guest mid-stay: the penalty lands, the balance settles to nothing while
+ * the guest is still in the room, the night audit puts it back into arrears, and
+ * the once-per-account rule below refuses the application the real departure
+ * needed. `folio.reverse-posting` is not a receptionist's — `matrix.ts` — so
+ * that first line is one they cannot take back either.
+ *
+ * The states left over are refused rather than priced. A stay still `HELD` or
+ * `CONFIRMED` has not ended, so there is no row; a `CHECKED_OUT` one ended by
+ * being slept and settled, and §4 has no cell for a guest who left on the day
+ * they said they would.
+ */
+function policyEventOf(stay: {
+  state: (typeof booking.$inferSelect)["state"];
+  endedAt: Date;
+  nightsSpent: number;
+  nightsReleased: number;
+}): PolicyEvent {
+  switch (stay.state) {
+    case "CANCELLED":
+      return { kind: "CANCELLATION", cancelledAt: stay.endedAt };
+
+    case "NO_SHOW":
+      return { kind: "NO_SHOW" };
+
+    case "CHECKED_IN": {
+      if (stay.nightsReleased <= 0) {
+        throw new ORPCError("CONFLICT", {
+          message:
+            "This guest is in the building and still has every night they " +
+            "booked — §4's last row prices the nights an early departure gave " +
+            "back, so shorten the stay first, and a credit owed for any other " +
+            "reason is a manager's to give",
+        });
+      }
+
+      return { kind: "EARLY_DEPARTURE", nightsSpent: stay.nightsSpent };
+    }
+
+    default:
+      throw new ORPCError("CONFLICT", {
+        message:
+          `§4 prices a stay that did not happen or stopped happening, and ` +
+          `this booking is ${stay.state} — cancel it, mark it a no-show, or shorten ` +
+          `it first, and a credit owed for any other reason is a manager's to give`,
+      });
   }
 }
 
