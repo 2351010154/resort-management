@@ -86,7 +86,12 @@
 
 import { randomUUID } from "node:crypto";
 import { parseDate } from "@internationalized/date";
-import type { ChargeBasis, StayDate, VndAmount } from "@mariva/shared";
+import {
+  type ChargeBasis,
+  nightCount,
+  type StayDate,
+  type VndAmount,
+} from "@mariva/shared";
 import { Inject, Injectable } from "@nestjs/common";
 import { ORPCError } from "@orpc/nest";
 import { and, asc, eq, or, sql } from "drizzle-orm";
@@ -740,6 +745,12 @@ export class FolioService implements FolioPort {
         state: booking.state,
         plan: booking.ratePlanCode,
         checkInDate: booking.checkInDate,
+        // The departure the stay currently claims, which an early one has
+        // already moved back — `assignment.service.ts` writes it and leaves the
+        // `booking_night` rows of the nights it released standing. The gap
+        // between the two is the only record that a departure was brought
+        // forward at all, and {@link policyEventOf} is the reader of it.
+        departsOn: booking.checkOutDate,
         // When the stay ended, for the one row of the grid that is decided by
         // an instant. `CANCELLED` is terminal — `booking-state-machine.md` §2
         // gives it no outgoing edge — so the last time the row was touched is
@@ -804,20 +815,29 @@ export class FolioService implements FolioPort {
       });
     }
 
+    const arrival = parseDate(stay.checkInDate);
+
     const charge = policyCharge({
       plan: stay.plan,
-      checkInDate: parseDate(stay.checkInDate),
+      checkInDate: arrival,
       nights: nights.map((night) => night.gross),
-      event: policyEventOf(
-        stay.state,
-        stay.endedAt,
+      event: policyEventOf({
+        state: stay.state,
+        endedAt: stay.endedAt,
         // Nights the folio has actually been charged for, which is what the
         // calculator asks for by name — never a date subtraction. A reversed
         // room charge is a night the property agreed did not happen, so it is
         // not one of them, and counting it would leave the remaining-nights
         // charge one night short.
-        standing.filter((line) => line.type === "ROOM_CHARGE").length,
-      ),
+        nightsSpent: standing.filter((line) => line.type === "ROOM_CHARGE")
+          .length,
+        // Nights the stay was sold, less the nights it still covers. An early
+        // departure keeps the `booking_night` rows it gave back, so this is
+        // above nothing exactly when a departure was brought forward.
+        nightsReleased:
+          nights.length -
+          nightCount({ checkIn: arrival, checkOut: parseDate(stay.departsOn) }),
+      }),
     });
 
     const businessDate = refund.businessDate.toString();
@@ -1001,31 +1021,57 @@ const POLICY_CHARGE_DESCRIPTIONS: Record<ChargeBasis, string> = {
  * A refund that quietly charged nothing for some reason codes would be that
  * authority granted here by omission.
  *
- * The three states left over are refused rather than priced. A stay still
- * `HELD` or `CONFIRMED` has not ended, so there is no row; a `CHECKED_OUT` one
- * ended by being slept and settled, and §4 has no cell for a guest who left on
- * the day they said they would.
+ * **Being in the building is not on its own an early departure**, and the
+ * difference is the whole of what makes the last row safe to grant a
+ * receptionist. `state` says a guest is `CHECKED_IN` and says nothing about
+ * whether they are leaving: `assignment.service.ts` shortens a stay by moving
+ * `check_out_date` back and keeps the `booking_night` rows it released,
+ * deliberately, because "they are the basis of the charge". So the nights sold
+ * against the nights still covered is the record that a departure was brought
+ * forward, and it is read here rather than assumed. Without it the grid prices
+ * every guest mid-stay: the penalty lands, the balance settles to nothing while
+ * the guest is still in the room, the night audit puts it back into arrears, and
+ * the once-per-account rule below refuses the application the real departure
+ * needed. `folio.reverse-posting` is not a receptionist's — `matrix.ts` — so
+ * that first line is one they cannot take back either.
+ *
+ * The states left over are refused rather than priced. A stay still `HELD` or
+ * `CONFIRMED` has not ended, so there is no row; a `CHECKED_OUT` one ended by
+ * being slept and settled, and §4 has no cell for a guest who left on the day
+ * they said they would.
  */
-function policyEventOf(
-  state: (typeof booking.$inferSelect)["state"],
-  endedAt: Date,
-  nightsSpent: number,
-): PolicyEvent {
-  switch (state) {
+function policyEventOf(stay: {
+  state: (typeof booking.$inferSelect)["state"];
+  endedAt: Date;
+  nightsSpent: number;
+  nightsReleased: number;
+}): PolicyEvent {
+  switch (stay.state) {
     case "CANCELLED":
-      return { kind: "CANCELLATION", cancelledAt: endedAt };
+      return { kind: "CANCELLATION", cancelledAt: stay.endedAt };
 
     case "NO_SHOW":
       return { kind: "NO_SHOW" };
 
-    case "CHECKED_IN":
-      return { kind: "EARLY_DEPARTURE", nightsSpent };
+    case "CHECKED_IN": {
+      if (stay.nightsReleased <= 0) {
+        throw new ORPCError("CONFLICT", {
+          message:
+            "This guest is in the building and still has every night they " +
+            "booked — §4's last row prices the nights an early departure gave " +
+            "back, so shorten the stay first, and a credit owed for any other " +
+            "reason is a manager's to give",
+        });
+      }
+
+      return { kind: "EARLY_DEPARTURE", nightsSpent: stay.nightsSpent };
+    }
 
     default:
       throw new ORPCError("CONFLICT", {
         message:
           `§4 prices a stay that did not happen or stopped happening, and ` +
-          `this booking is ${state} — cancel it, mark it a no-show, or shorten ` +
+          `this booking is ${stay.state} — cancel it, mark it a no-show, or shorten ` +
           `it first, and a credit owed for any other reason is a manager's to give`,
       });
   }

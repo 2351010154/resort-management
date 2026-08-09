@@ -81,6 +81,16 @@ const CONFIGURED = {
 const CHECK_IN = "2027-09-05";
 const CHECK_OUT = "2027-09-08";
 
+/**
+ * Where an early departure leaves the stay: one night slept and two given back.
+ *
+ * The date is what makes the stay *shortened* rather than merely in progress —
+ * the released nights keep their `booking_night` rows, so the gap between the
+ * three sold and the one still covered is the only record that a departure was
+ * brought forward at all.
+ */
+const DEPARTED_AFTER_ONE_NIGHT = "2027-09-06";
+
 /** The trading day every line below is filed under. */
 const BUSINESS_DATE = parseDate("2027-09-02");
 
@@ -236,7 +246,10 @@ describe("§4's grid, as the lines it becomes", () => {
     // The guest slept one night, which the folio has been charged for. §4 puts
     // what is left at 50% on a refundable plan — over the two remaining nights
     // as they were priced, never over half the stay total.
-    const bookingId = await aStay({ state: "CHECKED_IN" });
+    const bookingId = await aStay({
+      state: "CHECKED_IN",
+      departsOn: DEPARTED_AFTER_ONE_NIGHT,
+    });
 
     await aNightPosted(bookingId);
 
@@ -247,10 +260,32 @@ describe("§4's grid, as the lines it becomes", () => {
     expect(charge.chargeBasis).toBe("REMAINING_NIGHTS_HALF");
   });
 
+  it("refuses a guest who is in the building and gave no night back", async () => {
+    // `CHECKED_IN` alone is not an early departure. A stay that still covers
+    // every night it was sold is a guest mid-stay, and pricing them would post
+    // a penalty, settle the account to nothing while they are still in the
+    // room, and spend the one application the real departure needs.
+    const bookingId = await aStay({ state: "CHECKED_IN" });
+
+    await aNightPosted(bookingId);
+    await paid(bookingId, FULL_STAY);
+
+    const refusal = await refused(refundToPolicy(bookingId));
+
+    expect(refusal.code).toBe("CONFLICT");
+    expect(await linesOn(bookingId)).not.toContainEqual(
+      expect.objectContaining({ type: "POLICY_CHARGE" }),
+    );
+  });
+
   it("charges a NONREF early departure all of them", async () => {
     // Not "100% of stay": the night already slept is on the folio, and charging
     // the stay again would bill it twice.
-    const bookingId = await aStay({ state: "CHECKED_IN", plan: "NONREF" });
+    const bookingId = await aStay({
+      state: "CHECKED_IN",
+      plan: "NONREF",
+      departsOn: DEPARTED_AFTER_ONE_NIGHT,
+    });
 
     await aNightPosted(bookingId);
 
@@ -266,7 +301,10 @@ describe("§4's grid, as the lines it becomes", () => {
     // agreed did not happen, so one night is spent and two remain — the same
     // answer as the case above, reached through a corrected account. Counting
     // the reversed line would charge for one remaining night instead of two.
-    const bookingId = await aStay({ state: "CHECKED_IN" });
+    const bookingId = await aStay({
+      state: "CHECKED_IN",
+      departsOn: DEPARTED_AFTER_ONE_NIGHT,
+    });
 
     await aNightPosted(bookingId);
 
@@ -626,6 +664,14 @@ async function aStay(stay: {
   endedAt?: Date;
   reason?: CancellationReason;
   nights?: readonly VndAmount[];
+  /**
+   * The departure the stay currently claims, where an early one has moved it
+   * back. Written the way `assignment.service.ts` writes it — the date shortens
+   * and the `booking_night` rows of the released nights stay, because they are
+   * the basis of the charge. A case that leaves this alone is a stay nobody
+   * shortened, which is what §4's last row is refused for.
+   */
+  departsOn?: string;
 }): Promise<string> {
   bookingOrdinal += 1;
 
@@ -639,7 +685,7 @@ async function aStay(stay: {
         stay.state === "CANCELLED" ? (stay.reason ?? "GUEST_REQUEST") : null,
       roomTypeId,
       checkInDate: CHECK_IN,
-      checkOutDate: CHECK_OUT,
+      checkOutDate: stay.departsOn ?? CHECK_OUT,
       ratePlanCode: stay.plan ?? "STANDARD",
       adults: 2,
       quotedStayTotalGross: FULL_STAY,
