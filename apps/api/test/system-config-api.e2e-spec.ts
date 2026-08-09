@@ -3,10 +3,10 @@
 // guard.
 //
 // `system-config.e2e-spec.ts` already asserts what the row does once it holds
-// values: which rate applies on which date, what a posting is refused on a date
-// the window has left behind, and that a value changed under a transaction is
-// read by the next statement. None of that needs a route. What only exists once
-// there are routes is what this file is for:
+// values: which of the two VAT rates a date resolves to on either side of the
+// relief window, and that a value changed under a transaction is read by the
+// next statement. None of that needs a route. What only exists once there are
+// routes is what this file is for:
 //
 //  1. **Both routes are governed by the matrix row they declare**, driven off
 //     `CAPABILITIES` rather than off a list written out here. The row gives
@@ -37,7 +37,7 @@
 //     surrogate key, and both sides of the change — and then that a 400 leaves
 //     the log exactly as it found it, because an entry describing a rate the
 //     property never charged is worse than no entry at all.
-//  5. **The answer carries the six figures and nothing else.** The key set is
+//  5. **The answer carries the seven figures and nothing else.** The key set is
 //     asserted exactly. `schema/config.ts` keeps gateway credentials in the
 //     environment on the grounds that a secret in a table an `ADMIN` screen
 //     reads has a wider audience than the process that spends it; an exact key
@@ -86,9 +86,10 @@ import { SystemConfigService } from "../src/modules/system-config/system-config.
 
 const ROUTE = "/system/config";
 
-/** Every figure the answer may carry — `FR-IDN-03`'s four, as a list. */
+/** Every figure the answer may carry — `FR-IDN-03`'s, as a list. */
 const CONFIGURATION_FIELDS = [
-  "vatRateBps",
+  "standardVatRateBps",
+  "reducedVatRateBps",
   "reducedVatFrom",
   "reducedVatTo",
   "vatIncludesServiceCharge",
@@ -98,6 +99,7 @@ const CONFIGURATION_FIELDS = [
 
 /** Figures nobody could mistake for a property's real ones. */
 const EDITED_RATE_BPS = 4_321;
+const EDITED_REDUCED_RATE_BPS = 2_109;
 const EDITED_SERVICE_CHARGE_BPS = 765;
 
 /**
@@ -412,9 +414,11 @@ describe("the capability each system-configuration route declares", () => {
     // words the matrix uses — a 👁 that answered 403 and a 👁 that accepted a
     // tax rate would both pass a test that only counted refusals.
     await as("MANAGER", "get").expect(200);
-    await as("MANAGER", "patch", { vatRateBps: EDITED_RATE_BPS }).expect(403);
+    await as("MANAGER", "patch", {
+      standardVatRateBps: EDITED_RATE_BPS,
+    }).expect(403);
 
-    expect((await stored()).vatRateBps).not.toBe(EDITED_RATE_BPS);
+    expect((await stored()).standardVatRateBps).not.toBe(EDITED_RATE_BPS);
   });
 
   it("refuses a stranger holding no session", async () => {
@@ -430,16 +434,20 @@ describe("the capability each system-configuration route declares", () => {
     // §1 — so this is 403 rather than 401: the caller is somebody, and this row
     // is not for them.
     await guest.get(ROUTE).expect(403);
-    await guest.patch(ROUTE).send({ vatRateBps: EDITED_RATE_BPS }).expect(403);
+    await guest
+      .patch(ROUTE)
+      .send({ standardVatRateBps: EDITED_RATE_BPS })
+      .expect(403);
   });
 });
 
 describe("the configuration as the read route answers it", () => {
-  it("carries the six figures a posting reads, and the row's own values", async () => {
+  it("carries the seven figures a posting reads, and the row's own values", async () => {
     const configured = await stored();
 
     expect(await read()).toEqual({
-      vatRateBps: configured.vatRateBps,
+      standardVatRateBps: configured.standardVatRateBps,
+      reducedVatRateBps: configured.reducedVatRateBps,
       reducedVatFrom: configured.reducedVatFrom,
       reducedVatTo: configured.reducedVatTo,
       vatIncludesServiceCharge: configured.vatIncludesServiceCharge,
@@ -472,18 +480,43 @@ describe("the configuration as the read route answers it", () => {
 describe("a figure an admin changes", () => {
   it("takes effect on the next posting, with nothing restarted", async () => {
     // `FR-IDN-03`'s claim, asserted the way it will be met. The window is
-    // unbounded first so the rate applies on every date and this case is about
-    // the edit rather than about the relief period.
+    // cleared first, so every date resolves to the standard rate and this case
+    // is about the edit rather than about the relief period.
     await edit({
       reducedVatFrom: null,
       reducedVatTo: null,
-      vatRateBps: EDITED_RATE_BPS,
+      standardVatRateBps: EDITED_RATE_BPS,
     }).expect(200);
 
     // The service a folio posting reads through, called immediately after the
     // request that changed the row returned. Nothing was stopped, nothing was
     // invalidated, and there is nowhere in the path for the old rate to have
     // been kept.
+    expect(await posting.taxRules(db, SOME_DATE)).toMatchObject({
+      vatRateBps: EDITED_RATE_BPS,
+    });
+  });
+
+  it("moves which rate a date resolves to by moving the window under it", async () => {
+    // The route's half of the resolution rule. Neither rate changes here; the
+    // relief period does, and the same business date answers with the other
+    // rate — which is the edit an `ADMIN` will actually make when a resolution
+    // extends or ends the relief.
+    await edit({
+      standardVatRateBps: EDITED_RATE_BPS,
+      reducedVatRateBps: EDITED_REDUCED_RATE_BPS,
+      reducedVatFrom: WINDOW_OPENS,
+      reducedVatTo: WINDOW_CLOSES,
+    }).expect(200);
+
+    expect(await posting.taxRules(db, SOME_DATE)).toMatchObject({
+      vatRateBps: EDITED_REDUCED_RATE_BPS,
+    });
+
+    // The relief closes before that date. Nothing is refused — the rate simply
+    // reverts, which is the whole reason both rates are configured.
+    await edit({ reducedVatTo: WINDOW_OPENS }).expect(200);
+
     expect(await posting.taxRules(db, SOME_DATE)).toMatchObject({
       vatRateBps: EDITED_RATE_BPS,
     });
@@ -549,13 +582,17 @@ describe("a figure an admin changes", () => {
 
 describe("a figure the configuration will not hold", () => {
   it("refuses a rate above a hundred percent", async () => {
-    await refuses({ vatRateBps: IMPOSSIBLE_RATE_BPS });
+    // Both rates, because the ceiling is a property of the field and not of
+    // which of the two it happens to be — a bound mirrored onto one column and
+    // forgotten on the other is exactly the kind of gap a rename leaves behind.
+    await refuses({ standardVatRateBps: IMPOSSIBLE_RATE_BPS });
+    await refuses({ reducedVatRateBps: IMPOSSIBLE_RATE_BPS });
   });
 
   it("refuses a rate that is not whole basis points", async () => {
     // A rate carried as 8.5% rather than as 850 is `NFR-12`'s float arriving at
     // the rate instead of at the amount, and the column is a `smallint`.
-    await refuses({ vatRateBps: 8.5 });
+    await refuses({ standardVatRateBps: 8.5 });
   });
 
   it("refuses a negative rate, which would credit tax back on every line", async () => {
@@ -620,14 +657,14 @@ describe("the change log a configuration edit leaves", () => {
     // attributed to.
     await db.delete(auditEntry);
 
-    const before = (await read()).vatRateBps;
+    const before = (await read()).standardVatRateBps;
 
-    await edit({ vatRateBps: EDITED_RATE_BPS }).expect(200);
+    await edit({ standardVatRateBps: EDITED_RATE_BPS }).expect(200);
 
     const [entry, ...rest] = await configurationEntries();
 
-    // One row for one edit. Six columns changed in one statement is one change,
-    // not six.
+    // One row for one edit. Seven columns changed in one statement is one
+    // change, not seven.
     expect(rest).toEqual([]);
     expect(entry).toMatchObject({
       // Taken from the session the guard resolved, never from the body.
@@ -643,9 +680,14 @@ describe("the change log a configuration edit leaves", () => {
     expect(entry!.rowId).toBe(await theConfigurationsAddress());
 
     // Whole rows, as Postgres rendered them — so the figure that moved is
-    // legible on both sides and the five that did not are there too.
-    expect(entry!.before).toMatchObject({ vat_rate_bps: before });
-    expect(entry!.after).toMatchObject({ vat_rate_bps: EDITED_RATE_BPS });
+    // legible on both sides and the six that did not are there too. Which of the
+    // two VAT rates changed is legible for the same reason: the columns are
+    // named, so a later reader can tell a standard-rate correction from a
+    // relief-rate one without knowing what the window was that day.
+    expect(entry!.before).toMatchObject({ standard_vat_rate_bps: before });
+    expect(entry!.after).toMatchObject({
+      standard_vat_rate_bps: EDITED_RATE_BPS,
+    });
   });
 
   it("files nothing for an edit it refused", async () => {

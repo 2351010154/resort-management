@@ -134,6 +134,13 @@
       "when": 1786254191138,
       "tag": "0018_cancellation_waiver_and_instant",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1786264405135,
+      "tag": "0019_system_config_standard_vat_rate",
+      "breakpoints": true
     }
   ]
 }

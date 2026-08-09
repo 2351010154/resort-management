@@ -102,7 +102,8 @@ const DEPARTURE = "2027-06-13";
 
 /** A configuration nobody could mistake for a property's real one. */
 const CONFIGURED = {
-  vatRateBps: 1_234,
+  standardVatRateBps: 1_234,
+  reducedVatRateBps: 2_468,
   reducedVatFrom: null,
   reducedVatTo: null,
   vatIncludesServiceCharge: true,

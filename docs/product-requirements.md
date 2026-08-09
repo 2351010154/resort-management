@@ -106,7 +106,7 @@ authority named in [`README.md`](README.md) and wins.
 |---|---|---|---|
 | `FR-IDN-01` | Five staff roles plus the separate `GUEST` principal/realm are enforced by a fail-closed capability guard over the RBAC matrix; a route with no capability declaration is unreachable for everyone | Data-driven test iterates every matrix row asserting every allowed and every denied principal; anonymous → 401, wrong realm → 403 | M2 |
 | `FR-IDN-02` | Staff account management (`ADMIN` only), with a CLI bootstrap for the first admin | `GET/POST /identity/staff-accounts` behind the guard; `staff:create` CLI exists because the first `ADMIN` cannot come from an API requiring one | M2 |
-| `FR-IDN-03` | System configuration — VAT rate and applicability window, whether the VAT base includes service charge, retention floor `N`, business-date rollover, gateway credentials — is data, editable by `ADMIN` without a deploy | No tax rate, tax-base rule or retention period compiled anywhere in the tree ([`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) §8). Cites `ASM-01`, `ASM-02` | M6/M8 |
+| `FR-IDN-03` | System configuration — the standard and reduced VAT rates and the window dividing them, whether the VAT base includes service charge, business-date rollover, gateway credentials — is data, editable by `ADMIN` without a deploy | No tax rate or tax-base rule compiled anywhere in the tree ([`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) §8). Cites `ASM-01` | M6/M8 |
 
 ### 4.3 `guest` — profiles and personal data
 

@@ -11,10 +11,9 @@ provisional in whole rather than in named rows. That is the difference from
 [`booking-state-machine.md`](booking-state-machine.md), where the surrounding
 design is settled and only listed rows are open.
 
-**§8 is the exception and it is not ⚑.** Four inputs are somebody else's
+**§8 is the exception and it is not ⚑.** Three inputs are somebody else's
 answer, they are time-sensitive, and they are never fixed in this file or any
-other — they are configuration. Read §8 before writing a tax calculation or a
-retention rule.
+other — they are configuration. Read §8 before writing a tax calculation.
 
 Supersedes backlog decisions `D1`, `D3`, `D4` and the structural half of `D2`
 and `D7`.
@@ -305,22 +304,72 @@ Four inputs are not the developer's and not this document's. They are
 **system-configuration rows**, seeded from environment at boot, editable by
 `ADMIN` without a deploy — the row already exists in `rbac-matrix.md` §3 System.
 
-| Value | Whose answer | Tracked as |
-|---|---|---|
-| VAT rate | Accountant | `D2`; [SCRUM-12](https://hungphat2018-1785053353783.atlassian.net/browse/SCRUM-12) |
-| Reduced-VAT applicability, and the period it applies to | Accountant — **statutory and time-limited** | `D2`; [SCRUM-12](https://hungphat2018-1785053353783.atlassian.net/browse/SCRUM-12) |
-| Whether the VAT tax base includes service charge | Accountant — this changes every gross/net calculation | `D2`; [SCRUM-86](https://hungphat2018-1785053353783.atlassian.net/browse/SCRUM-86) |
-| Statutory retention floor `N` for registration records and CCCD scans | Lawyer | `D2`, `M0-05`; [SCRUM-13](https://hungphat2018-1785053353783.atlassian.net/browse/SCRUM-13); the R2 lifecycle rule reads it (`R3#6`) |
+| Value | Whose answer | Seeded as | Tracked as |
+|---|---|---|---|
+| Standard VAT rate | Accountant | ⚑ 10% | `D2`; [#30](https://github.com/2351010154/resort-management/issues/30) |
+| Reduced VAT rate | Accountant — **statutory and time-limited** | ⚑ 8% | `D2`; [#30](https://github.com/2351010154/resort-management/issues/30) |
+| The period the reduced rate applies to | Accountant — **statutory and time-limited** | ⚑ 1 Jul 2025 → 31 Dec 2026 | `D2`; [#30](https://github.com/2351010154/resort-management/issues/30) |
+| Whether the VAT tax base includes service charge | Accountant — this changes every gross/net calculation | ⚑ yes | `D2`; [#30](https://github.com/2351010154/resort-management/issues/30) |
 
 **`const VAT_RATE = 0.08` anywhere in the tree is a defect,** and the expensive
 kind: it does not throw, it silently mis-invoices, and the invoices are legal
-documents issued by a third party that cannot be quietly reissued. Vietnam's
-reduced-VAT relief has been extended by successive resolutions with end dates;
-whatever the rate is on the day this is read, it is not permanent.
+documents issued by a third party that cannot be quietly reissued. The **Seeded
+as** column above records what the property runs on; the value itself reaches the
+row from the environment at boot, so it lives in `.env.example` as a commented
+seed and in test fixtures, and in neither `.ts` source nor migration SQL. A
+`.default(800)` on the column and a `DEFAULT 800` in a migration are the same
+defect as the constant, wearing a schema's clothes.
 
-The same argument applies to `N`. A hardcoded retention window either deletes
-records the law requires kept, or keeps ID scans past the window `R3#6` asserts
-is empty.
+**Both rates are configured, because relief lapses into a rate and not into
+nothing.** This section once listed a single VAT rate, and the table behind it
+held one — on the reasoning that a second would settle `ASM-01` by guessing.
+That reasoning had the failure mode backwards. Statutory relief is a temporary
+reduction from a standard rate that never went away, so a reduced-VAT period
+with an end date has a rate on the far side of it by construction. With only one
+rate stored, a posting on a date outside a window that was set had to be refused
+— which made *correctly* recording the relief period a scheduled outage at the
+front desk on the day it lapsed. Two rates cost nothing on the dates the window
+covers and cover the day it ends. Neither is a guess: both are `NOT NULL` with no
+default and arrive from the environment, so a deployment that supplied one and
+not the other does not boot.
+
+**Provenance of the seeded figures, as at 2026-08-09.** A 10% standard rate with
+an 8% reduction that accommodation services are in scope for, running 1 July 2025
+to 31 December 2026 — National Assembly Resolution 204/2025/QH15 (17 June 2025)
+and Decree 174/2025/NĐ-CP (30 June 2025). **Researched from published sources and
+not confirmed by a practising accountant.** `ASM-01` is therefore answered
+provisionally rather than closed: the figures are good enough to run on and are
+exactly the kind of answer that must stay a data edit. Vietnam's relief has been
+extended by successive resolutions with end dates; whatever the period is on the
+day this is read, it is not permanent.
+
+**What the lapse does to the property's own revenue, which the owner should
+know before the date arrives.** `decomposeGross` holds the **gross** figure fixed
+and derives net as the residual — §5 requires the guest to pay the price they
+were quoted, so the tax rise cannot be added on top. When the window closes and
+VAT goes 8% → 10%, the guest pays exactly what they paid the night before and the
+property's **net room revenue falls**, because a larger VAT line is subtracted
+from the same gross. That is not only an accounting line: §7 accrues loyalty
+points on net room revenue, so the same night earns a guest slightly fewer points
+after the lapse than before it. Neither effect is a defect — both follow from
+quoting gross — but a property that wants to hold net revenue flat across the
+lapse has to raise its **rates**, and that is a `MANAGER` decision in
+`rate_calendar`, made deliberately and in advance, not a consequence of the tax
+edit.
+
+**The argument does not extend to the retention floor, and it used to.** While
+an R2 lifecycle rule read `N` to expire identity-document images, it belonged in
+the table above for exactly the reason given there: a number compiled into the
+tree would have deleted on a schedule the lawyer never set. `FR-GST-02` stores no
+image, so that consumer is gone and nothing else ever read the value. What is
+left is a floor on the registration record — a *do-not-delete-before*, not a
+delete trigger — and nothing in the tree deletes a registration, so the floor is
+honoured by the absence of a delete path rather than by a setting. Reportedly 36
+months under Nghị định 96/2016/NĐ-CP Điều 44, **from secondary sources this
+repository has not checked against the primary text**; that is a number to
+confirm with the lawyer, not to seed. A configuration row nothing reads is worse
+than its absence, which is the case `pricing.ts` and `schema/config.ts` already
+make: a reader cannot tell an unset value from an unbuilt one.
 
 ## 9. Still open
 

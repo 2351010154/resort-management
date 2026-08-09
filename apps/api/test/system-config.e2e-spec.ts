@@ -1,11 +1,11 @@
-// The configuration a posting reads, and the two refusals it makes — against a
-// real Postgres.
+// The configuration a posting reads, and which of the two VAT rates it resolves
+// on a business date — against a real Postgres.
 //
 // `config-storage.e2e-spec.ts` asserts what the table will and will not hold.
 // This file asserts what is done with the row: which rate applies on which
-// business date, what happens on a date the configuration does not cover, and
-// that a value an `ADMIN` changed is read by the very next posting rather than
-// by the one after a restart.
+// business date, that no date is left without one, and that a value an `ADMIN`
+// changed is read by the very next posting rather than by the one after a
+// restart.
 //
 // The clock is here for the same reason the rates are. §2 promises that "a
 // property that runs its audit at 06:00 changes one row, not a deploy", and the
@@ -14,31 +14,34 @@
 // under "the day the property is on" do, with the instant held fixed so that
 // nothing but the row can have moved the answer.
 //
-// The refusals are the reason it exists. `property-and-tariff.md` §8 files the
-// VAT rate and the period the reduced rate covers as two separate answers the
-// accountant still owes (`ASM-01`), so there is exactly one rate behind the
-// window and nothing to fall back to outside it. A posting on a date the window
-// has left behind therefore stops. That is a decision with a cost — the desk
-// cannot charge until an `ADMIN` edits a row — and it is only defensible if it
-// cannot be reached by accident and cannot be reached silently, which is what
-// the cases below hold it to.
+// **Resolution is the reason it exists, and it used to be refusal.** The row
+// once held one VAT rate, and a posting on a date outside a window that was set
+// was stopped rather than charged a rate nobody had chosen. The column that
+// would have been guessed now exists, so nothing is guessed — and the refusal
+// was the worse shape anyway, because statutory relief lapses back into a
+// standard rate rather than into no rate. Under the old arrangement, setting a
+// window correctly guaranteed a stopped desk on the day the window closed. The
+// cases below hold the replacement to both halves of the claim: the reduced rate
+// on the dates the window covers, the standard rate on every other date, and
+// neither call throwing on a date either side of an end.
 //
 // The boot seed is exercised by booting the application, because "at boot" is
 // the claim. Everything after that constructs the seeder directly: idempotence
 // across restarts, a production environment and a database that cannot be
 // written are three states a second `app.init()` cannot arrange.
 //
-// The figures here are deliberately unreal — 12.34% VAT, 3.21% service charge, a
-// day rolling at 11:00, a relief window in 2077. §8 forbids the tree from
-// carrying a rate, and a fixture that read like a plausible one would be the
-// same defect wearing a test's clothes.
+// The figures here are deliberately unreal — 12.34% reduced VAT against 24.68%
+// standard, 3.21% service charge, a day rolling at 11:00, a relief window in
+// 2077. §8 forbids the tree from carrying a rate, and a fixture that read like a
+// plausible one would be the same defect wearing a test's clothes. The two rates
+// are far apart on purpose: an assertion that a date resolved to one of them
+// must be unable to pass by accident on the other.
 
 import "reflect-metadata";
 
 import { parseDate } from "@internationalized/date";
 import type { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
-import { ORPCError } from "@orpc/nest";
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
@@ -61,7 +64,8 @@ type SystemConfigValues = typeof systemConfig.$inferInsert;
 
 /** A configuration nobody could mistake for a property's real one. */
 const CONFIGURED: SystemConfigValues = {
-  vatRateBps: 1_234,
+  standardVatRateBps: 2_468,
+  reducedVatRateBps: 1_234,
   reducedVatFrom: null,
   reducedVatTo: null,
   vatIncludesServiceCharge: true,
@@ -70,7 +74,12 @@ const CONFIGURED: SystemConfigValues = {
   businessDateRolloverHour: 11,
 };
 
-/** What an `ADMIN` edits a rate to, mid-stay, in the cases that watch for it. */
+/**
+ * What an `ADMIN` edits a rate to, mid-stay, in the cases that watch for it.
+ *
+ * Distinct from both configured rates, so a case that expected the edit to be
+ * read back cannot pass by resolving to the standard rate instead.
+ */
 const EDITED_RATE_BPS = 4_321;
 
 /**
@@ -145,7 +154,8 @@ describe("the boot seed", () => {
 
     expect(seededAtBoot).toEqual({
       isTheConfiguration: true,
-      vatRateBps: fromEnvironment.VAT_RATE_BPS,
+      standardVatRateBps: fromEnvironment.STANDARD_VAT_RATE_BPS,
+      reducedVatRateBps: fromEnvironment.REDUCED_VAT_RATE_BPS,
       reducedVatFrom: fromEnvironment.REDUCED_VAT_FROM ?? null,
       reducedVatTo: fromEnvironment.REDUCED_VAT_TO ?? null,
       vatIncludesServiceCharge: fromEnvironment.VAT_INCLUDES_SERVICE_CHARGE,
@@ -212,8 +222,11 @@ describe("the figures a posting reads", () => {
     // committed `ADMIN` edit even inside one transaction — `READ COMMITTED`
     // takes a fresh snapshot per statement — and a decomposition computed half
     // under each configuration would not sum back to the gross figure it split.
+    // One VAT rate comes back, not two. Which of the row's two it is has
+    // already been settled by the date — no window here, so the standard one —
+    // and a posting path handed both would be one that could pick the wrong one.
     expect(await config.taxRules(db, SOME_DATE)).toEqual({
-      vatRateBps: CONFIGURED.vatRateBps,
+      vatRateBps: CONFIGURED.standardVatRateBps,
       serviceChargeRateBps: CONFIGURED.serviceChargeRateBps,
       vatIncludesServiceCharge: CONFIGURED.vatIncludesServiceCharge,
     });
@@ -229,22 +242,23 @@ describe("the figures a posting reads", () => {
 });
 
 describe("a reduced-VAT window nobody has set", () => {
-  it("covers every business date", async () => {
-    // Null is unbounded, not missing. It is how a property runs until the
-    // accountant answers: one configured rate, applying to every date, with no
-    // relief period asserted — and so nothing refused.
+  it("puts every business date on the standard rate", async () => {
+    // Both ends null is a property stating it has no relief period — not one
+    // whose relief is unbounded. Reading the absent window as covering
+    // everything would charge a reduced rate to a property that never claimed
+    // relief, which is the same mis-invoice as guessing, pointed the other way.
     await store({ ...CONFIGURED, reducedVatFrom: null, reducedVatTo: null });
 
     for (const date of [parseDate("2001-01-01"), parseDate("2099-12-31")]) {
       expect((await config.taxRules(db, date)).vatRateBps).toBe(
-        CONFIGURED.vatRateBps,
+        CONFIGURED.standardVatRateBps,
       );
     }
   });
 });
 
 describe("a reduced-VAT window that is set", () => {
-  it("applies the rate on the dates it covers, its own ends included", async () => {
+  it("applies the reduced rate on the dates it covers, its own ends included", async () => {
     await storeWindow();
 
     for (const date of [
@@ -253,57 +267,114 @@ describe("a reduced-VAT window that is set", () => {
       parseDate(WINDOW_CLOSES),
     ]) {
       expect((await config.taxRules(db, date)).vatRateBps).toBe(
-        CONFIGURED.vatRateBps,
+        CONFIGURED.reducedVatRateBps,
       );
     }
   });
 
-  it("refuses to post on a date before it opens", async () => {
+  it("applies the standard rate on a date before it opens", async () => {
+    // Relief that has not started yet is the standard rate, which is what the
+    // property was charging the day before. Nothing here has to be invented and
+    // nothing has to stop.
     await storeWindow();
 
-    const refusal = await refused(config.taxRules(db, DAY_BEFORE_IT_OPENS));
-
-    expect(refusal.code).toBe("CONFLICT");
-    expect(refusal.message).toContain(DAY_BEFORE_IT_OPENS.toString());
-    expect(refusal.message).toContain(WINDOW_OPENS);
+    expect((await config.taxRules(db, DAY_BEFORE_IT_OPENS)).vatRateBps).toBe(
+      CONFIGURED.standardVatRateBps,
+    );
   });
 
-  it("refuses to post on a date after it closes", async () => {
-    // The case the property will actually meet: relief lapses on a stated date,
-    // and the rate that replaces it is the accountant's unanswered question.
-    // There is nothing behind the window, and a posting that quietly reused the
-    // reduced rate would put a wrong tax figure on an invoice a third party
-    // issued and cannot reissue.
+  it("applies the standard rate on a date after it closes", async () => {
+    // The case the property will actually meet: relief lapses on a stated date
+    // and the rate reverts. This used to be a refusal, on the grounds that there
+    // was no rate behind the window — which made a correctly configured window a
+    // scheduled outage at the front desk. The rate behind it is now configured
+    // beside it, so the lapse is a rate change and the desk keeps working.
     await storeWindow();
 
-    const refusal = await refused(config.taxRules(db, DAY_AFTER_IT_CLOSES));
-
-    expect(refusal.code).toBe("CONFLICT");
-    expect(refusal.message).toContain(DAY_AFTER_IT_CLOSES.toString());
-    expect(refusal.message).toContain(WINDOW_CLOSES);
+    expect((await config.taxRules(db, DAY_AFTER_IT_CLOSES)).vatRateBps).toBe(
+      CONFIGURED.standardVatRateBps,
+    );
   });
 
-  it("says what somebody has to do about it", async () => {
-    // A refusal nobody can act on is an outage. This one names the row and the
-    // role that may edit it, because the person who reads it is at a front desk
-    // and the person who can fix it is not.
+  it("changes rate across the closing date without throwing on either side", async () => {
+    // The transition itself, asserted as one act. Two adjacent business dates,
+    // two different rates, and neither call refused — a night audit that runs
+    // across the boundary must not find one of its two dates unpriceable.
     await storeWindow();
 
-    const refusal = await refused(config.taxRules(db, DAY_AFTER_IT_CLOSES));
+    const lastDayOfRelief = await config.taxRules(db, parseDate(WINDOW_CLOSES));
+    const firstDayAfter = await config.taxRules(db, DAY_AFTER_IT_CLOSES);
 
-    expect(refusal.message).toContain("ADMIN");
-    expect(refusal.message).toContain("system configuration");
+    expect(lastDayOfRelief.vatRateBps).toBe(CONFIGURED.reducedVatRateBps);
+    expect(firstDayAfter.vatRateBps).toBe(CONFIGURED.standardVatRateBps);
+    expect(lastDayOfRelief.vatRateBps).not.toBe(firstDayAfter.vatRateBps);
   });
 
-  it("refuses the clock nothing, because the clock has no window", async () => {
+  it("leaves no date without a rate, including far outside the window", async () => {
+    // The property `taxRules` now holds absolutely: a date always resolves. The
+    // service charge and the tax base come back untouched either way, because
+    // neither has a window and only the VAT rate was ever the question.
+    await storeWindow();
+
+    for (const date of [
+      parseDate("2001-01-01"),
+      DAY_BEFORE_IT_OPENS,
+      INSIDE_IT,
+      DAY_AFTER_IT_CLOSES,
+      parseDate("2099-12-31"),
+    ]) {
+      const rules = await config.taxRules(db, date);
+
+      expect(rules.vatRateBps).toBeTypeOf("number");
+      expect(rules.serviceChargeRateBps).toBe(CONFIGURED.serviceChargeRateBps);
+      expect(rules.vatIncludesServiceCharge).toBe(
+        CONFIGURED.vatIncludesServiceCharge,
+      );
+    }
+  });
+
+  it("answers the clock the same whichever side of the window a date is on", async () => {
     // The rollover hour is read off the same row and is not a rate, so a lapsed
-    // relief period must not stop the property knowing what day it is. A refusal
-    // that spread from the tax figures to the business date would take down the
-    // night audit as well as the posting.
+    // relief period must never reach it. It has no window and takes no date.
     await storeWindow();
 
     expect(await config.businessDateRolloverHour(db)).toBe(
       CONFIGURED.businessDateRolloverHour,
+    );
+  });
+});
+
+describe("a reduced-VAT window with one end open", () => {
+  it("runs the reduced rate from its opening date onwards", async () => {
+    // Relief that has started with no announced end — the state a property is in
+    // between an extension and the resolution that names its expiry.
+    await store({
+      ...CONFIGURED,
+      reducedVatFrom: WINDOW_OPENS,
+      reducedVatTo: null,
+    });
+
+    expect((await config.taxRules(db, DAY_BEFORE_IT_OPENS)).vatRateBps).toBe(
+      CONFIGURED.standardVatRateBps,
+    );
+    expect((await config.taxRules(db, DAY_AFTER_IT_CLOSES)).vatRateBps).toBe(
+      CONFIGURED.reducedVatRateBps,
+    );
+  });
+
+  it("runs the reduced rate up to its closing date", async () => {
+    // The mirror: an end that is known and a start that predates the system.
+    await store({
+      ...CONFIGURED,
+      reducedVatFrom: null,
+      reducedVatTo: WINDOW_CLOSES,
+    });
+
+    expect((await config.taxRules(db, DAY_BEFORE_IT_OPENS)).vatRateBps).toBe(
+      CONFIGURED.reducedVatRateBps,
+    );
+    expect((await config.taxRules(db, DAY_AFTER_IT_CLOSES)).vatRateBps).toBe(
+      CONFIGURED.standardVatRateBps,
     );
   });
 });
@@ -407,12 +478,16 @@ describe("a configuration edited under a posting", () => {
   it("is read by the next posting and not by the next restart", async () => {
     await store(CONFIGURED);
 
+    // No window is configured, so `SOME_DATE` resolves to the standard rate and
+    // that is the column an `ADMIN` correcting "the VAT rate" would move.
     await db.transaction(async (tx) => {
       expect((await config.taxRules(tx, SOME_DATE)).vatRateBps).toBe(
-        CONFIGURED.vatRateBps,
+        CONFIGURED.standardVatRateBps,
       );
 
-      await tx.update(systemConfig).set({ vatRateBps: EDITED_RATE_BPS });
+      await tx
+        .update(systemConfig)
+        .set({ standardVatRateBps: EDITED_RATE_BPS });
 
       // Nothing is cached, so the change is visible immediately — `FR-FOL-02`
       // reads the rates "at posting time", and a value held between postings is
@@ -437,7 +512,9 @@ describe("a configuration edited under a posting", () => {
 
     try {
       await db.transaction(async (tx) => {
-        await tx.update(systemConfig).set({ vatRateBps: EDITED_RATE_BPS });
+        await tx
+          .update(systemConfig)
+          .set({ standardVatRateBps: EDITED_RATE_BPS });
 
         expect((await config.taxRules(tx, SOME_DATE)).vatRateBps).toBe(
           EDITED_RATE_BPS,
@@ -446,7 +523,7 @@ describe("a configuration edited under a posting", () => {
         // Uncommitted, so a read on any other connection still sees the row as
         // it was — which is what an executor the caller did not supply gives.
         expect((await config.taxRules(db, SOME_DATE)).vatRateBps).toBe(
-          CONFIGURED.vatRateBps,
+          CONFIGURED.standardVatRateBps,
         );
 
         throw new Rollback();
@@ -455,7 +532,9 @@ describe("a configuration edited under a posting", () => {
       if (!(error instanceof Rollback)) throw error;
     }
 
-    expect((await stored())?.vatRateBps).toBe(CONFIGURED.vatRateBps);
+    expect((await stored())?.standardVatRateBps).toBe(
+      CONFIGURED.standardVatRateBps,
+    );
   });
 });
 
@@ -497,7 +576,8 @@ function productionEnvironment(): Env {
     RESEND_API_KEY: "placeholder",
     GOOGLE_CLIENT_ID: "placeholder",
     GOOGLE_CLIENT_SECRET: "placeholder",
-    VAT_RATE_BPS: String(CONFIGURED.vatRateBps),
+    STANDARD_VAT_RATE_BPS: String(CONFIGURED.standardVatRateBps),
+    REDUCED_VAT_RATE_BPS: String(CONFIGURED.reducedVatRateBps),
     SERVICE_CHARGE_RATE_BPS: String(CONFIGURED.serviceChargeRateBps),
     VAT_INCLUDES_SERVICE_CHARGE: "true",
     BUSINESS_DATE_ROLLOVER_HOUR: String(CONFIGURED.businessDateRolloverHour),
@@ -508,21 +588,4 @@ function productionEnvironment(): Env {
 
 function seederOver(over: Database, env: Env): SystemConfigSeeder {
   return new SystemConfigSeeder(over, env, logger);
-}
-
-/** The refusal a call provoked. Fails the test if the service accepted it. */
-async function refused(
-  work: Promise<unknown>,
-): Promise<ORPCError<string, unknown>> {
-  try {
-    await work;
-  } catch (error) {
-    if (error instanceof ORPCError) {
-      return error;
-    }
-
-    throw error;
-  }
-
-  throw new Error("the service posted on a date it should have refused");
 }

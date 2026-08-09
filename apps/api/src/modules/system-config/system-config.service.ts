@@ -1,5 +1,5 @@
-// The tax figures a posting reads, and the refusal it makes when they do not
-// cover the date it is posting on — `FR-IDN-03`, `FR-FOL-02`, and
+// The tax figures a posting reads, and which of the two VAT rates applies on the
+// date it is posting on — `FR-IDN-03`, `FR-FOL-02`, and
 // `property-and-tariff.md` §8.
 //
 // Four things here are decisions rather than mechanics.
@@ -109,6 +109,14 @@ const SNAPSHOT = {
  * reason `NFR-12` puts money on integers.
  */
 export interface TaxRules {
+  /**
+   * The VAT rate that applies on the date this was read for — the reduced one
+   * inside the relief window, the standard one everywhere else.
+   *
+   * Which of the two it came from is deliberately not carried. The consumer is
+   * `decomposeGross`, and it multiplies; a field naming the provenance would be
+   * a second thing a posting path could branch on and get wrong.
+   */
   readonly vatRateBps: number;
   readonly serviceChargeRateBps: number;
   /** Whether the VAT base includes the service-charge line — §8, `ASM-01`. */
@@ -125,7 +133,8 @@ export interface TaxRules {
  * can be seen.
  */
 export interface ConfigurationEdit {
-  readonly vatRateBps?: number;
+  readonly standardVatRateBps?: number;
+  readonly reducedVatRateBps?: number;
   readonly reducedVatFrom?: string | null;
   readonly reducedVatTo?: string | null;
   readonly vatIncludesServiceCharge?: boolean;
@@ -159,34 +168,33 @@ export class SystemConfigService {
   /**
    * The tax figures that apply on one business date.
    *
-   * **Refuses rather than assumes**, and the refusal is the whole point of the
-   * method taking a date at all. The row carries one VAT rate and a window of
-   * dates it covers. With the window unset — both ends null, which is how a
-   * property with no relief-period answer runs — the configured rate applies to
-   * every date and nothing is refused. With the window *set* and the date
-   * outside it, there is no second rate to fall back to: `ASM-01` files the rate
-   * and the relief period as two answers the accountant still owes, so inventing
-   * a standard rate here would settle that question by guessing.
+   * **Resolves rather than refuses, and neither rate is invented.** The date is
+   * what this method takes an argument for: the row carries a standard rate and
+   * a reduced rate, and the relief window says which dates the reduced one is
+   * the answer on. Every other date — before the window opens, after it closes,
+   * and every date at all when no window is set — takes the standard rate.
    *
-   * A stopped posting is recoverable at a front desk in the time it takes an
-   * `ADMIN` to edit a row. A mis-issued invoice is a legal document a third
-   * party cannot quietly reissue.
+   * This used to refuse a date outside a window that was set, on the grounds
+   * that there was no second rate to fall back to and inventing one would settle
+   * `ASM-01` by guessing. The column now exists, so nothing is guessed; and the
+   * refusal was itself the more dangerous shape, because statutory relief always
+   * lapses back into a standard rate rather than into no rate. Under the old
+   * arrangement, configuring a window correctly *guaranteed* a refused posting
+   * on the day it lapsed — a desk that could not charge for a stay, arriving on
+   * a schedule nobody was watching. Two configured rates cost nothing on the
+   * dates the window covers and cover the day it ends.
+   *
+   * The two refusals that remain are the honest ones and are elsewhere: a
+   * database with no row at all refuses every read, and a window that closes
+   * before it opens is refused at the write.
    */
   async taxRules(exec: DbExecutor, on: StayDate): Promise<TaxRules> {
     const configured = await this.configuration(exec);
 
-    if (!covers(configured, on)) {
-      throw new ORPCError("CONFLICT", {
-        message:
-          `No VAT rate is configured for ${on.toString()}: the reduced-VAT window ` +
-          `${describeWindow(configured)}, and this date falls outside it. Nothing ` +
-          "will assume a rate for it — an ADMIN must set the system configuration " +
-          "to cover this date before anything can be charged on it.",
-      });
-    }
-
     return {
-      vatRateBps: configured.vatRateBps,
+      vatRateBps: withinTheReliefPeriod(configured, on)
+        ? configured.reducedVatRateBps
+        : configured.standardVatRateBps,
       serviceChargeRateBps: configured.serviceChargeRateBps,
       vatIncludesServiceCharge: configured.vatIncludesServiceCharge,
     };
@@ -250,11 +258,11 @@ export class SystemConfigService {
    * so this row is the only attribution a configuration change ever gets.
    *
    * **The bounds on each figure are not re-checked here.**
-   * `updateSystemConfigInput` mirrors the three `CHECK` constraints
-   * `schema/config.ts` puts on single columns, so a rate above 100% or an hour
+   * `updateSystemConfigInput` mirrors every `CHECK` constraint
+   * `schema/config.ts` puts on a single column, so a rate above 100% or an hour
    * of 24 is a 400 naming the field before it reaches this method — and the
    * constraints are what make that true of every writer, including a `psql`
-   * session. The fourth constraint is the window's, and it is the one thing
+   * session. The remaining constraint is the window's, and it is the one thing
    * neither the wire schema nor a single column can see.
    */
   async update(
@@ -365,7 +373,12 @@ const NOTHING_IS_CONFIGURED =
  */
 function namedIn(edit: ConfigurationEdit): Partial<SystemConfigValues> {
   return {
-    ...(edit.vatRateBps === undefined ? {} : { vatRateBps: edit.vatRateBps }),
+    ...(edit.standardVatRateBps === undefined
+      ? {}
+      : { standardVatRateBps: edit.standardVatRateBps }),
+    ...(edit.reducedVatRateBps === undefined
+      ? {}
+      : { reducedVatRateBps: edit.reducedVatRateBps }),
     ...(edit.reducedVatFrom === undefined
       ? {}
       : { reducedVatFrom: edit.reducedVatFrom }),
@@ -408,31 +421,31 @@ function closesBeforeItOpens({
 }
 
 /**
- * Whether the configured rate applies on a date.
+ * Whether a date falls inside the relief period, and so takes the reduced rate.
  *
- * Both ends are inclusive, and null is *unbounded* rather than missing: a window
- * with neither end set covers every date, which is the seeded state.
+ * Both ends are inclusive. **Both ends null is "there is no relief period",
+ * not "the relief period is unbounded"** — a property that has asserted no
+ * window is one whose dates all sit at the standard rate, and reading the
+ * absent window as covering everything would apply a reduced rate to a property
+ * that never claimed relief. One end set and the other null is a genuinely
+ * half-open period: relief that has started and has no announced end, or one
+ * whose end is known and whose start predates the system.
+ *
+ * Compared through `parseDate` rather than as ISO text because the argument is
+ * a decoded `StayDate` and the columns are `YYYY-MM-DD`; the comparison is the
+ * calendar's, not the string's.
  */
-function covers(configured: SystemConfigRow, on: StayDate): boolean {
-  const { reducedVatFrom, reducedVatTo } = configured;
+function withinTheReliefPeriod(
+  { reducedVatFrom, reducedVatTo }: SystemConfigRow,
+  on: StayDate,
+): boolean {
+  if (reducedVatFrom === null && reducedVatTo === null) {
+    return false;
+  }
 
   if (reducedVatFrom !== null && on.compare(parseDate(reducedVatFrom)) < 0) {
     return false;
   }
 
   return reducedVatTo === null || on.compare(parseDate(reducedVatTo)) <= 0;
-}
-
-/** The window as an operator would read it back, whichever ends are set. */
-function describeWindow({
-  reducedVatFrom,
-  reducedVatTo,
-}: SystemConfigRow): string {
-  if (reducedVatFrom !== null && reducedVatTo !== null) {
-    return `runs ${reducedVatFrom} to ${reducedVatTo}`;
-  }
-
-  return reducedVatFrom !== null
-    ? `opens ${reducedVatFrom} and has no end`
-    : `has no start and closes ${reducedVatTo}`;
 }
