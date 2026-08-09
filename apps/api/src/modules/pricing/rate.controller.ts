@@ -16,6 +16,7 @@ import { contract } from "@mariva/shared";
 import { Controller } from "@nestjs/common";
 import { Implement, implement } from "@orpc/nest";
 import { RequiresCapability } from "../../common/auth/access.decorators.js";
+import { TransactionRunner } from "../../database/transaction-runner.js";
 import { RateCalendarService } from "./rate-calendar.service.js";
 import { RatePlanService } from "./rate-plan.service.js";
 
@@ -24,13 +25,18 @@ export class RateController {
   constructor(
     private readonly plans: RatePlanService,
     private readonly calendar: RateCalendarService,
+    // The boundary the write and the row recording it share. Opened here rather
+    // than inside either service, which is the rule `transaction-runner.ts`
+    // states and the reason both services take an executor —
+    // `closure.controller.ts` does the same for the same reason.
+    private readonly transactions: TransactionRunner,
   ) {}
 
   @RequiresCapability("pricing.rate-plans", "read")
   @Implement(contract.pricing.listRatePlans)
   listRatePlans() {
     return implement(contract.pricing.listRatePlans).handler(async () => ({
-      plans: await this.plans.list(),
+      plans: await this.transactions.run((exec) => this.plans.list(exec)),
     }));
   }
 
@@ -38,7 +44,7 @@ export class RateController {
   @Implement(contract.pricing.updateRatePlan)
   updateRatePlan() {
     return implement(contract.pricing.updateRatePlan).handler(({ input }) =>
-      this.plans.update(input),
+      this.transactions.run((exec) => this.plans.update(exec, input)),
     );
   }
 
@@ -52,7 +58,9 @@ export class RateController {
         // the calendar is read straight out of a `date` column and never
         // becomes a `CalendarDate` on the way, so there is no codec crossing to
         // perform. The two request dates are the ones `stayDateSchema` decoded.
-        nights: await this.calendar.read(input),
+        nights: await this.transactions.run((exec) =>
+          this.calendar.read(exec, input),
+        ),
       }),
     );
   }
@@ -63,7 +71,9 @@ export class RateController {
     return implement(contract.pricing.setRateCalendar).handler(
       async ({ input }) => ({
         roomType: input.roomType,
-        nights: await this.calendar.set(input),
+        nights: await this.transactions.run((exec) =>
+          this.calendar.set(exec, input),
+        ),
       }),
     );
   }

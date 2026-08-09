@@ -9,13 +9,16 @@
 
 import { availability } from "./availability.js";
 import { booking } from "./booking.js";
+import { folio } from "./folio.js";
 import { guest } from "./guest.js";
 import { health } from "./health.js";
 import { housekeeping } from "./housekeeping.js";
 import { inventory } from "./inventory.js";
 import { jobs } from "./jobs.js";
+import { payment } from "./payment.js";
 import { pricing } from "./pricing.js";
 import { search } from "./search.js";
+import { systemConfig } from "./system-config.js";
 
 export const contract = {
   health,
@@ -25,8 +28,11 @@ export const contract = {
   booking,
   housekeeping,
   guest,
+  folio,
+  payment,
   jobs,
   search,
+  systemConfig,
 };
 
 export type Contract = typeof contract;
@@ -51,6 +57,19 @@ export {
   shortenedStaySchema,
 } from "./booking.js";
 export {
+  closeFolioInput,
+  folioPostingReceiptSchema,
+  folioPostingSchema,
+  folioSchema,
+  folioStateSchema,
+  folioSummarySchema,
+  postChargeInput,
+  postingTypeSchema,
+  postPaymentInput,
+  readFolioInput,
+  reversePostingInput,
+} from "./folio.js";
+export {
   cccdRevealSchema,
   guestRecordSchema,
   unmaskCccdInput,
@@ -66,6 +85,7 @@ export {
 } from "./housekeeping.js";
 export { closeRoomInput, roomClosureSchema } from "./inventory.js";
 export { jobRunSchema, triggerJobInput } from "./jobs.js";
+export { openedPaymentSchema, openPaymentAttemptInput } from "./payment.js";
 export {
   isUnrestricted,
   pricingRangeQuery,
@@ -82,3 +102,7 @@ export {
   SEARCH_RESULT_LIMIT,
   searchResultsSchema,
 } from "./search.js";
+export {
+  systemConfigurationSchema,
+  updateSystemConfigInput,
+} from "./system-config.js";

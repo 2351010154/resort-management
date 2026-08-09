@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { BusinessDateService } from "../booking/business-date.service.js";
+import { SystemConfigModule } from "../system-config/system-config.module.js";
 import { HousekeepingController } from "./housekeeping.controller.js";
 import { HousekeepingService } from "./housekeeping.service.js";
 
@@ -16,14 +17,18 @@ import { HousekeepingService } from "./housekeeping.service.js";
 // `BookingModule`, which is where it lives. That module already imports this one
 // — check-out needs the service above — so importing it back would be a cycle to
 // be broken with `forwardRef` for the sake of one stateless provider that reads
-// the rollover hour out of the environment. It is the same class either way, so
-// the 04:00 rule still has exactly one implementation; what is duplicated is an
-// instance, and it holds nothing.
+// the rollover hour off the `system_config` row. It is the same class either
+// way, so the 04:00 rule still has exactly one implementation; what is
+// duplicated is an instance, and it holds nothing — it caches no hour, so the
+// two instances cannot answer differently.
+//
+// `SystemConfigModule` comes with it, because that is where the row is read.
 //
 // `DatabaseModule` is global, so nothing is imported here for the transaction
 // the controller opens or for the executor the service is handed — which it
 // takes as an argument and never opens itself.
 @Module({
+  imports: [SystemConfigModule],
   controllers: [HousekeepingController],
   providers: [HousekeepingService, BusinessDateService],
   exports: [HousekeepingService],

@@ -41,16 +41,28 @@
 // because a payment stored positive would not throw — it would double the
 // balance and read as a guest who owes twice what they do.
 //
+// **A closed account takes no further lines, and that is a trigger too.**
+// `FR-FOL-01` says so and `folio.service.ts` recorded why the rule was not here
+// yet: it belongs with the close that creates the state, and until something
+// closed a folio the state was unreachable rather than unguarded. Something
+// closes one now, so the guard arrives with it — in
+// `migrations/0016_folio_invoice_reference.sql`, beside the append-only trigger
+// and for the same reason. A service that refused the posting would be refusing
+// it for its own callers, and the invoice this file's other trigger protects is
+// only worth protecting if the lines it was drawn from cannot grow afterwards.
+//
 // What is deliberately *not* here:
 //
 // - **A balance, a total, or a running sum.** See above.
-// - **An invoice reference.** `FR-FOL-04` is conditional on `ASM-03`, the tax
-//   agent's unanswered question, and it says *điều chỉnh/thay thế* map onto
-//   folio reversals — an adjusted invoice is a second provider number for one
-//   folio, not an edit of the first. A single `invoice_reference` column would
-//   have to be overwritten to record that, which is the one thing this file
-//   exists to make impossible. The provider's number is a row, and it belongs
-//   to the milestone that has the ruling in hand.
+// - **A second invoice number.** The column below holds the number of the
+//   invoice issued when the account was agreed, and it is written once —
+//   `0016` refuses the overwrite the way `0011` refuses an edited posting.
+//   `FR-FOL-04` says *điều chỉnh/thay thế* map onto folio reversals, so a
+//   corrected invoice is a second provider number for one stay and not an edit
+//   of the first; a column that could be rewritten would drop the number the
+//   tax authority already holds and leave nothing pointing at the document it
+//   corrected. The second number is a row, and it belongs to the milestone that
+//   has the ruling in hand.
 // - **A link between the three lines one gross amount decomposes into.**
 //   `FR-FOL-02` posts a charge, its service charge and its VAT as separate
 //   lines; nothing yet reads them as a group, and `NFR-02` only sums. A
@@ -163,6 +175,19 @@ export const folio = pgTable(
     // moment and §7's commission accrues at it, so it is an instant and not a
     // business date — the invoice is issued when the desk closed the folio.
     closedAt: timestamp("closed_at", { withTimezone: true, mode: "date" }),
+    // The provider's number for the invoice drawn on this account — the legal
+    // reference, `FR-FOL-04`. Opaque: nothing above the adapter reads a serial,
+    // a form code or a date out of it, for the reason `ports/e-invoice.port.ts`
+    // gives.
+    //
+    // Null until the number comes back, and that null is doing work. Issuance
+    // is not part of the close — a provider timeout must never roll back a
+    // checkout — so `state = 'CLOSED' and invoice_reference is null` is exactly
+    // the set of accounts still owed an invoice. That predicate is the queue,
+    // which is why no table of pending invoices stands beside this column: a
+    // second row saying the same thing is a second thing to keep true, and
+    // `e-invoice.job.ts` argues the point where the work is done.
+    invoiceReference: text("invoice_reference"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
       .defaultNow(),
@@ -176,6 +201,25 @@ export const folio = pgTable(
       "folio_closed_at_exactly_when_closed",
       sql`(${table.state} = 'CLOSED') = (${table.closedAt} is not null)`,
     ),
+    // One direction only, unlike the pair above, and the asymmetry is the whole
+    // of `FR-FOL-04`'s timing. An invoice on an open account is a document
+    // drawn from lines that can still change, and there is no honest reading of
+    // it. A closed account with no number yet is the ordinary state of every
+    // folio between the desk agreeing it and the job coming back, which is
+    // seconds on a good day and the following morning on a bad one.
+    check(
+      "folio_invoice_reference_only_when_closed",
+      sql`${table.invoiceReference} is null or ${table.state} = 'CLOSED'`,
+    ),
+    // The issuing job's one question, asked on a schedule for as long as this
+    // property runs: which agreed accounts are still owed an invoice? Partial,
+    // so it holds the accounts still waiting and not the years of settled ones
+    // behind them — a folio leaves this index for good the moment its number is
+    // written, which is what keeps the scan proportional to the work rather
+    // than to the property's history.
+    index("folio_awaiting_invoice_idx")
+      .on(table.closedAt)
+      .where(sql`${table.state} = 'CLOSED' and ${table.invoiceReference} is null`),
   ],
 );
 

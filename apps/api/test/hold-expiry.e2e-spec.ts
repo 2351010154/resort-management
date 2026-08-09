@@ -42,6 +42,7 @@ import pg from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { AppModule } from "../src/app.module.js";
 import type { Env } from "../src/config/env.js";
+import { SystemConfigService } from "../src/modules/system-config/system-config.service.js";
 import { booking } from "../src/database/schema/booking.js";
 import * as schema from "../src/database/schema/index.js";
 import { roomType, typeInventory } from "../src/database/schema/inventory.js";
@@ -71,8 +72,6 @@ const CHECK_OUT = "2028-02-13";
 const NIGHTS = [CHECK_IN, "2028-02-11", "2028-02-12"] as const;
 
 const HOLD_TTL_MINUTES = 15;
-const ROLLOVER_HOUR = 4;
-
 /**
  * The property's day, stopped at the first night the seed prices.
  *
@@ -83,10 +82,10 @@ const ROLLOVER_HOUR = 4;
  */
 class StoppedClock extends BusinessDateService {
   constructor(private readonly today: StayDate) {
-    super({ BUSINESS_DATE_ROLLOVER_HOUR: ROLLOVER_HOUR } as Env);
+    super(new SystemConfigService());
   }
 
-  override current(): StayDate {
+  override async current(): Promise<StayDate> {
     return this.today;
   }
 }

@@ -165,17 +165,18 @@ export default defineConfig({
           branches: 85,
           statements: 85,
         },
-        // `folio.ts` and `payment.ts` are deliberately not here beside the
-        // other two. What fails on them is the *function* count, and the
-        // functions a Drizzle schema file declares are the lazy
-        // `() => other.column` reference thunks and the `(table) => [...]`
-        // constraint callbacks — v8 records those as covered when Drizzle
-        // happened to introspect the table, not when a test proved the
-        // constraint holds. Both files are covered where it counts, by
-        // `payment.spec.ts` and the folio storage suite, which assert that the
-        // indexes and checks actually refuse what they are there to refuse.
-        // A floor over the thunks would move on whether an unrelated query
-        // planner walked the relation.
+        // `schema/folio.ts` and `schema/payment.ts` are left out of `include`
+        // entirely rather than included here without a floor, so they are
+        // outside the measurement and not merely outside the gate. What fails
+        // on them is the *function* count, and the functions a Drizzle schema
+        // file declares are the lazy `() => other.column` reference thunks and
+        // the `(table) => [...]` constraint callbacks — v8 records those as
+        // covered when Drizzle happened to introspect the table, not when a
+        // test proved the constraint holds. Both files are covered where it
+        // counts, by `payment.spec.ts` and the folio storage suite, which
+        // assert that the indexes and checks actually refuse what they are
+        // there to refuse. A number over the thunks would move on whether an
+        // unrelated query planner walked the relation.
         "src/database/schema/{inventory,pricing}.ts": {
           lines: 85,
           functions: 85,

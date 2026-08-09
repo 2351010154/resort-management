@@ -42,7 +42,7 @@ import { migrate } from "drizzle-orm/node-postgres/migrator";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { AppModule } from "../src/app.module.js";
-import type { Env } from "../src/config/env.js";
+import { SystemConfigService } from "../src/modules/system-config/system-config.service.js";
 import { type Database, DRIZZLE } from "../src/database/database.module.js";
 import { guest } from "../src/database/schema/guest.js";
 import { roomType, typeInventory } from "../src/database/schema/inventory.js";
@@ -63,8 +63,6 @@ const DEPARTURE = parseDate("2027-06-13");
 
 /** The three nights the stay is sold, half-open — the departure is not one. */
 const NIGHTS = ["2027-06-10", "2027-06-11", "2027-06-12"];
-
-const ROLLOVER_HOUR = 4;
 
 // A Thursday arrival and a Sunday departure, so the funnel's own restrictions
 // have nothing to say: `seed.ts` writes a minimum stay or a closed date only
@@ -105,10 +103,10 @@ class PropertyDay extends BusinessDateService {
   private today: StayDate = ARRIVAL;
 
   constructor() {
-    super({ BUSINESS_DATE_ROLLOVER_HOUR: ROLLOVER_HOUR } as Env);
+    super(new SystemConfigService());
   }
 
-  override current(): StayDate {
+  override async current(): Promise<StayDate> {
     return this.today;
   }
 

@@ -8,20 +8,17 @@
 // once. Nearly everything below is about the second.
 //
 // **The reference is the whole of the correlation.** It is minted from the
-// booking's own id and a nonce, stored on the row the attempt opens, and handed
-// to the gateway; a callback arrives carrying it and nothing else this property
-// wrote. Two things are read out of it and they answer different questions. The
-// booking half says which stay, which is what opens an account for a callback
-// about an attempt whose row is not there. The whole string says which
-// *attempt*, which is what `payment.attempt_reference` is matched on — and
-// matching on it is how a `PENDING` row becomes the payment rather than sitting
-// beside it forever.
+// booking's own id and a nonce, committed on the row the attempt opens, and
+// handed to the gateway; a callback arrives carrying it and nothing else this
+// property wrote. It names one attempt, and `payment.attempt_reference` is what
+// it is matched on — matching on it is how a `PENDING` row becomes the payment
+// rather than sitting beside it forever.
 //
-// The booking's id and not the folio's, because `ensureFolio` is the one
-// idempotent way to reach an account and it takes a booking. A reference naming
-// a folio could only be minted after the account had been opened, which puts a
-// write in front of the payment url a payer is waiting on — and the callback
-// path would still have to open the same account anyway.
+// The booking's id is the first half because a question about a payment starts
+// from a stay, and an operator holding a reference off a gateway's merchant
+// screen should be able to get back to one. Nothing is *resolved* through that
+// half: the attempt's row already names the folio, so a callback reads the
+// account off the row it claims rather than off the string it arrived in.
 //
 // Not the guest-facing booking reference either. `PaymentAttempt` says a stay
 // may be paid more than once and that a replayed callback has to resolve to one
@@ -30,8 +27,26 @@
 //
 // Nothing is trusted from it. The gateway signs the reference it echoes back —
 // `FR-PAY-02` — so a payer cannot aim a callback at a stay of their choosing,
-// and what is read out of it is a uuid that either names a booking or does not,
-// which `ensureFolio` answers with a refusal rather than an account.
+// and a string that is not in the shape this file mints names no attempt of
+// this property's and is refused before a connection is spent on it.
+//
+// **The attempt is committed before the payer is sent anywhere.** The row goes
+// in first, in its own short transaction, and the gateway is asked afterwards
+// with nothing held open across the round trip — `database.module.ts` sizes the
+// pool at ten, and ten transactions waiting on a gateway is an API that has
+// stopped answering anything else.
+//
+// What that order costs is a `PENDING` row for an attempt whose payment url
+// never came back. It costs nothing to carry: the row already means "money
+// claimed and not yet confirmed", which is indistinguishable from the payer who
+// opened checkout and closed the tab, and no callback will ever name it.
+//
+// What it buys is that every callback that can arrive has a row to resolve. The
+// other order — gateway first, row after — loses the row on exactly the attempts
+// whose write failed, and then has to invent the payment from the callback: a
+// second insert path, and an amount taken on the gateway's word, because the
+// figure the property asked for went down with the transaction that would have
+// stored it. There is one write path below, and every amount is compared.
 //
 // **Idempotency is the database's, and this only reads its answer.**
 // `infrastructure.md` §Payments states the fact without hedging: "VNPay may send
@@ -42,17 +57,29 @@
 // read and the write there is nothing holding the key, so both handlers find
 // nothing.
 //
-// So neither write below is preceded by a look, and both are single statements
-// the database serialises for us. Resolving an attempt is one conditional
+// So resolving an attempt is not preceded by a look. It is one conditional
 // `UPDATE … where attempt_reference = $1 and status = 'PENDING'`: ten of them at
 // once, and the first to reach the row holds its lock until it commits, after
 // which the other nine re-evaluate that predicate against the row as it now
-// stands, match nothing, and report no rows updated. Recording an attempt whose
-// row is absent is one unguarded `INSERT`, and `23505` off either partial unique
-// index is the answer — the convention `sql-state.ts` sets out and
-// `folio.service.ts` follows. Both indexes stay in place regardless of what this
-// file does: the guarantee `FR-PAY-03` asks for belongs in the schema, where it
-// holds for the next caller too.
+// stands, match nothing, and report no rows updated. The two partial unique
+// indexes stay in place regardless of what this file does: one attempt is one
+// row and one gateway transaction is one payment, and the guarantee `FR-PAY-03`
+// asks for belongs in the schema, where it holds for the next caller too.
+//
+// **No rows updated is a question and not an answer.** All it says is that the
+// attempt was not `PENDING`, and there are three reasons for that. It resolved
+// the way this callback claims, which is the replay and is the only one of the
+// three that is idempotent. It resolved the *other* way — a gateway reporting a
+// success over a refusal it filed an hour ago, or a refusal over money already
+// on the account. Or there is no such row, and this property did not open the
+// attempt at all.
+//
+// So the row is read back and the three are told apart. Reading it is safe here
+// precisely because nothing was written: the `UPDATE` matched nothing, the
+// transaction is intact, and the `SELECT` sees whatever the winner committed.
+// The replay is answered; the other two write nothing and refuse, because a
+// callback that contradicts what is already on file is not something a handler
+// should settle on its own authority.
 //
 // **The payment and its posting are one commit.** They are one fact written in
 // two vocabularies — what the payer's side reports, and what the guest's account
@@ -72,22 +99,24 @@
 // **The amount is checked against the attempt, and a disagreement posts
 // nothing.** A gateway's own integration guidance has a merchant compare the
 // figure in a callback against the order it opened, and the row the attempt
-// wrote is what makes that possible. The exposure this closes is not forgery —
-// `FR-PAY-02` has the gateway sign the amount, so a payer who edits it produces
-// a callback that fails verification and never reaches here. It is bookkeeping:
-// a callback that verifies and still names a figure nobody asked for is a
-// terminal, a currency scale or a merchant account disagreeing with this
-// property, and posting it would put a number on a guest's invoice that no
-// attempt of theirs accounts for.
+// wrote is what makes that possible — on every attempt, because the order above
+// leaves no path to a posting that does not go through one. The exposure this
+// closes is not forgery — `FR-PAY-02` has the gateway sign the amount, so a
+// payer who edits it produces a callback that fails verification and never
+// reaches here. It is bookkeeping: a callback that verifies and still names a
+// figure nobody asked for is a terminal, a currency scale or a merchant account
+// disagreeing with this property, and posting it would put a number on a guest's
+// invoice that no attempt of theirs accounts for.
 //
 // So it refuses, loudly, and writes nothing at all. The attempt stays `PENDING`,
 // which is the honest state — it is exactly the "money claimed and not yet
 // confirmed" `schema/payment.ts` defines, and somebody now has to look. No new
-// `payment_status` member is invented for it: `PENDING`, `SUCCESS`, `FAILED` and
-// `REFUNDED` are what became of the *money*, a mismatch is a disagreement about
-// what the money was for, and a fifth member would be a state every reader of
-// the table — the balance, `NFR-02`'s sum, a guest's invoice — would have to
-// learn in order to keep ignoring.
+// `payment_status` member is invented for it, and none for the contradicted
+// attempt above either: `PENDING`, `SUCCESS`, `FAILED` and `REFUNDED` are what
+// became of the *money*, both refusals are disagreements about what the money
+// was for, and a fifth member would be a state every reader of the table — the
+// balance, `NFR-02`'s sum, a guest's invoice — would have to learn in order to
+// keep ignoring.
 
 import { randomUUID } from "node:crypto";
 import type { VndAmount } from "@mariva/shared";
@@ -95,7 +124,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import { ORPCError } from "@orpc/nest";
 import { and, eq } from "drizzle-orm";
 import type { DbExecutor } from "../../database/database.module.js";
-import { payment } from "../../database/schema/payment.js";
+import { payment, type PaymentRow } from "../../database/schema/payment.js";
 import { sqlStateOf } from "../../database/sql-state.js";
 import { TransactionRunner } from "../../database/transaction-runner.js";
 import { BusinessDateService } from "../booking/business-date.service.js";
@@ -187,17 +216,44 @@ export type CallbackOutcome =
   | "STILL_OPEN";
 
 /**
- * Thrown to roll a transaction back once the database has already answered.
+ * What a callback and this property's own record turned out to disagree about.
  *
- * A throw and not a returned flag because the answer has to travel out through
- * `TransactionRunner.run`, and a rollback is the only thing that must happen on
- * the way. Private to this file: it is the shape of one control flow, not
- * something a caller has an opinion about.
+ * Carried as `data` on every `CONFLICT` {@link PaymentService.handleIpn} raises,
+ * because those are one status code over three different disagreements and a
+ * caller has something different to say about each — the route that answers a
+ * gateway has to name the figure when it is the figure, and must not name it
+ * when it is not. The sentence each refusal carries is written for the person
+ * who will have to reconcile it, and a caller matching on that prose breaks the
+ * first time one of them is reworded.
  *
- * "Resolved" and not "recorded", because both terminal writes raise it. A
- * success already taken and a refusal already filed are the same fact from this
- * file's point of view — the attempt is no longer open, and whatever this
- * delivery was going to write has been written.
+ * Three members and not a boolean, and none of them is a state anything is
+ * stored in: the header above says why a disagreement writes nothing and adds no
+ * `payment_status`. This names what was disagreed about, for the length of one
+ * throw.
+ */
+export type CallbackDisagreement =
+  /** The gateway's figure is not the figure the attempt was opened for. */
+  | "AMOUNT"
+  /** The attempt is already filed as something this callback contradicts. */
+  | "OUTCOME"
+  /** The gateway's transaction is already recorded against another attempt. */
+  | "TRANSACTION";
+
+/**
+ * Thrown to abandon a transaction whose attempt is already resolved exactly as
+ * this callback claims.
+ *
+ * A throw and not a returned flag because the posting below must not run and
+ * the answer still has to travel out through `TransactionRunner.run`; a
+ * rollback is the only thing that must happen on the way. Private to this file:
+ * it is the shape of one control flow, not something a caller has an opinion
+ * about.
+ *
+ * Only the replay raises it — the same delivery again, naming the same
+ * transaction, against a row that already says so. An attempt resolved the
+ * *other* way leaves by the ordinary route as a refusal, because the two are
+ * not the same fact and nothing downstream could tell them apart if they
+ * arrived the same way.
  */
 class AlreadyResolved extends Error {}
 
@@ -213,19 +269,17 @@ export class PaymentService {
   ) {}
 
   /**
-   * Opens an attempt: an address to send the payer to, and a row saying one is
-   * outstanding.
+   * Opens an attempt: a row saying money is outstanding, and an address to send
+   * the payer to.
    *
-   * The gateway is asked first and the rows are written after, which is the
-   * cheaper of the two failures and the one that costs nothing to recover from.
-   * A url built for an attempt whose row rolled back still resolves when the
-   * callback arrives — the reference names the booking, and the account is
-   * opened on the way in — so what the property loses is the record and the
-   * amount check that reads it, on a payment the gateway signed and reported
-   * either way. The other order loses a connection instead, on every attempt
-   * rather than on the ones that failed: `database.module.ts` sizes the pool
-   * at ten, and ten transactions held open across a gateway round trip is an API
-   * that has stopped answering anything else.
+   * In that order, and the header argues it at length. The row is committed
+   * before the gateway is asked, so every callback that can arrive has a row to
+   * resolve and a figure to be checked against; the transaction closes before
+   * the round trip, so nothing is held across it.
+   *
+   * Both refusals below happen before either — a caller who named the wrong
+   * kind of thing, or asked for the wrong kind of money, should not first cost
+   * a payer a page to look at.
    */
   async createPaymentRequest(
     request: GatewayPaymentRequest,
@@ -234,26 +288,25 @@ export class PaymentService {
 
     // Checked here rather than left to the insert, because the failure is not
     // the insert's. An id that cannot be written into a reference mints an
-    // attempt no callback could ever be resolved back to — money taken and never
-    // posted — and Postgres would report it as a malformed uuid on a write that
-    // happens after the payer has already been sent somewhere.
+    // attempt no callback could ever be resolved back to, and Postgres would
+    // report it as a malformed uuid rather than as the wrong sort of name.
     if (!reference) {
       throw new ORPCError("BAD_REQUEST", {
         message: "That is not a booking id, so there is no stay to collect for",
       });
     }
 
-    const { paymentUrl } = await this.gateway.createPayment({
-      reference,
-      // Minted here and stored in the reference's own timing, because the
-      // gateway partitions transactions by the day an attempt was opened and a
-      // later query has to name the same instant — `PaymentAttempt` says so.
-      createdAt: new Date(),
-      amount: request.amount,
-      description: request.description,
-      returnUrl: request.returnUrl,
-      payerIpAddress: request.payerIpAddress,
-    });
+    // `payment_amount_is_positive` would refuse this too, but as a fault rather
+    // than as an answer anybody could act on — and only after the row had been
+    // attempted. `postPayment` makes the same refusal in the same words at the
+    // other end of the money's journey.
+    if (request.amount <= 0n) {
+      throw new ORPCError("BAD_REQUEST", {
+        message:
+          "A payment attempt is money the property is asking for, so the " +
+          "amount has to be more than nothing",
+      });
+    }
 
     await this.transactions.run(async (exec) => {
       const folioId = await this.folios.ensureFolio(exec, request.bookingId);
@@ -272,6 +325,20 @@ export class PaymentService {
         // a time of payment on an attempt nobody has finished.
         status: "PENDING",
       });
+    });
+
+    const { paymentUrl } = await this.gateway.createPayment({
+      reference,
+      // The attempt's own clock, in the reference's timing, because the gateway
+      // partitions transactions by the day one was opened and a later query has
+      // to name the same instant — `PaymentAttempt` says so. `payment.created_at`
+      // is this row's rather than the attempt's, which `schema/payment.ts` files
+      // as `FR-PAY-04`'s to resolve.
+      createdAt: new Date(),
+      amount: request.amount,
+      description: request.description,
+      returnUrl: request.returnUrl,
+      payerIpAddress: request.payerIpAddress,
     });
 
     return { paymentUrl, reference };
@@ -299,9 +366,11 @@ export class PaymentService {
     }
 
     const { transaction } = verification;
-    const bookingId = bookingIn(transaction.reference);
 
-    if (!bookingId) {
+    // The shape, and only the shape, before a connection is spent on it. A
+    // string this file did not mint names no attempt of this property's, and the
+    // database has no answer worth asking for about one.
+    if (!REFERENCE_PATTERN.test(transaction.reference)) {
       throw new ORPCError("NOT_FOUND", {
         message:
           "This property issued no attempt under that reference, so there is no stay to credit",
@@ -317,47 +386,39 @@ export class PaymentService {
         return "STILL_OPEN";
       }
 
-      await this.recordRefusal(
-        bookingId,
-        transaction.reference,
-        transaction.amount,
-      );
+      await this.recordRefusal(transaction.reference);
 
       return "REFUSED";
     }
 
-    return await this.record(bookingId, transaction);
+    return await this.record(transaction);
   }
 
   /**
    * The payment and its posting, or neither.
    *
-   * A redelivered callback is answered by the database rather than by a look
-   * this file took first — the note at the top argues why — and either answer
-   * arrives as a thrown sentinel rather than a `return`. That is not a
-   * preference. A `23505` aborts the transaction, Postgres accepts no further
-   * statement on an aborted one, and the folio posting below is one; rolling the
-   * whole thing back and reporting it outside the boundary is the only order the
-   * database permits, and it is also the correct answer.
-   *
-   * A `23505` from anywhere else in this transaction is not possible to mistake
-   * for those: `ensureFolio` settles its own conflict, and the sole uniqueness a
-   * posting can violate is the reversal key, which no `PAYMENT` line sets.
+   * A redelivered callback is answered by the row rather than by a look this
+   * file took before writing — the note at the top argues why — and that answer
+   * arrives as a thrown sentinel rather than a `return`, because the posting
+   * below must not run and a rollback is the only thing that has to happen on
+   * the way out.
    */
   private async record(
-    bookingId: string,
     transaction: Extract<GatewayTransaction, { status: "SUCCESS" }>,
   ): Promise<CallbackOutcome> {
     try {
       await this.transactions.run(async (exec) => {
-        const folioId = await this.take(exec, bookingId, transaction);
+        const folioId = await this.take(exec, transaction);
 
         await this.folios.postPayment(exec, {
           folioId,
           amount: transaction.amount,
           // The trading day the money moved in, which is not necessarily the
           // one this callback arrived in.
-          businessDate: this.businessDates.current(transaction.paidAt),
+          businessDate: await this.businessDates.current(
+            exec,
+            transaction.paidAt,
+          ),
           // The gateway's id is carried into the line the guest reads because
           // it is the one string that ties an invoice back to the gateway's own
           // daily report — which is the comparison `FR-PAY-05` makes.
@@ -391,29 +452,25 @@ export class PaymentService {
    * two partial unique indexes stay under it regardless — they are what holds
    * for a caller that is not this file.
    *
-   * **Nothing updated does not mean nothing to do.** The attempt's row is
-   * absent whenever the transaction that opened it rolled back, which
-   * {@link createPaymentRequest} accepts on purpose, and money that the gateway
-   * says it took has to reach the account either way. So the fallback writes the
-   * row the request would have — under the same reference, so the second
-   * delivery of this callback collides with it rather than adding a third.
+   * **Nothing updated is read off the row rather than assumed.** The header
+   * sets out the three states that produce it and why only one is the replay.
+   * The read is safe because nothing was written: the statement above matched
+   * no row, so the transaction is intact and the `SELECT` sees whatever the
+   * delivery that beat this one committed.
    *
    * **The amount is compared and never adopted.** What the row holds is what the
    * property asked for; a callback naming anything else rolls the whole
    * transaction back, leaving the attempt `PENDING` and the ledger untouched.
-   * The header says why that is a refusal rather than a status. The fallback has
-   * nothing to compare against — the figure the attempt was opened for went down
-   * with the transaction that would have stored it — so it records what the
-   * gateway reports, which is what `FR-PAY-05` holds against the gateway's own
-   * daily report.
+   * The header says why that is a refusal rather than a status. There is no
+   * branch here without a row to compare against — {@link createPaymentRequest}
+   * commits one before the payer is sent anywhere.
    */
   private async take(
     exec: DbExecutor,
-    bookingId: string,
     transaction: Extract<GatewayTransaction, { status: "SUCCESS" }>,
   ): Promise<string> {
     try {
-      const [attempt] = await exec
+      const [claimed] = await exec
         .update(payment)
         .set({
           status: "SUCCESS",
@@ -430,9 +487,10 @@ export class PaymentService {
         )
         .returning({ folioId: payment.folioId, asked: payment.amount });
 
-      if (attempt) {
-        if (attempt.asked !== transaction.amount) {
+      if (claimed) {
+        if (claimed.asked !== transaction.amount) {
           throw new ORPCError("CONFLICT", {
+            data: disagreedAbout("AMOUNT"),
             message:
               "The gateway reports an amount this property did not open the " +
               "attempt for, so nothing has been posted and the attempt is " +
@@ -440,30 +498,54 @@ export class PaymentService {
           });
         }
 
-        return attempt.folioId;
+        return claimed.folioId;
       }
 
-      const folioId = await this.folios.ensureFolio(exec, bookingId);
+      const held = await this.heldBy(exec, transaction.reference);
 
-      await exec.insert(payment).values({
-        folioId,
-        method: GATEWAY_METHOD,
-        attemptReference: transaction.reference,
-        gatewayTransactionId: transaction.gatewayTransactionId,
-        amount: transaction.amount,
-        status: "SUCCESS",
-        paidAt: transaction.paidAt,
-      });
+      if (!held) {
+        throw new ORPCError("NOT_FOUND", {
+          message:
+            "This property has no attempt under that reference, so there is " +
+            "no account the money could be posted to",
+        });
+      }
 
-      return folioId;
-    } catch (error) {
-      // Only Postgres' own refusal is read as an answer here. The two
-      // `ORPCError`s that can reach this — the mismatch above and
-      // `ensureFolio`'s missing booking — carry a `code` of their own that
-      // `sqlStateOf` will happily hand back, and neither of them is `23505`, so
-      // both travel on out of the transaction as the refusals they are.
-      if (sqlStateOf(error) === UNIQUE_VIOLATION) {
+      // The replay, and the only reading of "no rows updated" that is one: the
+      // same delivery again, naming the same transaction, against a row that
+      // already records it. Answered rather than refused, because the gateway
+      // is entitled to keep asking until it is told.
+      if (
+        held.status === "SUCCESS" &&
+        held.gatewayTransactionId === transaction.gatewayTransactionId
+      ) {
         throw new AlreadyResolved();
+      }
+
+      throw new ORPCError("CONFLICT", {
+        data: disagreedAbout("OUTCOME"),
+        message:
+          `The gateway reports this attempt was paid under transaction ` +
+          `${transaction.gatewayTransactionId}, but it is already filed as ` +
+          `${held.status} — nothing has been posted, and the two accounts of ` +
+          "it have to be reconciled by hand",
+      });
+    } catch (error) {
+      // The one Postgres refusal this statement can provoke is
+      // `payment_gateway_transaction_unique_key`: the gateway's id for money it
+      // says it took is already recorded against a *different* attempt. That is
+      // not a replay — a replay names this attempt and is answered above — so
+      // there is nothing to make idempotent and something for a person to see.
+      //
+      // The `ORPCError`s raised above pass through untouched: `sqlStateOf` hands
+      // back the `code` they carry, and none of them is `23505`.
+      if (sqlStateOf(error) === UNIQUE_VIOLATION) {
+        throw new ORPCError("CONFLICT", {
+          data: disagreedAbout("TRANSACTION"),
+          message:
+            `Transaction ${transaction.gatewayTransactionId} is already ` +
+            "recorded against another attempt, so nothing has been posted",
+        });
       }
 
       throw error;
@@ -477,71 +559,113 @@ export class PaymentService {
    * were not charged is asking about it, and `FR-PAY-05` compares two reports
    * rather than one report and an absence.
    *
-   * The same two statements {@link take} uses and for the same reasons — the
-   * attempt's own row resolved where there is one, and written where the
-   * request that opened it rolled back. A refusal carries no gateway
-   * transaction id and cannot, because `GatewayTransaction` will not name a
-   * transaction nobody paid, so the reference is the only thing a second
-   * delivery can be recognised by; `payment_attempt_reference_unique_key` is
-   * what recognises it, and the duplicate `FAILED` row a redelivery used to
-   * write is that index's refusal now.
+   * The same conditional `UPDATE` {@link take} uses and for the same reason, and
+   * the same three readings of it matching nothing. A redelivered refusal finds
+   * the row already `FAILED` and is told so — a refusal answers "refused"
+   * however many times it arrives. A refusal over an attempt already recorded as
+   * paid is the contradiction the header describes, pointing the other way, and
+   * it refuses rather than unwinding money that is on the account.
+   *
+   * Nothing is written by either of those, so this needs no sentinel to escape
+   * with: a `return` from inside the boundary commits a transaction that
+   * touched nothing, and a `throw` rolls back the same emptiness.
    *
    * The amount is not compared here. Nothing is posted either way, so a figure
    * the gateway disagrees about is a disagreement over money that did not move —
    * and the row keeps what the property asked for, which is the figure a guest
    * asking why they were not charged is asking about.
    */
-  private async recordRefusal(
-    bookingId: string,
-    reference: string,
-    amount: VndAmount,
-  ): Promise<void> {
-    try {
-      await this.transactions.run(async (exec) => {
-        const [attempt] = await exec
-          .update(payment)
-          .set({ status: "FAILED" })
-          .where(
-            and(
-              eq(payment.attemptReference, reference),
-              eq(payment.status, "PENDING"),
-            ),
-          )
-          .returning({ id: payment.id });
+  private async recordRefusal(reference: string): Promise<void> {
+    await this.transactions.run(async (exec) => {
+      const [refused] = await exec
+        .update(payment)
+        .set({ status: "FAILED" })
+        .where(
+          and(
+            eq(payment.attemptReference, reference),
+            eq(payment.status, "PENDING"),
+          ),
+        )
+        .returning({ id: payment.id });
 
-        if (attempt) {
-          return;
-        }
-
-        const folioId = await this.folios.ensureFolio(exec, bookingId);
-
-        try {
-          await exec.insert(payment).values({
-            folioId,
-            method: GATEWAY_METHOD,
-            attemptReference: reference,
-            amount,
-            status: "FAILED",
-          });
-        } catch (error) {
-          if (sqlStateOf(error) === UNIQUE_VIOLATION) {
-            throw new AlreadyResolved();
-          }
-
-          throw error;
-        }
-      });
-    } catch (error) {
-      // The attempt reached a terminal state before this delivery did. Nothing
-      // to write and nothing to tell the gateway that it was not already going
-      // to be told — a refusal answers "refused" however many times it arrives.
-      if (error instanceof AlreadyResolved) {
+      if (refused) {
         return;
       }
 
-      throw error;
-    }
+      const held = await this.heldBy(exec, reference);
+
+      if (!held) {
+        throw new ORPCError("NOT_FOUND", {
+          message:
+            "This property has no attempt under that reference, so there is " +
+            "no refusal of its own to record",
+        });
+      }
+
+      if (held.status === "FAILED") {
+        return;
+      }
+
+      throw new ORPCError("CONFLICT", {
+        data: disagreedAbout("OUTCOME"),
+        message:
+          `The gateway reports this attempt was refused, but it is already ` +
+          `filed as ${held.status} — the money it says did not move is on the ` +
+          "account, and the two accounts of it have to be reconciled by hand",
+      });
+    });
   }
+
+  /**
+   * What the attempt under this reference says now, or nothing if this property
+   * opened none.
+   *
+   * One row or none, and that is the index's doing rather than a `limit`:
+   * `payment_attempt_reference_unique_key` is what makes a reference name at
+   * most one attempt, so a second row here would be a broken invariant rather
+   * than a result to narrow.
+   */
+  private async heldBy(
+    exec: DbExecutor,
+    reference: string,
+  ): Promise<Pick<PaymentRow, "status" | "gatewayTransactionId"> | undefined> {
+    const [held] = await exec
+      .select({
+        status: payment.status,
+        gatewayTransactionId: payment.gatewayTransactionId,
+      })
+      .from(payment)
+      .where(eq(payment.attemptReference, reference));
+
+    return held;
+  }
+}
+
+/** The `data` a `CONFLICT` from {@link PaymentService.handleIpn} carries. */
+export function disagreedAbout(disagreement: CallbackDisagreement): {
+  readonly disagreement: CallbackDisagreement;
+} {
+  return { disagreement };
+}
+
+/**
+ * What a refusal disagreed about, or nothing if it did not say.
+ *
+ * The reading half of {@link disagreedAbout}, written beside it so the two
+ * cannot drift. `data` is `unknown` by the time a caller holds the error, and an
+ * error carrying no `data` at all is the ordinary case — everything this service
+ * raises that is not a `CONFLICT`.
+ */
+export function disagreementOf(data: unknown): CallbackDisagreement | undefined {
+  if (typeof data !== "object" || data === null) {
+    return undefined;
+  }
+
+  const named = (data as { disagreement?: unknown }).disagreement;
+
+  return named === "AMOUNT" || named === "OUTCOME" || named === "TRANSACTION"
+    ? named
+    : undefined;
 }
 
 /**
@@ -564,29 +688,4 @@ function referenceFor(bookingId: string): string | undefined {
   }
 
   return `${stay}${randomUUID().replaceAll("-", "")}`;
-}
-
-/**
- * The stay a reference was minted for, or nothing if this property did not mint
- * it.
- *
- * The hyphens go back in because a `uuid` column is compared as a uuid and not
- * as the text somebody wrote it in — thirty-two bare digits reach Postgres as a
- * cast it refuses, which would surface as a failed write rather than as the
- * "this is not ours" that it is.
- */
-function bookingIn(reference: string): string | undefined {
-  if (!REFERENCE_PATTERN.test(reference)) {
-    return undefined;
-  }
-
-  const stay = reference.slice(0, UUID_HEX_LENGTH);
-
-  return [
-    stay.slice(0, 8),
-    stay.slice(8, 12),
-    stay.slice(12, 16),
-    stay.slice(16, 20),
-    stay.slice(20),
-  ].join("-");
 }

@@ -6,6 +6,7 @@ import { ENV, type Env } from "./config/env.js";
 import { DatabaseModule } from "./database/database.module.js";
 import { HealthModule } from "./health/health.module.js";
 import { JobsModule } from "./jobs/jobs.module.js";
+import { AuditModule } from "./modules/audit/audit.module.js";
 import { AuthModule } from "./modules/auth/auth.module.js";
 import { BookingModule } from "./modules/booking/booking.module.js";
 import { GuestModule } from "./modules/guest/guest.module.js";
@@ -98,6 +99,15 @@ const CORRELATION_HEADER = "x-request-id";
     IdentityModule,
     AuthModule,
 
+    // Immediately after `AuthModule`, and the order is load-bearing rather than
+    // tidy. `AuditModule` registers the global interceptor that lifts the
+    // acting member of staff into scope, and it reads that from the decision
+    // `AccessGuard` leaves on the request — so the module installing the guard
+    // has to be registered before the module that depends on its output.
+    // Global, so every module that writes state can inject `AuditService`
+    // without an import line somebody has to remember.
+    AuditModule,
+
     // M6, and before every module that will read it. It registers no route
     // today; what it registers is the boot provider that writes `system_config`
     // from the environment, and the service a posting reads the VAT and
@@ -127,10 +137,10 @@ const CORRELATION_HEADER = "x-request-id";
 
     // M6, and after both of the modules it reaches into: `FolioModule` for the
     // account a verified callback posts to, `BookingModule` for the rollover
-    // rule that dates the posting. It registers no route today — the payer's
-    // return and the gateway's IPN are their own piece of work — so what
-    // registering it buys is the binding of `PAYMENT_GATEWAY` to the one adapter
-    // that knows what VNPay is, which is the whole of `FR-PAY-01`.
+    // rule that dates the posting. It registers the two routes VNPay calls —
+    // both unguarded, and both governed by the guard `AuthModule` installs like
+    // every other route here — and the binding of `PAYMENT_GATEWAY` to the one
+    // adapter that knows what VNPay is, which is the whole of `FR-PAY-01`.
     PaymentModule,
 
     // Last, and after every module that could register a sweep. `JobsModule`

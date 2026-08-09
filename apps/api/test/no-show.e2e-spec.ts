@@ -31,6 +31,7 @@ import { migrate } from "drizzle-orm/node-postgres/migrator";
 import pg from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { Env } from "../src/config/env.js";
+import { SystemConfigService } from "../src/modules/system-config/system-config.service.js";
 import { booking } from "../src/database/schema/booking.js";
 import { registration } from "../src/database/schema/guest.js";
 import { roomCondition } from "../src/database/schema/housekeeping.js";
@@ -76,7 +77,6 @@ const A_GUEST = {
   nationality: "VN",
 } as const;
 
-const ROLLOVER_HOUR = 4;
 const HOLD_TTL_MINUTES = 20;
 
 /**
@@ -86,10 +86,10 @@ const HOLD_TTL_MINUTES = 20;
  */
 class StoppedClock extends BusinessDateService {
   constructor(private readonly today: StayDate) {
-    super({ BUSINESS_DATE_ROLLOVER_HOUR: ROLLOVER_HOUR } as Env);
+    super(new SystemConfigService());
   }
 
-  override current(): StayDate {
+  override async current(): Promise<StayDate> {
     return this.today;
   }
 }

@@ -796,6 +796,21 @@ describe("what the property asks VNPay about an attempt", () => {
     ).rejects.toThrow(/not VNPay's answer/);
   });
 
+  it("refuses an answer that carried no signature at all", async () => {
+    // The case above is a hash that disagrees. This is the absence of one, and
+    // it is a separate test because the library reports it as *verified*: its
+    // comparison is guarded on the field being there, so dropping the field
+    // skips the check rather than failing it. An impostor answering in VNPay's
+    // place would not send a signature it cannot compute — it would send none.
+    const { vnp_SecureHash: _unsigned, ...unsigned } = aQueryAnswer();
+
+    gatewayAnswering(unsigned);
+
+    await expect(
+      configuredAdapter().queryTransaction(ATTEMPT),
+    ).rejects.toThrow(/no signature at all/);
+  });
+
   it("refuses an answer VNPay declined to give", async () => {
     // `91` is VNPay's "no transaction found". Not a failed payment — a question
     // the gateway would not answer — so there is no `GatewayTransaction` to
@@ -996,6 +1011,20 @@ describe("sending a payment back", () => {
 
     await expect(configuredAdapter().refund(REFUND)).rejects.toThrow(
       /VNPay refused the refund/,
+    );
+  });
+
+  it("refuses a refund answer that carried no signature at all", async () => {
+    // Sharper than the case above for the reason it is on the refund path: the
+    // answer names a transaction number, and an unsigned answer taken at face
+    // value would have the property record a reversal id against money nobody
+    // can show moved. The library reads this one as verified.
+    const { vnp_SecureHash: _unsigned, ...unsigned } = aRefundAnswer();
+
+    gatewayAnswering(aQueryAnswer(), unsigned);
+
+    await expect(configuredAdapter().refund(REFUND)).rejects.toThrow(
+      /no signature at all/,
     );
   });
 

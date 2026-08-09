@@ -16,11 +16,17 @@ import { contract, isUnrestricted } from "@mariva/shared";
 import { Controller } from "@nestjs/common";
 import { Implement, implement } from "@orpc/nest";
 import { RequiresCapability } from "../../common/auth/access.decorators.js";
+import { TransactionRunner } from "../../database/transaction-runner.js";
 import { StayRestrictionService } from "./stay-restriction.service.js";
 
 @Controller()
 export class StayRestrictionController {
-  constructor(private readonly restrictions: StayRestrictionService) {}
+  constructor(
+    private readonly restrictions: StayRestrictionService,
+    // One boundary around the edit and the rows recording it —
+    // `rate.controller.ts` beside this makes the argument.
+    private readonly transactions: TransactionRunner,
+  ) {}
 
   @RequiresCapability("pricing.stay-restrictions", "read")
   @Implement(contract.pricing.readStayRestrictions)
@@ -28,7 +34,9 @@ export class StayRestrictionController {
     return implement(contract.pricing.readStayRestrictions).handler(
       async ({ input }) => ({
         roomType: input.roomType,
-        restrictions: await this.restrictions.read(input),
+        restrictions: await this.transactions.run((exec) =>
+          this.restrictions.read(exec, input),
+        ),
       }),
     );
   }
@@ -42,9 +50,11 @@ export class StayRestrictionController {
 
         return {
           roomType: input.roomType,
-          nights: cleared
-            ? await this.restrictions.clear(input)
-            : await this.restrictions.apply(input, input),
+          nights: await this.transactions.run((exec) =>
+            cleared
+              ? this.restrictions.clear(exec, input)
+              : this.restrictions.apply(exec, input, input),
+          ),
           cleared,
         };
       },
