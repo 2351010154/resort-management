@@ -26,6 +26,11 @@
 //    amounts are `bigint` columns and the wire carries decimal text, so a route
 //    that let one through a `number` would round somebody's discrepancy into
 //    agreement.
+// 5. **The ceiling on the run list is reported rather than applied in
+//    silence.** A range wider than it answers with the newest nights inside
+//    that range, which a caller counting rows cannot tell from a complete
+//    answer — so the truncation travels as a field, and this is where it is
+//    driven true against a range that really does overflow.
 //
 // The rows are inserted directly rather than swept into place. The states worth
 // reading back are states no happy path produces — money the gateway took that
@@ -41,7 +46,7 @@ import "reflect-metadata";
 
 import type { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
-import { sql } from "drizzle-orm";
+import { gte, sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -63,6 +68,7 @@ import {
 } from "../src/modules/identity/rbac/matrix.js";
 import { permits } from "../src/modules/identity/rbac/roles.js";
 import { StaffUserService } from "../src/modules/identity/staff-user.service.js";
+import { LONGEST_RUN_LIST } from "../src/modules/payment/reconciliation.service.js";
 
 /** The day two reports disagreed on, and the subject of most of this file. */
 const DISPUTED_DAY = "2027-09-14";
@@ -90,6 +96,10 @@ const AT_THE_GATEWAY = 1_460_000n;
 
 /** Money the gateway says it took under an attempt with no payment here. */
 const NEVER_LANDED = 980_000n;
+
+/** Where the run rows that prove the ceiling start, far enough from the three
+ *  named days above that no assertion about them can see one. */
+const BULK_FIRST_DAY = "2029-01-01";
 
 /** A route known to be guarded, so a 401 below is the guard running rather than
  *  a path that answers nobody. */
@@ -173,6 +183,7 @@ beforeAll(async () => {
   }
 
   disputedPaymentId = await aPaymentOnFile();
+
   await threeNightsOnFile();
 }, 120_000);
 
@@ -236,6 +247,11 @@ describe("the nights that were looked at", () => {
         (run: { discrepancyCount: number }) => run.discrepancyCount,
       ),
     ).toEqual([2, 0, 1]);
+
+    // Three nights is not a truncated answer, and the flag has to be capable of
+    // saying so — otherwise the assertion below that it goes true proves only
+    // that the field exists.
+    expect(response.body.hasMore).toBe(false);
   });
 
   it("keeps the clean night on the list, saying it was looked at and found nothing", async () => {
@@ -298,6 +314,41 @@ describe("the nights that were looked at", () => {
       .expect(200);
 
     expect(response.body.runs).toEqual([]);
+  });
+
+  it("caps a range wider than the ceiling and says on the answer that it did", async () => {
+    // One night past the ceiling, which is the only count that separates the
+    // two things being asserted: a list of exactly `LONGEST_RUN_LIST` is what a
+    // complete answer and a truncated one both look like, so the flag is the
+    // whole of the difference a caller can read.
+    const nights = consecutiveDays(BULK_FIRST_DAY, LONGEST_RUN_LIST + 1);
+
+    await db
+      .insert(paymentReconciliationRun)
+      .values(nights.map((businessDate) => ({ businessDate })));
+
+    // Removed whatever the assertions do, because every other case in this file
+    // reads the unbounded list and counts what comes back. A failure here that
+    // left these rows standing would be reported against the tests that ran
+    // next rather than against this one.
+    try {
+      const response = await as("ACCOUNTANT")
+        .get(runsPath({ from: nights[0], to: nights.at(-1) }))
+        .expect(200);
+
+      expect(response.body.runs).toHaveLength(LONGEST_RUN_LIST);
+      expect(response.body.hasMore).toBe(true);
+
+      // Newest first, so what the cap drops is the oldest night in the range
+      // and not an arbitrary one — which is what makes a narrower range the
+      // way to reach the rest.
+      expect(response.body.runs[0].businessDate).toBe(nights.at(-1));
+      expect(response.body.runs.at(-1).businessDate).toBe(nights[1]);
+    } finally {
+      await db
+        .delete(paymentReconciliationRun)
+        .where(gte(paymentReconciliationRun.businessDate, BULK_FIRST_DAY));
+    }
   });
 
   it("refuses a range that ends before it starts", async () => {
@@ -403,6 +454,22 @@ function runsPath(range: { from?: string; to?: string } = {}): string {
 
 const dayPath = (businessDate: string) =>
   `/payments/reconciliations/${businessDate}`;
+
+/**
+ * A run of consecutive calendar dates, as the wire spells them.
+ *
+ * Plain UTC day arithmetic, which is all this needs: these are rows in a `date`
+ * column and nothing about them is a business date, so `BusinessDateService`'s
+ * rollover hour has no bearing on either end.
+ */
+function consecutiveDays(first: string, count: number): string[] {
+  const ONE_DAY_MS = 86_400_000;
+  const start = Date.parse(`${first}T00:00:00Z`);
+
+  return Array.from({ length: count }, (_, index) =>
+    new Date(start + index * ONE_DAY_MS).toISOString().slice(0, 10),
+  );
+}
 
 async function signIn(email: string, password: string): Promise<string> {
   const response = await http()
