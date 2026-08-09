@@ -73,11 +73,15 @@
 //   workflow nothing drives, and a column nothing fills cannot be told apart
 //   from one nobody has got to yet — `payment.ts` makes the same argument about
 //   `updated_at`.
-// - **A row per reconciliation run.** The paragraph above says why the day's
-//   totals are not stored; `job-runner.service.ts`'s log line is what records
-//   that a run happened, and the sums it would hold are a query over `payment`
-//   that is correct at the moment it is asked rather than at the moment it was
-//   frozen.
+// - **A day's totals, on the run row below or anywhere else.** The paragraph
+//   above says why an agreement is written down nowhere, and a stored count of
+//   compared attempts or discrepancies found is the same figure kept twice: it
+//   is a query over `payment` and `payment_discrepancy` that is correct at the
+//   moment it is asked rather than at the moment it was frozen.
+//   `payment_reconciliation_run` therefore holds a date and the instant it was
+//   looked at, and not one number — it exists to be *asked a question*, not to
+//   answer one, and the difference is the whole of why it earns a table when a
+//   summary row would not.
 // - **An author, and an audit entry.** `audit.ts` files who changed which row,
 //   and its `actor_id` is `not null` on the argument that leaving room for an
 //   unattributable write is how the interesting writes become the
@@ -246,3 +250,49 @@ export const paymentDiscrepancy = pgTable(
 );
 
 export type PaymentDiscrepancyRow = typeof paymentDiscrepancy.$inferSelect;
+
+/**
+ * A business date somebody has already held the two reports against.
+ *
+ * This is the sweep's predicate and it is the reason the table exists. The
+ * comparison is only honest over a *closed* trading day: a payment whose
+ * callback is still in flight when the report is read is money the gateway holds
+ * and this property does not, which classifies as `MISSING_LOCALLY` and pages a
+ * phone about a payment that lands four seconds later. So `ReconciliationJob`
+ * never touches the day the property is currently having, and asks instead which
+ * closed days it still owes work for — a question the table above cannot answer,
+ * because a clean day writes nothing there and its silence is indistinguishable
+ * from a day nobody looked at.
+ *
+ * `job-runner.service.ts`'s per-run log line records that a run happened and is
+ * the right home for that fact for a person reading back. It is not a home for
+ * this one: a sweep cannot query a log, and the sweep is what needs the answer.
+ *
+ * **The date is the primary key**, so the fact and its uniqueness are one thing.
+ * A second reconciliation of a date it already holds is refused by Postgres
+ * rather than by a caller that looked first — the argument the header makes
+ * about `payment_discrepancy`'s key, which is also what makes the sweep safe to
+ * run inside `JobRunner`'s two passes: the first writes the row, the second
+ * finds the date no longer outstanding and does nothing.
+ *
+ * **Nothing cascades into it and it points at nothing.** A run is about a day
+ * rather than about any row, and the attempts it compared may since have been
+ * resolved, re-paid or refunded without making it untrue that the day was looked
+ * at on the morning it was.
+ */
+export const paymentReconciliationRun = pgTable("payment_reconciliation_run", {
+  businessDate: date("business_date", { mode: "string" }).primaryKey(),
+  // When the day was looked at, which is not the day itself and is worth
+  // keeping for the same reason `observed_at` is above: a date reconciled at
+  // 04:05 the next morning and one reconciled six days late are different
+  // answers to "was anybody watching?".
+  reconciledAt: timestamp("reconciled_at", {
+    withTimezone: true,
+    mode: "date",
+  })
+    .notNull()
+    .defaultNow(),
+});
+
+export type PaymentReconciliationRunRow =
+  typeof paymentReconciliationRun.$inferSelect;

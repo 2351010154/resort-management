@@ -63,6 +63,16 @@ import { VnpayAdapter } from "./vnpay.adapter.js";
 // pieces of work, and both reach it through this export rather than by
 // constructing a second one. It takes no gateway — the report is an argument —
 // so the binding above does not reach it and neither does anything VNPay said.
+//
+// `PAYMENT_GATEWAY` is exported too, and exporting a token is not the leak
+// `FR-PAY-01` forbids: what crosses is the port, and everything on the far side
+// is still written against `PaymentGateway` with no VNPay vocabulary in reach.
+// `ReconciliationJob` is why. It is a sweep, so `jobs.module.ts` owns where it is
+// registered, and it needs the comparison and the port together — the report it
+// compares has to be fetched through the same binding the rest of the property
+// pays through. Constructing an adapter of its own would be a second client on
+// the same terminal, configured from the same variables, differing from this one
+// the first time either changed.
 @Module({
   imports: [BookingModule, FolioModule],
   controllers: [PaymentController],
@@ -71,6 +81,6 @@ import { VnpayAdapter } from "./vnpay.adapter.js";
     PaymentService,
     ReconciliationService,
   ],
-  exports: [PaymentService, ReconciliationService],
+  exports: [PaymentService, ReconciliationService, PAYMENT_GATEWAY],
 })
 export class PaymentModule {}
