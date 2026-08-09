@@ -330,6 +330,22 @@ quotes them.
 Thin on purpose: `P3-SVC` needs the posting path proven, not a real menu. Items
 are data, so the catalog grows without a migration.
 
+**The posting path is built, and it is what makes the two columns above mean
+something.** The desk reads the sellable items and posts one against a stay; the
+folio line names the catalog row, which is what gives `M8` something to group a
+revenue report by and what stops a minibar being an amount whose tax class is
+whatever the poster believed. The two cases split on the price:
+
+- an item with a price posts **the catalog's figure**, times the count, and a
+  caller sending an amount of their own is refused rather than quietly ignored;
+- an item without one **requires** an amount, because six of these eight are
+  unpriced by intent — a minibar and a laundry bill are what was consumed, not a
+  list price — and the count then says what the line is for rather than scaling
+  it.
+
+A withdrawn item stops being offered and stays nameable by every line that ever
+sold it, which is `is_active` doing the job a delete could not.
+
 ## 7. Loyalty and tiers
 
 The structure is the PRD's (`FR-GST-04`, `FR-GST-05`): tier derived nightly,
@@ -433,7 +449,7 @@ make: a reader cannot tell an unset value from an unbuilt one.
 | Question | Whose | Tracked as |
 |---|---|---|
 | Season date ranges | mine, ⚑ unset — data, blocks nothing | §3 |
-| Service prices | mine, six of eight still ⚑ unset — data | §6 |
+| Service prices | mine, six of eight still ⚑ unset — data. Not a blocker: the posting path takes the desk's figure for an unpriced item, so pricing one is a row edit that changes who decides the amount | §6 |
 | Room sizes, bedding and aspects | mine, ⚑ proposed for `/booking` — data | §1 |
 | Extra-person and breakfast rates | mine, ⚑ proposed — now stored and editable, in `property_tariff` and `rate_plan` rather than in this file | §3, §6 |
 | Loyalty earn rate, tier thresholds, perks and expiry | mine, ⚑ proposed — config | §7 |

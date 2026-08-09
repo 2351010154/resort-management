@@ -18,6 +18,7 @@ import { jobs } from "./jobs.js";
 import { payment } from "./payment.js";
 import { pricing } from "./pricing.js";
 import { search } from "./search.js";
+import { service } from "./service.js";
 import { systemConfig } from "./system-config.js";
 
 export const contract = {
@@ -29,6 +30,7 @@ export const contract = {
   housekeeping,
   guest,
   folio,
+  service,
   payment,
   jobs,
   search,
@@ -68,6 +70,7 @@ export {
   postOverrideRefundInput,
   postPaymentInput,
   postPolicyRefundInput,
+  postServiceItemInput,
   readFolioInput,
   reversePostingInput,
 } from "./folio.js";
@@ -104,6 +107,8 @@ export {
   SEARCH_RESULT_LIMIT,
   searchResultsSchema,
 } from "./search.js";
+export { serviceCatalogItemSchema } from "./service.js";
+export type { ServiceCatalogItem } from "./service.js";
 export {
   systemConfigurationSchema,
   updateSystemConfigInput,

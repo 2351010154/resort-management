@@ -1,10 +1,14 @@
-// The seven folio routes the RBAC matrix already governs — reading the account,
-// posting a charge, posting a payment, correcting a line, handing money back the
-// way §4's grid prices it, handing money back at a manager's discretion, and
-// agreeing the whole of it.
+// The eight folio routes the RBAC matrix already governs — reading the account,
+// posting a charge, selling a catalog item, posting a payment, correcting a
+// line, handing money back the way §4's grid prices it, handing money back at a
+// manager's discretion, and agreeing the whole of it.
 //
-// Seven routes and seven rows, and no route here names a key the matrix does not
-// have. The invoice adjustment sits in the same section and is deliberately
+// Eight routes over seven rows, and no route here names a key the matrix does
+// not have. The two postings share `folio.post-charge`, whose row reads "Post
+// charge (room, service, minibar)" and names both acts; what §2 forbids is one
+// route whose authority turns on its body, not two routes under an authority
+// that was always theirs. The invoice adjustment sits in the same section and is
+// deliberately
 // absent: it has service work of its own, and a route with no capability behind
 // it is unreachable for everyone, which is the intended failure mode rather than
 // a gap to be worked around.
@@ -59,6 +63,7 @@ import type {
 import type { DbExecutor } from "../../database/database.module.js";
 import { TransactionRunner } from "../../database/transaction-runner.js";
 import { BusinessDateService } from "../booking/business-date.service.js";
+import { CatalogService } from "../operations/catalog.service.js";
 import type { FolioAccount, FolioLine } from "./folio.service.js";
 import { FolioService } from "./folio.service.js";
 
@@ -68,6 +73,7 @@ export class FolioController {
     private readonly folios: FolioService,
     private readonly transactions: TransactionRunner,
     private readonly businessDates: BusinessDateService,
+    private readonly catalog: CatalogService,
   ) {}
 
   /**
@@ -122,6 +128,50 @@ export class FolioController {
 
         return {
           posted: [charge],
+          folio: onWire(await this.account(exec, input.bookingId)),
+        };
+      }),
+    );
+  }
+
+  /**
+   * A catalog item sold to the stay — `FR-FOL-03`.
+   *
+   * The same capability as the charge above, and the matrix row is the one that
+   * decides it: "Post charge (room, service, minibar)" names this act. Two
+   * routes under one key is not what `rbac-matrix.md` §2 forbids — what it
+   * forbids is one route whose authority depends on what arrived in the body,
+   * and neither of these lets a caller reach a figure the other could not.
+   *
+   * **The item is resolved inside the posting's own transaction**, before
+   * anything is written and after the folio is opened. That ordering is what
+   * makes the price the line is computed from the price that was on the row at
+   * the moment the line went in — a catalog read on another connection could be
+   * a repricing old by a request.
+   *
+   * A code nobody sells is a `NOT_FOUND` from the catalog and nothing is
+   * written, because the resolve comes first and the transaction has posted
+   * nothing yet. A folio opened for a stay whose item then failed to resolve is
+   * rolled back with it.
+   */
+  @RequiresCapability("folio.post-charge")
+  @Implement(contract.folio.postServiceItem)
+  postServiceItem(@CurrentPrincipal() principal: Principal | null) {
+    return implement(contract.folio.postServiceItem).handler(async ({ input }) =>
+      this.transactions.run(async (exec) => {
+        const folioId = await this.folios.ensureFolio(exec, input.bookingId);
+
+        const sale = await this.folios.postServiceItem(exec, {
+          folioId,
+          businessDate: await this.businessDates.current(exec),
+          item: await this.catalog.sellableItem(exec, input.code),
+          quantity: input.quantity,
+          grossAmount: input.grossAmount,
+          postedBy: staffId(principal),
+        });
+
+        return {
+          posted: [sale],
           folio: onWire(await this.account(exec, input.bookingId)),
         };
       }),

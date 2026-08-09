@@ -2,10 +2,13 @@
 // lines, the corrections filed against them, and the moment the desk agrees the
 // whole of it.
 //
-// Seven routes, seven rows of the RBAC matrix, and no route here that the
+// Eight routes over seven rows of the RBAC matrix, and no route here that the
 // matrix does not already govern: `folio.read`, `folio.post-charge`,
 // `folio.post-payment`, `folio.reverse-posting`, `folio.close-invoice`,
-// `folio.refund-policy` and `folio.refund-override`. The invoice adjustment
+// `folio.refund-policy` and `folio.refund-override`. Eight over seven because
+// posting a room charge and posting a catalog item are two shapes under one
+// authority — `matrix.ts` spells that row "Post charge (room, service,
+// minibar)", so both were always this key's. The invoice adjustment
 // exists in the matrix too and is deliberately not here — it has service work of
 // its own, and a route declared before that work exists is a promise the client
 // would be held to.
@@ -49,6 +52,7 @@ import { oc } from "@orpc/contract";
 import { z } from "zod";
 import { vndAmountInputSchema, vndAmountSchema } from "../money.js";
 import { chargeBasisSchema } from "../policy-charge.js";
+import { serviceCodeSchema } from "../service-catalog.js";
 import { isoStayDateSchema } from "../stay-date.js";
 
 const bookingIdFields = { bookingId: z.uuid() };
@@ -196,6 +200,60 @@ export const postChargeInput = z.object({
 });
 
 /**
+ * A catalog item sold to a stay — `FR-FOL-03`.
+ *
+ * **The item is named by `code`, and that is what separates this route from the
+ * one above it.** {@link postChargeInput} takes a description somebody typed and
+ * posts a `ROOM_CHARGE`; this names a row of `service_catalog`, and the line it
+ * writes carries the key. The difference is not presentational: `schema/folio.ts`
+ * makes `type = 'SERVICE_ITEM'` and a non-null `service_catalog_id` a
+ * biconditional, so a service line that named nothing is a row the database
+ * refuses — and it refuses it because a charge whose tax class is whatever the
+ * poster believed is a charge `M8` cannot report on and an accountant cannot
+ * check. `service.listCatalog` is where a code comes from.
+ *
+ * **`grossAmount` is optional, and which of the two it is depends on the item
+ * rather than on the caller.** §6 prices two of the eight and leaves six unset,
+ * and the two cases want opposite things:
+ *
+ * - A **priced** item is `unit_price_gross × quantity`, and an amount sent with
+ *   it is *refused* rather than ignored. This is `postPolicyRefund`'s argument
+ *   applied to a sale: the figure the property published cannot be influenced by
+ *   whoever reached the route, and a request that quietly dropped a caller's
+ *   number would leave them believing they had charged it.
+ * - An **unpriced** item requires one. §6 says the six block nothing and names
+ *   the reason they are unpriced — a minibar and a laundry bill are what was
+ *   consumed, not a list price — so the figure is the desk's, and refusing to
+ *   post one would make three-quarters of the catalog unsellable to protect a
+ *   number that does not exist.
+ *
+ * Neither branch is expressible here, because only the catalog knows which an
+ * item is. The service refuses, on the row it read, and says which of the two
+ * mistakes was made.
+ *
+ * **The quantity is a count and never a multiplier on a typed figure.** Two
+ * breakfasts is `quantity: 2`, and the amount posted is twice the published
+ * price. On an unpriced item the amount is what the guest agreed to *in total* —
+ * the count rides along because the invoice line says "3 × Minibar" and `M8`
+ * counts items sold, not because it scales anything the caller sent. Sending
+ * both a quantity and an amount on a priced item is the refusal above.
+ */
+export const postServiceItemInput = z.object({
+  ...bookingIdFields,
+  code: serviceCodeSchema,
+  /** How many. Whole, above nothing — half a breakfast is not a thing the desk
+   *  sells, and a zero is a line that says nothing happened. */
+  quantity: z.int().min(1).max(999),
+  /** Required when the item has no published price, refused when it has one. */
+  grossAmount: vndAmountInputSchema
+    .refine(
+      (amount) => amount > 0n,
+      "a charge is money the guest owes, so it cannot be nothing or less",
+    )
+    .optional(),
+});
+
+/**
  * Money the property has received, as the guest handed it over.
  *
  * Positive here and stored negative, and the negation happens once, in the
@@ -305,6 +363,26 @@ export const folio = {
     // of them is a reversal rather than a re-`PUT`.
     .route({ method: "POST", path: "/bookings/{bookingId}/folio/charges" })
     .input(postChargeInput)
+    .output(folioPostingReceiptSchema),
+
+  postServiceItem: oc
+    // Its own collection under the same account, beside `/charges` rather than a
+    // variant of it. The two write different `posting_type`s and one of them is
+    // constrained to name a catalog row, so a single endpoint would be a handler
+    // branching on whether a code arrived — which is the shape `rbac-matrix.md`
+    // §2 refuses for the refunds, for a reason that holds here too: the branch
+    // would decide what the line *is*, and nothing tests a branch against §6.
+    //
+    // The same capability as `/charges` — `folio.post-charge`, whose matrix row
+    // reads "Post charge (room, service, minibar)" and already names this. Two
+    // routes under one key is not the thing §2 forbids; posting a minibar is the
+    // same authority as posting a room charge, and neither hands the caller a
+    // figure the other could not have typed.
+    .route({
+      method: "POST",
+      path: "/bookings/{bookingId}/folio/service-items",
+    })
+    .input(postServiceItemInput)
     .output(folioPostingReceiptSchema),
 
   postPayment: oc

@@ -119,6 +119,11 @@ import {
 // port, and a value imported back the other way would be a cycle. The port is
 // the only thing the two modules share, which is what it is for.
 import type { FolioPort } from "../booking/ports/folio.port.js";
+// A type as well, and for a plainer reason than the two above: this module needs
+// to say what a resolved catalog row *is* without becoming a reader of the
+// catalog. `service.module.ts` exports the service that does the reading, and
+// `folio.controller.ts` is the caller that holds both.
+import type { CatalogItem } from "../operations/catalog.service.js";
 import { SystemConfigService } from "../system-config/system-config.service.js";
 import { decomposeGross } from "./tax-decomposition.js";
 
@@ -151,6 +156,44 @@ interface PostingRequest {
  */
 export interface RoomChargeRequest extends PostingRequest {
   readonly grossAmount: VndAmount;
+}
+
+/**
+ * A catalog item sold to a stay — `FR-FOL-03`.
+ *
+ * The item arrives as the *row*, not as a code. The caller resolved it inside
+ * the transaction it is about to post in — `catalog.service.ts` says why — and
+ * handing the row over is what makes that guarantee visible: a method taking a
+ * code would have to read the catalog itself, and the read it did would be a
+ * second one, on whatever the executor happened to be.
+ *
+ * No description, unlike every other request here. The line's text is composed
+ * from the item's name and the count, so a caller cannot label a minibar as
+ * something else while the key beside it says minibar.
+ */
+export interface ServiceItemRequest
+  extends Omit<PostingRequest, "description"> {
+  readonly item: CatalogItem;
+  readonly quantity: number;
+  /** The desk's figure, for an item the catalog has not priced. Refused on one
+   *  it has — `postServiceItem` states both halves. */
+  readonly grossAmount?: VndAmount;
+}
+
+/**
+ * One gross sale, as {@link FolioService.postSale} takes it.
+ *
+ * Internal: the two public posting methods build it, and the union of two types
+ * is the whole of what varies between them. `serviceCatalogId` is present
+ * exactly when the type is `SERVICE_ITEM`, which is the constraint
+ * `schema/folio.ts` declares as a biconditional — stated loosely here because
+ * the database is where it is enforced, and a second encoding of it in the type
+ * system would be a place for the two to disagree.
+ */
+interface SaleRequest extends PostingRequest {
+  readonly grossAmount: VndAmount;
+  readonly type: "ROOM_CHARGE" | "SERVICE_ITEM";
+  readonly serviceCatalogId?: string;
 }
 
 /**
@@ -532,7 +575,100 @@ export class FolioService implements FolioPort {
     exec: DbExecutor,
     charge: RoomChargeRequest,
   ): Promise<string> {
-    if (charge.grossAmount < 0n) {
+    return this.postSale(exec, { ...charge, type: "ROOM_CHARGE" });
+  }
+
+  /**
+   * A catalog item sold to a stay — `FR-FOL-03`, and §6's posting path.
+   *
+   * The same three lines a night takes, because §5 levies the service charge on
+   * "room and service lines" alike and a supply is a supply. What differs is the
+   * one column: the line names the `service_catalog` row it charged for, and
+   * `folio_posting_service_item_names_a_catalog_row` makes that non-negotiable —
+   * a `SERVICE_ITEM` naming nothing is a row the database refuses, which is what
+   * stops a minibar from being posted as an amount whose classification is
+   * whatever the poster believed.
+   *
+   * **The amount is decided against the catalog row, not against the request.**
+   * A priced item is `unit_price_gross × quantity` and refuses a caller's figure;
+   * an unpriced one requires it. `contract/folio.ts` argues both directions at
+   * length. What matters here is that the branch is taken on the row that was
+   * read in *this* transaction, so a price cannot move between the decision and
+   * the line.
+   *
+   * **The description is composed here and stored, never resolved later.** §6
+   * says an item may be renamed — Breakfast into Vietnamese the day a menu is
+   * printed — and `PostingRequest` already requires every line to carry what the
+   * guest reads. So the invoice says what the item was called when it was sold,
+   * and the key beside it is what `M8` groups by.
+   */
+  async postServiceItem(
+    exec: DbExecutor,
+    sale: ServiceItemRequest,
+  ): Promise<string> {
+    const { item, quantity } = sale;
+
+    if (item.unitPriceGross === null && sale.grossAmount === undefined) {
+      throw new ORPCError("BAD_REQUEST", {
+        message:
+          `Nobody has priced ${item.name} yet, so the amount is the desk's — ` +
+          "send what the guest agreed to",
+      });
+    }
+
+    if (item.unitPriceGross !== null && sale.grossAmount !== undefined) {
+      throw new ORPCError("BAD_REQUEST", {
+        message:
+          `${item.name} is priced at ${item.unitPriceGross} ₫ and the catalog's figure is the one that posts — ` +
+          "handing back a different amount is a discretionary adjustment, which is its own route",
+      });
+    }
+
+    // On an unpriced item the caller's figure is the whole of the sale and the
+    // quantity is what the line *says*, not a multiplier on it — three minibar
+    // items came to one agreed total. On a priced one the published figure is
+    // per unit and the count scales it. `contract/folio.ts` sets out both.
+    const grossAmount =
+      item.unitPriceGross === null
+        ? sale.grossAmount!
+        : item.unitPriceGross * BigInt(quantity);
+
+    return this.postSale(exec, {
+      folioId: sale.folioId,
+      businessDate: sale.businessDate,
+      description: quantity > 1 ? `${quantity} × ${item.name}` : item.name,
+      postedBy: sale.postedBy,
+      grossAmount,
+      type: "SERVICE_ITEM",
+      serviceCatalogId: item.id,
+    });
+  }
+
+  /**
+   * One gross figure as the three lines `FR-FOL-02` requires — the shared body
+   * of {@link postRoomCharge} and {@link postServiceItem}.
+   *
+   * Private, and the two callers above are the surface. What separates a night
+   * from a minibar is the posting type and whether a catalog row is named; the
+   * decomposition, the rate read and the parentage are identical, and §5 says so
+   * in as many words by levying the service charge on room and service lines
+   * alike. Two copies of this would be two places for the odd đồng to end up.
+   *
+   * The rates are read here, inside the caller's executor, for the business date
+   * being posted. Not at boot, not from a constant, and not held between
+   * postings: §8 files the VAT rate, the relief window and the tax-base rule as
+   * answers the accountant still owes, so a figure this method remembered would
+   * be an `ADMIN`'s correction that the next invoice did not notice. A date the
+   * configuration does not cover stops the posting rather than assuming a rate —
+   * `system-config.service.ts` argues that refusal, and nothing is written when
+   * it fires because the read comes first.
+   *
+   * Returns the sale's id. It is the id a correction is issued against: the two
+   * derived lines name it, so `id = $1 or parent_posting_id = $1` is the whole
+   * sale, and {@link reversePosting} undoes exactly that set.
+   */
+  private async postSale(exec: DbExecutor, sale: SaleRequest): Promise<string> {
+    if (sale.grossAmount < 0n) {
       throw new ORPCError("BAD_REQUEST", {
         message:
           "A charge is money the guest owes, so it cannot be negative — " +
@@ -541,43 +677,47 @@ export class FolioService implements FolioPort {
     }
 
     const lines = decomposeGross(
-      charge.grossAmount,
-      await this.configuration.taxRules(exec, charge.businessDate),
+      sale.grossAmount,
+      await this.configuration.taxRules(exec, sale.businessDate),
     );
 
     // Generated here rather than by the column's default, so the three rows go
     // in as one statement. The header says why that matters.
     const chargeId = randomUUID();
-    const businessDate = charge.businessDate.toString();
-    const postedBy = charge.postedBy ?? null;
+    const businessDate = sale.businessDate.toString();
+    const postedBy = sale.postedBy ?? null;
 
     await this.write(exec, [
       {
         id: chargeId,
-        folioId: charge.folioId,
-        type: "ROOM_CHARGE",
+        folioId: sale.folioId,
+        type: sale.type,
         // The residual of the decomposition, never a fourth division of its
         // own: `tax-decomposition.ts` puts the odd đồng here precisely so the
         // three lines sum to the figure the guest agreed to.
         amount: lines.netCharge,
-        description: charge.description,
+        description: sale.description,
+        // Null on a room charge, and the `CHECK` reads it as one half of a
+        // biconditional with the type above. The two travel together or the
+        // row does not go in.
+        serviceCatalogId: sale.serviceCatalogId ?? null,
         businessDate,
         postedBy,
       },
       {
-        folioId: charge.folioId,
+        folioId: sale.folioId,
         type: "SERVICE_CHARGE_FEE",
         amount: lines.serviceCharge,
-        description: `Service charge on ${charge.description}`,
+        description: `Service charge on ${sale.description}`,
         parentPostingId: chargeId,
         businessDate,
         postedBy,
       },
       {
-        folioId: charge.folioId,
+        folioId: sale.folioId,
         type: "VAT",
         amount: lines.vat,
-        description: `VAT on ${charge.description}`,
+        description: `VAT on ${sale.description}`,
         parentPostingId: chargeId,
         businessDate,
         postedBy,
