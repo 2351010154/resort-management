@@ -78,6 +78,26 @@ One internal `PaymentGateway` port — `createPayment` / `verifyCallback` /
   under each environment's own `API_URL`: `GET /payments/vnpay/ipn` for the
   gateway's report, `GET /payments/vnpay/return` for the payer's browser. Only
   the first is acted on — the return redirect confirms nothing about money.
+- **There is no daily report to fetch.** VNPay answers about one transaction at
+  a time (`queryDr`); a day's totals live in a settlement file drawn from the
+  merchant portal by hand. So the nightly reconciliation reconstructs the
+  gateway's side by asking about every attempt the property opened — which works
+  because the property mints every reference and writes a row before the payer
+  is sent anywhere. A bulk feed, if one is ever granted, replaces that assembly
+  without touching the comparison.
+- **Only a closed trading day is reconciled.** A payment whose IPN is still in
+  flight is money the gateway holds and this property does not, so reconciling
+  the current day would file it as missing and page somebody about a payment
+  that lands seconds later. `payment_reconciliation_run` records which days have
+  been looked at; the sweep takes the closed ones it has no row for, up to a week
+  back, and never today.
+- **A discrepancy pages an endpoint, not a vendor.** `OPS_ALERT_WEBHOOK_URL`
+  takes a POST of JSON — PagerDuty behind a transform, a Slack incoming webhook,
+  ntfy, whatever the property's on-call tooling exposes — so escalation policy
+  and who is on call this week stay outside this tree. Unset, a page is logged
+  instead of sent; it is required at boot once a terminal is configured under
+  `NODE_ENV=production`. Delivery never fails a reconciliation: the discrepancy
+  rows are the durable record and an alerter that threw would roll them back.
 - **MoMo is conditional** (P3.5), gated on measured VNPay-only abandonment. It
   costs a second signature scheme, IPN shape, refund API and reconciliation job.
   Its IPN must be answered within 15 seconds — the handler ACKs and the work

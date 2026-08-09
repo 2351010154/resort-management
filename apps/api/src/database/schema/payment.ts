@@ -70,11 +70,16 @@
 //   that question is answered, if it turns out to be one.
 // - **The instant the attempt was opened.** `PaymentAttempt` is a reference
 //   *and* a creation time, because a gateway partitions transactions by the day
-//   one was opened and a later query has to name the same instant. Only
-//   `created_at` is here, and it is this row's clock rather than the attempt's —
-//   near enough to read by, and not the same thing. The caller that queries or
-//   refunds an attempt is the one that needs the pair to be exact, and it is
-//   `FR-PAY-04`'s work to say where it keeps it.
+//   one was opened and a later query has to name the same instant. This column
+//   is that instant on a gateway row, and it is written rather than defaulted:
+//   `payment.service.ts` mints it once and hands the same value to the insert
+//   and to the gateway, so the pair is exact by construction. It used to be the
+//   row's own clock — the transaction's start time, near the attempt's and not
+//   equal to it — and `FR-PAY-05`'s nightly query is what made the difference
+//   matter, because an instant a second out comes back "transaction not found"
+//   and reads as money the gateway never took. On the money the desk collected
+//   itself there is no attempt and no gateway, and this is simply when the row
+//   was written.
 // - **A gateway response code, a bank code or a card type.** `FR-PAY-01` keeps
 //   gateway vocabulary inside the adapter, and a column here would carry it
 //   past the port and into every reader of this table.

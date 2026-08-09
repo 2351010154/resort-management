@@ -308,6 +308,25 @@ export class PaymentService {
       });
     }
 
+    // Minted once, here, and then written down and sent — never taken twice.
+    //
+    // A gateway partitions transactions by the day one was opened, and VNPay
+    // matches a later `queryDr` on the created instant formatted to the second.
+    // `schema/payment.ts` recorded `created_at` as "this row's clock rather than
+    // the attempt's — near enough to read by, and not the same thing", and left
+    // the exact pair to the first caller that needed one. `ReconciliationJob` is
+    // that caller: it asks the gateway about every attempt of a business date,
+    // so a stored instant that is *near* the one VNPay holds is one that
+    // sometimes falls on the other side of a second boundary and comes back
+    // "transaction not found". That answer is indistinguishable from money the
+    // gateway never took, so it would be filed as `MISSING_AT_GATEWAY` and page
+    // somebody at four in the morning about a payment sitting safely at VNPay.
+    //
+    // So the row carries the instant the gateway was given rather than the one
+    // its own transaction started at, and the two are the same value by
+    // construction instead of by proximity.
+    const openedAt = new Date();
+
     await this.transactions.run(async (exec) => {
       const folioId = await this.folios.ensureFolio(exec, request.bookingId);
 
@@ -324,17 +343,16 @@ export class PaymentService {
         // permitted to hold: `payment_paid_at_exactly_when_money_moved` refuses
         // a time of payment on an attempt nobody has finished.
         status: "PENDING",
+        // Explicit, overriding the column's `defaultNow()`. The default is the
+        // transaction's start time, which is a different instant from the one
+        // below and is the whole reason this is passed rather than defaulted.
+        createdAt: openedAt,
       });
     });
 
     const { paymentUrl } = await this.gateway.createPayment({
       reference,
-      // The attempt's own clock, in the reference's timing, because the gateway
-      // partitions transactions by the day one was opened and a later query has
-      // to name the same instant — `PaymentAttempt` says so. `payment.created_at`
-      // is this row's rather than the attempt's, which `schema/payment.ts` files
-      // as `FR-PAY-04`'s to resolve.
-      createdAt: new Date(),
+      createdAt: openedAt,
       amount: request.amount,
       description: request.description,
       returnUrl: request.returnUrl,
