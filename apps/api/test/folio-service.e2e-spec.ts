@@ -24,10 +24,13 @@
 // where the module is registered — `folio-check-out.e2e-spec.ts` is the one that
 // asserts the registration.
 //
-// The figures are deliberately unreal — 12.34% VAT over a 3.21% service charge,
-// a day rolling at 11:00. §8 forbids the tree from carrying a rate, and a
-// fixture that read like a property's real one would be that defect wearing a
-// test's clothes.
+// The figures are deliberately unreal — 12.34% standard VAT against a 24.68%
+// reduced one, over a 3.21% service charge, a day rolling at 11:00. §8 forbids
+// the tree from carrying a rate, and a fixture that read like a property's real
+// one would be that defect wearing a test's clothes. The reduced rate is the
+// larger of the two on purpose, so a case asserting which rate a business date
+// resolved to cannot pass by having them the right way round for the wrong
+// reason.
 
 import "reflect-metadata";
 
@@ -50,7 +53,8 @@ import { SystemConfigService } from "../src/modules/system-config/system-config.
 
 /** A configuration nobody could mistake for a property's real one. */
 const CONFIGURED = {
-  vatRateBps: 1_234,
+  standardVatRateBps: 1_234,
+  reducedVatRateBps: 2_468,
   reducedVatFrom: null,
   reducedVatTo: null,
   vatIncludesServiceCharge: true,
@@ -69,16 +73,30 @@ const A_NIGHT = 1_000_000n;
 // as the code would agree with it however wrong both were. These three are what
 // tie the posting to the row in `system_config` — no other pair of rates
 // produces them.
+//
+// The standard rate is the one in force here, because `CONFIGURED` names no
+// relief window and every date therefore resolves to it.
 const NET_CHARGE = 862_470n;
 const SERVICE_CHARGE = 27_685n;
 const VAT = 109_845n;
 
+// The same night under the reduced rate, worked the same way. It is the triple
+// the posting must produce on a business date the relief window covers, and no
+// digit of it is shared with the standard one.
+const NET_CHARGE_UNDER_RELIEF = 777_109n;
+const SERVICE_CHARGE_UNDER_RELIEF = 24_945n;
+const VAT_UNDER_RELIEF = 197_946n;
+
 /** What an `ADMIN` moves the VAT rate to, in the case that watches for it. */
 const EDITED_VAT_RATE_BPS = 4_321;
 
-/** A relief window, and a business date well outside it. */
-const WINDOW_OPENS = "2077-03-01";
-const WINDOW_CLOSES = "2077-09-30";
+/** A relief window around the business date every case here posts on. */
+const WINDOW_OPENS = "2027-07-01";
+const WINDOW_CLOSES = "2027-12-31";
+
+/** A relief window that has already lapsed by the time that date arrives. */
+const LAPSED_WINDOW_OPENS = "2027-01-01";
+const LAPSED_WINDOW_CLOSES = "2027-06-30";
 
 const A_RECEPTIONIST = {
   email: "le.tan@mariva.test",
@@ -336,7 +354,7 @@ describe("one agreed figure, three lines", () => {
       description: "The night before the correction",
     });
 
-    await store({ ...CONFIGURED, vatRateBps: EDITED_VAT_RATE_BPS });
+    await store({ ...CONFIGURED, standardVatRateBps: EDITED_VAT_RATE_BPS });
 
     try {
       await folios.postRoomCharge(db, {
@@ -361,11 +379,12 @@ describe("one agreed figure, three lines", () => {
     }
   });
 
-  it("stops on a business date the configuration does not cover, and writes nothing", async () => {
-    // `system-config.service.ts` refuses rather than falling back to a standard
-    // rate, because `ASM-01` files the rate and the relief period as two answers
-    // the accountant still owes. The refusal is only defensible if nothing is
-    // half-written behind it — the rates are read before the first row.
+  it("posts at the reduced rate on a business date the relief window covers", async () => {
+    // `FR-FOL-02` resolves the rate against the business date being posted on,
+    // not against today. The window is what makes this night's tax line differ
+    // from the identical night in the case above, and every figure moves with
+    // it: the VAT is larger, so the net charge — the residual — is smaller, and
+    // the three still sum to what the guest agreed to pay.
     const folioId = await folios.ensureFolio(db, await aBooking());
 
     await store({
@@ -375,17 +394,56 @@ describe("one agreed figure, three lines", () => {
     });
 
     try {
-      const refusal = await refused(
-        folios.postRoomCharge(db, {
-          folioId,
-          grossAmount: A_NIGHT,
-          businessDate: BUSINESS_DATE,
-          description: "A night nothing knows the tax on",
-        }),
-      );
+      await folios.postRoomCharge(db, {
+        folioId,
+        grossAmount: A_NIGHT,
+        businessDate: BUSINESS_DATE,
+        description: "A night inside the relief period",
+      });
 
-      expect(refusal.code).toBe("CONFLICT");
-      expect(await linesOf(folioId)).toHaveLength(0);
+      const lines = await linesOf(folioId);
+
+      expect(byType(lines, "ROOM_CHARGE").amount).toBe(NET_CHARGE_UNDER_RELIEF);
+      expect(byType(lines, "SERVICE_CHARGE_FEE").amount).toBe(
+        SERVICE_CHARGE_UNDER_RELIEF,
+      );
+      expect(byType(lines, "VAT").amount).toBe(VAT_UNDER_RELIEF);
+      expect(await sumOf(folioId)).toBe(A_NIGHT);
+    } finally {
+      await store(CONFIGURED);
+    }
+  });
+
+  it("posts at the standard rate on a business date the relief window has left behind, rather than stopping", async () => {
+    // This used to be a refusal: with one rate behind the window there was
+    // nothing to charge outside it, so a correctly configured window became a
+    // scheduled outage at the front desk on the day relief lapsed. The rate
+    // behind the window is now configured beside it, so the lapse is a rate
+    // change — the desk keeps working and the guest is billed at the figure that
+    // took over, not at the one that expired.
+    const folioId = await folios.ensureFolio(db, await aBooking());
+
+    await store({
+      ...CONFIGURED,
+      reducedVatFrom: LAPSED_WINDOW_OPENS,
+      reducedVatTo: LAPSED_WINDOW_CLOSES,
+    });
+
+    try {
+      await folios.postRoomCharge(db, {
+        folioId,
+        grossAmount: A_NIGHT,
+        businessDate: BUSINESS_DATE,
+        description: "A night after the relief lapsed",
+      });
+
+      // The standard-rate triple, and not the reduced one the row still holds.
+      const lines = await linesOf(folioId);
+
+      expect(byType(lines, "ROOM_CHARGE").amount).toBe(NET_CHARGE);
+      expect(byType(lines, "SERVICE_CHARGE_FEE").amount).toBe(SERVICE_CHARGE);
+      expect(byType(lines, "VAT").amount).toBe(VAT);
+      expect(await sumOf(folioId)).toBe(A_NIGHT);
     } finally {
       await store(CONFIGURED);
     }

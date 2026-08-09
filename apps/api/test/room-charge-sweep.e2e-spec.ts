@@ -103,7 +103,8 @@ const THE_DAY_BEFORE_THEY_ARRIVE = parseDate("2027-06-09");
 
 /** A configuration nobody could mistake for a property's real one. */
 const CONFIGURED = {
-  vatRateBps: 1_234,
+  standardVatRateBps: 1_234,
+  reducedVatRateBps: 2_468,
   reducedVatFrom: null,
   reducedVatTo: null,
   vatIncludesServiceCharge: true,

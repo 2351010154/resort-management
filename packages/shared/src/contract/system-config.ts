@@ -1,7 +1,8 @@
 // The figures no calculation may compile in, as the two calls that read and
-// change them — `FR-IDN-03`: the VAT rate and the dates it applies on, whether
-// the VAT base includes service charge, the service-charge rate and the hour
-// the property's day rolls are "data, editable by ADMIN without a deploy".
+// change them — `FR-IDN-03`: the standard and reduced VAT rates and the dates
+// dividing them, whether the VAT base includes service charge, the
+// service-charge rate and the hour the property's day rolls are "data, editable
+// by ADMIN without a deploy".
 //
 // `docs/architecture/property-and-tariff.md` §8 is the reason there is a wire
 // contract for this at all. A rate the tree knows is a rate a deploy changes,
@@ -19,12 +20,13 @@
 // another.
 //
 // **PATCH and not PUT.** Every field is optional and the omitted ones are left
-// alone. A PUT would demand all six on every call, and the fields here are
-// answers that arrive at different times — `ASM-01` files the VAT rate and the
-// relief period as two separate questions the accountant still owes, so an
-// `ADMIN` correcting the rollover hour must not have to restate a tax rate they
-// were not asked about. It also makes the dangerous edit the explicit one: a
-// field absent from the body is a field nobody touched.
+// alone. A PUT would demand all seven on every call, and the fields here are
+// answers that arrive at different times — `ASM-01` is answered provisionally
+// from published sources rather than by a practising accountant, and a
+// correction may land on one rate, or on the relief period, without touching the
+// rest. An `ADMIN` correcting the rollover hour must not have to restate a tax
+// rate they were not asked about. It also makes the dangerous edit the explicit
+// one: a field absent from the body is a field nobody touched.
 //
 // **Every bound below is a ceiling, never a rate.** 10000 basis points is 100%
 // and 23 is the last hour of a day; both are the point past which the figure is
@@ -40,15 +42,15 @@
 // same transaction that would have written it.
 //
 // **What this contract cannot carry, and why.** The matrix row governing these
-// routes reads "System config (tax rates, retention N, business date, gateway
-// credentials)", and two of those four are absent from the table and therefore
-// from here. The statutory retention floor `N` is `ASM-02`, the lawyer's
-// unanswered question, and belongs to the milestone that consumes it with an
-// answer in hand. Gateway credentials stay in the environment, by the decision
+// routes reads "System config (tax rates, business date, gateway credentials)",
+// and one of those three is absent from the table and therefore from here.
+// Gateway credentials stay in the environment, by the decision
 // `schema/config.ts` records: a secret in a table an `ADMIN` screen reads is a
 // secret with a wider audience than the process that spends it. So the read
-// answers a stated list of six figures and there is no field on it a credential
-// could travel in.
+// answers a stated list of seven figures and there is no field on it a credential
+// could travel in. A statutory retention floor is not missing from that list —
+// it was removed from the row, because `FR-GST-02` stores no identity-document
+// image and the floor that remains over the registration record has no reader.
 
 import { oc } from "@orpc/contract";
 import { z } from "zod";
@@ -91,14 +93,20 @@ const hourOfTheDay = z.number().int().min(0).max(LAST_HOUR_OF_THE_DAY);
  * object of loose numbers where it expects nine characters.
  */
 export const systemConfigurationSchema = z.object({
-  vatRateBps: rateBasisPoints,
+  /** The rate on every business date the window below does not cover. */
+  standardVatRateBps: rateBasisPoints,
+  /** The rate on the business dates the window below covers, and on no other. */
+  reducedVatRateBps: rateBasisPoints,
   /**
-   * The dates `vatRateBps` is the applicable rate on, both ends inclusive.
+   * The dates `reducedVatRateBps` is the applicable rate on, both ends
+   * inclusive. Every other date takes `standardVatRateBps`, so no date is left
+   * without a rate.
    *
-   * Null is *unbounded*, not missing. With neither end set — which is how a
-   * property with no relief-period answer runs — the configured rate applies to
-   * every business date. Setting an end is how the day relief lapses becomes
-   * visible in data instead of being discovered in an invoice.
+   * Null is *no relief period on that side*, not a missing answer. With neither
+   * end set the property is asserting it has no relief period at all and every
+   * date resolves to the standard rate. Setting the ends is how a relief period
+   * — and the day it lapses — becomes visible in data instead of being
+   * discovered in an invoice.
    */
   reducedVatFrom: isoStayDateSchema.nullable(),
   reducedVatTo: isoStayDateSchema.nullable(),
@@ -119,7 +127,8 @@ export const systemConfigurationSchema = z.object({
  */
 export const updateSystemConfigInput = z
   .object({
-    vatRateBps: rateBasisPoints.optional(),
+    standardVatRateBps: rateBasisPoints.optional(),
+    reducedVatRateBps: rateBasisPoints.optional(),
     reducedVatFrom: stayDateSchema.nullable().optional(),
     reducedVatTo: stayDateSchema.nullable().optional(),
     vatIncludesServiceCharge: z.boolean().optional(),
@@ -144,7 +153,7 @@ export const systemConfig = {
     .route({ method: "PATCH", path: "/system/config" })
     .input(updateSystemConfigInput)
     // The whole configuration back, not the fields that moved. The caller is a
-    // screen that has just changed one figure and must now show the six a
+    // screen that has just changed one figure and must now show the seven a
     // posting will read — and the answer is the row as it committed, so a
     // concurrent edit is visible rather than painted over by the client's own
     // optimistic copy.

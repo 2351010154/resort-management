@@ -94,7 +94,8 @@ const ROLLOVER_HOUR = 11;
  * a test's clothes.
  */
 const CONFIGURED = {
-  vatRateBps: 1_234,
+  standardVatRateBps: 1_234,
+  reducedVatRateBps: 2_468,
   reducedVatFrom: null,
   reducedVatTo: null,
   vatIncludesServiceCharge: true,
