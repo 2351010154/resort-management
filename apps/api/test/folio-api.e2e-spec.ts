@@ -137,6 +137,10 @@ const POSTING_FIELDS = [
   "businessDate",
   "reversesPostingId",
   "parentPostingId",
+  // Which row of §4's grid a policy charge is, and null everywhere else. It
+  // travels because a penalty of nothing and a penalty nobody applied are the
+  // same figure and not the same fact.
+  "chargeBasis",
   "postedAt",
   "postedBy",
 ] as const;
@@ -265,6 +269,7 @@ interface Posting {
   readonly businessDate: string;
   readonly reversesPostingId: string | null;
   readonly parentPostingId: string | null;
+  readonly chargeBasis: string | null;
   readonly postedAt: string;
   readonly postedBy: string | null;
 }
