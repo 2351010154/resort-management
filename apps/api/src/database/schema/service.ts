@@ -68,6 +68,7 @@
 //   `FR-AUD-01`'s audit log, which is one table for every such question rather
 //   than two columns per table.
 
+import { TAX_CLASSES } from "@mariva/shared";
 import { sql } from "drizzle-orm";
 import {
   bigint,
@@ -83,19 +84,13 @@ import {
  * The tax classes a charge posts under — §5's "every room type and every
  * service item carries one".
  *
- * A tuple beside the schema for the reason `BOOKING_STATES` is one: Postgres
- * gets a type and TypeScript gets the same members from the same place. It
- * lives here rather than in `@mariva/shared` because no wire schema quotes a
- * tax class yet, and nothing joins the contract speculatively; it moves the day
- * an endpoint has to name one.
- *
- * One member, and the count is honest rather than provisional. §6 assigns no
- * class to any of its eight items, and `system_config` prices exactly one rate
- * — so a second class would be a name with no rate behind it and no document
- * saying which item wears it.
+ * The tuple moved to `@mariva/shared` on the condition its previous home here
+ * set out: it lived beside the schema while no wire schema quoted a class, and
+ * `service.listCatalog` now does. Same arrangement `charge_basis` has with
+ * `CHARGE_BASES` — Postgres gets its type, TypeScript gets its union and the
+ * contract gets its enum, all from one tuple, so the column and the response
+ * cannot come to disagree about what the classes are.
  */
-export const TAX_CLASSES = ["STANDARD"] as const;
-
 export const taxClassEnum = pgEnum("tax_class", TAX_CLASSES);
 
 /**
