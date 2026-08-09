@@ -251,6 +251,29 @@ Waiving any cell is `MANAGER` or above, per `rbac-matrix.md` §5 decision 2. A
 receptionist cannot waive a penalty; that is the ⚑ row there, and this table is
 what it governs.
 
+**"Any cell" is literal, and it is one authority rather than four.** All four
+rows are waivable — a no-show and an early departure as much as the two
+cancellations. The waiver is not a cell of this table and never becomes one: it
+is a decision recorded on the *booking*, in `penalty_waived_at` and
+`penalty_waived_by`, and the grid is read afterwards by whoever prices the stay.
+A waived stay is priced at `NONE` — the same row a free cancellation writes — so
+the account still says §4 was applied and came to nothing, and the money handed
+back is whatever the folio is then over-paid by. This is why the calculator has
+no waiver column: teaching it about an authority decision would make it and this
+table disagree about what the grid is.
+
+**The waiver and the event that triggered it are separate requests.** Cancelling
+with the penalty waived is one act, and the desk has a route for it. A no-show
+and an early departure are not — they are reached by the night audit and by an
+early checkout, neither of which asks a manager anything. So waiving those two
+cells means writing the waiver onto the stay on its own, under the same
+`MANAGER`+ capability, before the grid is priced. ⚑ That route does not exist
+yet; only the cancel-and-waive composite writes the columns today. Until it
+does, a no-show or early-departure waiver is reachable only as a discretionary
+refund with a typed figure — which is the one thing this table exists to
+replace, and is the reason the gap is named here rather than left to be
+discovered.
+
 No-show is driven by the **business date**, not by a wall clock. The transition
 is `booking-state-machine.md`'s, and this table supplies only the amount — which
 is why that document's §7 says the grid is not a state-machine question.

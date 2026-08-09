@@ -165,6 +165,7 @@ export const CAPABILITIES = [
     unauthenticated: false,
     guest: "denied",
     staff: staff({ MANAGER: "full", ADMIN: "full" }),
+    note: "Waives any cell of the §4 grid, not only a cancellation",
   },
   {
     key: "booking.check-in",
