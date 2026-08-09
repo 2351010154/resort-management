@@ -1,12 +1,22 @@
-// The five folio routes the RBAC matrix already governs — reading the account,
-// posting a charge, posting a payment, correcting a line, and agreeing the whole
-// of it.
+// The seven folio routes the RBAC matrix already governs — reading the account,
+// posting a charge, posting a payment, correcting a line, handing money back the
+// way §4's grid prices it, handing money back at a manager's discretion, and
+// agreeing the whole of it.
 //
-// Five routes and five rows, and no route here names a key the matrix does not
-// have. The refund rows and the invoice adjustment sit in the same section and
-// are deliberately absent: each has service work of its own, and a route with no
-// capability behind it is unreachable for everyone, which is the intended
-// failure mode rather than a gap to be worked around.
+// Seven routes and seven rows, and no route here names a key the matrix does not
+// have. The invoice adjustment sits in the same section and is deliberately
+// absent: it has service work of its own, and a route with no capability behind
+// it is unreachable for everyone, which is the intended failure mode rather than
+// a gap to be worked around.
+//
+// **The two refunds are two declarations, and that is the requirement rather
+// than a stylistic choice.** `rbac-matrix.md` §2 forbids "one endpoint with an
+// amount check", and `FR-PAY-04` names the two rows. The guard reads the
+// declaration on the method, so the only way a receptionist is admitted to §4's
+// figure and refused a manager's is for the two to be two methods — a single
+// handler branching on whether an amount arrived would run under whichever key
+// it declared, and the branch would be a permission check written by hand in a
+// place nothing tests against the matrix.
 //
 // **The transaction is opened here**, as `housekeeping.controller.ts` and
 // `closure.controller.ts` argue and `database.module.ts` requires. The read is
@@ -174,7 +184,7 @@ export class FolioController {
         const posted = await this.folios.reversePosting(exec, {
           postingId: input.postingId,
           businessDate: await this.businessDates.current(exec),
-          postedBy: reversingStaff(principal),
+          postedBy: attributedStaff(principal, "reverse a posting"),
         });
 
         return {
@@ -182,6 +192,91 @@ export class FolioController {
           folio: onWire(await this.account(exec, input.bookingId)),
         };
       }),
+    );
+  }
+
+  /**
+   * §4's grid, posted — `FR-PAY-04` under the cheaper of its two capabilities.
+   *
+   * **Nothing about the figure comes off the request.** The input is the stay
+   * and nothing else, so this handler has nothing to pass on that a caller could
+   * have chosen: the service reads the plan, the nights the booking froze and
+   * the state that says what ended the stay, and `cancellation-calculator.ts`
+   * prices them. That is what makes this row safe to grant a receptionist —
+   * `rbac-matrix.md` §2 splits money authority from operational authority, and
+   * the split holds here because the operational role cannot move the number.
+   *
+   * The account is opened if the stay has none, as the charge and the payment
+   * routes do. A cancellation that was never paid for still owes §4's penalty,
+   * and an account opened to carry it is the honest record — the alternative is
+   * a stay that quietly escaped the grid for having no folio yet.
+   *
+   * One or two lines come back, which {@link contract.folio.postPolicyRefund}
+   * explains: the charge always, and the money going back when the account is
+   * over-paid once that charge stands against it.
+   */
+  @RequiresCapability("folio.refund-policy")
+  @Implement(contract.folio.postPolicyRefund)
+  postPolicyRefund(@CurrentPrincipal() principal: Principal | null) {
+    return implement(contract.folio.postPolicyRefund).handler(
+      async ({ input }) =>
+        this.transactions.run(async (exec) => {
+          const folioId = await this.folios.ensureFolio(exec, input.bookingId);
+
+          const posted = await this.folios.postPolicyRefund(exec, {
+            folioId,
+            bookingId: input.bookingId,
+            businessDate: await this.businessDates.current(exec),
+            postedBy: attributedStaff(
+              principal,
+              "apply the cancellation policy",
+            ),
+          });
+
+          return {
+            posted: [...posted],
+            folio: onWire(await this.account(exec, input.bookingId)),
+          };
+        }),
+    );
+  }
+
+  /**
+   * Money handed back outside §4 — the same requirement, the other capability.
+   *
+   * The declaration above this method is the entire enforcement of "only
+   * `MANAGER`+ may refund outside policy". There is no amount check in the
+   * handler and there is deliberately none: a route that admitted a receptionist
+   * and then compared their figure against the grid would be the one endpoint
+   * `rbac-matrix.md` §2 forbids, and the comparison would have to be right
+   * forever for the permission to hold.
+   *
+   * The account is opened if absent, as every other posting route does. Handing
+   * money back on a stay that has taken none is a manager's mistake rather than
+   * an impossible act, and the ledger answers it plainly — the balance goes
+   * positive, and `close` refuses the account until the line is reversed.
+   */
+  @RequiresCapability("folio.refund-override")
+  @Implement(contract.folio.postOverrideRefund)
+  postOverrideRefund(@CurrentPrincipal() principal: Principal | null) {
+    return implement(contract.folio.postOverrideRefund).handler(
+      async ({ input }) =>
+        this.transactions.run(async (exec) => {
+          const folioId = await this.folios.ensureFolio(exec, input.bookingId);
+
+          const refund = await this.folios.postOverrideRefund(exec, {
+            folioId,
+            businessDate: await this.businessDates.current(exec),
+            amount: input.amount,
+            reason: input.reason,
+            postedBy: attributedStaff(principal, "refund outside policy"),
+          });
+
+          return {
+            posted: [refund],
+            folio: onWire(await this.account(exec, input.bookingId)),
+          };
+        }),
     );
   }
 
@@ -286,19 +381,22 @@ function staffId(principal: Principal | null): string | null {
 /**
  * The same person, where the column will not take a null.
  *
- * `folio_posting.posted_by` is nullable and a reversal's is not, by
- * `folio.service.ts`'s rule rather than the schema's: the two writers with
- * nobody behind them post, and neither reverses. Unreachable — the matrix grants
- * this row to three staff roles and to no one else — and here because an
- * unattributable correction deserves a refusal that says so rather than a type
- * error deeper in.
+ * `folio_posting.posted_by` is nullable and a correction's or a refund's is not,
+ * by `folio.service.ts`'s rule rather than the schema's: the two writers with
+ * nobody behind them post charges and payments, and neither takes a line back
+ * nor hands money out. Unreachable — the matrix grants these three rows to staff
+ * roles and to no one else — and here because an unattributable credit deserves
+ * a refusal that says so rather than a type error deeper in.
+ *
+ * The act is named by the caller so the refusal says which one was refused,
+ * which is the only thing that differs between the three.
  */
-function reversingStaff(principal: Principal | null): string {
+function attributedStaff(principal: Principal | null, act: string): string {
   const staff = staffId(principal);
 
   if (!staff) {
     throw new ORPCError("UNAUTHORIZED", {
-      message: "Only a signed-in member of staff may reverse a posting",
+      message: `Only a signed-in member of staff may ${act}`,
     });
   }
 
