@@ -21,7 +21,8 @@
 
 import { getTableConfig } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
-import { serviceCatalog, TAX_CLASSES, taxClassEnum } from "./service.js";
+import { TAX_CLASSES } from "@mariva/shared";
+import { serviceCatalog, taxClassEnum } from "./service.js";
 
 describe("the service catalog", () => {
   it("names an item, prices it and classes it, and holds nothing else", () => {
