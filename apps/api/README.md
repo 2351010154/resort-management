@@ -177,12 +177,13 @@ by `room_assignment_no_overlap` and `type_inventory_sold_at_most_total`, not by
 a check the service performs first, because a check followed by a write is two
 statements a concurrent request can interleave.
 
-What these do **not** price yet: promotions (`FR-PRC-03`) and the extra-person
-and extra-bed charges (`FR-PRC-04`). A party above a type's maximum is refused,
-per §3, but a third head inside the maximum is quoted at the rate, and
-`extraBedPerNightGross` is always null — `property-and-tariff.md` §9 leaves the
-extra-bed rule with the owner and says no pricing path may infer it from bed
-capacity.
+What these do **not** price yet: promotions (`FR-PRC-03`). A party above a type's
+maximum is refused per §3, and heads inside it are priced by the age bands.
+
+An offer carries no extra-bed figure at all. `property-and-tariff.md` §1 makes a
+bed mandatory when the heads needing bedding exceed what the bedding sleeps, and
+makes that bed free — the extra-person charge is the whole price of the extra
+head. §6's priced extra bed is a desk posting for one a guest asked for.
 
 ## Tests
 

@@ -30,16 +30,19 @@
 //
 // The extra-person rate (`FR-PRC-04`) is at the foot of this file, and what it
 // is *not* is the point. §3's age bands are decided, so the rate they are
-// percentages of is a value the property tunes and therefore a row. §9's extra
-// *bed* is not decided — the owner still has to say when one is mandatory and
-// whether its charge stacks with or replaces the extra-person one — so there is
-// no extra-bed column here and no pricing path that could infer one from bed
-// capacity. The two questions read alike and only one of them has an answer.
+// percentages of is a value the property tunes and therefore a row. The extra
+// *bed* is decided too, and decided as free: §1 makes one mandatory when the
+// heads needing bedding exceed what the bedding sleeps, and the property carries
+// it in at no charge, because the advertised maximum is a promise and the bed is
+// how it is kept. So there is no extra-bed column here and there never will be.
+// This table holds the prices the property tunes, and a required bed has none.
 //
-// What is deliberately NOT here, because M3 does not price it:
+// What is deliberately NOT here:
 //
-// - **The extra-bed charge.** §6 makes it a service-catalog item and §9 leaves
-//   when it is charged unanswered. A column here would be that inference.
+// - **The extra-bed charge.** §6 keeps a priced extra bed in the service catalog
+//   for a bed a guest asks for where their occupancy does not require one. The
+//   desk posts it and no quote reaches it, so it is a catalog item rather than a
+//   property tariff — and the bed §1 does require is not a charge at all.
 // - **Season names.** They label rows in this table; until something renders a
 //   label there is nothing for the column to be read by.
 

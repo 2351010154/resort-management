@@ -46,14 +46,36 @@ once rather than per type: §3 charges an extra person per night above it and up
 the maximum, and a per-type value would imply the property varies what "the rate"
 covers when it does not.
 
-**"Beds sleep" is not "max occupancy".** The columns describe physical capacity;
-they do not settle the commercial rule for a party above included occupancy.
-The owner still has to decide when an extra bed is mandatory and whether its
-service line stacks with or replaces the extra-person charge (§9).
+**"Beds sleep" is not "max occupancy".** The columns describe physical capacity,
+and the gap between them is exactly where an extra bed goes.
 
-When an extra bed is charged, it posts to the folio as a **service item**, never
-as a rate modifier. The unresolved question is whether that line is mandatory
-and cumulative, not how it is represented.
+**An extra bed is mandatory exactly when the heads that need their own bedding
+exceed what the bedding sleeps** — `bedsRequired = max(0, heads aged 6+ − beds
+sleep)`. §3 already settles who needs bedding: a head under 6 is free, sharing
+existing bedding, so an under-6 never puts a bed in a room. The rule keys on **beds
+sleep** and never on the extra-bed column: that column says a bed *can* go in,
+this rule says one *must*. Under the mix above it fires on the Junior Suite
+alone — three bedding-needing heads against bedding for two. The Deluxe is 2/2
+and the Panorama Suite 4/4, so no party that either can legally hold requires
+one.
+
+**Both still take one, and the column is doing its job there.** "Takes an extra
+bed" means a bed fits and the desk may carry one in — not that the type reaches
+its maximum with one. That is what gives §6's priced bed something to price: a
+guest in a Deluxe who wants the second sleeping place the room does not have is
+asking for a bed their occupancy never required, and pays for it. Read the
+column the other way and those two rows look like seed bugs, which they are not.
+
+**A mandatory bed carries no charge.** The Junior Suite's advertised maximum of
+3 is a promise, and the bed is how the property keeps it; charging for it bills
+the guest to receive the occupancy they were sold. §3's age-banded extra-person
+charge is the entire price of that third head. §6's priced extra bed survives for
+a bed a guest *requests* where occupancy does not require one — the desk posts
+that line, and no quote reaches it.
+
+An extra bed posts to the folio as a **service item**, never as a rate modifier.
+That was always about representation, and it still is: what changed is that a
+bed the party requires is now a line the property does not raise.
 
 The last four columns were added when `/booking` was built: a room card that says
 nothing concrete is five near-identical blocks, and
@@ -164,9 +186,16 @@ Friday evening and departs Sunday, so Sunday night is not premium.
 Extra person is charged per night, and only up to the type's max occupancy in
 §1. Occupancy above the maximum is not a price, it is a rejection.
 
-This does **not** decide the extra-bed rule. Until the owner answers the question
-in §9, a quote must not assume that an extra-person charge either includes an
-extra bed or automatically stacks with one.
+**The bed a party requires is not charged, so these bands are the whole price of
+the extra head.** §1 decides when a bed has to be carried in and decides that the
+property carries it in for nothing. Nothing here reads bed capacity: the same
+third head costs the same in a Junior Suite that needs a bed as in a Premier that
+does not.
+
+Charging the bed *instead of* the head would contradict the table above. A bed is
+one per room-night and cannot be halved, so a nine-year-old third head would pay
+§6's 350,000 ₫ rather than half of the extra-person rate below — 300,000 ₫ — and
+the child band would be inverted by the very rule meant to apply it.
 
 **Extra person: 600,000 ₫ per night, gross.** ⚑ Proposed. The rate the bands above
 are percentages *of*; without it none of them resolve to a number.
@@ -259,13 +288,18 @@ price is ⚑.
 Breakfast · Laundry · Minibar · Airport transfer · Late checkout · Extra bed ·
 Spa treatment · Local tour
 
-Two of the eight now have a price, because `/booking` cannot render a card without
-them. Both ⚑ proposed, both gross:
+Two of the eight now have a price. Both ⚑ proposed, both gross:
 
-| Item | Price | Why the funnel needs it |
+| Item | Price | Why it carries one |
 |---|---|---|
 | Breakfast | 250,000 ₫ per person per night | `BB` is `STANDARD` + breakfast, so the plan cannot be quoted without it |
-| Extra bed | 350,000 ₫ per night | The card offers it as its own line on the three types that take one |
+| Extra bed | 350,000 ₫ per night | The desk posts it when a guest asks for a bed their occupancy does not require |
+
+**The extra bed is desk-posted and never quoted.** §1 charges nothing for the bed
+a party's occupancy requires, so neither the guest funnel nor the availability API
+carries an extra-bed price at all — no field, not a null one. This row prices a
+bed somebody asked for, on a folio, posted by a receptionist. It is the one of
+the two above that `/booking` does *not* need.
 
 The other six are still unset and block nothing — nothing on the guest funnel
 quotes them.

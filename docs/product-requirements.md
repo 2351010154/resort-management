@@ -135,7 +135,7 @@ authority named in [`README.md`](README.md) and wins.
 | `FR-PRC-01` | Three rate plans (`STANDARD`, `NONREF`, `BB`) priced off a per-type per-date rate calendar; seasons are names over data, never hardcoded ranges | Per [`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) §3; `BB`'s breakfast posts as its own folio line | M3 |
 | `FR-PRC-02` | Stay restrictions — min/max stay, closed-to-arrival, closed-to-departure — reject at **query** time, not at booking time | One test per restriction | M3 |
 | `FR-PRC-03` | Promotions and discounts as rate modifiers | Brief bullet *giảm giá, khuyến mãi* covered | M3 |
-| `FR-PRC-04` | Child and extra-person pricing per the age bands, charged cheapest-heads-first above included occupancy, never above the type maximum | Per [`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) §3. The owner must still decide when an extra bed is mandatory and whether its service charge stacks with or replaces the extra-person charge; no quote may assume that rule (§9; [SCRUM-87](https://hungphat2018-1785053353783.atlassian.net/browse/SCRUM-87)) | M3 |
+| `FR-PRC-04` | Child and extra-person pricing per the age bands, charged cheapest-heads-first above included occupancy, never above the type maximum | Per [`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) §3. §1 requires an extra bed when the heads needing bedding exceed what the bedding sleeps, and charges nothing for it, so these bands are the whole price of the extra head | M3 |
 
 ### 4.6 `booking` — lifecycle and front desk
 

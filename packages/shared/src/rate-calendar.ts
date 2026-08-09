@@ -192,6 +192,14 @@ export const wireRateCalendarSchema = z.object({
  * sum of the nights, and a client deriving it from a display-rounded per-night
  * figure produces two lines that disagree by a few thousand đồng.
  * `property-and-tariff.md` §5 is why that matters more than it looks.
+ *
+ * **No extra-bed price crosses the wire, and no null one either.** §1 makes a
+ * bed mandatory exactly when the heads needing bedding exceed what the bedding
+ * sleeps, and makes that bed free — the maximum occupancy is a promise and the
+ * bed is how the property keeps it. §3's extra-person charge is therefore the
+ * whole price of the extra head, and it is already inside the two figures above.
+ * §6's priced extra bed is a desk posting for a bed a guest asked for, which is
+ * a folio line and not part of an offer.
  */
 export const roomTypeOfferSchema = z.object({
   code: roomTypeCodeSchema,
@@ -201,8 +209,6 @@ export const roomTypeOfferSchema = z.object({
   stayTotalGross: vndAmountSchema,
   /** Whether every night of the range has a room of this type free. */
   isAvailable: z.boolean(),
-  /** Gross per night for an extra bed, when the type takes one. */
-  extraBedPerNightGross: vndAmountSchema.nullable(),
 });
 
 export type RoomTypeOffer = z.output<typeof roomTypeOfferSchema>;
