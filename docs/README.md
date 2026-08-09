@@ -12,19 +12,19 @@ does not report implementation or delivery status.
 1. **Source, tests, schemas, manifests and workflows own current behavior.**
    Documentation points to that evidence; an intended contract is not release
    proof.
-2. **The [SCRUM Jira project](https://hungphat2018-1785053353783.atlassian.net/issues/?jql=project%20%3D%20SCRUM)
-   owns current execution.** Status, assignee, priority, sprint, dates and
-   blockers belong there.
+2. **[GitHub issues](https://github.com/2351010154/resort-management/issues)
+   own current execution.** Status, assignee, labels, milestones and blockers
+   belong there.
 3. **Repository documentation owns durable intent, decisions and rationale.**
    [`product-requirements.md`](product-requirements.md) owns product outcomes,
    business rules and acceptance criteria. The files under `architecture/` own
    architectural boundaries, constraints, trade-offs and pointers to their
    executable evidence.
 4. **`plans/` contains versionable stateful records.** Plans, reports and research
-   snapshots preserve context but may age; they do not override Jira, current
+   snapshots preserve context but may age; they do not override issues, current
    evidence or durable documentation. Generated HTML and capture screenshots
    remain untracked.
-When Jira says work is complete but the executable evidence disagrees, report
+When an issue says work is complete but the executable evidence disagrees, report
 the inconsistency rather than rewriting either source to conceal it.
 
 ## Durable decision map
@@ -40,17 +40,18 @@ the inconsistency rather than rewriting either source to conceal it.
 | Technology choices and rejected alternatives | [`architecture/tech-stack.md`](architecture/tech-stack.md) |
 | Hosting, database, storage, backup, payment and e-invoice decisions | [`architecture/infrastructure.md`](architecture/infrastructure.md) |
 | Screen intent and navigation | [`screens.md`](screens.md) |
-| Current delivery fields and blockers | [SCRUM in Jira](https://hungphat2018-1785053353783.atlassian.net/issues/?jql=project%20%3D%20SCRUM) |
+| Current delivery fields and blockers | [GitHub issues](https://github.com/2351010154/resort-management/issues) |
 
 Architecture documents may describe an accepted target before code enforces it.
 Follow their evidence links to determine what is implemented.
 
 ## How decisions move
 
-Track unresolved work and external answers in Jira. Once an answer becomes a
-durable product or architecture decision, record it once in the relevant owner
-above and link the Jira issue to that document. Source, tests, schemas or
-workflows then become the evidence that the decision has shipped.
+Track unresolved work and external answers as GitHub issues, labelled
+`question` when the answer is owed by someone outside the project. Once an
+answer becomes a durable product or architecture decision, record it once in the
+relevant owner above and link the issue to that document. Source, tests, schemas
+or workflows then become the evidence that the decision has shipped.
 
 Advisory material under `plans/reports/archive/` is frozen dated rationale. Cite
 it for the trade-off considered at that time, but take the current decision from

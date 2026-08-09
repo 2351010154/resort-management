@@ -76,11 +76,11 @@ and [`product-requirements.md`](product-requirements.md).
 
 1. Read [`README.md`](README.md) to identify the authority for the question.
 2. Open the
-   [SCRUM Jira project](https://hungphat2018-1785053353783.atlassian.net/issues/?jql=project%20%3D%20SCRUM).
-   Jira owns current status, assignee, priority, sprint, dates and blockers.
+   [GitHub issues](https://github.com/2351010154/resort-management/issues).
+   They own current status, assignee, labels, milestones and blockers.
 3. Follow the selected issue to its source, test, schema, manifest or workflow.
    Those artifacts own current behavior.
-4. Update Jira as execution state changes. If the work settles a durable
+4. Update the issue as execution state changes. If the work settles a durable
    requirement, business rule, constraint or trade-off, update its single
    repository authority as well.
 
@@ -94,9 +94,12 @@ generates a local HTML rendering of the planning record.
   database until channel inventory is integrated or reconciled operationally.
 - Payment and electronic-invoice production access depends on external
   onboarding, contracts and credentials.
-- Identity-document scans carry unusually high privacy liability; retention and
-  storage rules must be settled before relying on that capability.
+- Guest personal data — names, identity numbers, stay records — sits in
+  Singapore, and a cross-border transfer dossier must be filed before opening.
+  Identity-document images are not part of that exposure: they are read and
+  discarded, never stored.
 - A solo project has limited review capacity, so money and inventory
   invariants need executable tests and explicit evidence.
 
-Current blockers, owners and follow-up dates for these risks belong in Jira.
+Current blockers, owners and follow-up dates for these risks belong in
+[GitHub issues](https://github.com/2351010154/resort-management/issues).
