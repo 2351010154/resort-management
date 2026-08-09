@@ -111,6 +111,7 @@ import { sqlStateOf } from "../../database/sql-state.js";
 // was written where §4's other rules live and why it can be called from here
 // without either module learning about the other.
 import {
+  type PolicyCharge,
   type PolicyEvent,
   policyCharge,
 } from "../booking/cancellation-calculator.js";
@@ -244,6 +245,8 @@ export interface FolioLine {
   readonly businessDate: string;
   readonly reversesPostingId: string | null;
   readonly parentPostingId: string | null;
+  /** Which row of §4's grid a policy charge is. Null on every other type. */
+  readonly chargeBasis: (typeof folioPosting.$inferSelect)["chargeBasis"];
   readonly postedAt: Date;
   readonly postedBy: string | null;
 }
@@ -369,6 +372,7 @@ export class FolioService implements FolioPort {
         businessDate: folioPosting.businessDate,
         reversesPostingId: folioPosting.reversesPostingId,
         parentPostingId: folioPosting.parentPostingId,
+        chargeBasis: folioPosting.chargeBasis,
         postedAt: folioPosting.postedAt,
         postedBy: staffUser.fullName,
       })
@@ -716,6 +720,13 @@ export class FolioService implements FolioPort {
    * unanswered question. A decomposition invented here would put a VAT line on
    * a penalty nobody has ruled is a taxable supply, on an invoice.
    *
+   * **A waived stay is priced at nothing, and the booking is what says so.**
+   * `booking.cancel-waiver` is `MANAGER`+ and this route is a receptionist's, so
+   * the two decisions are made in different requests by different people; the
+   * waiver columns on `booking` are the whole of what carries the first to the
+   * second. Read here rather than in the grid, because §4's table has no waiver
+   * cell — see the short-circuit below.
+   *
    * **Applied once per account, and a second attempt is refused rather than
    * ignored.** The grid prices the whole of what ended the stay, so a second
    * application charges the same cancellation twice; the refusal names the
@@ -752,11 +763,19 @@ export class FolioService implements FolioPort {
         // forward at all, and {@link policyEventOf} is the reader of it.
         departsOn: booking.checkOutDate,
         // When the stay ended, for the one row of the grid that is decided by
-        // an instant. `CANCELLED` is terminal — `booking-state-machine.md` §2
-        // gives it no outgoing edge — so the last time the row was touched is
-        // the moment it was cancelled, and `schema/booking.ts` keeps no second
-        // column saying so.
-        endedAt: booking.updatedAt,
+        // an instant. The cancellation's own column and not `updated_at`:
+        // `CANCELLED` is terminal, but the *row* is not, and any later touch of
+        // it — an audit backfill, a reference rewrite — would move a
+        // cancellation across §4's 18:00 deadline without anybody cancelling
+        // anything. Null on every stay that was not cancelled, which is exactly
+        // the set of stays {@link policyEventOf} decides without an instant.
+        endedAt: booking.cancelledAt,
+        // The manager's decision to set §4 aside, read here because this is
+        // where §4 is applied. `booking.cancel-waiver` admits the caller who
+        // grants it and `folio.refund-policy` admits the caller who prices the
+        // stay — two capabilities, two requests, and nothing but this column
+        // carries the first decision to the second.
+        penaltyWaivedAt: booking.penaltyWaivedAt,
       })
       .from(booking)
       .where(eq(booking.id, refund.bookingId))
@@ -817,28 +836,44 @@ export class FolioService implements FolioPort {
 
     const arrival = parseDate(stay.checkInDate);
 
-    const charge = policyCharge({
-      plan: stay.plan,
-      checkInDate: arrival,
-      nights: nights.map((night) => night.gross),
-      event: policyEventOf({
-        state: stay.state,
-        endedAt: stay.endedAt,
-        // Nights the folio has actually been charged for, which is what the
-        // calculator asks for by name — never a date subtraction. A reversed
-        // room charge is a night the property agreed did not happen, so it is
-        // not one of them, and counting it would leave the remaining-nights
-        // charge one night short.
-        nightsSpent: standing.filter((line) => line.type === "ROOM_CHARGE")
-          .length,
-        // Nights the stay was sold, less the nights it still covers. An early
-        // departure keeps the `booking_night` rows it gave back, so this is
-        // above nothing exactly when a departure was brought forward.
-        nightsReleased:
-          nights.length -
-          nightCount({ checkIn: arrival, checkOut: parseDate(stay.departsOn) }),
-      }),
-    });
+    // **The waiver is settled above the grid, not inside it.** §4's table is
+    // keyed on the event and the rate plan and has no waiver column, and
+    // `cancellation-calculator.ts` mirrors it exactly — teaching either of them
+    // about an authority decision would make the code and the document disagree
+    // about what the grid is. So a waived stay never reaches the calculator, and
+    // what is posted is `NONE`: a row of the grid, and the same line a free
+    // cancellation writes. The charge still goes on, because the account has to
+    // say that §4 was applied and came to nothing; the refund below then hands
+    // back the whole of what the account is over-paid by, which is what a waiver
+    // means in money.
+    const charge: PolicyCharge = stay.penaltyWaivedAt
+      ? { amount: 0n, basis: "NONE" }
+      : policyCharge({
+          plan: stay.plan,
+          checkInDate: arrival,
+          nights: nights.map((night) => night.gross),
+          event: policyEventOf({
+            state: stay.state,
+            endedAt: stay.endedAt,
+            // Nights the folio has actually been charged for, which is what the
+            // calculator asks for by name — never a date subtraction. A
+            // reversed room charge is a night the property agreed did not
+            // happen, so it is not one of them, and counting it would leave the
+            // remaining-nights charge one night short.
+            nightsSpent: standing.filter((line) => line.type === "ROOM_CHARGE")
+              .length,
+            // Nights the stay was sold, less the nights it still covers. An
+            // early departure keeps the `booking_night` rows it gave back, so
+            // this is above nothing exactly when a departure was brought
+            // forward.
+            nightsReleased:
+              nights.length -
+              nightCount({
+                checkIn: arrival,
+                checkOut: parseDate(stay.departsOn),
+              }),
+          }),
+        });
 
     const businessDate = refund.businessDate.toString();
 
@@ -1042,13 +1077,18 @@ const POLICY_CHARGE_DESCRIPTIONS: Record<ChargeBasis, string> = {
  */
 function policyEventOf(stay: {
   state: (typeof booking.$inferSelect)["state"];
-  endedAt: Date;
+  /** Null on every state but `CANCELLED`, which is the only one that reads it. */
+  endedAt: Date | null;
   nightsSpent: number;
   nightsReleased: number;
 }): PolicyEvent {
   switch (stay.state) {
     case "CANCELLED":
-      return { kind: "CANCELLATION", cancelledAt: stay.endedAt };
+      // `booking_records_a_cancellation_instant_exactly_when_cancelled` makes
+      // the state and the instant a biconditional, so a cancelled stay has one
+      // and the database is what says so. The other two rows are decided
+      // without a clock and never reach for it.
+      return { kind: "CANCELLATION", cancelledAt: stay.endedAt! };
 
     case "NO_SHOW":
       return { kind: "NO_SHOW" };
