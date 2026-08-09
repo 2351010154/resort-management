@@ -133,8 +133,8 @@ function sum(amounts: readonly VndAmount[]): VndAmount {
 /**
  * The charge §4's grid prescribes.
  *
- * Waiving any of these is `refund.override` and a different capability — see
- * `rbac-matrix.md` §2. Nothing here knows about a waiver, deliberately: the
+ * Waiving any of these is `folio.refund-override` and a different capability —
+ * see `rbac-matrix.md` §2. Nothing here knows about a waiver, deliberately: the
  * policy number and the decision to depart from it are two different records,
  * and a calculator that could return either would lose which one it returned.
  */
