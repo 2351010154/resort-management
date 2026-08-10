@@ -630,6 +630,47 @@ describe("the capability each folio route declares", () => {
   });
 });
 
+// The catalog route is not a folio route — its row is filed under "Rooms,
+// rates, inventory", because what is for sale is a fact about the property and
+// not about anybody's account. It is asserted here because this is where the
+// other half of `FR-FOL-03` runs: the list is what a code comes from, and a
+// route the desk cannot open is a posting it cannot make.
+describe("the capability the service catalog route declares", () => {
+  const CATALOG_PATH = "/service-catalog";
+  const CATALOG_CAPABILITY: CapabilityKey = "service.read-catalog";
+  const CATALOG_ACTION: CapabilityAction = "read";
+
+  for (const role of STAFF_ROLES) {
+    const admitted = permits(
+      staffGrant(CATALOG_CAPABILITY, role),
+      CATALOG_ACTION,
+    );
+
+    it(`${admitted ? "admits" : "refuses"} ${role}`, async () => {
+      const response = await as(role, "get", CATALOG_PATH);
+
+      if (admitted) {
+        expect(response.status).not.toBe(403);
+      } else {
+        expect(response.status).toBe(403);
+      }
+    });
+  }
+
+  it("refuses a stranger holding no session", async () => {
+    // A price list is not public. What a guest is quoted comes from the funnel,
+    // which prices a stay; this is the desk's list and it is asked for with a
+    // session or not at all.
+    await http().get(CATALOG_PATH).expect(401);
+  });
+
+  it("names the row the matrix already has", () => {
+    expect(capability(CATALOG_CAPABILITY).section).toBe(
+      "Rooms, rates, inventory",
+    );
+  });
+});
+
 describe("a guest holding a real session", () => {
   let guest: request.Agent;
 
@@ -693,6 +734,13 @@ describe("a guest holding a real session", () => {
     for (const route of ROUTES.filter((each) => each.action === "write")) {
       await guest.post(route.path(stayId)).send().expect(403);
     }
+  });
+
+  it("is refused the price list, which is nobody's own booking", async () => {
+    // `denied` and not `conditional`: there is no scope a handler could check
+    // that would make one guest's view of what the property sells different
+    // from another's, so the realm is wrong at the guard.
+    await guest.get("/service-catalog").expect(403);
   });
 });
 
@@ -944,7 +992,11 @@ describe("selling a catalog item over the route", () => {
       ),
     );
 
-  it("lists what is for sale, without the withdrawn or the unpriced hidden", async () => {
+  // Every seeded item is on sale, so this says the list is §6's and that a null
+  // price survives the wire. Whether withdrawing withholds an item is asked of
+  // the read itself in `service-catalog.e2e-spec.ts`, which writes an inactive
+  // row; the seed has none to withhold.
+  it("lists §6's items, with an unpriced one still saying it has no price", async () => {
     const response = await as("RECEPTIONIST", "get", "/service-catalog").expect(
       200,
     );
