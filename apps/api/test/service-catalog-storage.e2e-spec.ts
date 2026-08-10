@@ -202,6 +202,70 @@ describe("a price the catalog will not hold", () => {
   });
 });
 
+describe("a code the catalog will not hold", () => {
+  // The catalog is data and nothing edits it over HTTP, so a new item is a row
+  // somebody writes by hand. `serviceCodeSchema` says what a code is and the
+  // list endpoint parses every row it returns against it — so a row outside
+  // that shape is not one item the desk cannot see, it is the whole list
+  // failing to answer. These are the constraint that keeps the two agreeing.
+
+  it("refuses a code that is not the handle the contract publishes", async () => {
+    for (const code of ["cooking_class", "Cooking Class", "9_LIVES", "_LEAD"]) {
+      const refusal = await refused(
+        db.insert(serviceCatalog).values({
+          code,
+          name: "Cooking class",
+          taxClass: "STANDARD",
+        }),
+      );
+
+      expect(refusal.code).toBe(CHECK_VIOLATION);
+      expect(refusal.constraint).toBe("service_catalog_code_is_a_handle");
+    }
+  });
+
+  it("refuses a code longer than the wire will carry", async () => {
+    const refusal = await refused(
+      db.insert(serviceCatalog).values({
+        code: "A".repeat(65),
+        name: "A very long handle",
+        taxClass: "STANDARD",
+      }),
+    );
+
+    expect(refusal.code).toBe(CHECK_VIOLATION);
+    expect(refusal.constraint).toBe("service_catalog_code_is_a_handle");
+  });
+
+  it("takes the shapes §6's own items are written in", async () => {
+    // The rule has to admit the seed it is imposed on: one word, and one with
+    // the underscore `AIRPORT_TRANSFER` and `LATE_CHECKOUT` carry.
+    await db.insert(serviceCatalog).values([
+      { code: "SPA2", name: "Spa, second room", taxClass: "STANDARD" },
+      { code: "BICYCLE_HIRE_2H", name: "Bicycle hire", taxClass: "STANDARD" },
+    ]);
+
+    const stored = await db.select().from(serviceCatalog);
+
+    expect(stored).toHaveLength(SECTION_SIX_ITEMS.length + 2);
+  });
+
+  it("refuses an item with no name to print", async () => {
+    // A blank name is a folio line the guest reads as an empty row, and the
+    // wire says an item has a name. Whitespace is the same absence typed.
+    const refusal = await refused(
+      db.insert(serviceCatalog).values({
+        code: "NAMELESS",
+        name: "   ",
+        taxClass: "STANDARD",
+      }),
+    );
+
+    expect(refusal.code).toBe(CHECK_VIOLATION);
+    expect(refusal.constraint).toBe("service_catalog_name_is_not_blank");
+  });
+});
+
 describe("a tax class this property cannot price", () => {
   it("is refused by Postgres and not only by TypeScript", async () => {
     // §5 makes the class structure and §8 makes the rate configuration. The

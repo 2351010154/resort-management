@@ -1,0 +1,2 @@
+ALTER TABLE "service_catalog" ADD CONSTRAINT "service_catalog_code_is_a_handle" CHECK ("service_catalog"."code" ~ '^[A-Z][A-Z0-9_]*$' and length("service_catalog"."code") <= 64);--> statement-breakpoint
+ALTER TABLE "service_catalog" ADD CONSTRAINT "service_catalog_name_is_not_blank" CHECK (length(trim("service_catalog"."name")) > 0);
