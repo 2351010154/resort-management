@@ -106,7 +106,24 @@ describe("the service catalog", () => {
       (check) => check.name,
     );
 
-    expect(declared).toEqual(["service_catalog_price_positive_when_set"]);
+    expect(declared).toEqual([
+      "service_catalog_price_positive_when_set",
+      "service_catalog_code_is_a_handle",
+      "service_catalog_name_is_not_blank",
+    ]);
+  });
+
+  it("holds a code to the shape the contract publishes", () => {
+    // The catalog is data and no route writes it, so the hand that adds an item
+    // adds it to the table. `serviceCodeSchema` describes what a code looks like
+    // and the list endpoint parses every row against it — which makes a row the
+    // schema cannot describe an endpoint the desk cannot open, rather than one
+    // item it cannot see. The constraint is where that claim becomes true.
+    const declared = getTableConfig(serviceCatalog).checks.find(
+      (check) => check.name === "service_catalog_code_is_a_handle",
+    );
+
+    expect(declared).toBeDefined();
   });
 
   it("gives an item one code, so a posting names one row", () => {

@@ -137,6 +137,24 @@ export const serviceCatalog = pgTable(
       "service_catalog_price_positive_when_set",
       sql`${table.unitPriceGross} is null or ${table.unitPriceGross} > 0`,
     ),
+    // The shape `serviceCodeSchema` already claims, enforced where rows are
+    // actually written. §6 makes the catalog data — a property adds an item by
+    // adding a row, and no route edits it — so the only writer is a hand at the
+    // database, and a `cooking_class` put in by one would be a row the contract
+    // cannot describe. The list read parses every row it returns, so one such
+    // row does not hide itself: it takes the whole catalog down for the desk.
+    // Upper case is not decoration either — the column is unique, and `Minibar`
+    // beside `MINIBAR` is two items nobody can tell apart.
+    check(
+      "service_catalog_code_is_a_handle",
+      sql`${table.code} ~ '^[A-Z][A-Z0-9_]*$' and length(${table.code}) <= 64`,
+    ),
+    // The same argument, one column over: the wire says an item has a name, and
+    // an empty one is a folio line the guest reads as a blank.
+    check(
+      "service_catalog_name_is_not_blank",
+      sql`length(trim(${table.name})) > 0`,
+    ),
   ],
 );
 
