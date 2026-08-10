@@ -10,14 +10,32 @@
 // gateway's statement long, and the property finds out when the bank
 // reconciliation does, a month later, against a figure nobody can attribute.
 //
-// This file is the comparison and the writing-down, and it is deliberately
-// neither of the two things around it. It is not a job — `SweepJob` takes an
-// executor and a business date and returns what it touched, and `reconcile`
-// below is shaped to be called by exactly that without the job knowing anything
-// about how the comparison works. It is not a route either. And it does not
-// page anybody: `FR-PAY-05` says a discrepancy pages a phone, the classification
-// each one carries is what a pager would branch on, and who is on call is a
-// question with its own answer somewhere else.
+// This file is the comparison, the writing-down, and the reading-back, and it is
+// deliberately not the two things around them. It is not a job — `SweepJob`
+// takes an executor and a business date and returns what it touched, and
+// `reconcile` below is shaped to be called by exactly that without the job
+// knowing anything about how the comparison works. It is not a route either:
+// `payment.controller.ts` declares the two the matrix governs and turns what
+// comes back into the wire's own spellings. And it does not page anybody:
+// `FR-PAY-05` says a discrepancy pages a phone, the classification each one
+// carries is what a pager would branch on, and who is on call is a question with
+// its own answer somewhere else.
+//
+// ## Reading is the other half of writing it down, and lives here
+//
+// A discrepancy nobody can look at is a row that may as well not have been
+// written — which is where `FR-PAY-05` stood until the two read methods below:
+// the sweep filed the disagreement, `ops-alert.service.ts` woke the accountant,
+// and the accountant had nowhere to go. So {@link ReconciliationService.runs}
+// answers which days were held against the gateway's report and how much of each
+// disagreed, and {@link ReconciliationService.reconciledDay} answers what the
+// disagreements on one of them actually were.
+//
+// Both take an executor and neither writes, for the reason the whole table
+// exists: what is on file is an observation of what a day looked like when it
+// was looked at, and a reader that corrected, resolved or re-swept as it went
+// would be erasing the evidence as it read it. Re-running a night is
+// `jobs.ts`'s trigger, under the capability that governs a sweep.
 //
 // ## The report is handed in, and that is the seam
 //
@@ -108,12 +126,24 @@
 
 import type { StayDate, VndAmount } from "@mariva/shared";
 import { Injectable } from "@nestjs/common";
-import { and, gte, isNotNull, lt } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  isNotNull,
+  lt,
+  lte,
+  type SQL,
+} from "drizzle-orm";
 import type { DbExecutor } from "../../database/database.module.js";
 import { payment } from "../../database/schema/payment.js";
 import {
   type PaymentDiscrepancyKind,
   paymentDiscrepancy,
+  paymentReconciliationRun,
 } from "../../database/schema/reconciliation.js";
 import { BusinessDateService } from "../booking/business-date.service.js";
 import type { GatewayTransaction } from "./ports/payment-gateway.port.js";
@@ -180,6 +210,65 @@ export interface Reconciliation {
   readonly recorded: readonly RecordedDiscrepancy[];
 }
 
+/**
+ * The days one list may answer with.
+ *
+ * A property files one of these a night and never deletes one, so an unbounded
+ * list is a response that grows for as long as the property trades. Rather over
+ * a year, which is longer than any question anybody asks of a reconciliation
+ * screen — and a day older than that is still reachable by naming the range it
+ * falls in, which is what the two optional bounds are for.
+ */
+const LONGEST_RUN_LIST = 400;
+
+/** Which reconciled days to list. Both ends optional and both inclusive. */
+export interface ReconciledDayRange {
+  readonly from?: StayDate;
+  readonly to?: StayDate;
+}
+
+/**
+ * A day that was reconciled, and how much of it disagreed.
+ *
+ * The count is taken on every read. `schema/reconciliation.ts` refuses to store
+ * it and gives the reason — a figure frozen at the moment of the sweep is the
+ * same fact kept twice, on the one table whose purpose is to notice when two
+ * copies of a fact have stopped agreeing.
+ *
+ * The date is the wire's own nine characters rather than a `CalendarDate`: it
+ * comes straight out of a `date` column and goes straight onto the response, so
+ * there is no crossing to make and nothing that would have to be made back.
+ */
+export interface ReconciliationRunSummary {
+  readonly businessDate: string;
+  readonly reconciledAt: Date;
+  readonly discrepancyCount: number;
+}
+
+/** One disagreement on file, as it was observed and never since edited. */
+export interface ObservedDiscrepancy {
+  readonly id: string;
+  readonly attemptReference: string;
+  readonly kind: PaymentDiscrepancyKind;
+  readonly gatewayAmount: VndAmount | null;
+  readonly ledgerAmount: VndAmount | null;
+  readonly paymentId: string | null;
+  readonly observedAt: Date;
+}
+
+/**
+ * One reconciled day in full.
+ *
+ * The instant is carried beside the rows, and it is what makes an empty list
+ * mean something: a day with no disagreements was looked at and found clean,
+ * where a day nobody swept has no run at all and is not one of these.
+ */
+export interface ReconciledDay {
+  readonly businessDate: string;
+  readonly reconciledAt: Date;
+  readonly discrepancies: readonly ObservedDiscrepancy[];
+}
+
 @Injectable()
 export class ReconciliationService {
   constructor(private readonly businessDates: BusinessDateService) {}
@@ -243,6 +332,124 @@ export class ReconciliationService {
       });
 
     return { businessDate, compared, recorded };
+  }
+
+  /**
+   * The days already held against the gateway's report, newest first, and how
+   * much of each one disagreed.
+   *
+   * **A left join and not two queries**, because a clean day writes no
+   * discrepancy at all: an inner join would drop exactly the days that went
+   * right, and a screen showing only the days with exceptions on them cannot
+   * tell "nothing went wrong on the 14th" from "nobody reconciled the 14th" —
+   * which is the distinction the run table was added to make. `count` over the
+   * joined id counts the rows and not the join's nulls, so a clean day comes
+   * back as zero.
+   *
+   * Newest first and capped, which is the question this answers: an accountant
+   * paged in the night is asking about last night. A day older than
+   * {@link LONGEST_RUN_LIST} is reached by naming the range it falls in rather
+   * than by paging back through every night the property has traded.
+   *
+   * The bounds are inclusive at both ends and either may be absent — the
+   * contract says why — so the predicate is assembled from whichever arrived.
+   */
+  async runs(
+    exec: DbExecutor,
+    range: ReconciledDayRange,
+  ): Promise<readonly ReconciliationRunSummary[]> {
+    const bounds: SQL[] = [];
+
+    if (range.from) {
+      bounds.push(
+        gte(paymentReconciliationRun.businessDate, range.from.toString()),
+      );
+    }
+
+    if (range.to) {
+      bounds.push(
+        lte(paymentReconciliationRun.businessDate, range.to.toString()),
+      );
+    }
+
+    return await exec
+      .select({
+        businessDate: paymentReconciliationRun.businessDate,
+        reconciledAt: paymentReconciliationRun.reconciledAt,
+        discrepancyCount: count(paymentDiscrepancy.id),
+      })
+      .from(paymentReconciliationRun)
+      .leftJoin(
+        paymentDiscrepancy,
+        eq(
+          paymentDiscrepancy.businessDate,
+          paymentReconciliationRun.businessDate,
+        ),
+      )
+      .where(bounds.length === 0 ? undefined : and(...bounds))
+      .groupBy(
+        paymentReconciliationRun.businessDate,
+        paymentReconciliationRun.reconciledAt,
+      )
+      .orderBy(desc(paymentReconciliationRun.businessDate))
+      .limit(LONGEST_RUN_LIST);
+  }
+
+  /**
+   * One day's disagreements, or nothing at all where the day was never
+   * reconciled.
+   *
+   * **Two statements, and the first one is the whole point.** The run row is
+   * asked for before the discrepancies, because an empty list is not an answer
+   * on its own: a day that reconciled clean and a day the sweep never reached
+   * both have no rows in `payment_discrepancy`, and only the run says which of
+   * the two this is. `null` here is the second case, and the caller turns it
+   * into a refusal rather than into an empty day.
+   *
+   * They belong in one transaction for the same reason `folio.controller.ts`
+   * wraps its read: on two connections they would be two moments, and a sweep
+   * committing between them would produce a day reported as clean that already
+   * had exceptions on it.
+   *
+   * Ordered by attempt reference, which is `compare`'s own order — so a day read
+   * twice lists the same rows the same way, and a row's position does not move
+   * when the same night is re-swept.
+   */
+  async reconciledDay(
+    exec: DbExecutor,
+    businessDate: StayDate,
+  ): Promise<ReconciledDay | null> {
+    const date = businessDate.toString();
+
+    const [run] = await exec
+      .select({ reconciledAt: paymentReconciliationRun.reconciledAt })
+      .from(paymentReconciliationRun)
+      .where(eq(paymentReconciliationRun.businessDate, date))
+      .limit(1);
+
+    if (!run) {
+      return null;
+    }
+
+    const discrepancies = await exec
+      .select({
+        id: paymentDiscrepancy.id,
+        attemptReference: paymentDiscrepancy.attemptReference,
+        kind: paymentDiscrepancy.kind,
+        gatewayAmount: paymentDiscrepancy.gatewayAmount,
+        ledgerAmount: paymentDiscrepancy.ledgerAmount,
+        paymentId: paymentDiscrepancy.paymentId,
+        observedAt: paymentDiscrepancy.observedAt,
+      })
+      .from(paymentDiscrepancy)
+      .where(eq(paymentDiscrepancy.businessDate, date))
+      .orderBy(asc(paymentDiscrepancy.attemptReference));
+
+    return {
+      businessDate: date,
+      reconciledAt: run.reconciledAt,
+      discrepancies,
+    };
   }
 
   /**

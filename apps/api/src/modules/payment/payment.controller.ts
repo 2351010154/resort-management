@@ -1,8 +1,9 @@
 // One payment's whole conversation: where the property asks for the money —
-// `FR-PAY-02` — and then where the gateway reports what became of it and where
-// the payer lands, which is `FR-PAY-03`.
+// `FR-PAY-02` — where the gateway reports what became of it and where the payer
+// lands, which is `FR-PAY-03`, and where somebody reads back the nights on which
+// the gateway's report and this property's ledger did not agree, `FR-PAY-05`.
 //
-// **Two of the three are VNPay's routes, and the file is shaped by that.**
+// **Two of the five are VNPay's routes, and the file is shaped by that.**
 // Everything else under `modules/` answers through `contract` in
 // `@mariva/shared`, because the caller on the other end is this property's own
 // web app and the contract is what makes the two agree at compile time. The IPN
@@ -13,14 +14,32 @@
 // `guest-auth.controller.ts` mounts Better Auth's own surface for the same
 // reason, and gives it.
 //
-// **The third is the property's own, and it is the only one that holds a
+// **The other three are the property's own, and they are the ones that hold a
 // capability.** Opening an attempt is the desk asking a gateway to collect
-// against a stay: the caller is this property's web app, the shape is this
-// property's to choose, and `rbac-matrix.md` §2 governs it like every other
-// staff route. So it is declared in `contract/payment.ts` and guarded by
-// `payment.open-attempt`. It is answered here rather than beside the folio
-// because the attempt and the callback that resolves it are one conversation —
-// and because `payment.module.ts` registers one controller for this module.
+// against a stay; listing the nights that were reconciled and reading one of
+// them is the accountant asking what the sweep found. In all three the caller is
+// this property's web app, the shape is this property's to choose, and
+// `rbac-matrix.md` §2 governs them like every other staff route. So they are
+// declared in `contract/payment.ts` and guarded by `payment.open-attempt` and
+// `payment.reconcile`. They are answered here rather than beside the folio
+// because the attempt, the callback that resolves it and the night that checks
+// both are one conversation — and because `payment.module.ts` registers one
+// controller for this module.
+//
+// **The two reconciliation routes are declared as reads**, which is the second
+// argument to `@RequiresCapability` and not a comment. The row grants `full` to
+// the three roles that hold it, so nothing is refused today that would otherwise
+// be admitted; it is declared anyway, because the day the matrix hands somebody
+// a 👁 over gateway reconciliation — an auditor, a night manager — these must be
+// the routes that let them look, and not the routes that refuse them.
+// `folio.controller.ts` makes the same argument about its own read.
+//
+// Neither of them writes, and there is deliberately no third route that does.
+// `schema/reconciliation.ts` keeps the table append-only because a row is an
+// observation of what a day looked like when it was looked at; a route that
+// acknowledged, resolved or corrected one would be editing the evidence. Sweeping
+// a night again is `jobs.ts`'s trigger, under the capability that already governs
+// a sweep.
 //
 // **VNPay's two paths are written on their handlers rather than on the class**,
 // which is what lets the three live together. A `@Controller` prefix is
@@ -92,6 +111,7 @@ import {
   Unguarded,
 } from "../../common/auth/access.decorators.js";
 import { ENV, type Env } from "../../config/env.js";
+import { TransactionRunner } from "../../database/transaction-runner.js";
 import {
   type CallbackOutcome,
   disagreementOf,
@@ -101,6 +121,12 @@ import {
   PAYMENT_GATEWAY,
   type PaymentGateway,
 } from "./ports/payment-gateway.port.js";
+import type {
+  ObservedDiscrepancy,
+  ReconciledDay,
+  ReconciliationRunSummary,
+} from "./reconciliation.service.js";
+import { ReconciliationService } from "./reconciliation.service.js";
 
 /**
  * VNPay's acknowledgement, as its IPN specification defines the pair.
@@ -171,6 +197,13 @@ const SEE_THE_FUNNEL = 303;
 export class PaymentController {
   constructor(
     private readonly payments: PaymentService,
+    private readonly reconciliations: ReconciliationService,
+    // The boundary the two-statement read below is taken inside, opened here as
+    // `transaction-runner.ts` requires and every other controller does: a run
+    // row and the discrepancies filed under it are one answer, and on two
+    // connections they would be two moments with a sweep free to commit in
+    // between.
+    private readonly transactions: TransactionRunner,
     // The port, and never the adapter — `FR-PAY-01`. The return route needs a
     // signature checked and nothing else, and the one method that does it is
     // already on the port: `PaymentGateway.verifyCallback` states outright that
@@ -216,6 +249,73 @@ export class PaymentController {
         returnUrl: this.gatewayReturnUrl(),
         payerIpAddress,
       }),
+    );
+  }
+
+  /**
+   * The nights that were held against the gateway's report, and how much of each
+   * one disagreed — `FR-PAY-05`, read back.
+   *
+   * **A day with nothing on it is still listed, and that is the whole reason
+   * this answers from the run table rather than from the discrepancies.**
+   * `schema/reconciliation.ts` writes nothing at all for an attempt the two
+   * reports agree on, so a list drawn from `payment_discrepancy` would show only
+   * the bad nights — and a night missing from it could equally be a clean one or
+   * one the sweep never reached. Those are opposite facts, and only a run row
+   * tells them apart.
+   *
+   * Both bounds are optional and the service assembles whichever arrived; the
+   * contract says why absent is a better default than a window invented here.
+   */
+  @RequiresCapability("payment.reconcile", "read")
+  @Implement(contract.payment.listReconciliations)
+  listReconciliations() {
+    return implement(contract.payment.listReconciliations).handler(
+      async ({ input }) => ({
+        runs: (
+          await this.transactions.run((exec) =>
+            this.reconciliations.runs(exec, input),
+          )
+        ).map(runOnWire),
+      }),
+    );
+  }
+
+  /**
+   * What one reconciled night actually found.
+   *
+   * **A date nobody reconciled is a `NOT_FOUND`, and a date reconciled clean is
+   * a 200 with an empty list.** The two are different answers because they are
+   * different facts — the sweep has never run against a day it is still trading,
+   * and a screen shown an empty list for one would report a night as agreed that
+   * nobody has looked at. The refusal names the day so the reader can see which
+   * one it is talking about, and says the thing they can act on: the night is
+   * outstanding, and `jobs.ts`'s trigger is how it gets swept.
+   *
+   * The service returns `null` for exactly that case, and this is where it
+   * becomes the refusal — a controller's job, because "no row" is a fact and
+   * "404" is a protocol.
+   */
+  @RequiresCapability("payment.reconcile", "read")
+  @Implement(contract.payment.readReconciliation)
+  readReconciliation() {
+    return implement(contract.payment.readReconciliation).handler(
+      async ({ input }) => {
+        const day = await this.transactions.run((exec) =>
+          this.reconciliations.reconciledDay(exec, input.businessDate),
+        );
+
+        if (!day) {
+          throw new ORPCError("NOT_FOUND", {
+            message:
+              `No reconciliation has been run for ${input.businessDate.toString()} — ` +
+              "either the property is still trading that day or the sweep has " +
+              "not reached it yet",
+          });
+        }
+
+        return dayOnWire(day);
+      },
     );
   }
 
@@ -463,6 +563,33 @@ export class PaymentController {
 
     return { url: url.toString(), statusCode: SEE_THE_FUNNEL };
   }
+}
+
+/**
+ * A run as the wire carries it — the instant into ISO-8601.
+ *
+ * The business date is already the nine characters the column holds, and the
+ * đồng on a discrepancy stay `bigint`: the serialiser under the contract writes
+ * one out as decimal text on its own, which is what `money.ts` says a response
+ * declares. Only the instants need turning, and they are turned here rather than
+ * in the service so that nothing below the route has to know a wire exists —
+ * `folio.controller.ts` draws the same line in the same place.
+ */
+function runOnWire(run: ReconciliationRunSummary) {
+  return { ...run, reconciledAt: run.reconciledAt.toISOString() };
+}
+
+/** One reconciled day, the same way. */
+function dayOnWire(day: ReconciledDay) {
+  return {
+    businessDate: day.businessDate,
+    reconciledAt: day.reconciledAt.toISOString(),
+    discrepancies: day.discrepancies.map(discrepancyOnWire),
+  };
+}
+
+function discrepancyOnWire(discrepancy: ObservedDiscrepancy) {
+  return { ...discrepancy, observedAt: discrepancy.observedAt.toISOString() };
 }
 
 /**
