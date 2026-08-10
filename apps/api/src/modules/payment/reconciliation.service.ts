@@ -78,7 +78,7 @@
 // business date column, only the instant the gateway says it took the money, so
 // the ledger's side is the payments whose `paid_at` falls in this business date.
 //
-// That mapping is `BusinessDateService`'s and is asked of it row by row, rather
+// That mapping is `BusinessDateService`'s and is applied row by row, rather
 // than being turned into a pair of timestamps here. The rollover hour is a row
 // an `ADMIN` edits, that service is where the rule that reads it lives, and a
 // window computed in this file would be the rule's second implementation —
@@ -100,10 +100,13 @@
 // the sweep marks the date reconciled in the same transaction — leaves nothing
 // that will ever look again.
 //
-// So the rule is taken as an argument where the caller has one.
-// `reconciliation.job.ts` reads it once for a whole sweep, which is what puts
-// the report it assembles and the ledger read here on the same boundary; a
-// caller that hands in nothing gets one read here, covering this night.
+// So the rule is an argument, and a required one. `reconciliation.job.ts` reads
+// it once for a whole sweep, which is what puts the report it assembles and the
+// ledger read here on the same boundary. Required rather than defaulted because
+// a default is the same defect with a longer fuse: a caller that drew its report
+// under one hour and left the argument out would get a second hour for the
+// ledger, and nothing would say so. This class therefore reads no configuration
+// at all — it is handed the boundary and applies it.
 //
 // ## Running it twice writes nothing twice
 //
@@ -156,10 +159,7 @@ import {
   paymentDiscrepancy,
   paymentReconciliationRun,
 } from "../../database/schema/reconciliation.js";
-import {
-  type BusinessDateRule,
-  BusinessDateService,
-} from "../booking/business-date.service.js";
+import type { BusinessDateRule } from "../booking/business-date.service.js";
 import type { GatewayTransaction } from "./ports/payment-gateway.port.js";
 
 /**
@@ -306,8 +306,6 @@ export interface ReconciledDay {
 
 @Injectable()
 export class ReconciliationService {
-  constructor(private readonly businessDates: BusinessDateService) {}
-
   /**
    * Compares the gateway's report for a business date against the payments this
    * property recorded in it, and writes down every disagreement.
@@ -317,25 +315,25 @@ export class ReconciliationService {
    * boundary is its whole run — `job-runner.service.ts` and
    * `transaction-runner.ts` between them make the argument.
    *
-   * `dates` is the day boundary to classify against, and is how a caller that
-   * drew the report puts both sides of the comparison on one rollover hour —
-   * the header says what happens to a night that is drawn on two. A caller with
-   * no rule of its own leaves it out and one is read here, which covers this
-   * night and nothing outside it.
+   * **`dates` is required, and it is required because a default is what the
+   * defect was.** It is the day boundary this night is classified against, and
+   * the caller supplies it because the caller is the one that drew the report
+   * on the other side of the comparison. A parameter that could be left out
+   * would read a second hour here — which is precisely the split the header
+   * describes, still reachable by anybody who did not know to pass the first
+   * one. Required, it is the compiler that says the two sides are the same
+   * boundary, and there is nothing left for a later caller to remember.
    */
   async reconcile(
     exec: DbExecutor,
     businessDate: StayDate,
     report: readonly GatewayTransaction[],
-    dates?: BusinessDateRule,
+    dates: BusinessDateRule,
   ): Promise<Reconciliation> {
-    const ledger = await this.ledgerFor(
-      exec,
-      businessDate,
-      dates ?? (await this.businessDates.rule(exec)),
+    const compared = compare(
+      report,
+      await this.ledgerFor(exec, businessDate, dates),
     );
-
-    const compared = compare(report, ledger);
 
     // `flatMap` over a filter and a map, so that the narrowing is the compiler's
     // rather than a cast: inside the second branch `outcome` is one of the three

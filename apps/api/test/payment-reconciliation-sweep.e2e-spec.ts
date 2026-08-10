@@ -497,7 +497,7 @@ function runTheSweep(gateway: PaymentGateway) {
 
   const job = new ReconciliationJob(
     gateway,
-    new ReconciliationService(businessDates),
+    new ReconciliationService(),
     businessDates,
     new OpsAlertService({ OPS_ALERT_WEBHOOK_URL: webhook } as Env, log),
     log,

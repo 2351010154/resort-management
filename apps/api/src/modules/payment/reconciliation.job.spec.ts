@@ -220,7 +220,7 @@ async function sweep({
       gatewayTransactionId: "vnp-at-the-gateway",
       paidAt: AT_FIVE_IN_THE_MORNING,
     }),
-    new ReconciliationService(businessDates),
+    new ReconciliationService(),
     businessDates,
     {
       page: async (alert: OpsAlert) => {
