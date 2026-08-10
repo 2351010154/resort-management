@@ -84,6 +84,7 @@ export default defineConfig({
         "src/modules/pricing/**/*.ts",
         "src/modules/folio/**/*.ts",
         "src/modules/payment/**/*.ts",
+        "src/modules/operations/**/*.ts",
         "src/database/schema/inventory.ts",
         "src/database/schema/pricing.ts",
       ],
@@ -160,6 +161,19 @@ export default defineConfig({
           statements: 85,
         },
         "src/modules/payment/**": {
+          lines: 85,
+          functions: 85,
+          branches: 85,
+          statements: 85,
+        },
+        // The service catalog joins on the argument the two above it make.
+        // `NFR-10` does not name it and the module holds no money — what it
+        // holds is the figure a folio line is computed from, and `FR-FOL-03`
+        // gives it one branch that decides between the property's published
+        // price and a number the desk typed. Getting that branch wrong is
+        // silent in exactly the way this list exists for: a guest is charged an
+        // amount that looks like a price and is not one.
+        "src/modules/operations/**": {
           lines: 85,
           functions: 85,
           branches: 85,

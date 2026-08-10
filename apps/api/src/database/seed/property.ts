@@ -11,8 +11,12 @@
 // and a screen that changed its prices the day it was wired to the real API
 // would look like a pricing bug rather than a wiring change.
 
-import type { RatePlanCode, RoomTypeCode, VndAmount } from "@mariva/shared";
-import type { TAX_CLASSES } from "../schema/service.js";
+import type {
+  RatePlanCode,
+  RoomTypeCode,
+  TaxClass,
+  VndAmount,
+} from "@mariva/shared";
 
 /** The property's rooms — §1. */
 export const ROOM_COUNT = 40;
@@ -215,7 +219,7 @@ export interface ServiceItemSeed {
   readonly code: string;
   readonly name: string;
   readonly unitPriceGross: VndAmount | null;
-  readonly taxClass: (typeof TAX_CLASSES)[number];
+  readonly taxClass: TaxClass;
 }
 
 /**

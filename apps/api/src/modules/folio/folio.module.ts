@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { BusinessDateService } from "../booking/business-date.service.js";
+import { OperationsModule } from "../operations/operations.module.js";
 import { SystemConfigModule } from "../system-config/system-config.module.js";
 import { EInvoiceJob } from "./e-invoice.job.js";
 import { FolioController } from "./folio.controller.js";
@@ -58,8 +59,14 @@ import { E_INVOICE_PORT } from "./ports/e-invoice.port.js";
 // one stateless provider. The instance is duplicated and the implementation is
 // not, and it caches no hour — it reads the `system_config` row on every call —
 // so no two instances can disagree about what day the property is on.
+// `OperationsModule` is imported for the same reason and on the same terms as
+// `SystemConfigModule` above it: `FR-FOL-03` posts a catalog item at the price
+// the catalog holds, and the row has to be read through the posting's own
+// executor so the figure the line is computed from is the figure that was there
+// when it went in. The dependency runs one way — the catalog knows nothing about
+// a folio, and a posting is the only place the two meet.
 @Module({
-  imports: [SystemConfigModule],
+  imports: [OperationsModule, SystemConfigModule],
   controllers: [FolioController],
   providers: [
     { provide: E_INVOICE_PORT, useClass: LocalEInvoiceService },

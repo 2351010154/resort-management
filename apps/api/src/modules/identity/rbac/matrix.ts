@@ -165,6 +165,7 @@ export const CAPABILITIES = [
     unauthenticated: false,
     guest: "denied",
     staff: staff({ MANAGER: "full", ADMIN: "full" }),
+    note: "Waives any cell of the §4 grid, not only a cancellation",
   },
   {
     key: "booking.check-in",
@@ -315,6 +316,26 @@ export const CAPABILITIES = [
       MANAGER: "full",
       ADMIN: "full",
     }),
+  },
+  {
+    // Read-only for every role including `ADMIN`, which is not an oversight and
+    // is the one row where the inheritance in §2 has nothing to add. Nothing in
+    // this milestone edits the catalog — §6 seeds it and calls it data — so
+    // `full` here would be an authority over a write path that does not exist,
+    // and the day it does the grant is decided with it rather than inherited
+    // from a row that guessed.
+    key: "service.read-catalog",
+    section: "Rooms, rates, inventory",
+    row: "Read the service catalog",
+    unauthenticated: false,
+    guest: "denied",
+    staff: staff({
+      RECEPTIONIST: "read",
+      ACCOUNTANT: "read",
+      MANAGER: "read",
+      ADMIN: "read",
+    }),
+    note: "What is for sale; posting one is a folio row",
   },
   {
     key: "pricing.stay-restrictions",
