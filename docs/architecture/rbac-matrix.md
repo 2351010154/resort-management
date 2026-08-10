@@ -98,7 +98,7 @@ Legend: ✅ full · 👁 read-only · ⚠ conditional, see notes · — denied
 | Read any booking | — | ✅ | — | 👁 | ✅ | ✅ | |
 | Create / modify booking | — | ✅ | — | — | ✅ | ✅ | |
 | Cancel with policy penalty | — | ✅ | — | — | ✅ | ✅ | |
-| Cancel with waiver / override | — | — | — | — | ✅ | ✅ | ⚑ |
+| Cancel with waiver / override | — | — | — | — | ✅ | ✅ | ⚑ Waives any cell of `property-and-tariff.md` §4, not only a cancellation |
 | Check-in | — | ✅ | — | — | ✅ | ✅ | Requires assigned room |
 | Check-out | — | ✅ | — | — | ✅ | ✅ | Requires settled folio |
 | Assign room / room move | — | ✅ | — | — | ✅ | ✅ | |
@@ -123,6 +123,7 @@ Legend: ✅ full · 👁 read-only · ⚠ conditional, see notes · — denied
 |---|:-:|:-:|:-:|:-:|:-:|:-:|---|
 | Room type + room CRUD | — | — | — | — | ✅ | ✅ | |
 | Rate plans, rate calendar, promotions | — | 👁 | — | 👁 | ✅ | ✅ | |
+| Read the service catalog | — | 👁 | — | 👁 | 👁 | 👁 | What is for sale; posting one is a folio row |
 | Stay restrictions (min/max, CTA/CTD) | — | 👁 | — | — | ✅ | ✅ | |
 | Rate override on a booking | — | — | — | — | ✅ | ✅ | ⚑ Beyond the plan's price |
 | Overbooking limits (P6.5) | — | — | — | — | ✅ | ✅ | |
@@ -210,7 +211,11 @@ a question with no subject left is not a decision anybody is owed.
 
 1. Can a receptionist issue any refund unsupervised, or does every refund need a
    manager? Assumed: policy-calculated refunds yes, discretionary no.
-2. Can a receptionist waive a cancellation penalty? Assumed no.
+2. Can a receptionist waive a penalty from `property-and-tariff.md` §4's grid?
+   Assumed no — for every cell, not only the two cancellation rows. A no-show
+   and an early departure are waivable by `MANAGER`+ on the same authority; see
+   §4 for why the waiver rides on the booking rather than on the grid, and for
+   the ⚑ route that does not exist yet.
 3. Can a receptionist change a room rate below the plan? Assumed no.
 4. Does the property want a separate night-auditor role? Assumed no — the job
    runs unattended; `MANAGER` covers manual reruns.

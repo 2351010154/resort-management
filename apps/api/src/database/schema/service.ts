@@ -68,6 +68,7 @@
 //   `FR-AUD-01`'s audit log, which is one table for every such question rather
 //   than two columns per table.
 
+import { TAX_CLASSES } from "@mariva/shared";
 import { sql } from "drizzle-orm";
 import {
   bigint,
@@ -83,19 +84,13 @@ import {
  * The tax classes a charge posts under — §5's "every room type and every
  * service item carries one".
  *
- * A tuple beside the schema for the reason `BOOKING_STATES` is one: Postgres
- * gets a type and TypeScript gets the same members from the same place. It
- * lives here rather than in `@mariva/shared` because no wire schema quotes a
- * tax class yet, and nothing joins the contract speculatively; it moves the day
- * an endpoint has to name one.
- *
- * One member, and the count is honest rather than provisional. §6 assigns no
- * class to any of its eight items, and `system_config` prices exactly one rate
- * — so a second class would be a name with no rate behind it and no document
- * saying which item wears it.
+ * The tuple moved to `@mariva/shared` on the condition its previous home here
+ * set out: it lived beside the schema while no wire schema quoted a class, and
+ * `service.listCatalog` now does. Same arrangement `charge_basis` has with
+ * `CHARGE_BASES` — Postgres gets its type, TypeScript gets its union and the
+ * contract gets its enum, all from one tuple, so the column and the response
+ * cannot come to disagree about what the classes are.
  */
-export const TAX_CLASSES = ["STANDARD"] as const;
-
 export const taxClassEnum = pgEnum("tax_class", TAX_CLASSES);
 
 /**
@@ -141,6 +136,24 @@ export const serviceCatalog = pgTable(
     check(
       "service_catalog_price_positive_when_set",
       sql`${table.unitPriceGross} is null or ${table.unitPriceGross} > 0`,
+    ),
+    // The shape `serviceCodeSchema` already claims, enforced where rows are
+    // actually written. §6 makes the catalog data — a property adds an item by
+    // adding a row, and no route edits it — so the only writer is a hand at the
+    // database, and a `cooking_class` put in by one would be a row the contract
+    // cannot describe. The list read parses every row it returns, so one such
+    // row does not hide itself: it takes the whole catalog down for the desk.
+    // Upper case is not decoration either — the column is unique, and `Minibar`
+    // beside `MINIBAR` is two items nobody can tell apart.
+    check(
+      "service_catalog_code_is_a_handle",
+      sql`${table.code} ~ '^[A-Z][A-Z0-9_]*$' and length(${table.code}) <= 64`,
+    ),
+    // The same argument, one column over: the wire says an item has a name, and
+    // an empty one is a folio line the guest reads as a blank.
+    check(
+      "service_catalog_name_is_not_blank",
+      sql`length(trim(${table.name})) > 0`,
     ),
   ],
 );

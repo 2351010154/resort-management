@@ -251,6 +251,29 @@ Waiving any cell is `MANAGER` or above, per `rbac-matrix.md` §5 decision 2. A
 receptionist cannot waive a penalty; that is the ⚑ row there, and this table is
 what it governs.
 
+**"Any cell" is literal, and it is one authority rather than four.** All four
+rows are waivable — a no-show and an early departure as much as the two
+cancellations. The waiver is not a cell of this table and never becomes one: it
+is a decision recorded on the *booking*, in `penalty_waived_at` and
+`penalty_waived_by`, and the grid is read afterwards by whoever prices the stay.
+A waived stay is priced at `NONE` — the same row a free cancellation writes — so
+the account still says §4 was applied and came to nothing, and the money handed
+back is whatever the folio is then over-paid by. This is why the calculator has
+no waiver column: teaching it about an authority decision would make it and this
+table disagree about what the grid is.
+
+**The waiver and the event that triggered it are separate requests.** Cancelling
+with the penalty waived is one act, and the desk has a route for it. A no-show
+and an early departure are not — they are reached by the night audit and by an
+early checkout, neither of which asks a manager anything. So waiving those two
+cells means writing the waiver onto the stay on its own, under the same
+`MANAGER`+ capability, before the grid is priced. ⚑ That route does not exist
+yet; only the cancel-and-waive composite writes the columns today. Until it
+does, a no-show or early-departure waiver is reachable only as a discretionary
+refund with a typed figure — which is the one thing this table exists to
+replace, and is the reason the gap is named here rather than left to be
+discovered.
+
 No-show is driven by the **business date**, not by a wall clock. The transition
 is `booking-state-machine.md`'s, and this table supplies only the amount — which
 is why that document's §7 says the grid is not a state-machine question.
@@ -306,6 +329,29 @@ quotes them.
 
 Thin on purpose: `P3-SVC` needs the posting path proven, not a real menu. Items
 are data, so the catalog grows without a migration.
+
+A ninth item is a row, and the row has two rules the database keeps: the code is
+upper-case letters, digits and underscores — `AIRPORT_TRANSFER` — up to 64
+characters, and the name is not blank. Nothing edits the catalog over HTTP at
+this milestone, so the hand that adds an item writes it directly, and the list
+the desk reads is parsed against exactly that shape. A row outside it would not
+hide itself as one missing item; it would be the whole list failing to answer.
+
+**The posting path is built, and it is what makes the two columns above mean
+something.** The desk reads the sellable items and posts one against a stay; the
+folio line names the catalog row, which is what gives `M8` something to group a
+revenue report by and what stops a minibar being an amount whose tax class is
+whatever the poster believed. The two cases split on the price:
+
+- an item with a price posts **the catalog's figure**, times the count, and a
+  caller sending an amount of their own is refused rather than quietly ignored;
+- an item without one **requires** an amount, because six of these eight are
+  unpriced by intent — a minibar and a laundry bill are what was consumed, not a
+  list price — and the count then says what the line is for rather than scaling
+  it.
+
+A withdrawn item stops being offered and stays nameable by every line that ever
+sold it, which is `is_active` doing the job a delete could not.
 
 ## 7. Loyalty and tiers
 
@@ -410,7 +456,7 @@ make: a reader cannot tell an unset value from an unbuilt one.
 | Question | Whose | Tracked as |
 |---|---|---|
 | Season date ranges | mine, ⚑ unset — data, blocks nothing | §3 |
-| Service prices | mine, six of eight still ⚑ unset — data | §6 |
+| Service prices | mine, six of eight still ⚑ unset — data. Not a blocker: the posting path takes the desk's figure for an unpriced item, so pricing one is a row edit that changes who decides the amount | §6 |
 | Room sizes, bedding and aspects | mine, ⚑ proposed for `/booking` — data | §1 |
 | Extra-person and breakfast rates | mine, ⚑ proposed — now stored and editable, in `property_tariff` and `rate_plan` rather than in this file | §3, §6 |
 | Loyalty earn rate, tier thresholds, perks and expiry | mine, ⚑ proposed — config | §7 |
