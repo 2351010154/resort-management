@@ -58,6 +58,26 @@
 // whichever tick first finds yesterday closed does the work; the other
 // twenty-three find the row already written and do nothing.
 //
+// ## One sweep classifies against one rollover hour
+//
+// The hour is read once, at the top of the run, and the rule it defines is what
+// dates every instant on both sides of every night this sweep looks at. It used
+// to be asked of `BusinessDateService` per transaction here and per payment row
+// in the comparison, which is a series of reads of a row an `ADMIN` may edit
+// while the sweep is running — and the runner takes `read committed`, so the
+// reads before that edit and the reads after it answer differently inside one
+// transaction.
+//
+// What that costs is specific and silent. The gateway's side of a night is
+// filtered by one boundary and the ledger's side by another, so a payment near
+// the old hour lands in the report and not in the ledger; the comparison reports
+// it as money the gateway holds that this property never recorded, a phone rings
+// about a payment that is exactly where it should be, and the run row committed
+// alongside it means no later sweep will look at that date again. Reading the
+// hour once is the whole of the fix: the sweep may be drawn on an hour that was
+// edited a second later, which is merely last night's boundary and is what the
+// night actually traded under, and the next sweep reads the row again.
+//
 // ## Idempotency, and the two passes
 //
 // `JobRunner` runs a sweep that touched anything a second time inside the same
@@ -82,7 +102,10 @@ import type { DbExecutor } from "../../database/database.module.js";
 import { payment } from "../../database/schema/payment.js";
 import { paymentReconciliationRun } from "../../database/schema/reconciliation.js";
 import type { SweepJob } from "../../jobs/sweep-job.js";
-import { BusinessDateService } from "../booking/business-date.service.js";
+import {
+  type BusinessDateRule,
+  BusinessDateService,
+} from "../booking/business-date.service.js";
 import { OpsAlertService } from "../notification/ops-alert.service.js";
 import {
   type GatewayTransaction,
@@ -151,16 +174,23 @@ export class ReconciliationJob implements SweepJob {
     const outstanding = await this.outstanding(exec, today);
     const reconciled: string[] = [];
 
+    // Read here and passed down, so that the report and the comparison it is
+    // held against are drawn on one day boundary. The header says what a sweep
+    // that read the hour again half-way through would file, page about, and
+    // then mark as looked at.
+    const dates = await this.businessDates.rule(exec);
+
     // Sequential, and for two reasons at once: every statement is on the
     // runner's one connection inside its one transaction, and each date is also
     // a series of round trips to the gateway.
     for (const businessDate of outstanding) {
-      const report = await this.report(exec, businessDate);
+      const report = await this.report(exec, businessDate, dates);
 
       const { compared, recorded } = await this.reconciliation.reconcile(
         exec,
         businessDate,
         report,
+        dates,
       );
 
       // Written before the pages go out, so that a day is marked looked-at by
@@ -226,10 +256,15 @@ export class ReconciliationJob implements SweepJob {
    * opened would report that payment missing on one day and unexplained on the
    * next, every night, which is the defect that file's own range exists to
    * avoid.
+   *
+   * `dates` is the run's own rollover hour rather than a fresh question per
+   * transaction, which is what keeps this filter and the ledger's the same
+   * filter — the header says what the two of them disagreeing produces.
    */
   private async report(
     exec: DbExecutor,
     businessDate: StayDate,
+    dates: BusinessDateRule,
   ): Promise<readonly GatewayTransaction[]> {
     const taken: GatewayTransaction[] = [];
 
@@ -240,7 +275,7 @@ export class ReconciliationJob implements SweepJob {
         continue;
       }
 
-      const fellIn = await this.businessDates.current(exec, transaction.paidAt);
+      const fellIn = dates.on(transaction.paidAt);
 
       if (fellIn.compare(businessDate) === 0) {
         taken.push(transaction);
