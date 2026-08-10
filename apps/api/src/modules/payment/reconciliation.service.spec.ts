@@ -29,7 +29,10 @@ import type { StayDate, VndAmount } from "@mariva/shared";
 import { describe, expect, it } from "vitest";
 import type { DbExecutor } from "../../database/database.module.js";
 import { paymentDiscrepancy } from "../../database/schema/reconciliation.js";
-import { BusinessDateService } from "../booking/business-date.service.js";
+import {
+  type BusinessDateRule,
+  BusinessDateService,
+} from "../booking/business-date.service.js";
 import type { SystemConfigService } from "../system-config/system-config.service.js";
 import type { GatewayTransaction } from "./ports/payment-gateway.port.js";
 import {
@@ -204,17 +207,20 @@ describe("the day written down", () => {
     const ledger = new DiscrepancyStore([
       paidAt(ONE_ATTEMPT, 1_200_000n, "2027-11-02T09:12:00Z"),
     ]);
-    const service = new ReconciliationService(propertyDays());
+    const service = new ReconciliationService();
+    const dates = await propertyDays();
 
     const first = await service.reconcile(
       ledger.executor,
       A_TRADING_DAY,
       report,
+      dates,
     );
     const second = await service.reconcile(
       ledger.executor,
       A_TRADING_DAY,
       report,
+      dates,
     );
 
     expect(first.recorded).toHaveLength(2);
@@ -300,10 +306,15 @@ async function reconciled(
   ledger: DiscrepancyStore;
 }> {
   const ledger = new DiscrepancyStore(payments);
-  const service = new ReconciliationService(propertyDays());
+  const service = new ReconciliationService();
 
   return {
-    run: await service.reconcile(ledger.executor, A_TRADING_DAY, report),
+    run: await service.reconcile(
+      ledger.executor,
+      A_TRADING_DAY,
+      report,
+      await propertyDays(),
+    ),
     ledger,
   };
 }
@@ -314,13 +325,21 @@ async function reconciled(
  * `SystemConfigService` is what is stood in for, and not `BusinessDateService`
  * itself, so that §2's rollover under test is the one the property runs on.
  * The only thing a unit test cannot supply is the row that holds the hour.
+ *
+ * It comes back as the rule rather than as the service, because that is what
+ * `reconcile` takes: the comparison is handed a day boundary and reads no
+ * configuration of its own.
  */
-function propertyDays(): BusinessDateService {
-  return new BusinessDateService({
+async function propertyDays(): Promise<BusinessDateRule> {
+  return await new BusinessDateService({
     businessDateRolloverHour: async () =>
       await Promise.resolve(ROLLOVER_HOUR),
-  } as unknown as SystemConfigService);
+  } as unknown as SystemConfigService).rule(NO_EXECUTOR);
 }
+
+// The stand-in above answers out of a field, so the rule is read without a
+// connection — the same device `business-date.service.spec.ts` uses.
+const NO_EXECUTOR = undefined as unknown as DbExecutor;
 
 /** A payment row as the ledger statement hands it back. */
 interface StoredPayment {
