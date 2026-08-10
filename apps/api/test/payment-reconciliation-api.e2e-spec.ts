@@ -26,6 +26,17 @@
 //    amounts are `bigint` columns and the wire carries decimal text, so a route
 //    that let one through a `number` would round somebody's discrepancy into
 //    agreement.
+// 5. **All three classifications cross it, including the one whose empty side
+//    is the gateway's.** `paymentDiscrepancySchema` declares both amounts
+//    nullable and `payment_discrepancy_kind_matches_the_sides` makes which of
+//    them is null a fact of the kind — so a fixture set covering two of the
+//    three leaves one of those directions asserted nowhere, and a schema is
+//    only as true as the shapes something has actually sent through it.
+// 6. **The ceiling on the run list is reported rather than applied in
+//    silence.** A range wider than it answers with the newest nights inside
+//    that range, which a caller counting rows cannot tell from a complete
+//    answer — so the truncation travels as a field, and this is where it is
+//    driven true against a range that really does overflow.
 //
 // The rows are inserted directly rather than swept into place. The states worth
 // reading back are states no happy path produces — money the gateway took that
@@ -41,7 +52,7 @@ import "reflect-metadata";
 
 import type { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
-import { sql } from "drizzle-orm";
+import { gte, sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import request from "supertest";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -63,6 +74,7 @@ import {
 } from "../src/modules/identity/rbac/matrix.js";
 import { permits } from "../src/modules/identity/rbac/roles.js";
 import { StaffUserService } from "../src/modules/identity/staff-user.service.js";
+import { LONGEST_RUN_LIST } from "../src/modules/payment/reconciliation.service.js";
 
 /** The day two reports disagreed on, and the subject of most of this file. */
 const DISPUTED_DAY = "2027-09-14";
@@ -78,10 +90,12 @@ const EARLIER_DAY = "2027-09-10";
 const UNSWEPT_DAY = "2027-09-15";
 
 /** References in the shape `payment.service.ts` mints them. Ordered so that the
- *  reference sort the route promises is visible: `4c…` precedes `8b…`. */
+ *  reference sort the route promises is visible: `4c…` precedes `8b…`, and on
+ *  the earlier night `2f…` precedes `7d…`. */
 const UNPAID_HERE = "4c1f7a3e8d9b" + "0f6e5a4b3c2d1e0f".repeat(3);
 const DISPUTED = "8b2e6d4c0a91" + "1a2b3c4d5e6f7081".repeat(3);
 const LONG_AGO = "2f9a1c7b5e30" + "9182736455647382".repeat(3);
+const UNREPORTED = "7d3b8e2f6a14" + "5f4e3d2c1b0a9887".repeat(3);
 
 /** What this property recorded, and what the gateway's report claimed. Ten
  *  thousand đồng apart, which is the figure somebody has to explain. */
@@ -90,6 +104,14 @@ const AT_THE_GATEWAY = 1_460_000n;
 
 /** Money the gateway says it took under an attempt with no payment here. */
 const NEVER_LANDED = 980_000n;
+
+/** Money this property recorded as taken and the gateway's report is silent
+ *  about — the side of the comparison the other two fixtures never exercise. */
+const NOT_REPORTED_BACK = 725_000n;
+
+/** Where the run rows that prove the ceiling start, far enough from the four
+ *  named days above that no assertion about them can see one. */
+const BULK_FIRST_DAY = "2029-01-01";
 
 /** A route known to be guarded, so a 401 below is the guard running rather than
  *  a path that answers nobody. */
@@ -143,6 +165,8 @@ let app: INestApplication;
 let db: Database;
 /** The payment the disputed day's mismatch names. */
 let disputedPaymentId: string;
+/** The payment the earlier day's `MISSING_AT_GATEWAY` names. */
+let unreportedPaymentId: string;
 const tokens = new Map<StaffRole, string>();
 
 beforeAll(async () => {
@@ -172,7 +196,9 @@ beforeAll(async () => {
     tokens.set(account.role, await signIn(account.email, account.password));
   }
 
-  disputedPaymentId = await aPaymentOnFile();
+  ({ disputed: disputedPaymentId, unreported: unreportedPaymentId } =
+    await paymentsOnFile());
+
   await threeNightsOnFile();
 }, 120_000);
 
@@ -235,7 +261,12 @@ describe("the nights that were looked at", () => {
       response.body.runs.map(
         (run: { discrepancyCount: number }) => run.discrepancyCount,
       ),
-    ).toEqual([2, 0, 1]);
+    ).toEqual([2, 0, 2]);
+
+    // Three nights is not a truncated answer, and the flag has to be capable of
+    // saying so — otherwise the assertion below that it goes true proves only
+    // that the field exists.
+    expect(response.body.hasMore).toBe(false);
   });
 
   it("keeps the clean night on the list, saying it was looked at and found nothing", async () => {
@@ -300,6 +331,41 @@ describe("the nights that were looked at", () => {
     expect(response.body.runs).toEqual([]);
   });
 
+  it("caps a range wider than the ceiling and says on the answer that it did", async () => {
+    // One night past the ceiling, which is the only count that separates the
+    // two things being asserted: a list of exactly `LONGEST_RUN_LIST` is what a
+    // complete answer and a truncated one both look like, so the flag is the
+    // whole of the difference a caller can read.
+    const nights = consecutiveDays(BULK_FIRST_DAY, LONGEST_RUN_LIST + 1);
+
+    await db
+      .insert(paymentReconciliationRun)
+      .values(nights.map((businessDate) => ({ businessDate })));
+
+    // Removed whatever the assertions do, because every other case in this file
+    // reads the unbounded list and counts what comes back. A failure here that
+    // left these rows standing would be reported against the tests that ran
+    // next rather than against this one.
+    try {
+      const response = await as("ACCOUNTANT")
+        .get(runsPath({ from: nights[0], to: nights.at(-1) }))
+        .expect(200);
+
+      expect(response.body.runs).toHaveLength(LONGEST_RUN_LIST);
+      expect(response.body.hasMore).toBe(true);
+
+      // Newest first, so what the cap drops is the oldest night in the range
+      // and not an arbitrary one — which is what makes a narrower range the
+      // way to reach the rest.
+      expect(response.body.runs[0].businessDate).toBe(nights.at(-1));
+      expect(response.body.runs.at(-1).businessDate).toBe(nights[1]);
+    } finally {
+      await db
+        .delete(paymentReconciliationRun)
+        .where(gte(paymentReconciliationRun.businessDate, BULK_FIRST_DAY));
+    }
+  });
+
   it("refuses a range that ends before it starts", async () => {
     const response = await as("ACCOUNTANT").get(
       runsPath({ from: DISPUTED_DAY, to: EARLIER_DAY }),
@@ -357,6 +423,31 @@ describe("one night in full", () => {
     expect(Date.parse(mismatch.observedAt)).not.toBeNaN();
   });
 
+  it("hands over money the gateway's report is silent about", async () => {
+    const response = await as("ACCOUNTANT")
+      .get(dayPath(EARLIER_DAY))
+      .expect(200);
+
+    expect(
+      response.body.discrepancies.map(
+        (row: { attemptReference: string }) => row.attemptReference,
+      ),
+    ).toEqual([LONG_AGO, UNREPORTED]);
+
+    // The third classification, and the one direction the disputed night cannot
+    // show: the gateway's side is the empty one. Null is "the report does not
+    // mention this money" and is not zero — and the two figures this property
+    // does hold travel beside it, which is what
+    // `payment_discrepancy_kind_matches_the_sides` makes a fact of the kind
+    // rather than something a reader has to hope for.
+    expect(response.body.discrepancies[1]).toMatchObject({
+      kind: "MISSING_AT_GATEWAY",
+      gatewayAmount: null,
+      ledgerAmount: NOT_REPORTED_BACK.toString(),
+      paymentId: unreportedPaymentId,
+    });
+  });
+
   it("answers a night that agreed with an empty list and the moment it was checked", async () => {
     const response = await as("ACCOUNTANT").get(dayPath(CLEAN_DAY)).expect(200);
 
@@ -404,6 +495,22 @@ function runsPath(range: { from?: string; to?: string } = {}): string {
 const dayPath = (businessDate: string) =>
   `/payments/reconciliations/${businessDate}`;
 
+/**
+ * A run of consecutive calendar dates, as the wire spells them.
+ *
+ * Plain UTC day arithmetic, which is all this needs: these are rows in a `date`
+ * column and nothing about them is a business date, so `BusinessDateService`'s
+ * rollover hour has no bearing on either end.
+ */
+function consecutiveDays(first: string, count: number): string[] {
+  const ONE_DAY_MS = 86_400_000;
+  const start = Date.parse(`${first}T00:00:00Z`);
+
+  return Array.from({ length: count }, (_, index) =>
+    new Date(start + index * ONE_DAY_MS).toISOString().slice(0, 10),
+  );
+}
+
 async function signIn(email: string, password: string): Promise<string> {
   const response = await http()
     .post("/auth/staff/sign-in")
@@ -414,15 +521,23 @@ async function signIn(email: string, password: string): Promise<string> {
 }
 
 /**
- * The payment the disputed night's mismatch names.
+ * The two payments the nights below have to point at.
  *
- * A discrepancy of that kind is required by
- * `payment_discrepancy_kind_matches_the_sides` to point at a payment row, so
- * the stay, the account and the money under it all have to exist for the row to
- * be insertable at all. Inserted rather than booked through the funnel: nothing
- * here depends on rates, inventory or a hold.
+ * `payment_discrepancy_kind_matches_the_sides` requires a payment row on both
+ * the kinds that carry a ledger figure — the disputed night's `AMOUNT_MISMATCH`
+ * and the earlier night's `MISSING_AT_GATEWAY` — so the stay, the account and
+ * the money under them all have to exist for those rows to be insertable at
+ * all. Inserted rather than booked through the funnel: nothing here depends on
+ * rates, inventory or a hold.
+ *
+ * One stay and one account carry both. The comparison is keyed on the attempt
+ * reference and neither route reads a booking, so a second stay would be scenery
+ * that no assertion below could tell apart from this one.
  */
-async function aPaymentOnFile(): Promise<string> {
+async function paymentsOnFile(): Promise<{
+  disputed: string;
+  unreported: string;
+}> {
   const [type] = await db
     .insert(roomType)
     .values({
@@ -460,25 +575,46 @@ async function aPaymentOnFile(): Promise<string> {
     .values({ bookingId: stay!.id })
     .returning({ id: folio.id });
 
-  const [taken] = await db
+  const taken = await db
     .insert(payment)
-    .values({
-      folioId: account!.id,
-      method: "VNPAY",
-      status: "SUCCESS",
-      amount: ON_THE_LEDGER,
-      attemptReference: DISPUTED,
-      gatewayTransactionId: "14528901",
-      paidAt: new Date(`${DISPUTED_DAY}T12:00:00+07:00`),
-    })
-    .returning({ id: payment.id });
+    .values([
+      {
+        folioId: account!.id,
+        method: "VNPAY",
+        status: "SUCCESS",
+        amount: ON_THE_LEDGER,
+        attemptReference: DISPUTED,
+        gatewayTransactionId: "14528901",
+        paidAt: new Date(`${DISPUTED_DAY}T12:00:00+07:00`),
+      },
+      // Recorded here as taken, and the gateway's report of that night names
+      // nothing under this reference — which is what makes the row below a
+      // `MISSING_AT_GATEWAY` rather than either of the other two.
+      {
+        folioId: account!.id,
+        method: "VNPAY",
+        status: "SUCCESS",
+        amount: NOT_REPORTED_BACK,
+        attemptReference: UNREPORTED,
+        gatewayTransactionId: "14512237",
+        paidAt: new Date(`${EARLIER_DAY}T12:00:00+07:00`),
+      },
+    ])
+    .returning({ id: payment.id, reference: payment.attemptReference });
 
-  return taken!.id;
+  const idOf = (reference: string) =>
+    taken.find((row) => row.reference === reference)!.id;
+
+  return { disputed: idOf(DISPUTED), unreported: idOf(UNREPORTED) };
 }
 
 /**
  * Three nights on file: one with two disagreements, one that agreed, and an
- * older one that the range filters leave out.
+ * older one that the range filters leave out and that carries two more.
+ *
+ * Between them the four rows cover all three classifications, which is what
+ * makes the crossing provable in both directions — a null gateway figure beside
+ * a ledger one, and a null ledger figure beside a gateway one.
  *
  * The instants are given rather than defaulted, so "newest first" is asserted
  * against dates this file chose and not against insertion order.
@@ -523,6 +659,17 @@ async function threeNightsOnFile(): Promise<void> {
       gatewayAmount: NEVER_LANDED,
       ledgerAmount: null,
       paymentId: null,
+    },
+    // The third classification, and the only one whose empty side is the
+    // gateway's. It sits on the earlier night so that the disputed night keeps
+    // being the one with two rows in a stated order.
+    {
+      businessDate: EARLIER_DAY,
+      attemptReference: UNREPORTED,
+      kind: "MISSING_AT_GATEWAY",
+      gatewayAmount: null,
+      ledgerAmount: NOT_REPORTED_BACK,
+      paymentId: unreportedPaymentId,
     },
   ]);
 }
