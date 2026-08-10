@@ -121,8 +121,8 @@ import {
 import type { FolioPort } from "../booking/ports/folio.port.js";
 // A type as well, and for a plainer reason than the two above: this module needs
 // to say what a resolved catalog row *is* without becoming a reader of the
-// catalog. `service.module.ts` exports the service that does the reading, and
-// `folio.controller.ts` is the caller that holds both.
+// catalog. `operations.module.ts` exports the service that does the reading,
+// and `folio.controller.ts` is the caller that holds both.
 import type { CatalogItem } from "../operations/catalog.service.js";
 import { SystemConfigService } from "../system-config/system-config.service.js";
 import { decomposeGross } from "./tax-decomposition.js";

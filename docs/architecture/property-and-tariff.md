@@ -330,6 +330,13 @@ quotes them.
 Thin on purpose: `P3-SVC` needs the posting path proven, not a real menu. Items
 are data, so the catalog grows without a migration.
 
+A ninth item is a row, and the row has two rules the database keeps: the code is
+upper-case letters, digits and underscores — `AIRPORT_TRANSFER` — up to 64
+characters, and the name is not blank. Nothing edits the catalog over HTTP at
+this milestone, so the hand that adds an item writes it directly, and the list
+the desk reads is parsed against exactly that shape. A row outside it would not
+hide itself as one missing item; it would be the whole list failing to answer.
+
 **The posting path is built, and it is what makes the two columns above mean
 something.** The desk reads the sellable items and posts one against a stay; the
 folio line names the catalog row, which is what gives `M8` something to group a
