@@ -78,7 +78,7 @@
 // business date column, only the instant the gateway says it took the money, so
 // the ledger's side is the payments whose `paid_at` falls in this business date.
 //
-// That mapping is `BusinessDateService`'s and is asked of it per row, rather
+// That mapping is `BusinessDateService`'s and is applied row by row, rather
 // than being turned into a pair of timestamps here. The rollover hour is a row
 // an `ADMIN` edits, that service is where the rule that reads it lives, and a
 // window computed in this file would be the rule's second implementation —
@@ -87,12 +87,26 @@
 // contain the business date whatever that hour is: an index bound and not a
 // definition, and every row it returns is then asked the real question.
 //
-// Per row is one configuration read per row, and inside the caller's
-// transaction every one of them sees the same snapshot and therefore the same
-// hour — so the repetition buys nothing and costs nothing that matters over a
-// trading day's gateway payments. It is paid deliberately, because the
-// alternative on offer is not "read the hour once" but "read the hour once and
-// re-derive §2 here from it".
+// **The hour is read once and every row is classified against that one
+// reading.** Asking the service per row looked free, on the grounds that the
+// rows are read inside the caller's transaction and would all therefore see the
+// same hour. They would not: the runner takes `read committed`, where every
+// statement takes a fresh snapshot, so an `ADMIN` moving the hour part-way
+// through is invisible to the reads before the edit and visible to the ones
+// after it. A night classified half under one hour and half under another draws
+// the gateway's side and the ledger's side of the same money on two different
+// day boundaries, files discrepancies against payments that are exactly where
+// they belong, pages somebody about them at four in the morning, and — because
+// the sweep marks the date reconciled in the same transaction — leaves nothing
+// that will ever look again.
+//
+// So the rule is an argument, and a required one. `reconciliation.job.ts` reads
+// it once for a whole sweep, which is what puts the report it assembles and the
+// ledger read here on the same boundary. Required rather than defaulted because
+// a default is the same defect with a longer fuse: a caller that drew its report
+// under one hour and left the argument out would get a second hour for the
+// ledger, and nothing would say so. This class therefore reads no configuration
+// at all — it is handed the boundary and applies it.
 //
 // ## Running it twice writes nothing twice
 //
@@ -145,7 +159,7 @@ import {
   paymentDiscrepancy,
   paymentReconciliationRun,
 } from "../../database/schema/reconciliation.js";
-import { BusinessDateService } from "../booking/business-date.service.js";
+import type { BusinessDateRule } from "../booking/business-date.service.js";
 import type { GatewayTransaction } from "./ports/payment-gateway.port.js";
 
 /**
@@ -292,8 +306,6 @@ export interface ReconciledDay {
 
 @Injectable()
 export class ReconciliationService {
-  constructor(private readonly businessDates: BusinessDateService) {}
-
   /**
    * Compares the gateway's report for a business date against the payments this
    * property recorded in it, and writes down every disagreement.
@@ -302,13 +314,26 @@ export class ReconciliationService {
    * tree: the caller knows what has to commit together, and a nightly job's
    * boundary is its whole run — `job-runner.service.ts` and
    * `transaction-runner.ts` between them make the argument.
+   *
+   * **`dates` is required, and it is required because a default is what the
+   * defect was.** It is the day boundary this night is classified against, and
+   * the caller supplies it because the caller is the one that drew the report
+   * on the other side of the comparison. A parameter that could be left out
+   * would read a second hour here — which is precisely the split the header
+   * describes, still reachable by anybody who did not know to pass the first
+   * one. Required, it is the compiler that says the two sides are the same
+   * boundary, and there is nothing left for a later caller to remember.
    */
   async reconcile(
     exec: DbExecutor,
     businessDate: StayDate,
     report: readonly GatewayTransaction[],
+    dates: BusinessDateRule,
   ): Promise<Reconciliation> {
-    const compared = compare(report, await this.ledgerFor(exec, businessDate));
+    const compared = compare(
+      report,
+      await this.ledgerFor(exec, businessDate, dates),
+    );
 
     // `flatMap` over a filter and a map, so that the narrowing is the compiler's
     // rather than a cast: inside the second branch `outcome` is one of the three
@@ -511,17 +536,17 @@ export class ReconciliationService {
    * which is the same basis the gateway's daily report is drawn on. The range in
    * the statement is a bound rather than the answer: it spans the day before to
    * the day after, which contains the business date whatever hour the property
-   * rolls at, and `BusinessDateService` is then asked the real question about
-   * each row. A null `paid_at` fails the comparison on its own, so the money
-   * that never moved needs no predicate of its own to exclude it.
+   * rolls at, and `dates` is then asked the real question about each row. A null
+   * `paid_at` fails the comparison on its own, so the money that never moved
+   * needs no predicate of its own to exclude it.
    *
-   * The loop is sequential and `room-charge-sweep.ts` gives the reason: every
-   * one of these is on the caller's one connection inside its one transaction,
-   * and a trading day's gateway payments are counted in tens.
+   * `dates` is applied and never re-read, so every row here is classified
+   * against the one hour its caller settled on.
    */
   private async ledgerFor(
     exec: DbExecutor,
     businessDate: StayDate,
+    dates: BusinessDateRule,
   ): Promise<readonly LedgerPayment[]> {
     const from = startOfDayUtc(businessDate.subtract({ days: 1 }));
     const until = startOfDayUtc(businessDate.add({ days: 2 }));
@@ -552,7 +577,7 @@ export class ReconciliationService {
         continue;
       }
 
-      const fellIn = await this.businessDates.current(exec, row.paidAt);
+      const fellIn = dates.on(row.paidAt);
 
       if (fellIn.compare(businessDate) === 0) {
         taken.push({
