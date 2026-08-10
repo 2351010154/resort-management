@@ -38,6 +38,25 @@
 // held an executor or was about to open a transaction for the work the date is
 // for, so the read joins a transaction that was being opened anyway. There is no
 // new connection on any path, including the operational search.
+//
+// ## A caller that dates many instants at once takes the rule, not the answer
+//
+// {@link BusinessDateService.rule} reads the hour once and hands back the
+// mapping it defines. That is not the cache refused above and does not weaken
+// the refusal: a cache is held for the life of the process and cannot see the
+// edit that matters, where a rule is read at a moment, used for one piece of
+// work, and thrown away — the next piece of work reads the row again and gets
+// whatever an `ADMIN` has since made of it.
+//
+// What it buys is the guarantee a single read cannot give. `transaction-runner.ts`
+// takes Drizzle's default isolation, which is `read committed`, so every
+// statement inside one transaction takes its own snapshot: an edit committed
+// part-way through a long piece of work is invisible to the reads before it and
+// visible to the reads after. Anything that classifies two sets of instants and
+// then compares the results — the nightly reconciliation is the case that
+// prompted this — would otherwise draw the two sides of one comparison on two
+// different day boundaries and report the difference as a disagreement between
+// the systems it was comparing.
 
 import { fromDate, toCalendarDate } from "@internationalized/date";
 import { PROPERTY_TIME_ZONE, type StayDate } from "@mariva/shared";
@@ -45,9 +64,39 @@ import { Injectable } from "@nestjs/common";
 import type { DbExecutor } from "../../database/database.module.js";
 import { SystemConfigService } from "../system-config/system-config.service.js";
 
+/**
+ * What day it is for the property, over one rollover hour that has been read.
+ *
+ * Pure and synchronous: it holds an hour and no connection, so a caller that
+ * has one may date as many instants as it likes without another read and
+ * without another answer.
+ */
+export interface BusinessDateRule {
+  /** The business date the given instant falls in. */
+  on(instant: Date): StayDate;
+}
+
 @Injectable()
 export class BusinessDateService {
   constructor(private readonly configuration: SystemConfigService) {}
+
+  /**
+   * The property's day boundary as it stands right now, ready to be applied.
+   *
+   * For the caller that has to date several instants and then compare what it
+   * dated. One reading of the hour classifies all of them, so the comparison is
+   * drawn on one boundary — see the header for why being inside a transaction
+   * does not already promise that, and why this is not the cache it refuses.
+   *
+   * A caller with one instant wants {@link current}, which is this and then the
+   * answer.
+   */
+  async rule(exec: DbExecutor): Promise<BusinessDateRule> {
+    const rolloverHour =
+      await this.configuration.businessDateRolloverHour(exec);
+
+    return { on: (instant) => businessDateAt(instant, rolloverHour) };
+  }
 
   /**
    * The business date the given instant falls in. Defaults to now.
@@ -64,20 +113,28 @@ export class BusinessDateService {
    * snapshot other than the one the booking is written in.
    */
   async current(exec: DbExecutor, now: Date = new Date()): Promise<StayDate> {
-    const rolloverHour =
-      await this.configuration.businessDateRolloverHour(exec);
-
-    // Read in the property's zone first, then discard the time. Doing it the
-    // other way — taking the UTC date and adjusting — is the off-by-one this
-    // service exists to prevent: 23:50 UTC is already tomorrow in UTC+7.
-    const local = fromDate(now, PROPERTY_TIME_ZONE);
-    const calendarDate = toCalendarDate(local);
-
-    // Before the rollover, the property is still working the previous date.
-    // `subtract` walks the calendar rather than the clock, so a month or year
-    // boundary needs no special case.
-    return local.hour < rolloverHour
-      ? calendarDate.subtract({ days: 1 })
-      : calendarDate;
+    return (await this.rule(exec)).on(now);
   }
+}
+
+/**
+ * The arithmetic §2 describes, over an hour somebody else has read.
+ *
+ * A function rather than a second copy inside each caller, so that the rule the
+ * property runs on has one implementation whichever of the two methods above
+ * asked for it.
+ */
+function businessDateAt(instant: Date, rolloverHour: number): StayDate {
+  // Read in the property's zone first, then discard the time. Doing it the
+  // other way — taking the UTC date and adjusting — is the off-by-one this
+  // service exists to prevent: 23:50 UTC is already tomorrow in UTC+7.
+  const local = fromDate(instant, PROPERTY_TIME_ZONE);
+  const calendarDate = toCalendarDate(local);
+
+  // Before the rollover, the property is still working the previous date.
+  // `subtract` walks the calendar rather than the clock, so a month or year
+  // boundary needs no special case.
+  return local.hour < rolloverHour
+    ? calendarDate.subtract({ days: 1 })
+    : calendarDate;
 }
