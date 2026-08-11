@@ -28,6 +28,7 @@ import { ORPCError } from "@orpc/nest";
 import { describe, expect, it } from "vitest";
 import type { Database } from "../../database/database.module.js";
 import { TransactionRunner } from "../../database/transaction-runner.js";
+import type { BookingService } from "../booking/booking.service.js";
 import type { BusinessDateService } from "../booking/business-date.service.js";
 import type { FolioService } from "../folio/folio.service.js";
 import { PaymentService } from "./payment.service.js";
@@ -124,6 +125,13 @@ function serviceTold(verification: CallbackVerification): PaymentService {
     // would have to imitate a ledger it is not allowed to imitate.
     undefined as unknown as FolioService,
     undefined as unknown as BusinessDateService,
+    // Never reached either, and for a sharper reason than the two above: every
+    // case here drives a callback, and the ownership question belongs to the
+    // request that *opens* an attempt. A gateway reporting on one is not a guest
+    // naming a stay — it is answering about the reference this property already
+    // minted, which is why `handleIpn` resolves an account off the row rather
+    // than off anything the caller said.
+    undefined as unknown as BookingService,
     new ClosedBoundary(),
   );
 }

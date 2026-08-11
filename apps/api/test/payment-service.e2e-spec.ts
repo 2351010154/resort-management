@@ -67,6 +67,7 @@ import * as schema from "../src/database/schema/index.js";
 import { roomType } from "../src/database/schema/inventory.js";
 import { payment } from "../src/database/schema/payment.js";
 import { TransactionRunner } from "../src/database/transaction-runner.js";
+import type { BookingService } from "../src/modules/booking/booking.service.js";
 import { BusinessDateService } from "../src/modules/booking/business-date.service.js";
 import { FolioService } from "../src/modules/folio/folio.service.js";
 import { PaymentService } from "../src/modules/payment/payment.service.js";
@@ -189,6 +190,14 @@ beforeAll(async () => {
     gateway,
     folios,
     new BusinessDateService(new SystemConfigService()),
+    // Never reached, because every attempt this file opens is the desk's —
+    // `guestAccountId` is null throughout, and the ownership question returns
+    // before the booking is asked about. The scope itself is proven where it can
+    // be: `guest-account-link.e2e-spec.ts` puts `isOwner` to real rows, and
+    // `payment-api.e2e-spec.ts` drives a real guest session through the real
+    // wiring. Handed nothing rather than a stand-in imitating a service whose
+    // one relevant method is a query.
+    undefined as unknown as BookingService,
     new TransactionRunner(db),
   );
 });
@@ -210,12 +219,16 @@ describe("opening an attempt", () => {
       description: "Deposit against the stay",
       returnUrl: RETURN_URL,
       payerIpAddress: PAYER_ADDRESS,
+      guestAccountId: null,
     });
 
     // The reference is in the url because the gateway was asked to open the
     // attempt under it, and it is the only thing that will identify the payment
     // when the callback comes back.
     expect(opened.paymentUrl).toContain(opened.reference);
+    // No account travels in this, and the port's own shape is what guarantees
+    // it: whose stay it is decides whether the attempt may be opened at all, and
+    // it is settled here rather than being something a gateway is told.
     expect(gateway.opened.at(-1)).toMatchObject({
       reference: opened.reference,
       amount: AMOUNT,
@@ -257,6 +270,7 @@ describe("opening an attempt", () => {
         description: "Deposit against a stay named the wrong way",
         returnUrl: RETURN_URL,
         payerIpAddress: PAYER_ADDRESS,
+        guestAccountId: null,
       }),
     );
 
@@ -273,6 +287,7 @@ describe("opening an attempt", () => {
         description: "Deposit against nobody's stay",
         returnUrl: RETURN_URL,
         payerIpAddress: PAYER_ADDRESS,
+        guestAccountId: null,
       }),
     );
 
@@ -297,6 +312,7 @@ describe("opening an attempt", () => {
         description: "Deposit against a stay, for nothing",
         returnUrl: RETURN_URL,
         payerIpAddress: PAYER_ADDRESS,
+        guestAccountId: null,
       }),
     );
 
@@ -836,6 +852,7 @@ describe("a posting the ledger refuses", () => {
         gateway,
         new LedgerThatRefuses(db, new SystemConfigService()),
         new BusinessDateService(new SystemConfigService()),
+        undefined as unknown as BookingService,
         new TransactionRunner(db),
       ).handleIpn(A_CALLBACK),
     );
@@ -873,6 +890,7 @@ async function anAttemptOn(bookingId: string): Promise<Attempt> {
     description: "Deposit against the stay",
     returnUrl: RETURN_URL,
     payerIpAddress: PAYER_ADDRESS,
+    guestAccountId: null,
   });
 
   return { bookingId, reference };

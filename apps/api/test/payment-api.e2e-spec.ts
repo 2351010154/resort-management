@@ -9,10 +9,16 @@
 // 1. **The route is governed by the matrix row it declares**, driven off
 //    `CAPABILITIES` rather than off a list written out here — `rbac-matrix.md`
 //    §4's own instruction. Anonymous is refused with a 401, which is the
-//    difference between "who are you" and "not you". A guest holding a real
-//    session is not refused by the guard: the row grants the guest realm `⚠`,
-//    so the scope the guard cannot see is left to the handler, and what is
-//    asserted here is only that the guard hands the request on.
+//    difference between "who are you" and "not you".
+// 1b. **The guest realm's `⚠` is finished below the guard, and both halves of it
+//    are asserted.** The row grants a guest the funnel's payment step subject to
+//    the stay being theirs, so the guard admits any signed-in guest and the scope
+//    is owed in the service. A guest opens an attempt against their own booking
+//    and a row lands; a guest naming another account's stay, a walk-in carrying a
+//    null `user_id`, or an id nobody holds is refused with the same 404 and
+//    leaves nothing behind. That last part is not decoration — a `PENDING` row
+//    behind a rejected call is money the property appears to be waiting for, and
+//    `FR-PAY-05`'s sweep would go looking for it at the gateway.
 // 2. **The url the payer is sent to is the gateway's own, and it carries this
 //    property's return address.** `vnp_ReturnUrl` is read back out of the
 //    signed url, which is the only place the two ends of that string can be
@@ -54,6 +60,7 @@ import { ENV, type Env, parseEnv } from "../src/config/env.js";
 import { type Database, DRIZZLE } from "../src/database/database.module.js";
 import { booking } from "../src/database/schema/booking.js";
 import { folio } from "../src/database/schema/folio.js";
+import { guestUser } from "../src/database/schema/index.js";
 import { roomType } from "../src/database/schema/inventory.js";
 import { payment } from "../src/database/schema/payment.js";
 import {
@@ -89,6 +96,19 @@ const DEPARTURE_DATE = "2027-11-05";
 
 const GUEST_EMAIL = "khach.thanh.toan@example.test";
 const GUEST_PASSWORD = "correct-horse-battery";
+
+/**
+ * A second guest account, with no session of its own — it exists to own a stay
+ * the signed-in guest must not reach.
+ *
+ * Better Auth's own shape for an id: 32 base-62 characters, not a uuid.
+ * `schema/booking.ts` takes `text` for exactly this, and a fixture using a uuid
+ * here would pass against a column that could not hold a real account id.
+ */
+const ANOTHER_ACCOUNT = "7Qw9Lm2Xk4pR8tV1sN6cB3dF5hJ0zY2a";
+
+/** A booking id nothing holds, so "no such stay" is a real absence. */
+const NO_SUCH_BOOKING = "00000000-0000-4000-8000-000000000000";
 
 interface StaffAccount {
   readonly email: string;
@@ -269,6 +289,7 @@ describe("the capability the attempt route declares", () => {
 
 describe("a guest holding a real session", () => {
   let guest: request.Agent;
+  let guestAccountId: string;
 
   beforeAll(async () => {
     await http()
@@ -291,33 +312,93 @@ describe("a guest holding a real session", () => {
       .send({ email: GUEST_EMAIL, password: GUEST_PASSWORD })
       .expect(200);
 
-    // The session is real, which is what makes the refusal below mean
-    // something: it is about authority and not about the cookie.
+    // The session is real, which is what makes both halves below mean
+    // something: what separates them is whose stay it is, not whose cookie.
     const session = await guest.get("/api/auth/get-session").expect(200);
 
     expect(session.body.user.emailVerified).toBe(true);
+
+    guestAccountId = session.body.user.id as string;
+
+    // A second account, with no session of its own. It exists only to own a
+    // stay, which is the whole of what "not yours" needs on the other side.
+    await db
+      .insert(guestUser)
+      .values({ id: ANOTHER_ACCOUNT, name: "Bùi Quốc Việt", email: "viet@example.test" });
   });
 
-  it("is handed on by the guard, because the row conditions the realm rather than denying it", async () => {
-    // `conditional`, not `denied` — the row grants the guest realm the funnel's
-    // payment step subject to the stay being theirs, and `roles.ts` is explicit
-    // that a condition the guard cannot see is passed to the handler rather than
-    // resolved here. So the assertion is the guard's decision and nothing more.
-    //
-    // No body, for the reason the role probes above send none: the guard runs
-    // first, so an admitted caller is answered by the shape of what arrived and a
-    // refused one answers 403 either way — and no attempt is opened while the
-    // matrix is being asserted. **The ownership check the grant owes is the
-    // guest funnel's own, on the route that sends a payer to the gateway, and it
-    // is not written yet**; until it is, this asserts what the matrix says and
-    // deliberately does not assert that a stay which is not the caller's is
-    // refused, because nothing refuses it.
+  it("opens an attempt against the stay they booked", async () => {
+    // The half the matrix moved for, and the half that never existed while the
+    // row read `denied`: `⚠` is a grant, and a guest paying for their own stay
+    // is what it grants. Without this the suite would prove only that guests are
+    // refused, which the old denial already did.
+    const stayId = await aBooking(guestAccountId);
+
+    const response = await guest.post(attemptPath(stayId)).send(anAttempt());
+
+    expect(response.status).toBe(200);
+    expect(new URL(response.body.paymentUrl).searchParams.get("vnp_TmnCode")).toBe(
+      TERMINAL,
+    );
+
+    // Committed before the answer, exactly as it is for the desk — the guest
+    // path reaches the same service method and leaves the same row behind.
+    const rows = await attemptsOn(stayId);
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      status: "PENDING",
+      amount: AMOUNT,
+      attemptReference: response.body.reference,
+    });
+  });
+
+  it("is refused a stay that belongs to another account, and opens nothing", async () => {
+    // The condition the `⚠` owes, paid. 404 rather than 403 and the same answer
+    // a stay that does not exist gets — `payment.service.ts` says why, and it is
+    // the line `booking.service.ts` already takes on the routes a guest reaches
+    // their own stay by.
+    const stayId = await aBooking(ANOTHER_ACCOUNT);
+
+    const response = await guest.post(attemptPath(stayId)).send(anAttempt());
+
+    expect(response.status).toBe(404);
+
+    // Refused before the folio is opened, so nothing is left standing. A
+    // `PENDING` row behind a rejected call is money the property would appear to
+    // be waiting for, and it would go to the gateway's reconciliation as one.
+    expect(await attemptsOn(stayId)).toHaveLength(0);
+  });
+
+  it("is refused a stay the desk took, because a walk-in belongs to nobody", async () => {
+    // `user_id` is null on every stay the front desk takes, and the scope is a
+    // `where` clause — SQL equality never matches a null, so there is no account
+    // that could claim one. This is the case a comparison written in TypeScript
+    // gets wrong.
     const stayId = await aBooking();
 
-    const response = await guest.post(attemptPath(stayId)).send({});
+    expect(await accountOn(stayId)).toBeNull();
 
-    expect(response.status).not.toBe(403);
+    const response = await guest.post(attemptPath(stayId)).send(anAttempt());
+
+    expect(response.status).toBe(404);
     expect(await attemptsOn(stayId)).toHaveLength(0);
+  });
+
+  it("is refused a stay that does not exist, in the same words", async () => {
+    // The other absence, and it has to read the same. A reply that separated
+    // "not yours" from "no such stay" would confirm which ids name real stays to
+    // a caller holding one they should not have.
+    const notMine = await guest
+      .post(attemptPath(await aBooking(ANOTHER_ACCOUNT)))
+      .send(anAttempt());
+
+    const noSuchStay = await guest
+      .post(attemptPath(NO_SUCH_BOOKING))
+      .send(anAttempt());
+
+    expect(noSuchStay.status).toBe(404);
+    expect(noSuchStay.body).toEqual(notMine.body);
   });
 });
 
@@ -529,10 +610,17 @@ async function attemptsOn(
     .orderBy(payment.createdAt, payment.id);
 }
 
-/** A stay to collect against. Inserted rather than booked through the funnel:
- *  nothing here depends on rates, inventory or a hold, and five hundred seeded
- *  stays would put rooms in the way of the rows this file counts. */
-async function aBooking(): Promise<string> {
+/**
+ * A stay to collect against. Inserted rather than booked through the funnel:
+ * nothing here depends on rates, inventory or a hold, and five hundred seeded
+ * stays would put rooms in the way of the rows this file counts.
+ *
+ * `userId` is the account the stay belongs to, and its default is the ordinary
+ * case rather than a convenience — a walk-in carries no account, which is what
+ * `schema/booking.ts` keeps the column nullable for and what the guest cases
+ * above turn on.
+ */
+async function aBooking(userId: string | null = null): Promise<string> {
   bookingOrdinal += 1;
 
   const [stay] = await db
@@ -540,6 +628,7 @@ async function aBooking(): Promise<string> {
     .values({
       reference: `MRV-PAYAPI-${String(bookingOrdinal).padStart(4, "0")}`,
       state: "CONFIRMED",
+      userId,
       roomTypeId,
       checkInDate: ARRIVAL_DATE,
       checkOutDate: DEPARTURE_DATE,
@@ -552,6 +641,16 @@ async function aBooking(): Promise<string> {
     .returning({ id: booking.id });
 
   return stay!.id;
+}
+
+/** The account a stay is filed under, read back out of the table. */
+async function accountOn(bookingId: string): Promise<string | null> {
+  const [row] = await db
+    .select({ userId: booking.userId })
+    .from(booking)
+    .where(eq(booking.id, bookingId));
+
+  return row?.userId ?? null;
 }
 
 /** A terminal this file owns, for an adapter that signs for real. */
