@@ -48,7 +48,7 @@ import {
 } from "@mariva/shared";
 import { Inject, Injectable } from "@nestjs/common";
 import { ORPCError } from "@orpc/nest";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { ENV, type Env } from "../../config/env.js";
 import type { DbExecutor } from "../../database/database.module.js";
 import {
@@ -84,6 +84,17 @@ export interface CreateBookingInput {
   readonly checkOut: StayDate;
   readonly plan: RatePlanCode;
   readonly party: Party;
+  /**
+   * The signed-in account that made the booking, when there was one.
+   *
+   * Optional, and absent on most of them. The desk takes a walk-in from
+   * somebody who has never logged in and never will, and `schema/booking.ts`
+   * keeps the column nullable for exactly that stay. What it is *not* is a
+   * field a caller may choose: `booking.controller.ts` takes it off the
+   * session, because an account id arriving in a body is a guest claiming
+   * somebody else's bookings.
+   */
+  readonly userId?: string | null;
 }
 
 /**
@@ -96,6 +107,8 @@ export interface CreateBookingInput {
 export interface Booking {
   readonly id: string;
   readonly reference: string;
+  /** The account that booked it, or null on every stay the desk took. */
+  readonly userId: string | null;
   readonly state: BookingState;
   readonly cancellationReason: CancellationReason | null;
   readonly roomType: RoomTypeCode;
@@ -161,6 +174,11 @@ export class BookingService {
    * `stay-restriction-guard.ts` argues the split at length: the funnel obeys the
    * published minimum stay and the closed dates, and the desk below overrides
    * them the way a desk does.
+   *
+   * It is the door an account most often arrives at, and still not always: the
+   * funnel takes a booking from somebody who never signed in, and that stay is
+   * reachable by its reference and by nothing else. When the caller *is* signed
+   * in, `input.userId` is what {@link isOwner} will later match on.
    */
   async createHold(
     exec: DbExecutor,
@@ -181,6 +199,10 @@ export class BookingService {
    * Stay restrictions are deliberately not applied here — see `createHold`. What
    * still binds this path is everything the property cannot physically do: the
    * room type's occupancy, a priced calendar, and the arrival guard in `create`.
+   *
+   * No account, ordinarily. A walk-in is somebody at the counter, and the stay
+   * is stored with `user_id` null rather than with a placeholder account nobody
+   * can sign in to.
    */
   async createConfirmed(
     exec: DbExecutor,
@@ -828,6 +850,64 @@ export class BookingService {
   }
 
   /**
+   * Every booking one account made — `FR-GST-01`'s stay history, scoped to the
+   * requester's own record.
+   *
+   * The scope is the `where` clause and not a filter a caller applies
+   * afterwards. `rbac-matrix.md` calls the guest's own rows `conditional`, which
+   * means the guard admits the caller and the handler still owes the ownership
+   * check; a method that returned every booking and left the narrowing to its
+   * caller would be one forgotten `.filter()` away from showing a guest
+   * somebody else's stays.
+   *
+   * Newest arrival first, because that is the order a guest reads their own
+   * bookings in — the stay they are about to take, then the ones they have
+   * taken. Cancelled and expired stays are included: they happened to this
+   * account, and a list that silently dropped them would answer "where did my
+   * booking go?" with nothing at all.
+   */
+  async getOwnBookings(
+    exec: DbExecutor,
+    userId: string,
+  ): Promise<readonly Booking[]> {
+    const rows = await exec
+      .select({ booking, roomTypeCode: roomType.code })
+      .from(booking)
+      .innerJoin(roomType, eq(booking.roomTypeId, roomType.id))
+      .where(eq(booking.userId, userId))
+      .orderBy(desc(booking.checkInDate), desc(booking.createdAt));
+
+    return rows.map((row) => this.asBooking(row));
+  }
+
+  /**
+   * Whether this account made this booking — the condition the matrix leaves to
+   * the handler, asked as a question rather than answered by reading a row.
+   *
+   * False when the booking does not exist, and that is the honest answer rather
+   * than an oversight: a guest who is not the owner and a guest naming an id
+   * nobody holds must be told the same thing, or the difference between the two
+   * replies is a way to discover which references are real.
+   *
+   * False on every stay the desk took, too. `user_id` is null there, and SQL's
+   * equality never matches a null — so a walk-in belongs to nobody rather than
+   * to whoever asks about it.
+   */
+  async isOwner(
+    exec: DbExecutor,
+    bookingId: string,
+    userId: string,
+  ): Promise<boolean> {
+    const [row] = await exec
+      .select({ id: booking.id })
+      .from(booking)
+      .where(and(eq(booking.id, bookingId), eq(booking.userId, userId)))
+      .limit(1);
+
+    return row !== undefined;
+  }
+
+  /**
    * The two creating transitions, which differ only in the state and the TTL.
    *
    * The order is deliberate. The stay is priced first, so a range the property
@@ -894,6 +974,11 @@ export class BookingService {
           .values({
             reference,
             state,
+            // Null when nobody was signed in, which is the ordinary case at a
+            // desk. The key refuses an account that does not exist, so a
+            // mistyped id fails the transition rather than writing a booking
+            // nobody can be shown.
+            userId: input.userId ?? null,
             roomTypeId: quote.roomTypeId,
             checkInDate: input.checkIn.toString(),
             checkOutDate: input.checkOut.toString(),
@@ -980,6 +1065,7 @@ export class BookingService {
     return {
       id: row.id,
       reference: row.reference,
+      userId: row.userId,
       state: row.state,
       cancellationReason: row.cancellationReason,
       roomType: roomTypeCode,

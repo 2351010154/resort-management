@@ -57,6 +57,11 @@ export * from "./payment.js";
 // `modules/payment`.
 export * from "./reconciliation.js";
 
+// What a stay earned its guest — one append-only row per closed folio, and no
+// balance anywhere. The tier is not here and never will be: `FR-GST-04` derives
+// it. Owned by `modules/guest`.
+export * from "./loyalty.js";
+
 // The change log every state-changing action writes to — who changed which row
 // of which table, when, and what it looked like on either side. Owned by
 // `modules/audit`; written by the module that owns the row being changed.
