@@ -26,6 +26,7 @@ const PRODUCTION_BASE = {
   RESEND_API_KEY: "re_test",
   GOOGLE_CLIENT_ID: "google-client-id",
   GOOGLE_CLIENT_SECRET: "google-client-secret",
+  ADMIN_ORIGIN: "https://admin.mariva.test",
   // Deliberately not the provisional figures: a test that reused them could
   // not tell a value that was read from one that was assumed.
   STANDARD_VAT_RATE_BPS: "1100",
@@ -177,6 +178,38 @@ describe("the VNPay terminal", () => {
     expect(
       parseEnv({ ...DEVELOPMENT_BASE, VNPAY_SANDBOX: "false" }).VNPAY_SANDBOX,
     ).toBe(false);
+  });
+});
+
+describe("ADMIN_ORIGIN", () => {
+  it("defaults to the admin app's fixed development port", () => {
+    const env = parseEnv({ ...DEVELOPMENT_BASE });
+
+    expect(env.ADMIN_ORIGIN).toBe("http://localhost:3002");
+  });
+
+  it("still prefers a value that was written down", () => {
+    const env = parseEnv({
+      ...DEVELOPMENT_BASE,
+      ADMIN_ORIGIN: "https://admin.mariva.test",
+    });
+
+    expect(env.ADMIN_ORIGIN).toBe("https://admin.mariva.test");
+  });
+
+  it("refuses to boot in production without it", () => {
+    // Unset, `main.ts` would build its CORS allow-list without the admin
+    // console's origin, and every admin request would be rejected by the
+    // browser before it left the CORS preflight.
+    expect(() =>
+      parseEnv(without({ ...PRODUCTION_BASE }, "ADMIN_ORIGIN")),
+    ).toThrow(/ADMIN_ORIGIN/);
+  });
+
+  it("takes the production value it is given rather than the development default", () => {
+    const env = parseEnv({ ...PRODUCTION_BASE });
+
+    expect(env.ADMIN_ORIGIN).toBe("https://admin.mariva.test");
   });
 });
 
