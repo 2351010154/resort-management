@@ -1,0 +1,30 @@
+{
+  "name": "@mariva/admin",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3002",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@mariva/api-client": "workspace:*",
+    "@mariva/shared": "workspace:*",
+    "@mariva/tokens": "workspace:*",
+    "@orpc/tanstack-query": "1.14.10",
+    "@tanstack/react-query": "^5.101.4",
+    "@tanstack/react-table": "^8.21.3",
+    "cmdk": "^1.1.1",
+    "motion": "^12.42.2",
+    "next": "^16.2.12",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-hook-form": "7.83.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.13.3",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "typescript": "5.6.3"
+  }
+}
