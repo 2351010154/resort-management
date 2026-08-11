@@ -564,8 +564,9 @@ async function stored(): Promise<SystemConfigRow | undefined> {
  * `parseEnv` rather than an object literal cast to `Env`, so the production
  * refusals in `config/env.ts` are satisfied here the way a deploy satisfies
  * them. The credentials are obvious placeholders: the seeder opens no gateway
- * and no mailbox, and it takes its database from the client it is handed rather
- * than from `DATABASE_URL`.
+ * and no mailbox, it takes its database from the client it is handed rather
+ * than from `DATABASE_URL`, and it serves no request that a browser could put
+ * an origin on.
  */
 function productionEnvironment(): Env {
   return parseEnv({
@@ -576,6 +577,7 @@ function productionEnvironment(): Env {
     RESEND_API_KEY: "placeholder",
     GOOGLE_CLIENT_ID: "placeholder",
     GOOGLE_CLIENT_SECRET: "placeholder",
+    ADMIN_ORIGIN: "https://placeholder.invalid",
     STANDARD_VAT_RATE_BPS: String(CONFIGURED.standardVatRateBps),
     REDUCED_VAT_RATE_BPS: String(CONFIGURED.reducedVatRateBps),
     SERVICE_CHARGE_RATE_BPS: String(CONFIGURED.serviceChargeRateBps),
