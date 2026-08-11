@@ -52,6 +52,7 @@ export {
   checkInInput,
   createBookingInput,
   extendedStaySchema,
+  ownBookingInput,
   policyChargeSchema,
   reinstateInput,
   roomAssignmentSchema,
