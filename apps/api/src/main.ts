@@ -36,13 +36,14 @@ async function bootstrap(): Promise<void> {
 
   const env = app.get<Env>(ENV);
 
-  // One origin, credentials on. A guest session is a cookie and a staff session
-  // sends a bearer token, and neither crosses an origin the browser has not
-  // been told to trust — `credentials: true` with a wildcard origin is rejected
-  // by every browser anyway, which is the specification agreeing with the RBAC
-  // matrix.
+  // Two origins, named rather than wildcarded, credentials on. A guest session
+  // is a cookie and a staff session sends a bearer token, and neither crosses
+  // an origin the browser has not been told to trust — `credentials: true`
+  // with a wildcard origin is rejected by every browser anyway, which is the
+  // specification agreeing with the RBAC matrix. The public site and the admin
+  // console are the only two the matrix trusts with either kind of session.
   app.enableCors({
-    origin: env.WEB_ORIGIN,
+    origin: [env.WEB_ORIGIN, env.ADMIN_ORIGIN],
     credentials: true,
     methods: ["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
     // Echoed back so the browser exposes the correlation id to page code; a

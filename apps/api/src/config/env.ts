@@ -50,6 +50,14 @@ export const envSchema = z.object({
   // requests, and the base of every link in a verification or reset email.
   WEB_ORIGIN: z.url().default("http://localhost:3000"),
 
+  // The admin console — the second and last origin `main.ts` allows to send
+  // credentialed requests, alongside WEB_ORIGIN. No `.default()` here even
+  // though development gets one, `http://localhost:3002` — apps/admin's fixed
+  // dev port. The fallback is assigned below instead, once the production
+  // check has already refused a boot that never named it, the same shape the
+  // VAT rate figures use for the same reason.
+  ADMIN_ORIGIN: z.url().optional(),
+
   // Better Auth signs guest session cookies with this. Thirty-two characters is
   // the library's own floor; below it the signature is not worth computing.
   BETTER_AUTH_SECRET: z
@@ -290,6 +298,20 @@ export const envSchema = z.object({
         "is required in production — the login screen offers Google sign-in unconditionally",
     },
   )
+  // The admin console's own origin, required for the same reason WEB_ORIGIN's
+  // is trusted rather than guessed: `main.ts` builds a CORS allow-list from
+  // both, and the one place a wrong value is harmless is development, where
+  // the default below stands in for it. A deploy that left it unset would have
+  // every admin request to a staff-only endpoint rejected by the browser
+  // before it left the CORS preflight.
+  .refine(
+    (env) => env.NODE_ENV !== "production" || Boolean(env.ADMIN_ORIGIN),
+    {
+      path: ["ADMIN_ORIGIN"],
+      message:
+        "is required in production — the admin console cannot reach the API without its own origin on the CORS allow-list",
+    },
+  )
   // The same shape as the Google pair above, for the same reason and with a
   // sharper edge. A terminal code with no secret registers a merchant the
   // adapter cannot sign for, and the failure arrives as a rejected checksum on
@@ -397,6 +419,7 @@ export const envSchema = z.object({
   // they can ever reach is one nobody is billed for.
   .transform((env) => ({
     ...env,
+    ADMIN_ORIGIN: env.ADMIN_ORIGIN ?? "http://localhost:3002",
     JOBS_SCHEDULER_ENABLED:
       env.JOBS_SCHEDULER_ENABLED ?? env.NODE_ENV !== "test",
     STANDARD_VAT_RATE_BPS: env.STANDARD_VAT_RATE_BPS ?? 1000,
