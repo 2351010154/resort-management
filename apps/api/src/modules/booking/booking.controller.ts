@@ -283,20 +283,6 @@ export class BookingController {
 }
 
 /**
- * The member of staff a waiver is recorded against.
- *
- * `booking_names_a_waiver_authority_exactly_when_waived` makes the instant and
- * the name a pair, so there is no half a waiver to write: a caller the guard
- * admitted who is somehow not staff is refused here rather than met with a null
- * deeper in. Unreachable — `booking.cancel-waiver` is granted to `MANAGER` and
- * `ADMIN` and to nobody else — and stated anyway, because a penalty set aside
- * by nobody is precisely the record this whole route exists to leave.
- *
- * Declared here rather than imported: `folio.controller.ts` and
- * `housekeeping.controller.ts` each own their own, and a shared helper would be
- * one module's session rule governing another's columns.
- */
-/**
  * The account a funnel booking is filed under, or null when there is none.
  *
  * Anonymous is a real answer and not a failure: `booking.create-own` admits an
@@ -314,6 +300,20 @@ function bookingAccount(principal: Principal | null): string | null {
   return principal?.realm === "guest" ? principal.userId : null;
 }
 
+/**
+ * The member of staff a waiver is recorded against.
+ *
+ * `booking_names_a_waiver_authority_exactly_when_waived` makes the instant and
+ * the name a pair, so there is no half a waiver to write: a caller the guard
+ * admitted who is somehow not staff is refused here rather than met with a null
+ * deeper in. Unreachable — `booking.cancel-waiver` is granted to `MANAGER` and
+ * `ADMIN` and to nobody else — and stated anyway, because a penalty set aside
+ * by nobody is precisely the record this whole route exists to leave.
+ *
+ * Declared here rather than imported: `folio.controller.ts` and
+ * `housekeeping.controller.ts` each own their own, and a shared helper would be
+ * one module's session rule governing another's columns.
+ */
 function attributedStaff(principal: Principal | null, act: string): string {
   if (principal?.realm !== "staff") {
     throw new ORPCError("UNAUTHORIZED", {

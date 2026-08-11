@@ -162,6 +162,13 @@
       "when": 1786421911808,
       "tag": "0022_guest_account_link_and_loyalty_ledger",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1786425439509,
+      "tag": "0023_loyalty_ledger_append_only",
+      "breakpoints": true
     }
   ]
 }
