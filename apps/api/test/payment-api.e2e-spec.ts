@@ -8,10 +8,11 @@
 //
 // 1. **The route is governed by the matrix row it declares**, driven off
 //    `CAPABILITIES` rather than off a list written out here — `rbac-matrix.md`
-//    §4's own instruction. Anonymous is refused with a 401 and a real guest
-//    session with a 403, which is the difference between "who are you" and "not
-//    you": the row denies the guest realm outright, so that refusal comes from
-//    the guard rather than from a handler.
+//    §4's own instruction. Anonymous is refused with a 401, which is the
+//    difference between "who are you" and "not you". A guest holding a real
+//    session is not refused by the guard: the row grants the guest realm `⚠`,
+//    so the scope the guard cannot see is left to the handler, and what is
+//    asserted here is only that the guard hands the request on.
 // 2. **The url the payer is sent to is the gateway's own, and it carries this
 //    property's return address.** `vnp_ReturnUrl` is read back out of the
 //    signed url, which is the only place the two ends of that string can be
@@ -297,20 +298,25 @@ describe("a guest holding a real session", () => {
     expect(session.body.user.emailVerified).toBe(true);
   });
 
-  it("is refused with 403, because the realm is wrong rather than the scope", async () => {
-    // `denied`, not `conditional` — the row grants the guest realm nothing, so
-    // this never reaches a handler and there is no ownership question for one to
-    // answer. The guest funnel that will need this route is M7's, and it will
-    // arrive with a way for a guest to show a stay is theirs.
+  it("is handed on by the guard, because the row conditions the realm rather than denying it", async () => {
+    // `conditional`, not `denied` — the row grants the guest realm the funnel's
+    // payment step subject to the stay being theirs, and `roles.ts` is explicit
+    // that a condition the guard cannot see is passed to the handler rather than
+    // resolved here. So the assertion is the guard's decision and nothing more.
+    //
+    // No body, for the reason the role probes above send none: the guard runs
+    // first, so an admitted caller is answered by the shape of what arrived and a
+    // refused one answers 403 either way — and no attempt is opened while the
+    // matrix is being asserted. **The ownership check the grant owes is the
+    // guest funnel's own, on the route that sends a payer to the gateway, and it
+    // is not written yet**; until it is, this asserts what the matrix says and
+    // deliberately does not assert that a stay which is not the caller's is
+    // refused, because nothing refuses it.
     const stayId = await aBooking();
 
-    const response = await guest.post(attemptPath(stayId)).send(anAttempt());
+    const response = await guest.post(attemptPath(stayId)).send({});
 
-    expect(response.status).toBe(403);
-
-    // Refused at the guard means refused before the row, and a `PENDING` attempt
-    // left behind by a rejected call is money the property would appear to be
-    // waiting for.
+    expect(response.status).not.toBe(403);
     expect(await attemptsOn(stayId)).toHaveLength(0);
   });
 });
