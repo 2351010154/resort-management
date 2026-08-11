@@ -30,6 +30,7 @@ import { parseDate } from "@internationalized/date";
 import type { StayDate } from "@mariva/shared";
 import type { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
+import { call } from "@orpc/server";
 import { eq, sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import request from "supertest";
@@ -41,6 +42,7 @@ import { booking } from "../src/database/schema/booking.js";
 import { guest } from "../src/database/schema/guest.js";
 import { seedDatabase } from "../src/database/seed/seed.js";
 import { BusinessDateService } from "../src/modules/booking/business-date.service.js";
+import { BookingController } from "../src/modules/booking/booking.controller.js";
 import {
   type CapabilityKey,
   staffGrant,
@@ -48,6 +50,10 @@ import {
   type StaffRole,
 } from "../src/modules/identity/rbac/matrix.js";
 import { StaffUserService } from "../src/modules/identity/staff-user.service.js";
+import {
+  MailerService,
+  type OutgoingEmail,
+} from "../src/modules/notification/mailer.service.js";
 
 const SEED_FROM = parseDate("2027-06-01");
 
@@ -86,6 +92,34 @@ const A_STAY = {
   adults: 2,
   childAges: [],
 } as const;
+
+const GUEST_EMAIL = "booking-owner@example.test";
+const GUEST_PASSWORD = "correct-horse-booking-owner";
+
+/** Captures the verification link a guest follows before signing in. */
+class RecordingMailer {
+  readonly sent: OutgoingEmail[] = [];
+
+  async send(email: OutgoingEmail): Promise<void> {
+    this.sent.push(email);
+  }
+
+  linkTo(address: string): string {
+    const email = [...this.sent].reverse().find((sent) => sent.to === address);
+
+    if (!email) {
+      throw new Error(`No email was sent to ${address}`);
+    }
+
+    const link = /https?:\/\/\S+/.exec(email.text)?.[0];
+
+    if (!link) {
+      throw new Error(`No link in the email to ${address}`);
+    }
+
+    return link;
+  }
+}
 
 /**
  * The property's day, stopped — the device every booking suite here uses.
@@ -250,12 +284,17 @@ const NO_SUCH_BOOKING = "00000000-0000-4000-8000-000000000000";
 let app: INestApplication;
 let db: Database;
 let http: () => request.Agent;
+let mailer: RecordingMailer;
 const tokens = new Map<StaffRole, string>();
 
 beforeAll(async () => {
+  mailer = new RecordingMailer();
+
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
     .overrideProvider(BusinessDateService)
     .useClass(StoppedClock)
+    .overrideProvider(MailerService)
+    .useValue(mailer)
     .compile();
 
   app = moduleRef.createNestApplication();
@@ -265,7 +304,7 @@ beforeAll(async () => {
 
   await migrate(db, { migrationsFolder: "./src/database/migrations" });
   await db.execute(
-    sql`truncate staff_user, staff_session restart identity cascade`,
+    sql`truncate guest_user, guest_session, guest_account, guest_verification, staff_user, staff_session restart identity cascade`,
   );
 
   // No synthetic stays. Every room named below has to be free on the nights
@@ -317,6 +356,94 @@ function as(
     .set("Authorization", `Bearer ${tokens.get(role)!}`)
     .send(body);
 }
+
+/** A guest whose cookie resolves through the real Better Auth session path. */
+async function aVerifiedGuest(): Promise<{
+  readonly agent: request.Agent;
+  readonly userId: string;
+}> {
+  await http()
+    .post("/api/auth/sign-up/email")
+    .send({
+      name: "Anh Nguyễn",
+      email: GUEST_EMAIL,
+      password: GUEST_PASSWORD,
+    })
+    .expect(200);
+
+  const link = new URL(mailer.linkTo(GUEST_EMAIL));
+
+  await http().get(`${link.pathname}${link.search}`).expect(302);
+
+  const agent = request.agent(app.getHttpServer());
+
+  await agent
+    .post("/api/auth/sign-in/email")
+    .send({ email: GUEST_EMAIL, password: GUEST_PASSWORD })
+    .expect(200);
+
+  const session = await agent.get("/api/auth/get-session").expect(200);
+
+  return { agent, userId: session.body.user.id as string };
+}
+
+describe("account attribution at the booking controller boundary", () => {
+  let guestSession: Awaited<ReturnType<typeof aVerifiedGuest>>;
+
+  beforeAll(async () => {
+    guestSession = await aVerifiedGuest();
+  });
+
+  it("files a guest's HTTP booking under the session account", async () => {
+    const response = await guestSession.agent
+      .post("/bookings/holds")
+      .send({
+        ...A_STAY,
+        checkIn: "2028-05-01",
+        checkOut: "2028-05-03",
+      })
+      .expect(201);
+
+    const [stored] = await db
+      .select({ userId: booking.userId })
+      .from(booking)
+      .where(eq(booking.id, response.body.id as string));
+
+    expect(stored?.userId).toBe(guestSession.userId);
+  });
+
+  it("does not file a staff HTTP booking under the staff account", async () => {
+    const response = await as("RECEPTIONIST", "post", "/bookings/holds", {
+      ...A_STAY,
+      checkIn: "2028-05-08",
+      checkOut: "2028-05-10",
+    }).expect(201);
+
+    const [stored] = await db
+      .select({ userId: booking.userId })
+      .from(booking)
+      .where(eq(booking.id, response.body.id as string));
+
+    expect(stored?.userId).toBeNull();
+  });
+
+  it("keeps a null principal anonymous at the concrete handler", async () => {
+    const controller = app.get(BookingController);
+    const created = await call(controller.createHold(null), {
+      ...A_STAY,
+      checkIn: "2028-05-15",
+      checkOut: "2028-05-17",
+      childAges: [],
+    });
+
+    const [stored] = await db
+      .select({ userId: booking.userId })
+      .from(booking)
+      .where(eq(booking.id, created.id));
+
+    expect(stored?.userId).toBeNull();
+  });
+});
 
 describe("the capability each booking route declares", () => {
   // §4's obligation, discharged for the rows M4's routes add: every role is put

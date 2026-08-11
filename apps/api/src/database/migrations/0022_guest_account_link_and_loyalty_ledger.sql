@@ -1,3 +1,5 @@
+-- The table lands here; its append-only trigger follows in 0023 so databases
+-- that had already applied this branch migration receive the invariant too.
 CREATE TABLE "loyalty_ledger" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"user_id" text NOT NULL,

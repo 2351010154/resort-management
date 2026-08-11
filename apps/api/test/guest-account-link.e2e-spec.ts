@@ -56,6 +56,7 @@ const SEED_FROM = parseDate("2027-06-01");
 const UNIQUE_VIOLATION = "23505";
 const CHECK_VIOLATION = "23514";
 const FOREIGN_KEY_VIOLATION = "23503";
+const APPEND_ONLY_VIOLATION = "MV002";
 
 /**
  * Better Auth's own shape for an id: 32 base-62 characters, not a UUID.
@@ -317,6 +318,49 @@ describe("the loyalty ledger", () => {
     );
 
     expect(refusal.code).toBe(FOREIGN_KEY_VIOLATION);
+  });
+
+  it("refuses an update and leaves the earned points unchanged", async () => {
+    const [accrual] = await db
+      .insert(loyaltyLedger)
+      .values(anAccrual(await aFolio()))
+      .returning({ id: loyaltyLedger.id });
+
+    const refusal = await refused(
+      db
+        .update(loyaltyLedger)
+        .set({ pointsEarned: 999n })
+        .where(eq(loyaltyLedger.id, accrual!.id)),
+    );
+
+    expect(refusal.code).toBe(APPEND_ONLY_VIOLATION);
+
+    const [stored] = await db
+      .select({ pointsEarned: loyaltyLedger.pointsEarned })
+      .from(loyaltyLedger)
+      .where(eq(loyaltyLedger.id, accrual!.id));
+
+    expect(stored?.pointsEarned).toBe(540n);
+  });
+
+  it("refuses a delete and leaves the accrual in the ledger", async () => {
+    const [accrual] = await db
+      .insert(loyaltyLedger)
+      .values(anAccrual(await aFolio()))
+      .returning({ id: loyaltyLedger.id });
+
+    const refusal = await refused(
+      db.delete(loyaltyLedger).where(eq(loyaltyLedger.id, accrual!.id)),
+    );
+
+    expect(refusal.code).toBe(APPEND_ONLY_VIOLATION);
+
+    const [stored] = await db
+      .select({ id: loyaltyLedger.id })
+      .from(loyaltyLedger)
+      .where(eq(loyaltyLedger.id, accrual!.id));
+
+    expect(stored?.id).toBe(accrual!.id);
   });
 });
 
