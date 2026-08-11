@@ -49,6 +49,10 @@ import {
   STAFF_ROLES,
   type StaffRole,
 } from "../src/modules/identity/rbac/matrix.js";
+import {
+  type CapabilityAction,
+  permits,
+} from "../src/modules/identity/rbac/roles.js";
 import { StaffUserService } from "../src/modules/identity/staff-user.service.js";
 import {
   MailerService,
@@ -188,9 +192,13 @@ const STAFF = {
  */
 const ROUTES: readonly {
   readonly name: string;
-  readonly method: "post" | "put";
+  readonly method: "get" | "post" | "put";
   readonly path: (bookingId: string) => string;
   readonly capability: CapabilityKey;
+  /** What the route does with the row. Defaults to the decorator's own default,
+   *  which is `write` — see `access.decorators.ts` for why that is the safe
+   *  half of forgetting it. */
+  readonly action?: CapabilityAction;
 }[] = [
   {
     name: "createHold",
@@ -276,10 +284,31 @@ const ROUTES: readonly {
     path: (id) => `/bookings/${id}/early-departure`,
     capability: "booking.early-checkout",
   },
+  // The guest's own two. Every staff role is denied both rows, so what these
+  // lines assert is the cross-realm direction `rbac-matrix.md` §4 calls
+  // non-negotiable: a staff token on a guest route is refused, and refused by
+  // the guard rather than by the handler's ownership check. `guest-own-booking.e2e-spec.ts`
+  // asserts the other side, with a real session on each of two accounts.
+  {
+    name: "readOwn",
+    method: "get",
+    path: () => `/bookings/mine/${NO_SUCH_REFERENCE}`,
+    capability: "booking.read-own",
+    action: "read",
+  },
+  {
+    name: "cancelOwn",
+    method: "post",
+    path: () => `/bookings/mine/${NO_SUCH_REFERENCE}/cancellation`,
+    capability: "booking.cancel-own",
+  },
 ];
 
 /** A booking id nothing holds, so no route below can succeed by accident. */
 const NO_SUCH_BOOKING = "00000000-0000-4000-8000-000000000000";
+
+/** The same, for the routes a guest addresses by reference rather than by id. */
+const NO_SUCH_REFERENCE = "ZZZZ-ZZZZ";
 
 let app: INestApplication;
 let db: Database;
@@ -347,7 +376,7 @@ async function signIn(email: string, password: string): Promise<string> {
 /** A call as one member of staff. */
 function as(
   role: StaffRole,
-  method: "post" | "put",
+  method: "get" | "post" | "put",
   path: string,
   body: object = {},
 ): request.Test {
@@ -453,9 +482,13 @@ describe("the capability each booking route declares", () => {
   // answers 403 either way, and no route can succeed and leave a booking behind.
   for (const route of ROUTES) {
     for (const role of STAFF_ROLES) {
-      const grant = staffGrant(route.capability, role);
-      // ⚠ satisfies a write; 👁 does not. Every route here is a write.
-      const admitted = grant === "full" || grant === "conditional";
+      // ⚠ satisfies a write and 👁 does not, which is `permits`' whole job —
+      // asked here rather than spelled out, so the read route below is held to
+      // the same rule as the writes without this file restating it.
+      const admitted = permits(
+        staffGrant(route.capability, role),
+        route.action ?? "write",
+      );
 
       it(`${admitted ? "admits" : "refuses"} ${role} on ${route.name}`, async () => {
         const response = await as(
