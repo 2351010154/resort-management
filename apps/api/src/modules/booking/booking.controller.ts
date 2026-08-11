@@ -72,14 +72,23 @@ export class BookingController {
    * this file a guest can reach. `FR-BOOK-02` gives the funnel this door alone,
    * which is why the walk-in below is a different path behind a different row
    * rather than a flag on this one.
+   *
+   * The account comes off the session and never off the body, the same rule the
+   * waiver below keeps. An account id a caller could send is a guest attaching
+   * their booking to somebody else's history — and `FR-GST-01` scopes every
+   * read of that history to the requester, so the write has to be scoped by the
+   * same authority the read will be.
    */
   @RequiresCapability("booking.create-own")
   @Implement(contract.booking.createHold)
-  createHold() {
+  createHold(@CurrentPrincipal() principal: Principal | null) {
     return implement(contract.booking.createHold).handler(async ({ input }) =>
       onWire(
         await this.transactions.run((exec) =>
-          this.bookings.createHold(exec, asCreateInput(input)),
+          this.bookings.createHold(exec, {
+            ...asCreateInput(input),
+            userId: bookingAccount(principal),
+          }),
         ),
       ),
     );
@@ -287,6 +296,24 @@ export class BookingController {
  * `housekeeping.controller.ts` each own their own, and a shared helper would be
  * one module's session rule governing another's columns.
  */
+/**
+ * The account a funnel booking is filed under, or null when there is none.
+ *
+ * Anonymous is a real answer and not a failure: `booking.create-own` admits an
+ * unauthenticated caller, and a funnel that refused to sell a room to somebody
+ * who has not registered would be a booking engine nobody could use. That stay
+ * is reachable by its reference and by nothing else, which is exactly what the
+ * nullable column stores.
+ *
+ * A staff principal lands on the same null. A receptionist reaching this route
+ * is taking the booking rather than owning it, and filing the property's own
+ * staff id as the guest would make the stay answer a `read-own` for the wrong
+ * realm entirely.
+ */
+function bookingAccount(principal: Principal | null): string | null {
+  return principal?.realm === "guest" ? principal.userId : null;
+}
+
 function attributedStaff(principal: Principal | null, act: string): string {
   if (principal?.realm !== "staff") {
     throw new ORPCError("UNAUTHORIZED", {
