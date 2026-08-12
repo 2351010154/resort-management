@@ -77,6 +77,18 @@ export const SIGN_IN_UNREACHABLE = "The connection did not hold. Try again.";
  */
 export const REFRESH_MARGIN_MS = 60_000;
 
+/**
+ * The shortest wait the scheduler will accept between two renewals.
+ *
+ * The margin above assumes a token that outlives it. A token that does not —
+ * an API misconfigured to issue a one-minute access token, or a clock that
+ * disagrees by more than the token's whole life — would otherwise schedule
+ * every renewal at zero and turn the console into a loop hammering `/refresh`
+ * from every open tab. Five seconds is far below anything an operator would
+ * notice and far above a loop.
+ */
+export const MIN_REFRESH_DELAY_MS = 5_000;
+
 /** Whether a token is close enough to expiry to be worth replacing before use. */
 export function needsRefresh(expiresAt: number, now: number): boolean {
   return expiresAt - now <= REFRESH_MARGIN_MS;
@@ -85,13 +97,15 @@ export function needsRefresh(expiresAt: number, now: number): boolean {
 /**
  * How long to wait before renewing a token that expires at `expiresAt`.
  *
- * Never negative: a token already inside its margin — a laptop reopened after
- * being asleep — is renewed immediately rather than scheduled into the past,
- * where `setTimeout` would fire it on the next tick anyway but the arithmetic
- * would have stopped saying what it means.
+ * Never negative and never zero: a token already inside its margin — a laptop
+ * reopened after being asleep — is renewed almost immediately rather than
+ * scheduled into the past, and the floor is what stops "almost immediately"
+ * from becoming a loop when every renewal lands back inside the margin. A call
+ * site that needs the token *now* does not wait for this at all; it calls
+ * `ensureFresh`, which refreshes on demand.
  */
 export function refreshDelayMs(expiresAt: number, now: number): number {
-  return Math.max(0, expiresAt - now - REFRESH_MARGIN_MS);
+  return Math.max(MIN_REFRESH_DELAY_MS, expiresAt - now - REFRESH_MARGIN_MS);
 }
 
 export interface StaffSessionStore {
