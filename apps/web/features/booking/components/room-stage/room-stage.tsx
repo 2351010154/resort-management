@@ -104,6 +104,7 @@ export function RoomStage({
   plan,
   nights,
   note,
+  holding,
   onContinue,
 }: {
   readonly type: RoomType;
@@ -121,6 +122,16 @@ export function RoomStage({
    * where the guest is already looking.
    */
   readonly note: string | null;
+  /**
+   * Whether the room is being held right now.
+   *
+   * A hold is a request that consumes the nights, so the press has to look like
+   * it did something for as long as it is in flight — a button that stays
+   * pressable and unchanged invites the second press the funnel then has to
+   * drop. Optional because it is a state only the screen that takes the hold
+   * has; a caller with no request to make renders the button as it always was.
+   */
+  readonly holding?: boolean;
   readonly onContinue: () => void;
 }) {
   const reduced = useReducedMotion();
@@ -330,10 +341,11 @@ export function RoomStage({
           <button
             className={styles.continue}
             data-stage-continue
+            disabled={holding}
             onClick={onContinue}
             type="button"
           >
-            Continue
+            {holding ? "Holding the room…" : "Continue"}
           </button>
           <p className={styles.hold} role="status">
             {note ?? "Nothing is charged yet."}
