@@ -5,10 +5,11 @@ its own origin away from the guest-facing site.
 
 Scaffolded, not built. What exists is the shape a screen can land in: the root
 layout (document element, type stack and `app/globals.css`), the `(auth)` and
-`(app)` route groups with their empty layouts, one index route so `next build`
-checks something real, and the primitives in `components/ui/`. There are no
-screens, no navigation, no command palette and no query provider yet — each has
-an owner further along, and the layout comments say what lands where.
+`(app)` route groups, one index route so `next build` checks something real, the
+primitives in `components/ui/`, the keyboard layer in `lib/keyboard/`, and the
+command palette the `(app)` layout mounts. There are no screens, no navigation
+and no query provider yet — each has an owner further along, and the layout
+comments say what lands where.
 
 ## The theme
 
@@ -178,17 +179,85 @@ because operators type dates rather than pick them, but it is a parser and not
 focus or key infrastructure.
 
 `components/ui/` needs none of this. Radix already traps focus inside `Dialog`
-and `Popover`; the trap is for the console's own in-place surfaces — the
-check-in sequence that opens inside the arrivals queue, the command palette —
-which are not dialogs in the DOM and would otherwise let Tab walk out into the
-navigation behind them.
+and `Popover`, and the command palette is built on that `Dialog` for exactly
+that reason. The trap is for the console's own in-place surfaces — the check-in
+sequence that opens inside the arrivals queue — which are not dialogs in the DOM
+and would otherwise let Tab walk out into the navigation behind them.
 
-**Open:** whether a console binding that handles Escape should also stop the
-press reaching Radix's own dismissable-layer listener. `stopPropagation` is
-there for it and defaults to off, so today a screen closing its own surface
-while a Radix overlay is open would see both act. Which is right depends on
-surfaces that do not exist yet; the keyboard-only run `NFR-11` requires is
-where it will show up.
+**Settled:** whether a console binding that handles Escape should also stop the
+press reaching Radix's own dismissable-layer listener. The palette is the first
+surface to answer it, and the answer is yes for a surface that stacks over a
+screen. It binds Escape itself, one `KeyboardLayer` deep and with
+`stopPropagation`, so a single press closes the palette and *only* the palette —
+without it, the screen's own Escape binding underneath sees the same press and a
+check-in sequence closes along with the palette that was opened over it. The
+default stays off: a screen's own binding has nothing underneath it to protect.
+
+## The command palette
+
+`features/command-palette/`, mounted once by the `(app)` layout so ⌘K means the
+same thing on every authenticated screen.
+
+| Module | Owns |
+|---|---|
+| `command.ts` | What a command is, and what order a set of them renders in |
+| `command-registry.tsx` | Collecting what screens have registered |
+| `use-commands.ts` | Offering a screen's commands while it is mounted |
+| `command-palette.tsx` | The surface: the chord, the list, running a command |
+| `shortcut.ts` | A written chord as the hint drawn beside a row |
+| `components/ui/command.tsx` | cmdk, restyled to the tokens. Domain-blind |
+
+**It holds no commands of its own.** A screen declares what it offers and the
+palette collects it:
+
+```tsx
+useCommands([
+  {
+    id: "arrivals.check-in",
+    label: "Check in",
+    group: "actions",
+    shortcut: "mod+shift+i",
+    keywords: ["khách đến", "walk-in"],
+    action: () => openCheckIn(row.reference),
+  },
+]);
+```
+
+A command therefore exists exactly while the screen that owns it is on, which is
+the only definition that stays true as the console grows — the alternative is
+one central list with a guard on every entry saying when it applies, which every
+screen has to remember to edit and which nothing fails when they don't. **Today
+that means the palette opens onto "This screen offers no commands."**, because
+nothing registers yet. The shell fills `Go to`; screens fill `Actions`; `Quick
+search` is defined and stays empty until something API-backed registers into it.
+
+Four decisions worth knowing before adding to it:
+
+- **The array can be written inline, and that is the whole shape of
+  `useCommands`.** What the palette *draws* — id, label, group, shortcut,
+  keywords — is stable text, and re-registration happens only when that changes;
+  what a command *does* is a closure reached through a trampoline, so an action
+  written inline always runs the current one without ever being re-registered.
+  Neither `useMemo` at the call site nor a re-render per keystroke.
+- **The first registration of an id wins.** React flushes a child's effects
+  before its parent's, so first is the innermost claim: a screen may replace a
+  shell command by reusing its id, and the override runs in the direction it has
+  to.
+- **`shortcut` is drawn, not bound.** A command that has one binds it where it
+  lives, with `useHotkeys`, so the key works on the screen that owns it and not
+  only while the palette is open. The hint is derived from the same written
+  chord — `mod+k` renders ⌘K or Ctrl+K — so the two cannot drift apart.
+- **cmdk's list is a combobox, not a roving list.** Focus stays in the search
+  box for the palette's whole life and the arrows move an `aria-selected`
+  highlight; `lib/keyboard`'s `RovingFocusGroup` is the opposite arrangement and
+  the two must not be mixed on one surface.
+
+The palette hands focus back itself rather than leaving it to Radix. Radix
+restores by focusing the dialog's *trigger*, and preventDefaults its own focus
+scope to do it — this palette is opened by a chord and has no trigger, so that
+path focuses nothing and drops the operator on `<body>`. It captures focus on
+open and restores on close, and a command's action runs immediately after that
+restoration so an action that opens a surface of its own gets the last word.
 
 ```
 pnpm --filter @mariva/admin dev     # port 3002

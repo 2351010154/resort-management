@@ -15,6 +15,17 @@
 export { Button, buttonVariants } from "./button";
 export { Checkbox } from "./checkbox";
 export {
+  Command,
+  CommandDialog,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+  CommandShortcut,
+} from "./command";
+export {
   Dialog,
   DialogClose,
   DialogContent,
