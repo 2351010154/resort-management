@@ -5,10 +5,10 @@ its own origin away from the guest-facing site.
 
 Scaffolded, not built. What exists is the shape a screen can land in: the root
 layout (document element, type stack and `app/globals.css`), the `(auth)` and
-`(app)` route groups with their empty layouts, and one index route so
-`next build` checks something real. There are no screens, no navigation, no
-command palette and no query provider yet — each has an owner further along, and
-the layout comments say what lands where.
+`(app)` route groups with their empty layouts, one index route so `next build`
+checks something real, and the primitives in `components/ui/`. There are no
+screens, no navigation, no command palette and no query provider yet — each has
+an owner further along, and the layout comments say what lands where.
 
 ## The theme
 
@@ -49,10 +49,56 @@ Spacing keeps Tailwind's 0.25rem multiplier for component work; Mariva's five
 step rhythm sits beside it as `--spacing-rhythm-1` … `-5`, so `p-2` is a control
 and `gap-rhythm-3` is a page composition.
 
-**Open:** there is no `--color-destructive`. The palette has no red, and
-inventing one here would put the console's error colour outside
-`packages/tokens`. shadcn's destructive variants and every error, warning and
-status colour the operational screens need are blocked on that decision.
+**`--color-destructive` is `--umber`, and there is still no red.** The palette
+has none, and inventing one here would put the console's error colour outside
+`packages/tokens`. The guest site had already answered the question the same way
+— `apps/web`'s auth screens draw their error state as `--umber` text behind an
+`--umber` rule — so the console follows it rather than opening a second
+convention. What that costs is described under *Primitives* below.
+
+## Primitives
+
+`components/ui/` holds thirteen shadcn/ui components, copied in and restyled.
+`components.json` records the settings the generator would use, so
+`pnpm dlx shadcn@latest add <name>` drops a new one in the right place with the
+right import aliases — but it arrives in upstream's styling, and the four rules
+below are what has to be applied to it before it is a Mariva primitive.
+
+Import from the deep path (`@/components/ui/button`) on a screen that needs one
+or two. `components/ui/index.ts` re-exports everything and is the inventory; it
+is also a client-component barrel, so importing from it pulls all thirteen into
+the bundle.
+
+- **Focus is drawn once, in `app/globals.css`.** Upstream rings each control
+  with `ring-ring/50` — `--umber` at half strength, roughly 2.7:1 on `--ivory`,
+  under the 3:1 a focus indicator owes. The primitives drop `outline-none` and
+  inherit the base rule's full-strength 2px outline instead. Two exceptions,
+  both deliberate: panels that take focus only so a screen reader lands in them
+  (dialog, popover and select content, tab panels) keep the suppression, and a
+  highlighted select or menu row is marked by the `--accent` fill rather than an
+  outline that would clip against the panel edge.
+- **Nothing animates in or out.** `NFR-04` holds operational screens to no
+  entrance animation, so every `animate-in` / `fade-in-0` / `zoom-in-95` /
+  `slide-in-from-*` is stripped, along with the `origin-*` that only existed to
+  anchor the zoom. It also means the app needs no animation plugin.
+- **`font-medium` and `font-semibold` become `font-normal`.** `app/layout.tsx`
+  loads both faces at 300 and 400 only; a 500 or 600 would be a weight the
+  browser synthesises rather than one the type designer drew. 400 against the
+  body's 300 is the console's emphasis step.
+- **Destructive differs by form, not by hue.** `--color-destructive` and
+  `--color-primary` are both `--umber`, so a destructive control that copies the
+  primary's shape says nothing. `Button variant="destructive"` is the only
+  variant drawn as a doubled rule on the page ground, filling on hover and
+  focus; a destructive `DropdownMenuItem` carries an `--umber` rule on its
+  leading edge, the same device `apps/web` uses for an error notice. Both rely
+  on the label naming the verb — "Cancel booking", never "Confirm". Sonner's
+  `richColors` is off for the same reason.
+
+Still open, and inherited rather than introduced here: the operational screens
+will want **status** colours — housekeeping state, discrepancy severity,
+success and warning — and the palette has none. Shape carries two states well
+and does not scale to five. That decision belongs to `packages/tokens` and the
+design authority, and it is not blocking until the first screen needs it.
 
 ```
 pnpm --filter @mariva/admin dev     # port 3002
