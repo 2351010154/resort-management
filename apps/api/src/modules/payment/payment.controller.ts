@@ -15,16 +15,27 @@
 // reason, and gives it.
 //
 // **The other three are the property's own, and they are the ones that hold a
-// capability.** Opening an attempt is the desk asking a gateway to collect
-// against a stay; listing the nights that were reconciled and reading one of
-// them is the accountant asking what the sweep found. In all three the caller is
-// this property's web app, the shape is this property's to choose, and
-// `rbac-matrix.md` §2 governs them like every other staff route. So they are
-// declared in `contract/payment.ts` and guarded by `payment.open-attempt` and
+// capability.** Opening an attempt is asking a gateway to collect against a
+// stay; listing the nights that were reconciled and reading one of them is the
+// accountant asking what the sweep found. In all three the caller is on this
+// property's side of the wire, the shape is this property's to choose, and
+// `rbac-matrix.md` §2 governs them. So they are declared in
+// `contract/payment.ts` and guarded by `payment.open-attempt` and
 // `payment.reconcile`. They are answered here rather than beside the folio
 // because the attempt, the callback that resolves it and the night that checks
 // both are one conversation — and because `payment.module.ts` registers one
 // controller for this module.
+//
+// **Opening an attempt is the one route here a guest can reach**, and the row
+// grants the guest realm `⚠` rather than `✅`: the desk collects against any
+// stay, and a guest only against the one they booked. `roles.ts` is explicit
+// that `⚠` passes the guard with the condition attached, so the scope is owed
+// below the guard rather than at it — the account comes off the session in the
+// handler and `payment.service.ts` settles it in the query, where the route's
+// other refusals already are. The four staff roles that hold the row hold it
+// `✅` and are not scoped at all, which is not an omission: a walk-in belongs to
+// no account, and a receptionist taking their card is the ordinary use of this
+// route.
 //
 // **The two reconciliation routes are declared as reads**, which is the second
 // argument to `@RequiresCapability` and not a comment. The row grants `full` to
@@ -107,9 +118,11 @@ import {
   IpnUnknownError,
 } from "vnpay";
 import {
+  CurrentPrincipal,
   RequiresCapability,
   Unguarded,
 } from "../../common/auth/access.decorators.js";
+import type { Principal } from "../../common/auth/principal.js";
 import { ENV, type Env } from "../../config/env.js";
 import { TransactionRunner } from "../../database/transaction-runner.js";
 import {
@@ -220,22 +233,32 @@ export class PaymentController {
   ) {}
 
   /**
-   * The desk asking a gateway to collect against a stay — `FR-PAY-02`.
+   * Asking a gateway to collect against a stay — `FR-PAY-02`.
    *
    * **The handler adds no rule of its own, and that is deliberate.**
    * {@link PaymentService.createPaymentRequest} already refuses an amount of
-   * nothing or less, and refuses it before a row is written or a payer is sent
-   * anywhere; both refusals carry an `ORPCError` and reach the caller as the 400
-   * they were written to be. A copy of either check here would be a second place
-   * for one decision to live, and the two would agree until one was reworded.
+   * nothing or less, refuses an id that is not a booking's, and refuses a guest
+   * a stay that is not theirs — each before a row is written or a payer is sent
+   * anywhere, and each carrying an `ORPCError` that reaches the caller as the
+   * status it was written to be. A copy of any of them here would be a second
+   * place for one decision to live, and the two would agree until one was
+   * reworded.
    *
-   * **Two of the five fields the service needs are the request's, not the
+   * **Three of the six fields the service needs are the request's, not the
    * body's.** A caller that could name its own `returnUrl` could send the payer
    * anywhere afterwards, on a page carrying the gateway's own signed parameters —
    * so the address is this property's, built from the route below. A caller that
    * could state its own address would be choosing what the gateway screens it
    * for, which is a fraud signal that means nothing; so it is read off the
    * connection.
+   *
+   * The third is the account, and it is the same rule read at its sharpest.
+   * `rbac-matrix.md` grants this row `⚠` to the guest realm — the guard admits a
+   * signed-in guest and leaves the scope to be finished below — and an account
+   * id a caller could send would be that scope choosing itself. So it comes off
+   * the session, and what the handler does with it is pass it on: `⚠` is a
+   * condition, not a check, and the place a condition on which rows a caller may
+   * name is settled is the query, which is the service's.
    *
    * What comes back says where to send the payer and what this property will
    * call the attempt afterwards. It says nothing about money having moved:
@@ -244,7 +267,10 @@ export class PaymentController {
    */
   @RequiresCapability("payment.open-attempt")
   @Implement(contract.payment.openAttempt)
-  openAttempt(@Ip() payerIpAddress: string) {
+  openAttempt(
+    @Ip() payerIpAddress: string,
+    @CurrentPrincipal() principal: Principal | null,
+  ) {
     return implement(contract.payment.openAttempt).handler(async ({ input }) =>
       this.payments.createPaymentRequest({
         bookingId: input.bookingId,
@@ -252,6 +278,7 @@ export class PaymentController {
         description: input.description,
         returnUrl: this.gatewayReturnUrl(),
         payerIpAddress,
+        guestAccountId: guestAccount(principal),
       }),
     );
   }
@@ -574,6 +601,27 @@ export class PaymentController {
 
     return { url: url.toString(), statusCode: SEE_THE_FUNNEL };
   }
+}
+
+/**
+ * The account an attempt has to be scoped to, or null when it does not.
+ *
+ * Null for the desk, and that is the answer rather than a gap: every staff role
+ * holding `payment.open-attempt` holds it `full`, and a receptionist taking a
+ * walk-in's card is collecting against a stay that belongs to no account at all.
+ * Scoping them would refuse the ordinary use of the route.
+ *
+ * Null is also what an unauthenticated caller would produce, and that is
+ * unreachable rather than trusted: the row is not the public one, so the guard
+ * answers a request with no session at all with a 401 before this runs.
+ *
+ * Declared here rather than imported from `booking.controller.ts`, which owns
+ * one of the same shape. `folio.controller.ts` and `housekeeping.controller.ts`
+ * each keep their own for the reason that file gives: a shared helper would be
+ * one module's session rule governing another's writes.
+ */
+function guestAccount(principal: Principal | null): string | null {
+  return principal?.realm === "guest" ? principal.userId : null;
 }
 
 /**

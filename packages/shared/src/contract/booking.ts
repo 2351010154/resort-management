@@ -38,20 +38,25 @@
 // §8 freezes what a booking was quoted, and the one operation that adds nights
 // prices them off the calendar rather than off a number a caller sent.
 //
+// **The guest's own two routes address a stay by its reference**, and they are
+// the only routes here that do. Every other one names a `bookingId`, which is a
+// uuid the desk holds and a guest never sees; what a guest was given is the
+// eight characters printed on their confirmation. Putting them under
+// `/bookings/mine/` rather than at `/bookings/{reference}` is the same choice
+// {@link booking.createHold} makes with `/bookings/holds`: a static segment
+// marks the door, so the guest's key and the desk's cannot arrive at one path
+// pattern and be told apart by their shape. `rbac-matrix.md` grants both rows
+// `⚠` — the guard admits the caller and the handler still owes the ownership
+// check — and `booking.controller.ts` is where that check is paid.
+//
 // What is deliberately NOT here:
 //
-// - **Reading a booking.** `booking.read-any` is a real row and its route is
-//   `search.operational`'s neighbour at task 23; there is no read method on the
-//   service to hang one off yet, and every route below already answers with the
-//   booking it changed. `M7` routes on `/bookings/<reference>`, which is a
-//   lookup by a different key again.
-// - **`booking.read-own` and `booking.cancel-own`.** Both are `conditional` for
-//   a guest, which `rbac-matrix.md` §2 defines as an ownership check the handler
-//   still owes — and a booking has no owning account to check against. `guest`
-//   rows are linked at registration, which happens at check-in, so a guest
-//   cancelling their own hold has nothing to be matched on until `M6` gives a
-//   booking an account. Creating one is different and is granted here: a caller
-//   who has just been handed the reference is the owner of it.
+// - **Reading any booking.** `booking.read-any` is a real row and its route is
+//   `search.operational`'s neighbour at task 23; there is no staff read method
+//   on the service to hang one off yet, and every transition below already
+//   answers with the booking it changed. The guest's read is a different row
+//   under a different key again, which is why it sits beside it rather than
+//   being the same route narrowed by a grant.
 // - **Change rate and post charge / payment.** §5 lists both, `prd-m4.md` puts
 //   both outside `M4` in the same sentence, and `pricing.rate-override` and the
 //   folio rows are their capabilities.
@@ -196,6 +201,25 @@ export const bookingSchema = z.object({
 export const cancelInput = z.object({
   ...bookingIdFields,
   reason: cancellationReasonSchema.exclude(["HOLD_EXPIRED"]),
+});
+
+/**
+ * The stay a guest names, addressed by the handle they were given.
+ *
+ * One schema for both of the guest's own routes, because a guest reading their
+ * booking and a guest calling it off state exactly the same thing: which stay.
+ * The cancellation carries no reason — `booking.controller.ts` files it as
+ * `GUEST_REQUEST`, which is what it is, and a guest who could choose the code
+ * could file their own change of mind as the property's mistake.
+ *
+ * The bound is loose on purpose. `reference-generator.ts` owns the shape and
+ * `schema/booking.ts` deliberately does not pin it in the column, so a length
+ * spelled out here would be a third copy of a format the property is free to
+ * change; what this refuses is an empty string and an unbounded one, which are
+ * the two things no generator will ever produce.
+ */
+export const ownBookingInput = z.object({
+  reference: z.string().trim().min(1).max(32),
 });
 
 /**
@@ -482,4 +506,25 @@ export const booking = {
     .route({ method: "POST", path: "/bookings/{bookingId}/early-departure" })
     .input(changeDepartureInput)
     .output(shortenedStaySchema),
+
+  // ── The guest's own stay — `FR-GST-01` ─────────────────────────────────────
+
+  readOwn: oc
+    .route({ method: "GET", path: "/bookings/mine/{reference}" })
+    .input(ownBookingInput)
+    .output(bookingSchema),
+
+  cancelOwn: oc
+    // The same sub-resource the desk's cancellation is a POST to, under the
+    // guest's own door. One transition and one price: `booking.cancel-own` and
+    // `booking.cancel-policy` are two rows because two different people hold
+    // them, not because a guest's cancellation costs something else —
+    // `property-and-tariff.md` §4 prices the event against the rate plan and
+    // reads neither the reason nor who asked. So this reaches the service method
+    // the desk's route reaches, at the grid's price and with no waiver, and the
+    // charge is posted later under `folio.refund-policy` exactly as it is for a
+    // stay the desk called off.
+    .route({ method: "POST", path: "/bookings/mine/{reference}/cancellation" })
+    .input(ownBookingInput)
+    .output(bookingSchema),
 };

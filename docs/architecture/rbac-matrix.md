@@ -135,7 +135,7 @@ Legend: ✅ full · 👁 read-only · ⚠ conditional, see notes · — denied
 | Read folio | ⚠ | ✅ | — | ✅ | ✅ | ✅ | Guest: own, settled view |
 | Post charge (room, service, minibar) | — | ✅ | — | ✅ | ✅ | ✅ | |
 | Post payment | — | ✅ | — | ✅ | ✅ | ✅ | |
-| Open a gateway payment attempt | — | ✅ | — | ✅ | ✅ | ✅ | Staff open it; the guest funnel is M7 |
+| Open a gateway payment attempt | ⚠ | ✅ | — | ✅ | ✅ | ✅ | Guest: own booking. The handler must confirm the stay belongs to the requesting account |
 | Refund within policy | — | ✅ | — | ✅ | ✅ | ✅ | ⚑ |
 | Refund override / discretionary | — | — | — | — | ✅ | ✅ | ⚑ |
 | Reverse a posting | — | — | — | ✅ | ✅ | ✅ | Never a delete |

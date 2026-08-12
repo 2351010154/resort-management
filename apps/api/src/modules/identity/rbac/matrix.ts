@@ -412,24 +412,31 @@ export const CAPABILITIES = [
   // narrower reading, receptionist only, would leave the accountant chasing an
   // unpaid balance with no way to raise a payment link.
   //
-  // The guest realm is denied, and that is this milestone's boundary rather
-  // than a judgement about guests paying online. A guest cannot show that a
-  // booking is theirs yet — `schema/guest.ts` puts the join between a guest
-  // account and a stay at M7 — so a guest-realm grant would let any signed-in
-  // caller open a payment page against any stay whose id they had.
+  // The guest realm holds this conditionally, which is the funnel's payment step
+  // and the narrowest grant that can carry it. It was `denied` while a booking
+  // had no owning account: a guest could not show that a stay was theirs, so any
+  // grant at all would have opened a payment page against any stay whose id the
+  // caller had. `booking.user_id` closes that, and closing it is what moves the
+  // row — the account the funnel took the booking under is the thing an
+  // ownership check compares against.
+  //
+  // `conditional` and not `full`, because the guard cannot see the comparison.
+  // The handler owes it: a payment attempt is only this caller's to open when
+  // the stay's `user_id` is the requester's account, and a stay the desk took
+  // holds a null there and is therefore nobody's.
   {
     key: "payment.open-attempt",
     section: "Folio and money",
     row: "Open a gateway payment attempt",
     unauthenticated: false,
-    guest: "denied",
+    guest: "conditional",
     staff: staff({
       RECEPTIONIST: "full",
       ACCOUNTANT: "full",
       MANAGER: "full",
       ADMIN: "full",
     }),
-    note: "Staff open it; the guest funnel is M7",
+    note: "Guest: own booking. The handler must confirm the stay belongs to the requesting account",
   },
   {
     key: "folio.refund-policy",
