@@ -25,6 +25,11 @@
       "!apps/web/tests/visual-baseline",
       "!apps/api/src/database/migrations",
 
+      // Parked design references are not product code. They are deliberately
+      // unwired and document the issues to settle before promotion into app/,
+      // features/ or components/ui/, where the normal lint scope applies.
+      "!apps/admin/prototypes",
+
       // apps/api is not in yet. This config replaces the ESLint setup that
       // only ever covered apps/web, so bringing the API under it here would
       // be a second change wearing the same commit, and its findings are all
