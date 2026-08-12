@@ -164,6 +164,21 @@ export interface OwnBooking {
   readonly userId: string;
 }
 
+/**
+ * The same pair, keyed by the id the funnel carries instead of the reference.
+ *
+ * A separate shape rather than a reference that is sometimes a uuid, so that a
+ * caller cannot pass one where the other is meant and have it fail as an empty
+ * result. The scope half is identical and identical for the same reason: the
+ * account is the session's, and it is what makes this a request about the
+ * caller's own stay rather than about that id.
+ */
+export interface OwnHold {
+  readonly bookingId: string;
+  /** The guest account, off the session. Never a value a caller may send. */
+  readonly userId: string;
+}
+
 @Injectable()
 export class BookingService {
   constructor(
@@ -252,6 +267,44 @@ export class BookingService {
       booking: confirmed!,
       roomTypeCode: current.roomTypeCode,
     });
+  }
+
+  /**
+   * The stay a gateway has just paid for, confirmed if it was still being held.
+   *
+   * §3's `HELD → CONFIRMED` is captioned "deposit taken", and until this existed
+   * nothing took it: `confirm` above is behind `booking.write`, which is
+   * `RECEPTIONIST` and up, so a guest paying their own hold had no path to the
+   * transition their payment is the whole reason for. What that cost is not an
+   * unconfirmed booking. It is `hold-expiry-sweep.ts` reaching a stay two
+   * minutes later, finding it `HELD` past its TTL, and cancelling a room the
+   * guest has paid for.
+   *
+   * **Only from `HELD`, and every other state is a no-op rather than a
+   * refusal.** Money reaches a stay at more than one moment — a deposit against
+   * a hold, a balance against a guest already in the building — and only the
+   * first is a transition. `confirm` would answer a `CHECKED_IN` stay with
+   * `409 IllegalTransition`, and the caller is inside the transaction that
+   * posts the payment, so the refusal would roll back money the gateway has
+   * already taken. A stay whose hold the sweep cancelled before the callback
+   * arrived is the same shape and the same answer: the payment posts, the
+   * cancellation stands, and `FR-PAY-05`'s nightly sweep is what surfaces the
+   * pair to somebody who can hand the money back. Neither is a state this
+   * method may decide on its own.
+   *
+   * The read is `for update` and the write goes through `confirm`, so the
+   * booking is locked before its state is read and the answer cannot change
+   * underneath — two callbacks delivered together find the row in the order
+   * they take its lock, and the second sees `CONFIRMED` and does nothing.
+   */
+  async confirmPaidHold(exec: DbExecutor, bookingId: string): Promise<void> {
+    const current = await this.forUpdate(exec, bookingId);
+
+    if (current.booking.state !== "HELD") {
+      return;
+    }
+
+    await this.confirm(exec, bookingId);
   }
 
   /**
@@ -940,6 +993,41 @@ export class BookingService {
    */
   async ownBooking(exec: DbExecutor, own: OwnBooking): Promise<Booking> {
     return this.asBooking(await this.findOwn(exec, own));
+  }
+
+  /**
+   * The same stay, named by the id the funnel is carrying rather than by the
+   * reference — `booking.read-own`, for the steps between a hold and a booking.
+   *
+   * `repository-structure.md` §`(booking)` puts the hold id in the path from the
+   * third step on, so this is the address `/booking/<hold>/details` and the two
+   * screens after it already hold. Everything else about it is
+   * {@link ownBooking}: the account comes off the session, the scope is a
+   * `where` clause rather than a comparison afterwards, and a stay that is not
+   * this account's is the same `NOT_FOUND` as a stay that is not there.
+   *
+   * The refusal names nothing back. A reference is short enough that repeating
+   * it helps the guest see which stay was refused; a uuid in a sentence helps
+   * nobody, and the one who would be reading it is a caller trying ids.
+   */
+  async ownHold(
+    exec: DbExecutor,
+    { bookingId, userId }: OwnHold,
+  ): Promise<Booking> {
+    const [row] = await exec
+      .select({ booking, roomTypeCode: roomType.code })
+      .from(booking)
+      .innerJoin(roomType, eq(booking.roomTypeId, roomType.id))
+      .where(and(eq(booking.id, bookingId), eq(booking.userId, userId)))
+      .limit(1);
+
+    if (!row) {
+      throw new ORPCError("NOT_FOUND", {
+        message: "No booking of yours has that id",
+      });
+    }
+
+    return this.asBooking(row);
   }
 
   /**

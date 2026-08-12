@@ -400,6 +400,123 @@ describe("a guest holding a real session", () => {
     expect(noSuchStay.status).toBe(404);
     expect(noSuchStay.body).toEqual(notMine.body);
   });
+
+  describe("paying for the stay they are holding", () => {
+    it("is confirmed by the gateway's own callback, over the wire", async () => {
+      // The whole journey, through the two routes VNPay actually touches and the
+      // one the funnel does. Every other case in this file stops at the attempt;
+      // this one carries it through to the money, because the transition it
+      // proves has no other door — `booking.confirm` is behind `booking.write`,
+      // which no guest holds, so if the callback does not confirm the stay then
+      // nothing does and `hold-expiry-sweep.ts` cancels a room that has been
+      // paid for.
+      //
+      // The callback is signed with this file's own terminal secret and verified
+      // by the real adapter. Nothing is stubbed between the request and the row.
+      const stayId = await aHold(guestAccountId);
+
+      const opened = await guest
+        .post(attemptPath(stayId))
+        .send(anAttempt())
+        .expect(200);
+
+      const reference = opened.body.reference as string;
+
+      // Still a hold, and still owing the money, at the moment the payer leaves.
+      expect(await stateOf(stayId)).toBe("HELD");
+
+      const acknowledgement = await http()
+        .get("/payments/vnpay/ipn")
+        .query(signedCallback(reference, AMOUNT, "77315012"))
+        .expect(200);
+
+      // `00` is "received and acted on" — not a verdict on the money, which is
+      // what the two rows below are.
+      expect(acknowledgement.body).toMatchObject({ RspCode: "00" });
+
+      expect(await stateOf(stayId)).toBe("CONFIRMED");
+
+      // And the TTL is gone with it. A confirmed stay still carrying an expiry is
+      // a date the sweep can act on, and what it would do with it is release a
+      // room the property has sold.
+      expect(await expiryOf(stayId)).toBeNull();
+
+      const account = await http()
+        .get(`/bookings/${stayId}/folio`)
+        .set("Authorization", `Bearer ${tokens.get("RECEPTIONIST")!}`)
+        .expect(200);
+
+      expect(account.body.postings).toHaveLength(1);
+      expect(account.body.summary.outstanding).toBe((-AMOUNT).toString());
+    });
+
+    it("is confirmed once, however many times the gateway delivers", async () => {
+      // `FR-PAY-03`'s idempotency, read through the stay rather than through the
+      // payment table. The second delivery must not post a second line, and it
+      // must not try the transition again either — `CONFIRMED → CONFIRMED` is
+      // legal and idempotent, but a handler reaching it would mean the callback
+      // had got past the row that already resolved it.
+      const stayId = await aHold(guestAccountId);
+
+      const opened = await guest
+        .post(attemptPath(stayId))
+        .send(anAttempt())
+        .expect(200);
+
+      const callback = signedCallback(
+        opened.body.reference as string,
+        AMOUNT,
+        "77315013",
+      );
+
+      await http().get("/payments/vnpay/ipn").query(callback).expect(200);
+
+      const again = await http()
+        .get("/payments/vnpay/ipn")
+        .query(callback)
+        .expect(200);
+
+      // `02` and not `00`: both end the conversation, and `02` is the protocol's
+      // own word for a notification about an order already confirmed.
+      expect(again.body).toMatchObject({ RspCode: "02" });
+
+      expect(await stateOf(stayId)).toBe("CONFIRMED");
+
+      const account = await http()
+        .get(`/bookings/${stayId}/folio`)
+        .set("Authorization", `Bearer ${tokens.get("RECEPTIONIST")!}`)
+        .expect(200);
+
+      expect(account.body.postings).toHaveLength(1);
+    });
+
+    it("leaves the stay where it stands when the gateway refused", async () => {
+      // A refusal is filed rather than dropped — a guest asking why they were not
+      // charged is asking about that row — and it moves nothing. The hold is
+      // still a hold, and its clock is still running.
+      const stayId = await aHold(guestAccountId);
+
+      const opened = await guest
+        .post(attemptPath(stayId))
+        .send(anAttempt())
+        .expect(200);
+
+      await http()
+        .get("/payments/vnpay/ipn")
+        .query(
+          signedCallback(
+            opened.body.reference as string,
+            AMOUNT,
+            "77315014",
+            "24",
+          ),
+        )
+        .expect(200);
+
+      expect(await stateOf(stayId)).toBe("HELD");
+      expect(await expiryOf(stayId)).not.toBeNull();
+    });
+  });
 });
 
 describe("the attempt the desk opens", () => {
@@ -641,6 +758,106 @@ async function aBooking(userId: string | null = null): Promise<string> {
     .returning({ id: booking.id });
 
   return stay!.id;
+}
+
+/**
+ * A stay the funnel is still holding, which is what a guest pays for.
+ *
+ * {@link aBooking} opens a `CONFIRMED` one — the desk's walk-in, and the right
+ * fixture for every case about who may open an attempt. The journey cases need
+ * the state the transition starts from, and the expiry that goes with it: a
+ * `HELD` row without one would violate
+ * `booking_hold_expiry_exactly_when_held`, and one already past would be a stay
+ * the sweep is entitled to cancel underneath the test.
+ */
+async function aHold(userId: string): Promise<string> {
+  bookingOrdinal += 1;
+
+  const [stay] = await db
+    .insert(booking)
+    .values({
+      reference: `MRV-PAYHLD-${String(bookingOrdinal).padStart(4, "0")}`,
+      state: "HELD",
+      holdExpiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      userId,
+      roomTypeId,
+      checkInDate: ARRIVAL_DATE,
+      checkOutDate: DEPARTURE_DATE,
+      ratePlanCode: "STANDARD",
+      adults: 2,
+      quotedStayTotalGross: 5_400_000n,
+      quotedPercentAdjustment: 0,
+      quotedExtraPersonPerNightGross: 600_000n,
+    })
+    .returning({ id: booking.id });
+
+  return stay!.id;
+}
+
+/** What state a stay is in now, read out of the table rather than off a reply. */
+async function stateOf(bookingId: string): Promise<string | undefined> {
+  const [row] = await db
+    .select({ state: booking.state })
+    .from(booking)
+    .where(eq(booking.id, bookingId));
+
+  return row?.state;
+}
+
+/** Whether the stay is still counting down, and to when. */
+async function expiryOf(bookingId: string): Promise<Date | null> {
+  const [row] = await db
+    .select({ holdExpiresAt: booking.holdExpiresAt })
+    .from(booking)
+    .where(eq(booking.id, bookingId));
+
+  return row?.holdExpiresAt ?? null;
+}
+
+/**
+ * A callback as VNPay sends one, about an attempt this property opened.
+ *
+ * Signed to the specification rather than by the code under test — the same
+ * computation `payment-callbacks.e2e-spec.ts` and `vnpay.adapter.spec.ts` each
+ * write out, and repeated here for the reason they both give: a fixture signed
+ * by the adapter would prove only that the adapter agrees with itself.
+ *
+ * `vnp_ResponseCode` and `vnp_TransactionStatus` are set together because only
+ * the pair reading `00` is money that moved, and the adapter reads both.
+ */
+function signedCallback(
+  reference: string,
+  amount: VndAmount,
+  transactionNo: string,
+  status = "00",
+): Record<string, string> {
+  const parameters: Record<string, string> = {
+    // VNPay counts in hundredths of a đồng, which is what travels on the wire.
+    vnp_Amount: String(amount * 100n),
+    vnp_BankCode: "NCB",
+    vnp_CardType: "ATM",
+    vnp_OrderInfo: "Thanh toan dat phong",
+    // 09:10 in Ho Chi Minh City, which is the zone VNPay stamps in.
+    vnp_PayDate: "20271102091000",
+    vnp_ResponseCode: status,
+    vnp_TmnCode: TERMINAL,
+    vnp_TransactionNo: transactionNo,
+    vnp_TransactionStatus: status,
+    vnp_TxnRef: reference,
+  };
+
+  const encoded = new URLSearchParams();
+
+  for (const name of Object.keys(parameters).sort()) {
+    encoded.append(name, parameters[name]!);
+  }
+
+  return {
+    ...parameters,
+    vnp_SecureHash: createHmac("sha512", HASH_SECRET)
+      .update(Buffer.from(encoded.toString(), "utf-8"))
+      .digest("hex"),
+  };
 }
 
 /** The account a stay is filed under, read back out of the table. */
