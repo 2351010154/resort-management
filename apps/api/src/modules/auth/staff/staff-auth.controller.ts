@@ -102,12 +102,10 @@ export class StaffAuthController {
   ): Promise<void> {
     await this.auth.signOut(readRefreshCookie(request));
 
-    response.clearCookie(REFRESH_COOKIE_NAME, {
-      path: REFRESH_COOKIE_PATH,
-      httpOnly: true,
-      sameSite: "lax",
-      secure: this.env.NODE_ENV === "production",
-    });
+    // Every attribute except `maxAge` has to match the cookie being cleared, or
+    // the browser treats this as a different cookie and leaves the real one in
+    // place — which is why both calls read the same object.
+    response.clearCookie(REFRESH_COOKIE_NAME, this.refreshCookieAttributes());
   }
 
   private setRefreshCookie(
@@ -115,15 +113,47 @@ export class StaffAuthController {
     result: StaffSignInResult,
   ): void {
     response.cookie(REFRESH_COOKIE_NAME, result.tokens.refreshToken, {
-      httpOnly: true,
-      // `lax` rather than `strict` for the same reason as the guest realm: the
-      // console is reached from a bookmark or a link, and `strict` would drop
-      // the cookie on that first navigation and demand a fresh sign-in.
-      sameSite: "lax",
-      secure: this.env.NODE_ENV === "production",
-      path: REFRESH_COOKIE_PATH,
+      ...this.refreshCookieAttributes(),
       maxAge: REFRESH_TOKEN_TTL_SECONDS * 1000,
     });
+  }
+
+  /**
+   * How the refresh cookie is scoped, and why `sameSite` is not one value.
+   *
+   * The console is served from a different site than this API — Vercel and
+   * Fly.io per `docs/architecture/infrastructure.md` §2 — and `WEB_ORIGIN` and
+   * `ADMIN_ORIGIN` being named separately for credentialed CORS is the same
+   * fact stated in `main.ts`. A `lax` cookie is not sent on a cross-site
+   * request and not even stored from one, so in production it would leave the
+   * console signing in successfully and losing the session at the first token
+   * renewal, with no way to restore it on reload. `none` is what a cookie
+   * crossing sites has to say, and the browser only accepts it alongside
+   * `secure`.
+   *
+   * Development stays `lax`: `localhost:3002` and `localhost:3001` differ by
+   * port, which is not a different site, so the stricter value works there —
+   * and `none` could not be used anyway, because it needs the HTTPS that a
+   * local API does not serve.
+   *
+   * Neither is `strict`. The console is reached from a bookmark or a link, and
+   * `strict` would drop the cookie on that first navigation and demand a fresh
+   * sign-in.
+   */
+  private refreshCookieAttributes(): {
+    httpOnly: true;
+    sameSite: "lax" | "none";
+    secure: boolean;
+    path: string;
+  } {
+    const isProduction = this.env.NODE_ENV === "production";
+
+    return {
+      httpOnly: true,
+      sameSite: isProduction ? "none" : "lax",
+      secure: isProduction,
+      path: REFRESH_COOKIE_PATH,
+    };
   }
 }
 
