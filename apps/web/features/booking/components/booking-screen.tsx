@@ -603,6 +603,7 @@ export function BookingScreen() {
                     the stay has to belong to an account before a payment
                     attempt can be scoped to it. */}
                 <RoomStage
+                  holding={holding}
                   key={selectedType.code}
                   nights={stayLength}
                   note={nextStep}
