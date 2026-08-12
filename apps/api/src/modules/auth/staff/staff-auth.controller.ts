@@ -76,6 +76,8 @@ export class StaffAuthController {
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ): Promise<StaffSession> {
+    requireJsonRequest(request);
+
     const presented = readRefreshCookie(request) ?? body.refreshToken;
 
     if (!presented) {
@@ -100,6 +102,8 @@ export class StaffAuthController {
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ): Promise<void> {
+    requireJsonRequest(request);
+
     await this.auth.signOut(readRefreshCookie(request));
 
     // Every attribute except `maxAge` has to match the cookie being cleared, or
@@ -139,6 +143,11 @@ export class StaffAuthController {
    * Neither is `strict`. The console is reached from a bookmark or a link, and
    * `strict` would drop the cookie on that first navigation and demand a fresh
    * sign-in.
+   *
+   * What `lax` was also doing, silently, was keeping cross-site requests from
+   * carrying this cookie at all. `none` gives that up, so the two routes the
+   * cookie alone authorises say what they accept instead —
+   * `requireJsonRequest`.
    */
   private refreshCookieAttributes(): {
     httpOnly: true;
@@ -165,6 +174,31 @@ function contextOf(request: Request): {
     userAgent: request.get("user-agent") ?? undefined,
     ipAddress: request.ip,
   };
+}
+
+/**
+ * Refuses a request that is not JSON, on the two routes the cookie alone
+ * authorises.
+ *
+ * `sameSite: "none"` is what lets the console hold this cookie across sites,
+ * and it is also what lets *any* site send it. A cross-site `<form>` can only
+ * post one of three content types — none of them JSON — so requiring JSON is
+ * what makes these two routes unreachable from one: anything else has to be
+ * `fetch` with a header, which is not a simple request, which means a preflight
+ * the origin allowlist in `main.ts` answers with a refusal.
+ *
+ * Without it, a page an operator merely visits could revoke their session with
+ * a hidden form. Sign-in needs no such guard: it carries the credential rather
+ * than relying on one the browser attaches.
+ */
+function requireJsonRequest(request: Request): void {
+  const contentType = request.headers["content-type"] ?? "";
+
+  if (!contentType.split(";")[0]?.trim().toLowerCase().endsWith("/json")) {
+    throw new UnauthorizedException(
+      "This route accepts application/json only",
+    );
+  }
 }
 
 /**
