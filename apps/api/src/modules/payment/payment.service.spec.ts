@@ -125,12 +125,17 @@ function serviceTold(verification: CallbackVerification): PaymentService {
     // would have to imitate a ledger it is not allowed to imitate.
     undefined as unknown as FolioService,
     undefined as unknown as BusinessDateService,
-    // Never reached either, and for a sharper reason than the two above: every
-    // case here drives a callback, and the ownership question belongs to the
-    // request that *opens* an attempt. A gateway reporting on one is not a guest
-    // naming a stay — it is answering about the reference this property already
-    // minted, which is why `handleIpn` resolves an account off the row rather
-    // than off anything the caller said.
+    // Never reached, for the same reason as the two above rather than for one
+    // of its own: a callback does reach this service — it confirms the stay the
+    // money was held for — but only once it is past the boundary below, and no
+    // case in this file gets there. The ownership half is never a callback's
+    // question at all: a gateway reporting on an attempt is not a guest naming
+    // a stay, and `handleIpn` resolves the account off the row rather than off
+    // anything the caller said.
+    //
+    // Both halves are proven where they can be. `payment-service.e2e-spec.ts`
+    // builds the real service and drives the transition against real rows;
+    // `guest-account-link.e2e-spec.ts` puts `isOwner` to the same.
     undefined as unknown as BookingService,
     new ClosedBoundary(),
   );

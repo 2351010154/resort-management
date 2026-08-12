@@ -89,6 +89,19 @@
 // guest has already settled. So the pair goes through `TransactionRunner`, and a
 // ledger that refuses takes the payment row down with it.
 //
+// **A stay that was being held is confirmed in that same commit**, which is
+// `booking-state-machine.md` §3's `HELD → CONFIRMED` and its caption, "deposit
+// taken". The desk's route to that transition is behind `booking.write` and no
+// guest holds it, so a guest paying for their own hold has no other way to
+// reach it — and a hold that stays `HELD` is one `hold-expiry-sweep.ts` cancels
+// two minutes later, releasing a room the guest has paid for. Third in the same
+// transaction for the same reason as the second: a confirmation that could fail
+// on its own would leave money on a folio whose stay is still counting down.
+//
+// Only a hold moves, and `BookingService.confirmPaidHold` is where that is
+// argued. Money arrives at a stay at more than one moment, and a balance taken
+// from a guest already in the building is not a transition.
+//
 // **The posting is dated by the gateway's clock.** `BusinessDateService` is
 // asked which trading day `paidAt` fell in, never which day it is now. A
 // callback redelivered the next morning, or replayed by hand a week later, has
@@ -124,6 +137,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import { ORPCError } from "@orpc/nest";
 import { and, eq } from "drizzle-orm";
 import type { DbExecutor } from "../../database/database.module.js";
+import { folio } from "../../database/schema/folio.js";
 import { payment, type PaymentRow } from "../../database/schema/payment.js";
 import { sqlStateOf } from "../../database/sql-state.js";
 import { TransactionRunner } from "../../database/transaction-runner.js";
@@ -497,7 +511,8 @@ export class PaymentService {
   }
 
   /**
-   * The payment and its posting, or neither.
+   * The payment, the stay it confirms and the line on the account — or none of
+   * the three.
    *
    * A redelivered callback is answered by the row rather than by a look this
    * file took before writing — the note at the top argues why — and that answer
@@ -511,6 +526,25 @@ export class PaymentService {
     try {
       await this.transactions.run(async (exec) => {
         const folioId = await this.take(exec, transaction);
+
+        // The stay itself, in the same commit as the money. `booking-state-
+        // machine.md` §3 captions `HELD → CONFIRMED` "deposit taken", and this
+        // is where the deposit is taken — a guest holds no capability that
+        // could make the transition themselves, so without this a paid hold
+        // sits `HELD` until `hold-expiry-sweep.ts` cancels a room somebody has
+        // paid for.
+        //
+        // Committed with the payment rather than after it, for the reason the
+        // posting is: they are one fact. A confirmation that failed separately
+        // would leave money on a folio whose stay is still counting down, which
+        // is the failure this exists to stop, arriving by a narrower door.
+        //
+        // Only a hold moves. `confirmPaidHold` says why every other state is a
+        // no-op and why a refusal here would roll back money already taken.
+        await this.bookings.confirmPaidHold(
+          exec,
+          await this.stayOn(exec, folioId),
+        );
 
         await this.folios.postPayment(exec, {
           folioId,
@@ -716,6 +750,37 @@ export class PaymentService {
           "account, and the two accounts of it have to be reconciled by hand",
       });
     });
+  }
+
+  /**
+   * The stay an account belongs to.
+   *
+   * Read off the folio rather than off the first half of the reference, which
+   * carries the same id and is deliberately not trusted for it — the note at
+   * the top of this file draws that line: a callback resolves through the row
+   * it claims, never through the string it arrived in. The row is reached by a
+   * folio id this transaction has just returned from `payment`, so the id is
+   * the property's own and the join is total.
+   *
+   * Absent is impossible rather than unhandled: `payment.folio_id` is a foreign
+   * key, so a payment row naming a folio that is not there is a broken database
+   * and not a case. It is still stated, because the alternative is confirming
+   * `undefined` as a booking id and finding out at the next statement.
+   */
+  private async stayOn(exec: DbExecutor, folioId: string): Promise<string> {
+    const [account] = await exec
+      .select({ bookingId: folio.bookingId })
+      .from(folio)
+      .where(eq(folio.id, folioId));
+
+    if (!account) {
+      throw new ORPCError("NOT_FOUND", {
+        message:
+          "That payment names an account no stay holds, so there is nothing to confirm",
+      });
+    }
+
+    return account.bookingId;
   }
 
   /**

@@ -60,6 +60,7 @@ import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import type { Env } from "../src/config/env.js";
 import { booking } from "../src/database/schema/booking.js";
 import { systemConfig } from "../src/database/schema/config.js";
 import { folio, folioPosting } from "../src/database/schema/folio.js";
@@ -67,9 +68,15 @@ import * as schema from "../src/database/schema/index.js";
 import { roomType } from "../src/database/schema/inventory.js";
 import { payment } from "../src/database/schema/payment.js";
 import { TransactionRunner } from "../src/database/transaction-runner.js";
-import type { BookingService } from "../src/modules/booking/booking.service.js";
+import { AssignmentService } from "../src/modules/booking/assignment.service.js";
+import { BookingService } from "../src/modules/booking/booking.service.js";
 import { BusinessDateService } from "../src/modules/booking/business-date.service.js";
+import { FolioStubService } from "../src/modules/booking/ports/folio-stub.service.js";
+import { StayQuoteService } from "../src/modules/booking/stay-quote.service.js";
 import { FolioService } from "../src/modules/folio/folio.service.js";
+import { GuestService } from "../src/modules/guest/guest.service.js";
+import { HousekeepingService } from "../src/modules/housekeeping/housekeeping.service.js";
+import { InventoryService } from "../src/modules/inventory/inventory.service.js";
 import { PaymentService } from "../src/modules/payment/payment.service.js";
 import type {
   CallbackVerification,
@@ -137,6 +144,7 @@ let db: ReturnType<typeof drizzle<typeof schema>>;
 let gateway: GatewayUnderTest;
 let payments: PaymentService;
 let folios: FolioService;
+let bookings: BookingService;
 let roomTypeId: string;
 
 // References are unique and every case here opens a stay of its own. Counted
@@ -186,18 +194,18 @@ beforeAll(async () => {
 
   gateway = new GatewayUnderTest();
   folios = new FolioService(db, new SystemConfigService());
+  bookings = realBookings();
   payments = new PaymentService(
     gateway,
     folios,
     new BusinessDateService(new SystemConfigService()),
-    // Never reached, because every attempt this file opens is the desk's —
-    // `guestAccountId` is null throughout, and the ownership question returns
-    // before the booking is asked about. The scope itself is proven where it can
-    // be: `guest-account-link.e2e-spec.ts` puts `isOwner` to real rows, and
-    // `payment-api.e2e-spec.ts` drives a real guest session through the real
-    // wiring. Handed nothing rather than a stand-in imitating a service whose
-    // one relevant method is a query.
-    undefined as unknown as BookingService,
+    // Real, and it has to be. A callback that takes money confirms the stay it
+    // was held for in the same commit, so a stand-in here would let this file
+    // pass while the transition it is now responsible for never happened. The
+    // ownership half of this dependency is still never reached — every attempt
+    // opened below is the desk's, with a null `guestAccountId` — and that half
+    // is proven in `guest-account-link.e2e-spec.ts` and `payment-api.e2e-spec.ts`.
+    bookings,
     new TransactionRunner(db),
   );
 });
@@ -852,7 +860,7 @@ describe("a posting the ledger refuses", () => {
         gateway,
         new LedgerThatRefuses(db, new SystemConfigService()),
         new BusinessDateService(new SystemConfigService()),
-        undefined as unknown as BookingService,
+        bookings,
         new TransactionRunner(db),
       ).handleIpn(A_CALLBACK),
     );
@@ -867,6 +875,108 @@ describe("a posting the ledger refuses", () => {
     // line at all.
     expect(await payments.handleIpn(A_CALLBACK)).toBe("RECORDED");
     expect(await folios.getBalance(attempt.bookingId)).toBe(-AMOUNT);
+  });
+});
+
+describe("the stay a callback pays for", () => {
+  it("is confirmed by the money, and stops being a hold", async () => {
+    // The transition `booking-state-machine.md` §3 captions "deposit taken",
+    // and the reason this file now builds a real `BookingService`. A guest
+    // holds no capability that reaches `booking.confirm`, so if the callback
+    // does not make this move nothing does — and `hold-expiry-sweep.ts` cancels
+    // the stay two minutes later, releasing a room that has been paid for.
+    const attempt = await anAttemptOn(await aHold());
+
+    gateway.verification = takenBy(attempt.reference, "14528960");
+
+    expect(await payments.handleIpn(A_CALLBACK)).toBe("RECORDED");
+
+    const stay = await stayOf(attempt.bookingId);
+
+    expect(stay.state).toBe("CONFIRMED");
+    // The expiry goes with the state, and this is the half the sweep reads. A
+    // confirmed stay still carrying a TTL is a date the sweep can act on, and
+    // what it would do with it is cancel a sold room.
+    expect(stay.holdExpiresAt).toBeNull();
+  });
+
+  it("keeps the money and the confirmation in one commit", async () => {
+    // The ledger refuses after the payment row and the transition are both
+    // written. All three have to be gone, and the stay in particular has to be
+    // holding still — a confirmation that survived a failed posting would be a
+    // room taken off the market for a payment that never landed.
+    const held = await aHold();
+    const attempt = await anAttemptOn(held);
+
+    gateway.verification = takenBy(attempt.reference, "14528961");
+
+    await refused(
+      new PaymentService(
+        gateway,
+        new LedgerThatRefuses(db, new SystemConfigService()),
+        new BusinessDateService(new SystemConfigService()),
+        bookings,
+        new TransactionRunner(db),
+      ).handleIpn(A_CALLBACK),
+    );
+
+    const stay = await stayOf(held);
+
+    expect(stay.state).toBe("HELD");
+    expect(stay.holdExpiresAt).not.toBeNull();
+  });
+
+  it("is left where it stands when the money is a balance rather than a deposit", async () => {
+    // `aBooking` opens a `CONFIRMED` stay, which is what a guest paying at the
+    // desk or on departure is. `confirm` would answer a later state with
+    // `409 IllegalTransition`, and the caller is inside the transaction that
+    // posts the money — so a refusal here would roll back a payment the gateway
+    // has already taken. The money posts and the state does not move.
+    const attempt = await anAttempt();
+
+    gateway.verification = takenBy(attempt.reference, "14528962");
+
+    expect(await payments.handleIpn(A_CALLBACK)).toBe("RECORDED");
+
+    expect((await stayOf(attempt.bookingId)).state).toBe("CONFIRMED");
+    expect(await folios.getBalance(attempt.bookingId)).toBe(-AMOUNT);
+  });
+
+  it("keeps a callback that arrives after the sweep from being refused", async () => {
+    // The race the TTL makes real: the payer finished, and the hold expired
+    // before VNPay's notification arrived. `CANCELLED` is terminal, so there is
+    // no transition to make — and refusing the callback would leave the gateway
+    // holding money this property had no record of. It posts, the cancellation
+    // stands, and `FR-PAY-05`'s sweep is what puts the pair in front of somebody
+    // who can hand the money back.
+    const held = await aHold();
+    const attempt = await anAttemptOn(held);
+
+    // Written to look exactly like the row the sweep leaves, because two of
+    // `booking`'s own constraints insist on it:
+    // `booking_hold_expiry_exactly_when_held` refuses a stay that is no longer
+    // being held while still carrying the date it would be released on, and
+    // `booking_records_a_cancellation_instant_exactly_when_cancelled` refuses a
+    // cancellation nobody dated. The sweep reaches this state through
+    // `BookingService.cancel`, which also gives the nights back; this file's
+    // stays never took any, so the row is written directly rather than
+    // releasing inventory that was never consumed.
+    await db
+      .update(booking)
+      .set({
+        state: "CANCELLED",
+        cancellationReason: "HOLD_EXPIRED",
+        cancelledAt: new Date(),
+        holdExpiresAt: null,
+      })
+      .where(eq(booking.id, held));
+
+    gateway.verification = takenBy(attempt.reference, "14528963");
+
+    expect(await payments.handleIpn(A_CALLBACK)).toBe("RECORDED");
+
+    expect((await stayOf(held)).state).toBe("CANCELLED");
+    expect(await folios.getBalance(held)).toBe(-AMOUNT);
   });
 });
 
@@ -980,6 +1090,52 @@ async function aBooking(): Promise<string> {
   return stay!.id;
 }
 
+/**
+ * A stay the funnel is still holding — the state a guest's own payment arrives
+ * against.
+ *
+ * Inserted rather than taken through `BookingService.createHold`, for the same
+ * reason {@link aBooking} is: this file is about what a callback does to a stay,
+ * and a hold taken through the funnel would also consume inventory that nothing
+ * here gives back. The TTL is set well ahead so that no case races the clock;
+ * `hold-expiry.e2e-spec.ts` is where an expiry that has actually fallen due is
+ * proven.
+ */
+async function aHold(): Promise<string> {
+  bookingOrdinal += 1;
+
+  const [stay] = await db
+    .insert(booking)
+    .values({
+      reference: `MRV-PAYHLD-${String(bookingOrdinal).padStart(4, "0")}`,
+      state: "HELD",
+      holdExpiresAt: new Date(Date.now() + 60 * 60 * 1000),
+      roomTypeId,
+      checkInDate: ARRIVAL_DATE,
+      checkOutDate: DEPARTURE_DATE,
+      ratePlanCode: "STANDARD",
+      adults: 2,
+      quotedStayTotalGross: 5_400_000n,
+      quotedPercentAdjustment: 0,
+      quotedExtraPersonPerNightGross: 600_000n,
+    })
+    .returning({ id: booking.id });
+
+  return stay!.id;
+}
+
+/** The state a stay is in now, and whether it is still counting down. */
+async function stayOf(
+  bookingId: string,
+): Promise<{ state: string; holdExpiresAt: Date | null }> {
+  const [stay] = await db
+    .select({ state: booking.state, holdExpiresAt: booking.holdExpiresAt })
+    .from(booking)
+    .where(eq(booking.id, bookingId));
+
+  return stay!;
+}
+
 /** Both ledger tables and the payments hanging off them, emptied. A posting
  *  cannot be deleted, so `truncate` is the only way back. */
 async function clearTheLedger(): Promise<void> {
@@ -1041,6 +1197,44 @@ class GatewayUnderTest implements PaymentGateway {
   async queryTransaction(): Promise<never> {
     throw new Error("no case here queries the gateway");
   }
+}
+
+/**
+ * The real booking service, wired the way `booking.module.ts` wires it.
+ *
+ * Real rather than stubbed because the transition a paid callback performs is
+ * now part of what this file proves, and a stand-in would confirm nothing while
+ * reporting that it had. Every collaborator below is the genuine one except the
+ * folio port, which is the stub `booking.module.ts` binds for the same reason it
+ * exists at all — `FolioPort` is the edge a cancellation posts a penalty
+ * through, and nothing this file drives cancels anything.
+ *
+ * The two check-in flags are off and the TTL is an hour. Neither is read on the
+ * path under test: `confirmPaidHold` moves `HELD → CONFIRMED`, which consumes no
+ * inventory, asks no housekeeping question, and clears the expiry rather than
+ * computing one. They are named so the `Env` is a value rather than a cast over
+ * an empty object, and so a later reader can see they were considered.
+ */
+function realBookings(): BookingService {
+  const inventory = new InventoryService();
+  const businessDate = new BusinessDateService(new SystemConfigService());
+  const quotes = new StayQuoteService();
+  const housekeeping = new HousekeepingService();
+
+  return new BookingService(
+    inventory,
+    quotes,
+    businessDate,
+    new AssignmentService(inventory, businessDate, quotes, housekeeping),
+    new GuestService(),
+    housekeeping,
+    new FolioStubService(),
+    {
+      BOOKING_HOLD_TTL_MINUTES: 60,
+      BOOKING_EARLY_CHECK_IN_ENABLED: false,
+      BOOKING_DIRTY_ROOM_CHECK_IN_ENABLED: false,
+    } as Env,
+  );
 }
 
 /**

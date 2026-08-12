@@ -223,6 +223,31 @@ export const ownBookingInput = z.object({
 });
 
 /**
+ * The hold a guest is part-way through paying for, named the way the funnel
+ * knows it.
+ *
+ * **By id, because the reference is not what the funnel is holding.**
+ * `repository-structure.md` §`(booking)` puts the hold id in the path from the
+ * third step on and addresses the finished booking by its reference — two
+ * identifiers on purpose, because the steps before payment are about a stay
+ * that may never become one. `createHold` answers with both, and this is the
+ * address the funnel already has when a guest refreshes `/booking/<hold>/details`
+ * or comes back to `/booking/<hold>/payment` an hour later.
+ *
+ * A uuid rather than the short reference, and that is what makes the two routes
+ * different rather than redundant. A reference is eight readable characters a
+ * guest reads down a telephone, and `readOwn` answers `NOT_FOUND` for one that
+ * is not theirs precisely so that the space cannot be walked; a uuid is not
+ * walkable and is what the funnel's own url carries.
+ *
+ * Scoped to the requester exactly as `readOwn` is — `booking.read-own` is one
+ * capability and one condition, and the account comes off the session in both.
+ */
+export const ownHoldInput = z.object({
+  bookingId: z.uuid(),
+});
+
+/**
  * Somebody to register at check-in: a person the property has met before, or a
  * record it is creating now.
  *
@@ -512,6 +537,22 @@ export const booking = {
   readOwn: oc
     .route({ method: "GET", path: "/bookings/mine/{reference}" })
     .input(ownBookingInput)
+    .output(bookingSchema),
+
+  readOwnHold: oc
+    // A member of the collection the funnel posts to. `POST /bookings/holds`
+    // is the door `FR-BOOK-02` gives the funnel and this is the thing that door
+    // returned, read back at the address it was given — which is the address
+    // `/booking/<hold>/…` already carries. Under `/bookings/mine/` it would
+    // have had to be `/bookings/mine/by-id/{bookingId}`, a segment that exists
+    // only to say the next one is a different kind of name.
+    //
+    // It answers a stay in any state, not only `HELD`. The screen that reads it
+    // is waiting for exactly the moment it stops being a hold — `confirming/`,
+    // where the gateway's redirect lands — and a route that refused a
+    // `CONFIRMED` booking would refuse at the instant its caller was waiting for.
+    .route({ method: "GET", path: "/bookings/holds/{bookingId}" })
+    .input(ownHoldInput)
     .output(bookingSchema),
 
   cancelOwn: oc
