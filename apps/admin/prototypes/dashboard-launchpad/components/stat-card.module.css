@@ -1,0 +1,49 @@
+/* Tokens come from @mariva/tokens via the root layout. The two type repairs
+   this file leans on — the display face's lining figures and the caps ramp —
+   are the global `.font-display` and `.caps-label` classes in globals.css,
+   applied alongside these rules rather than restated here. */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  background: rgb(var(--ivory-warm-rgb) / 0.55);
+  border: 1px solid rgb(var(--stone-deep-rgb) / 0.14);
+  border-radius: 2px;
+}
+
+.icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-bottom: var(--space-1);
+  color: var(--dusk-amber);
+}
+
+.icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* `tabular-nums` has to be written with `lining-nums`, not alone: the property
+   takes one value, so naming only the tabular axis here would drop the lining
+   repair `.font-display` sets and hand back Cormorant's oldstyle figures. */
+.figure {
+  font-size: var(--text-display-sm);
+  line-height: 0.9;
+  color: var(--ink);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.label {
+  color: var(--umber);
+  font-weight: 400;
+}
+
+.sublabel {
+  font-size: var(--text-sm);
+  color: var(--stone);
+}
