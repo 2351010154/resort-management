@@ -110,10 +110,31 @@
   --color-input: rgb(var(--umber-rgb) / 0.24);
   --color-ring: var(--umber);
 
-  /* No --color-destructive. The palette has no red, and inventing one here
-   * would put the console's error colour outside packages/tokens where the
-   * brand lives. See apps/admin/README.md — it is the open decision blocking
-   * shadcn's destructive variants. */
+  /* Destructive is --umber, and the absence of a red here is the decision
+   * rather than a gap in it. The palette has no red; inventing one in this file
+   * would put the console's error colour outside packages/tokens, where the
+   * brand lives and where apps/web would never see it.
+   *
+   * The guest site already answered this question. auth-shell.module.css draws
+   * its error state as `.notice` with the rule recoloured to --umber, and
+   * login-screen.module.css sets error text in --umber too. Nothing in the tree
+   * has ever signalled danger with hue.
+   *
+   * What follows from that is a constraint on the primitives, not just a
+   * mapping: --color-destructive and --color-primary resolve to the same
+   * number, so a destructive control that copies the primary's shape is
+   * invisible as a warning. Every destructive variant in components/ui/
+   * therefore differentiates by *form* — a doubled rule, an inset mark — and
+   * each one carries the note saying so. */
+  --color-destructive: var(--umber);
+  --color-destructive-foreground: var(--ivory);
+
+  /* The scrim a modal stands on. --night is the palette's darkest value and the
+   * one the guest site's dark acts already hand over on, so the console dims to
+   * the same black rather than to a neutral one. Written through --night-rgb
+   * because it is the colour at an alpha, which is exactly the case the channel
+   * triplets in tokens.css exist for. */
+  --color-overlay: rgb(var(--night-rgb) / 0.55);
 
   /* ---- type ----------------------------------------------------------- */
 
