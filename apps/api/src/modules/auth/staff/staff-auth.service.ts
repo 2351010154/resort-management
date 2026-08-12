@@ -6,6 +6,7 @@
 // so they are one answer here, and the timing is levelled to match.
 
 import { Injectable, UnauthorizedException, type OnModuleInit } from "@nestjs/common";
+import type { StaffSessionUser } from "@mariva/shared";
 import { randomBytes } from "node:crypto";
 import type { StaffUserRow } from "../../../database/schema/identity.js";
 import { PasswordHasher } from "../../identity/password-hasher.js";
@@ -17,15 +18,18 @@ import {
   StaffTokenService,
 } from "./staff-token.service.js";
 
-/** What sign-in and refresh hand back to the controller. */
+/**
+ * What sign-in and refresh hand back to the controller.
+ *
+ * The user half is the shared schema's own type rather than a restatement of
+ * it. That is what makes the console's copy of the role list checkable: an
+ * account row's role comes from the Postgres enum built on `rbac/roles.ts`, and
+ * assigning it into a field typed by `@mariva/shared` fails to compile the day
+ * the two lists stop agreeing.
+ */
 export interface StaffSignInResult {
   readonly tokens: IssuedTokens;
-  readonly user: {
-    readonly id: string;
-    readonly email: string;
-    readonly fullName: string;
-    readonly role: string;
-  };
+  readonly user: StaffSessionUser;
 }
 
 const SAME_ANSWER_FOR_EVERY_FAILURE = "Email or password is incorrect";
