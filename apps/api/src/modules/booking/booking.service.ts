@@ -150,6 +150,20 @@ class ReferenceTaken extends Error {
  */
 export type CheckInGuest = { readonly guestId: string } | NewGuest;
 
+/**
+ * One stay, named the way its guest names it and scoped to the account asking.
+ *
+ * The two travel together because neither is an address on its own. A reference
+ * identifies a booking to whoever holds it, and the account is what makes the
+ * request about *their* booking rather than about that one — so the pair is the
+ * lookup key, and there is no method here that takes the reference alone.
+ */
+export interface OwnBooking {
+  readonly reference: string;
+  /** The guest account, off the session. Never a value a caller may send. */
+  readonly userId: string;
+}
+
 @Injectable()
 export class BookingService {
   constructor(
@@ -905,6 +919,86 @@ export class BookingService {
       .limit(1);
 
     return row !== undefined;
+  }
+
+  /**
+   * One stay of this account's, read the way its guest addresses it —
+   * `FR-GST-01`, narrowed from the history above to the single booking.
+   *
+   * The account is half of the `where` clause and not a comparison made after
+   * the row arrives. `rbac-matrix.md` calls the guest's own rows `⚠`, which
+   * means the guard admits the caller and the scope is still owed; paying it
+   * here, in SQL, is what makes it unforgettable — a query that fetched by
+   * reference and then compared would be one early return away from handing a
+   * stranger's stay to whoever guessed the eight characters.
+   *
+   * It is also what keeps a walk-in out. `user_id` is null on every stay the
+   * desk took and SQL's equality never matches a null, so those rows cannot be
+   * selected by any account at all — where a comparison in TypeScript would
+   * have to remember that `null` and `undefined` are both falsy and neither is
+   * an account.
+   */
+  async ownBooking(exec: DbExecutor, own: OwnBooking): Promise<Booking> {
+    return this.asBooking(await this.findOwn(exec, own));
+  }
+
+  /**
+   * A guest calling their own stay off — §2's `HELD`/`CONFIRMED` → `CANCELLED`,
+   * at `property-and-tariff.md` §4's price.
+   *
+   * The same {@link cancel} the desk's route reaches, with `waivedBy` null.
+   * That is the whole of "the guest pays the policy": §4's grid is keyed on the
+   * event and the rate plan and reads neither the reason nor who asked, so a
+   * separate calculation for this path could only ever come to disagree with the
+   * one `folio.service.ts` prices the charge from. The reason is
+   * `GUEST_REQUEST` because that is what it is — the route is only reachable by
+   * the account that made the booking.
+   *
+   * A stay that is not this account's is the same refusal a read of it gets,
+   * and nothing is written before that refusal: {@link findOwn} runs first, so a
+   * caller naming somebody else's reference has released no inventory and
+   * cancelled nothing.
+   */
+  async cancelOwn(exec: DbExecutor, own: OwnBooking): Promise<Booking> {
+    const { booking: row } = await this.findOwn(exec, own);
+
+    return await this.cancel(exec, {
+      bookingId: row.id,
+      reason: "GUEST_REQUEST",
+      waivedBy: null,
+    });
+  }
+
+  /**
+   * The row behind both of the guest's own routes, or the refusal they share.
+   *
+   * **`NOT_FOUND` and not `FORBIDDEN`, for both absences.** A reference is short
+   * and readable — that is what it is for — so a reply that separated "this
+   * stay is not yours" from "no such stay" would answer, one guess at a time,
+   * which references the property has issued. {@link isOwner} takes the same
+   * line in as many words, and `folio.controller.ts` gives one sentence to a
+   * missing booking and an unopened account for the same reason. The 403 that
+   * file *does* raise is a different act: it refuses every guest before it looks
+   * anything up, so it tells a caller nothing about which stays exist.
+   */
+  private async findOwn(
+    exec: DbExecutor,
+    { reference, userId }: OwnBooking,
+  ): Promise<{ booking: BookingRow; roomTypeCode: RoomTypeCode }> {
+    const [row] = await exec
+      .select({ booking, roomTypeCode: roomType.code })
+      .from(booking)
+      .innerJoin(roomType, eq(booking.roomTypeId, roomType.id))
+      .where(and(eq(booking.reference, reference), eq(booking.userId, userId)))
+      .limit(1);
+
+    if (!row) {
+      throw new ORPCError("NOT_FOUND", {
+        message: `No booking of yours answers to ${reference}`,
+      });
+    }
+
+    return row;
   }
 
   /**

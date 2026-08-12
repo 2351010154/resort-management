@@ -20,12 +20,21 @@
 // be a second opinion reachable only over HTTP, which is the half of the system
 // no service test covers.
 //
-// **Eight capability rows govern nine routes**, and which row governs which is
+// **Ten capability rows govern eleven routes**, and which row governs which is
 // `rbac-matrix.md`'s §3, not this file's judgement. One row is read twice — a
 // walk-in and the deposit that confirms a hold are both "create / modify
-// booking" — and two of the eight are the policy/override pair §2 refuses to let
-// collapse into one endpoint with a check inside it. The funnel's creation is a
-// different row again, and the only one in this file a guest can reach.
+// booking" — and two of the ten are the policy/override pair §2 refuses to let
+// collapse into one endpoint with a check inside it.
+//
+// **Three of the eleven are the guest's**, and they are the only handlers here
+// that finish a decision the guard could not. The funnel's creation grants a
+// guest a booking; the two below it let that guest read and call off the stay
+// they were given. `rbac-matrix.md` grants both of those rows `⚠` — the guard
+// admits the caller and the ownership check is still owed — and the way it is
+// paid is the same both times: the account comes off the session and is handed
+// to the service as half of the lookup, so the scope is a `where` clause rather
+// than a comparison a handler could forget. §2 puts it plainly: "Guest
+// permissions are always scoped to the requester's own record."
 
 import {
   contract,
@@ -68,10 +77,14 @@ export class BookingController {
   /**
    * The public funnel's booking — §2's *(new)* → `HELD`.
    *
-   * `booking.create-own` is the guest-realm row, and it is the only route in
-   * this file a guest can reach. `FR-BOOK-02` gives the funnel this door alone,
-   * which is why the walk-in below is a different path behind a different row
-   * rather than a flag on this one.
+   * `booking.create-own` is the guest-realm row, and it is the first of this
+   * file's three. `FR-BOOK-02` gives the funnel this door alone, which is why
+   * the walk-in below is a different path behind a different row rather than a
+   * flag on this one.
+   *
+   * The one guest row that owes no ownership check, and the reason is the order
+   * of events: there is no record yet for the caller to be the owner of. What
+   * this route *writes* is the ownership the other two read.
    *
    * The account comes off the session and never off the body, the same rule the
    * waiver below keeps. An account id a caller could send is a guest attaching
@@ -260,6 +273,66 @@ export class BookingController {
   }
 
   /**
+   * The stay a guest booked, read back — `booking.read-own`, `FR-GST-01`.
+   *
+   * **Declared as a read**, which is the second argument and not a comment. The
+   * default is `write` because that is the safe half of forgetting it, and the
+   * cost of the default here would be a 403 for any role the matrix later hands
+   * a 👁 over a guest's own record — a receptionist looking up the booking a
+   * caller is reading out over the phone. `folio.controller.ts` and
+   * `search.controller.ts` declare their reads for the same reason on rows that
+   * refuse nobody today.
+   *
+   * The account is the session's, and the service takes it as half of the
+   * lookup. Nothing about a booking arrives from the caller except which one.
+   */
+  @RequiresCapability("booking.read-own", "read")
+  @Implement(contract.booking.readOwn)
+  readOwn(@CurrentPrincipal() principal: Principal | null) {
+    return implement(contract.booking.readOwn).handler(async ({ input }) =>
+      onWire(
+        await this.transactions.run((exec) =>
+          this.bookings.ownBooking(exec, {
+            reference: input.reference,
+            userId: guestAccount(principal, "read their own booking"),
+          }),
+        ),
+      ),
+    );
+  }
+
+  /**
+   * The stay a guest calls off — `booking.cancel-own`, at §4's price.
+   *
+   * A write, so the declaration takes the default. The row is `⚠` for the guest
+   * realm and denied to every staff role, which is not an oversight: a member of
+   * staff cancelling a stay reaches {@link cancel} under the row that records
+   * the desk's authority, and a staff token arriving here is the wrong door
+   * rather than the wrong rank.
+   *
+   * **No reason travels and no waiver can.** The service files `GUEST_REQUEST`,
+   * because that is what a guest cancelling their own booking is, and it passes
+   * no `waivedBy` — setting §4's penalty aside is `booking.cancel-waiver`, which
+   * is `MANAGER` and above and reached from the other door entirely. So the
+   * charge `folio.service.ts` prices on the next request is the grid's, unwaived,
+   * and identical to the one a desk cancellation leaves behind.
+   */
+  @RequiresCapability("booking.cancel-own")
+  @Implement(contract.booking.cancelOwn)
+  cancelOwn(@CurrentPrincipal() principal: Principal | null) {
+    return implement(contract.booking.cancelOwn).handler(async ({ input }) =>
+      onWire(
+        await this.transactions.run((exec) =>
+          this.bookings.cancelOwn(exec, {
+            reference: input.reference,
+            userId: guestAccount(principal, "cancel their own booking"),
+          }),
+        ),
+      ),
+    );
+  }
+
+  /**
    * The transition both cancellation routes make.
    *
    * Shared because it is one transition — §3 gives `HELD → CANCELLED` and
@@ -298,6 +371,33 @@ export class BookingController {
  */
 function bookingAccount(principal: Principal | null): string | null {
   return principal?.realm === "guest" ? principal.userId : null;
+}
+
+/**
+ * The account whose own stay is being read or called off.
+ *
+ * Required where {@link bookingAccount} is nullable, and that is the difference
+ * between the two rows rather than a stricter reading of one. Creating a booking
+ * admits a caller with no account and files the stay under nobody; a `read-own`
+ * with no account to be the owner of is not a narrower request, it is a request
+ * with no subject — and answering it with a null would hand the service's
+ * `where` clause a value SQL matches against nothing, which is the right answer
+ * arrived at by accident.
+ *
+ * `FORBIDDEN` and not `UNAUTHORIZED`: the caller who reaches this and is not a
+ * guest holds a valid staff session, and `rbac-matrix.md` §1 fixes a staff token
+ * on a guest route at 403. Unreachable — both rows deny every staff role, so the
+ * guard has already refused them — and stated because the alternative is a null
+ * account meeting a query further in.
+ */
+function guestAccount(principal: Principal | null, act: string): string {
+  if (principal?.realm !== "guest") {
+    throw new ORPCError("FORBIDDEN", {
+      message: `Only a signed-in guest may ${act}`,
+    });
+  }
+
+  return principal.userId;
 }
 
 /**

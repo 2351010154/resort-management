@@ -26,13 +26,17 @@
 // `ports/payment-gateway.port.ts` says the same thing from the gateway's side,
 // and it is why the reference below names the attempt rather than the stay.
 //
-// **The realm is staff, and there is no guest variant of this yet.** The matrix
-// row `payment.open-attempt` denies the guest realm outright: a guest cannot
-// name a booking as theirs today — `schema/guest.ts` puts the join between a
-// guest account and a stay at M7 — so a guest-realm route would take a booking
-// id from a caller who has no way to prove it is theirs, which is a payment page
-// opened against a stranger's stay. The funnel that closes that gap arrives with
-// M7 and calls the same service.
+// **Both realms reach this route, on different terms.** The matrix row
+// `payment.open-attempt` grants the four staff roles that hold it `full` and the
+// guest realm `⚠`: the desk collects against any stay, including the walk-in
+// that belongs to no account, and a guest only against the one they booked. The
+// guest realm was denied outright while a booking had no owning account to be
+// checked against — a route would then have taken a booking id from a caller
+// with no way to show it was theirs, which is a payment page opened against a
+// stranger's stay. `booking.user_id` supplies the account, so the condition is
+// answerable, and `payment.service.ts` answers it in the query before a folio is
+// opened. One route and one service method serve both realms; what differs is
+// whether an account arrives with the request to scope it.
 //
 // **The two reconciliation routes are reads and nothing else.** `FR-PAY-05`'s
 // nightly sweep already writes `payment_discrepancy` and

@@ -385,6 +385,11 @@ async function anAttempt(): Promise<Attempt> {
     description: "Deposit against the stay",
     returnUrl: `http://localhost:3001${RETURN_PATH}`,
     payerIpAddress: "203.0.113.44",
+    // The desk's attempt, so there is no account to scope it to. What this file
+    // is about is the callback that resolves one, and a gateway reporting on an
+    // attempt names the reference rather than a stay — the ownership condition
+    // lives on the request that opens it.
+    guestAccountId: null,
   });
 
   return { bookingId, reference };

@@ -127,6 +127,7 @@ import type { DbExecutor } from "../../database/database.module.js";
 import { payment, type PaymentRow } from "../../database/schema/payment.js";
 import { sqlStateOf } from "../../database/sql-state.js";
 import { TransactionRunner } from "../../database/transaction-runner.js";
+import { BookingService } from "../booking/booking.service.js";
 import { BusinessDateService } from "../booking/business-date.service.js";
 import { FolioService } from "../folio/folio.service.js";
 import {
@@ -183,6 +184,23 @@ export interface GatewayPaymentRequest {
 
   /** The payer's address, for the gateway's fraud screening. */
   readonly payerIpAddress: string;
+
+  /**
+   * The guest account the request was made under, or null when the caller's
+   * authority over this stay is not an ownership one.
+   *
+   * This is the condition `rbac-matrix.md` attaches to `payment.open-attempt`'s
+   * `⚠` for the guest realm, arriving as a value rather than as a check the
+   * caller already made. Required and explicitly nullable so that every caller
+   * states which of the two it is: an optional field would let a route that
+   * forgot it open a payment page against any stay whose id it had, which is the
+   * exposure the grant is conditional *because of*.
+   *
+   * Null is the desk, and the desk is not scoped. All four staff roles hold the
+   * row `full` and take a walk-in's card against a stay that belongs to no
+   * account at all — a scope applied to them would refuse the ordinary case.
+   */
+  readonly guestAccountId: string | null;
 }
 
 export interface OpenedPayment {
@@ -265,6 +283,13 @@ export class PaymentService {
     @Inject(PAYMENT_GATEWAY) private readonly gateway: PaymentGateway,
     private readonly folios: FolioService,
     private readonly businessDates: BusinessDateService,
+    // Asked one question and only one: whether a stay is a given account's.
+    // `payment.module.ts` already imports `BookingModule` for the business date
+    // and records that nothing runs the other way, so this adds a caller to an
+    // export rather than an edge to the graph. Reaching into `booking` from here
+    // would be a second copy of an ownership rule that has one owner, one spec
+    // and one comment explaining what it does about a null.
+    private readonly bookings: BookingService,
     private readonly transactions: TransactionRunner,
   ) {}
 
@@ -280,6 +305,14 @@ export class PaymentService {
    * Both refusals below happen before either — a caller who named the wrong
    * kind of thing, or asked for the wrong kind of money, should not first cost
    * a payer a page to look at.
+   *
+   * **The third refusal is the scope `rbac-matrix.md` leaves to be finished
+   * here.** The row is `⚠` for the guest realm, which `roles.ts` defines as a
+   * grant the guard passes on with the condition attached — so a signed-in guest
+   * reaches this method and the question of whose stay it is has not been asked
+   * yet. It is asked inside the transaction, before the folio is opened, so a
+   * refusal leaves no account behind for a stay the caller had no business
+   * naming.
    */
   async createPaymentRequest(
     request: GatewayPaymentRequest,
@@ -328,6 +361,8 @@ export class PaymentService {
     const openedAt = new Date();
 
     await this.transactions.run(async (exec) => {
+      await this.mayCollectFor(exec, request);
+
       const folioId = await this.folios.ensureFolio(exec, request.bookingId);
 
       await exec.insert(payment).values({
@@ -360,6 +395,55 @@ export class PaymentService {
     });
 
     return { paymentUrl, reference };
+  }
+
+  /**
+   * The ownership half of `payment.open-attempt`, for the realm it applies to.
+   *
+   * **A `where` clause and not a comparison after the row arrives.**
+   * `BookingService.isOwner` matches the stay and the account in one predicate,
+   * which is what keeps a walk-in unreachable: the desk's stays hold a null
+   * `user_id`, SQL equality never matches a null, and there is no branch here
+   * that could read one as an account. Borrowed rather than rewritten — that
+   * method already carries the spec and the comment for this exact case, and a
+   * second query would be a second answer to one question.
+   *
+   * **Null passes straight through, and that is the desk.** Every staff role
+   * holding this row holds it `full`; scoping them would refuse a receptionist
+   * taking a walk-in's card, which is the ordinary use of the route.
+   *
+   * **`NOT_FOUND`, and the same one for both absences.** `isOwner` is false for
+   * a stay that is not this account's and false for a booking id nobody holds,
+   * so a guest gets one sentence either way — the same line `booking.service.ts`
+   * takes on the routes a guest reaches their own stay by. The enumeration
+   * argument is weaker here than it is there, because this route is addressed by
+   * a uuid rather than by eight readable characters, and consistency is what
+   * decides it: one rule across every guest-facing refusal is a rule a reviewer
+   * can check. `ensureFolio` below already answers a booking that does not exist
+   * with a 404 of its own, so this is also the smaller change to what a caller
+   * sees.
+   */
+  private async mayCollectFor(
+    exec: DbExecutor,
+    request: GatewayPaymentRequest,
+  ): Promise<void> {
+    if (request.guestAccountId === null) {
+      return;
+    }
+
+    if (
+      !(await this.bookings.isOwner(
+        exec,
+        request.bookingId,
+        request.guestAccountId,
+      ))
+    ) {
+      throw new ORPCError("NOT_FOUND", {
+        message:
+          "No booking of yours has that id, so there is nothing here for you " +
+          "to pay for",
+      });
+    }
   }
 
   /**
