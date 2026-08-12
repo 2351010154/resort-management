@@ -4,6 +4,15 @@
    lib/motion-tokens.ts, which the same layout inlines. Neither is restated
    here: a second copy of a token is a copy that can drift. */
 
+/* The role names, assigned from the faces the root layout imports. Kept apart
+   from the family names on purpose: every rule below asks for a role, so the day
+   a face is swapped these two lines are the only ones that move and no stylesheet
+   is left quietly asserting that "display" means "Cormorant". */
+:root {
+  --font-display: "Cormorant Garamond Variable";
+  --font-ui: "IBM Plex Mono";
+}
+
 *,
 *::before,
 *::after {

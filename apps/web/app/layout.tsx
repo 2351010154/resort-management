@@ -1,5 +1,24 @@
 import type { Metadata } from "next";
-import { Cormorant_Garamond, IBM_Plex_Mono } from "next/font/google";
+// The house faces, carried in the lockfile rather than fetched while the app
+// builds. next/font/google downloads the woff2 from fonts.gstatic.com during
+// `next build`, which makes a green build depend on Google serving a CSS
+// document whose file names still resolve — and when Google rotated the
+// Cormorant Garamond binaries, the stale document some edges kept serving named
+// files that 404, so the build failed on machines that reached those edges and
+// passed on the ones that did not. A font is a dependency; it belongs where the
+// other dependencies are.
+//
+// Every subset ships with its `unicode-range`, so a browser still downloads
+// only latin and vietnamese — the same bytes over the wire as before. The
+// variable file covers 300–700 in one download per style, which is why the two
+// weights below cost what one used to.
+//
+// The role names --font-display and --font-ui are assigned from these in
+// globals.css, which is the only place the face and the role are joined.
+import "@fontsource-variable/cormorant-garamond/wght.css";
+import "@fontsource-variable/cormorant-garamond/wght-italic.css";
+import "@fontsource/ibm-plex-mono/300.css";
+import "@fontsource/ibm-plex-mono/400.css";
 import "@mariva/tokens/tokens.css";
 import "./globals.css";
 import { motionTokensCss } from "@/lib/motion-tokens";
@@ -48,21 +67,12 @@ import { motionTokensCss } from "@/lib/motion-tokens";
 // nearest DM Mono's — x-height 0.516em against 0.496em, same 0.6em advance — so no
 // caps size or tracking value in the app had to move, and because its humanist,
 // pen-drawn terminals sit with a Garamond in a way a coding face does not.
-const display = Cormorant_Garamond({
-  subsets: ["latin", "vietnamese"],
-  weight: ["300", "400"],
-  // Act 5 sets a line in italic. Loading the drawn italic means the browser never
-  // has to shear the upright, which on a face with this much stroke contrast is the
-  // difference between an italic and a smear.
-  style: ["normal", "italic"],
-  variable: "--font-display",
-});
-
-const ui = IBM_Plex_Mono({
-  subsets: ["latin", "vietnamese"],
-  weight: ["300", "400"],
-  variable: "--font-ui",
-});
+//
+// **Why the italic is a second import.** Act 5 sets a line in italic. Loading the
+// drawn italic means the browser never has to shear the upright, which on a face
+// with this much stroke contrast is the difference between an italic and a smear.
+// The console does not import it — it has no equivalent line — which is the whole
+// reason the two apps name their faces separately instead of sharing one module.
 
 export const metadata: Metadata = {
   title: "Mariva",
@@ -77,7 +87,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`${display.variable} ${ui.variable}`}>
+    <html lang="en">
       <head>
         <style>{motionTokensCss()}</style>
       </head>
