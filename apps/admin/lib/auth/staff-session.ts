@@ -9,6 +9,12 @@
  * It is safe to evaluate on the server, where it is simply a store nobody ever
  * fills: a Node render has no refresh cookie to spend, so the state stays
  * `restoring` until the browser takes over. Nothing here reads `window`.
+ *
+ * "Nobody ever fills it" is enforced rather than assumed. A module singleton in
+ * a Next server is one object shared by every request that process handles, so
+ * a session adopted there would be one operator's session published to whoever
+ * rendered next. The transport below refuses to run outside a browser, which
+ * makes that unreachable instead of merely unlikely.
  */
 
 import { createApiClient } from "@mariva/api-client";
@@ -18,13 +24,40 @@ import {
   requestStaffSignIn,
   requestStaffSignOut,
 } from "./staff-auth-requests";
-import { createStaffSessionStore } from "./staff-session-store";
+import {
+  createStaffSessionStore,
+  type StaffAuthTransport,
+} from "./staff-session-store";
 
-export const staffSession = createStaffSessionStore({
-  signIn: requestStaffSignIn,
-  refresh: requestStaffRefresh,
-  signOut: requestStaffSignOut,
-});
+/** The real transport in a browser, and a transport that answers nothing at
+ *  all anywhere else. */
+const transport: StaffAuthTransport =
+  typeof window === "undefined"
+    ? {
+        signIn: () => Promise.reject(new ServerSideSessionError()),
+        refresh: () => Promise.reject(new ServerSideSessionError()),
+        signOut: () => Promise.resolve(),
+      }
+    : {
+        signIn: requestStaffSignIn,
+        refresh: requestStaffRefresh,
+        signOut: requestStaffSignOut,
+      };
+
+export const staffSession = createStaffSessionStore(transport);
+
+/** Thrown if a render on the server ever tries to fill the shared store. Not
+ *  expected: the session is spent from effects, which do not run there. */
+class ServerSideSessionError extends Error {
+  readonly kind = "unreachable";
+
+  constructor() {
+    super(
+      "The staff session cannot be established during a server render: the store is a module singleton shared by every request this process serves, and the refresh cookie is the browser's.",
+    );
+    this.name = "ServerSideSessionError";
+  }
+}
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
