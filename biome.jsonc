@@ -56,6 +56,15 @@
     "formatter": { "quoteStyle": "double", "trailingCommas": "all" }
   },
 
+  // apps/admin's stylesheet is Tailwind 4, whose `@theme`, `@utility` and
+  // `@apply` are at-rules no plain CSS parser knows. Left off, Biome reports
+  // every one of them as a syntax error and the app's only stylesheet cannot be
+  // linted at all. It is a parser switch rather than a rule, so turning it on
+  // repository-wide costs apps/web — which has no Tailwind — nothing.
+  "css": {
+    "parser": { "tailwindDirectives": true }
+  },
+
   "linter": {
     "enabled": true,
     "rules": {
