@@ -64,7 +64,7 @@ import {
   m,
   useReducedMotion,
 } from "motion/react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { type ReactNode, useCallback, useMemo, useState } from "react";
 import {
   plateMotion,
@@ -91,6 +91,7 @@ import {
   TARIFF_RATES,
 } from "@/features/booking/lib/rate-calendar-fixture";
 import { roomType } from "@/features/booking/lib/room-types";
+import { holdStay } from "@/features/booking/lib/stay-funnel";
 import {
   indexNights,
   nightsInRange,
@@ -99,6 +100,7 @@ import {
   quoteStay,
   stayNights,
 } from "@/features/booking/lib/stay-quote";
+import { apiMessage } from "@/lib/api";
 import styles from "./booking-screen.module.css";
 import { ConciergeNote } from "./concierge-note/concierge-note";
 import { DatesStage } from "./dates-stage/dates-stage";
@@ -137,6 +139,51 @@ export function BookingScreen() {
 
   const [picked, setPicked] = useState<RoomTypeCode | null>(null);
   const [nextStep, setNextStep] = useState<string | null>(null);
+  const [holding, setHolding] = useState(false);
+  const router = useRouter();
+
+  /**
+   * Takes the hold and leaves for the next step.
+   *
+   * **The range is checked rather than asserted**, even though the button that
+   * calls this is only rendered once a room is staged and a room cannot be
+   * staged without one. The alternative is a non-null assertion on a value that
+   * comes out of the URL, which is to say out of anything a guest may type.
+   *
+   * **A press while one is in flight is dropped.** A hold consumes the nights,
+   * so two presses are two stays on one guest's account for the same room —
+   * and the second would be the one the funnel navigated to, leaving the first
+   * to expire quietly against inventory nobody could sell in the meantime.
+   */
+  async function takeHold(roomType: RoomTypeCode): Promise<void> {
+    if (holding || !search.range) {
+      return;
+    }
+
+    setHolding(true);
+    setNextStep(null);
+
+    try {
+      const stay = await holdStay({
+        roomType,
+        checkIn: search.range.checkIn,
+        checkOut: search.range.checkOut,
+        plan: search.plan,
+        adults: search.party.adults,
+        childAges: search.party.children.map((child) => child.age),
+      });
+
+      router.push(`/booking/${stay.id}/details`);
+    } catch (error) {
+      setHolding(false);
+      setNextStep(
+        apiMessage(
+          error,
+          "The room could not be held just now. Nothing has been charged — try again in a moment.",
+        ),
+      );
+    }
+  }
 
   // Today in the property's zone, never the browser's. A guest in Seoul at 00:30
   // is on tomorrow's date; offering them a night the property considers past would
@@ -542,23 +589,25 @@ export function BookingScreen() {
               variants={reduced ? stillPlateMotion : plateMotion}
             >
               <AnimatePresence initial={false} mode="wait">
-                {/* Where the funnel stops today, said out loud, in the line
-                    under the button that was pressed. `Continue` should post to
-                    the booking module, take a hold, and route to
-                    `/booking/<hold>/details`. That module is M7 and none of it
-                    exists — so the button reports the truth rather than
-                    navigating to a 404 or, worse, appearing to hold a room it
-                    has not held. */}
+                {/* Where the funnel leaves the URL behind. Pressing this takes
+                    a hold — `FR-BOOK-02`'s door, the one the funnel is given —
+                    and routes to `/booking/<hold>/details`. From here on the
+                    stay is a record with a TTL running against it rather than a
+                    search anybody can share, which is exactly why the id goes
+                    in the path and the steps stop being search params.
+
+                    The line under the button is now what went wrong, when
+                    something does. The most likely refusal is the honest one: a
+                    guest who has not signed in cannot take a hold, because
+                    `booking.create-own` is denied to the unauthenticated and
+                    the stay has to belong to an account before a payment
+                    attempt can be scoped to it. */}
                 <RoomStage
                   key={selectedType.code}
                   nights={stayLength}
                   note={nextStep}
                   offer={selectedOffer}
-                  onContinue={() =>
-                    setNextStep(
-                      "The next step opens when payments are connected. Nothing is held and nothing is charged.",
-                    )
-                  }
+                  onContinue={() => void takeHold(selectedType.code)}
                   plan={search.plan}
                   type={selectedType}
                 />
