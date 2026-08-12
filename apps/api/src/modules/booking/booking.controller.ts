@@ -332,6 +332,47 @@ export class BookingController {
   }
 
   /**
+   * Every stay this account has taken — `booking.read-own`'s "stay history"
+   * half, which until now had a service method and no door.
+   *
+   * **A session and never a booking token.** The other guest reads name one
+   * stay and are opened by whichever credential proves that stay is the
+   * caller's; this one names none and answers with all of them. A credential
+   * scoped to a single booking that could list the account's others would not be
+   * scoped to a single booking, so the refusal is the guard's and is the reason
+   * `rbac-matrix.md` records the token against the two routes that name a stay
+   * rather than against the row.
+   *
+   * Ordering, and what the list includes, are `getOwnBookings`'s and are argued
+   * there: newest arrival first, cancelled and expired stays kept, because a
+   * list that dropped them would answer "where did my booking go?" with nothing.
+   */
+  @RequiresCapability("booking.read-own", "read")
+  @Implement(contract.booking.listOwn)
+  listOwn() {
+    return implement(contract.booking.listOwn).handler(async () =>
+      notYet("The list of your stays"),
+    );
+  }
+
+  /**
+   * What calling the stay off would cost, before calling it off —
+   * `booking.read-own`, because it changes nothing.
+   *
+   * The figure is `cancellation-calculator.ts`'s, for the same booking at the
+   * same instant {@link cancelOwn} would be priced at. Nothing is written and
+   * nothing is held: a quote is a question, and a second calculation living here
+   * would be a number that could disagree with the charge the folio posts.
+   */
+  @RequiresCapability("booking.read-own", "read")
+  @Implement(contract.booking.cancellationQuote)
+  cancellationQuote() {
+    return implement(contract.booking.cancellationQuote).handler(async () =>
+      notYet("A cancellation quote"),
+    );
+  }
+
+  /**
    * The stay a guest calls off — `booking.cancel-own`, at §4's price.
    *
    * A write, so the declaration takes the default. The row is `⚠` for the guest
@@ -383,6 +424,24 @@ export class BookingController {
       ),
     );
   }
+}
+
+/**
+ * A route whose shape is settled and whose behaviour is not.
+ *
+ * Both callers are guest read surfaces whose contract entries exist so that the
+ * funnel's screens can be designed against a frozen shape while the service work
+ * behind them is still being written. `501` and not an empty answer: a quote of
+ * zero and a stay list with nothing in it are both things a screen would render
+ * as fact, and a screen built against either would be built against a lie that
+ * disappears when the handler lands.
+ *
+ * Returns `never`, so a handler that forgets to throw does not typecheck.
+ */
+function notYet(what: string): never {
+  throw new ORPCError("NOT_IMPLEMENTED", {
+    message: `${what} is not answerable yet`,
+  });
 }
 
 /**

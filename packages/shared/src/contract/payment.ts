@@ -38,6 +38,23 @@
 // opened. One route and one service method serve both realms; what differs is
 // whether an account arrives with the request to scope it.
 //
+// **The amount is the guest's to send and not the guest's to choose.** On the
+// guest door the service refuses any `amount` that is not the booking's
+// `quoted_stay_total_gross` — the property collects the stay in full before
+// arrival, so there is exactly one figure a guest may open an attempt for, and
+// without the refusal a hostile client opens one for a thousand đồng and comes
+// back holding a signed gateway success. The staff door keeps taking the amount
+// its caller typed, because a desk collects deposits, part payments and
+// balances, and those are a different operation performed by somebody the
+// property has already trusted with the till.
+//
+// **No schema change carries that**, deliberately. {@link openPaymentAttemptInput}
+// still takes an amount from both realms, because the refusal depends on the
+// booking's frozen total and on which realm asked — two facts a schema cannot
+// see. It is a service refusal for the same reason the non-positive amount is
+// one, and this note is here so that a reader of the contract is not left
+// inferring from the shape that any amount will do.
+//
 // **The two reconciliation routes are reads and nothing else.** `FR-PAY-05`'s
 // nightly sweep already writes `payment_discrepancy` and
 // `payment_reconciliation_run`, and until these routes existed nobody could look

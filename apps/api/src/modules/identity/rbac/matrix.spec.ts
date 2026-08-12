@@ -48,13 +48,21 @@ describe("the RBAC matrix", () => {
     }
   });
 
-  // Exactly one row is public — the availability search a stranger performs
-  // before they have any reason to have an account. A second one appearing is
-  // worth a conversation, which is what a failing test is.
-  it("marks exactly one row reachable without a session", () => {
+  // Two rows are public, and they are the two a stranger needs before they have
+  // any reason to have an account: finding a room, and holding it. Naming them
+  // rather than counting them is the point — a third appearing is worth a
+  // conversation, and so is one of these two being swapped for something else.
+  //
+  // The second is a write, and the only public one. It reserves inventory, so
+  // the route behind it is rate-limited; that limit is not a matrix row and is
+  // asserted where it lives, but this is the row that makes it necessary.
+  it("marks the search and the hold reachable without a session, and nothing else", () => {
     const open = CAPABILITIES.filter((row) => row.unauthenticated);
 
-    expect(open.map((row) => row.key)).toEqual(["availability.search"]);
+    expect(open.map((row) => row.key)).toEqual([
+      "availability.search",
+      "booking.create-own",
+    ]);
   });
 
   // Viewing and deleting a scan image are absent rather than denied: the scan

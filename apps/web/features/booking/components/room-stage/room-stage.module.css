@@ -512,6 +512,54 @@
   gap: var(--space-1);
 }
 
+/* Who the confirmation goes to, above the press that sends it.
+
+   Stacked rather than side by side, at the width the button already sets: the
+   plate is 28rem at its narrowest and two fields across it would be two boxes
+   too short to read a long address back in. */
+.contact {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-bottom: var(--space-1);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.fieldTerm {
+  font-size: var(--plate-xs, var(--text-xs));
+  color: var(--stone);
+}
+
+/* Quiet: a rule under the value rather than a box around it. The plate already
+   has an edge and a shadow, and a bordered input inside it would be a second
+   frame competing with the one number this side of the screen is for. */
+.input {
+  min-height: 2.5rem;
+  padding: 0 0.25rem;
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--umber);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid rgb(var(--night-rgb) / 0.24);
+  border-radius: 0;
+  transition: border-color 0.4s var(--ease-ui);
+}
+
+.input:focus-visible {
+  outline: none;
+  border-bottom-color: var(--dusk-amber);
+}
+
+.input:disabled {
+  color: var(--stone);
+}
+
 /* The one primary action on the screen, and the one place --dusk-amber is spent
    as ink — §2. */
 .continue {

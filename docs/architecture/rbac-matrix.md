@@ -18,11 +18,18 @@ Two things the implementation had to settle that this document did not say:
   already required the first; the second is what "sign in" means when nobody
   has. A route with no declaration at all is 403 for everyone, including an
   administrator, because the refusal is about the route rather than the caller.
-- **The public row is public.** Row 1 of §3 is marked *Public, unauthenticated*,
-  and the guard lets anyone reach it — including a signed-in housekeeper, whose
-  column says `—`. The role columns on that row describe what a screen should
-  offer, not a wall; enforcing them would refuse a member of staff a page any
-  stranger can load.
+- **The public rows are public.** Rows 1 and 2 of §3 are marked *Public,
+  unauthenticated*, and the guard lets anyone reach them — including a signed-in
+  housekeeper, whose column says `—`. The role columns on those rows describe
+  what a screen should offer, not a wall; enforcing them would refuse a member of
+  staff a page any stranger can load.
+- **Two of the guest's rows accept a credential that is not a session.** A guest
+  books without an account, so *Read own booking* and *Cancel own booking* are
+  reachable by a Better Auth session **or** by the booking-scoped token issued
+  when the hold was taken. The token opens exactly one stay and satisfies no
+  other row; §1's "no token opens both realms" is unaffected, because it is not a
+  staff credential and it is not a login. `common/auth/access.guard.ts` resolves
+  it, and the ⚠ on both rows still means the handler owes the ownership check.
 
 **Status:** proposed defaults. Derived from the advisory reports plus ordinary
 hotel practice. **Five** decisions are the owner's call, not an engineering one.
@@ -84,9 +91,9 @@ Legend: ✅ full · 👁 read-only · ⚠ conditional, see notes · — denied
 | Capability | G | RCP | HK | ACC | MGR | ADM | Notes |
 |---|:-:|:-:|:-:|:-:|:-:|:-:|---|
 | Availability + rate search | ✅ | ✅ | — | 👁 | ✅ | ✅ | Public, unauthenticated |
-| Create own booking | ✅ | ✅ | — | — | ✅ | ✅ | Staff create on behalf |
-| Read own booking / stay history | ⚠ | — | — | — | — | — | Own records only |
-| Cancel own booking | ⚠ | — | — | — | — | — | Own, penalty per policy |
+| Create own booking | ✅ | ✅ | — | — | ✅ | ✅ | Public, unauthenticated; staff create on behalf; hold rate-limited |
+| Read own booking / stay history | ⚠ | — | — | — | — | — | Own records only; session or booking token |
+| Cancel own booking | ⚠ | — | — | — | — | — | Own, penalty per policy; session or booking token |
 | Own profile, loyalty, VIP tier | ⚠ | 👁 | — | — | 👁 | 👁 | |
 | Upload own ID scan | ⚠ | — | — | — | — | — | |
 | Post-stay feedback | ⚠ | — | — | — | 👁 | 👁 | Tied to a `CHECKED_OUT` booking |
