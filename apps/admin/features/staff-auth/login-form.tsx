@@ -51,9 +51,10 @@ export function LoginForm({
     register,
     setFocus,
   } = useForm<Credentials>({
-    // Fields are checked when the operator leaves them and on submit, not on
-    // every keystroke: a validation message appearing under a half-typed
-    // address is telling somebody they are wrong while they are still typing.
+    // Fields are checked on submit and not before: a validation message
+    // appearing under a half-typed address — or under an address the operator
+    // has only tabbed out of on the way to the password — is telling somebody
+    // they are wrong before they have finished being right.
     mode: "onSubmit",
   });
 
