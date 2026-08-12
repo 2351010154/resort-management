@@ -30,6 +30,11 @@
       "!apps/web/tests/visual-baseline",
       "!apps/api/src/database/migrations",
 
+      // Parked design references are not product code. They are deliberately
+      // unwired and document the issues to settle before promotion into app/,
+      // features/ or components/ui/, where the normal lint scope applies.
+      "!apps/admin/prototypes",
+
       // apps/api is not in yet. This config replaces the ESLint setup that
       // only ever covered apps/web, so bringing the API under it here would
       // be a second change wearing the same commit, and its findings are all
@@ -54,6 +59,15 @@
 
   "javascript": {
     "formatter": { "quoteStyle": "double", "trailingCommas": "all" }
+  },
+
+  // apps/admin's stylesheet is Tailwind 4, whose `@theme`, `@utility` and
+  // `@apply` are at-rules no plain CSS parser knows. Left off, Biome reports
+  // every one of them as a syntax error and the app's only stylesheet cannot be
+  // linted at all. It is a parser switch rather than a rule, so turning it on
+  // repository-wide costs apps/web — which has no Tailwind — nothing.
+  "css": {
+    "parser": { "tailwindDirectives": true }
   },
 
   "linter": {

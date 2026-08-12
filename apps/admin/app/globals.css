@@ -1,0 +1,225 @@
+/* The console's styling layer.
+ *
+ * Two imports, and what settles a conflict between them is the layering rather
+ * than the order they appear in. @mariva/tokens is unlayered; everything
+ * Tailwind emits sits inside `@layer theme|base|...`, and an unlayered
+ * declaration beats a layered one however the two are sequenced. So for every
+ * property name the two happen to share, the brand's value wins. `--text-lg` is
+ * the one that actually differs — Mariva sets 1.375rem, Tailwind's default is
+ * 1.125rem — and this is why `text-lg` here means the Mariva step.
+ *
+ * Nothing below restates a token value: apart from three CSS-wide keywords, the
+ * whole theme is `var()` references, so changing the brand is still a one-file
+ * change in packages/tokens.
+ */
+
+@import "@mariva/tokens/tokens.css";
+@import "tailwindcss";
+
+/* Not `@theme inline`, and the distinction cost a build to find. Tailwind's
+ * `inline` option substitutes each value into the utilities and then emits no
+ * custom property for it — `.text-muted-foreground` compiles to
+ * `color: var(--stone-deep)` and `--color-muted-foreground` never exists. That
+ * is fine for anything written as a utility class and silently broken for
+ * anything written as CSS, which is every rule in the base layer at the bottom
+ * of this file: `background-color: var(--color-background)` would resolve to
+ * nothing at all.
+ *
+ * `inline` exists for theme values that reference a variable declared on a
+ * narrower scope than the document root. Nothing here is: tokens.css declares
+ * on `:root`, and next/font puts its class on <html>, which *is* `:root`. So
+ * the plain form resolves correctly and leaves one name — the semantic one —
+ * usable from both a utility and a stylesheet. */
+@theme {
+  /* ---- palette -------------------------------------------------------- */
+
+  /* Tailwind's stock palette is deleted rather than left available. The console
+   * has nine colours; `bg-slate-100` is not one of them, and the prototype in
+   * prototypes/dashboard-launchpad proved that when an off-brand colour is one
+   * keystroke away it eventually ships. Gone from the theme, it is a build
+   * error instead of a review comment. */
+  --color-*: initial;
+
+  /* Keywords, not colours — restored because the wipe above takes them too and
+   * a button with no fill has to be able to say so. */
+  --color-transparent: transparent;
+  --color-current: currentcolor;
+  --color-inherit: inherit;
+
+  --color-ivory: var(--ivory);
+  --color-ivory-warm: var(--ivory-warm);
+  --color-sand: var(--sand);
+  --color-stone: var(--stone);
+  --color-stone-deep: var(--stone-deep);
+  --color-umber: var(--umber);
+  --color-ink: var(--ink);
+  --color-dusk-amber: var(--dusk-amber);
+  --color-night: var(--night);
+
+  /* --ocean is deliberately absent. design-foundations.md reserves it for the
+   * booking funnel's informational state — a selected date — and an admin
+   * screen spending it on a chip or a badge would make the guest site's one
+   * informational colour mean two different things. */
+
+  /* ---- semantic layer ------------------------------------------------- */
+
+  /* The names shadcn/ui's primitives are written against, mapped once here so
+   * that copying a primitive in is a copy rather than a rewrite. A primitive
+   * that reaches for a raw Mariva name instead of one of these is a primitive
+   * that has to be re-audited the next time the mapping moves.
+   *
+   * Two of these mappings are contrast findings, not preferences:
+   *
+   *   --color-muted-foreground is --stone-deep and NOT --stone. --stone on
+   *   ivory computes ~3.65:1, which passes AA for large text and fails it for
+   *   the secondary labels this token actually gets used on. --stone-deep is
+   *   ~5.80:1 and passes.
+   *
+   *   --color-ring is --umber and NOT --dusk-amber. The amber is ~2.75:1 on
+   *   ivory: below the 4.5:1 text needs and below the 3:1 a focus indicator
+   *   needs. On a console this is keyboard-first, an invisible focus ring is
+   *   the whole product failing, so the accent does not get this job. */
+  --color-background: var(--ivory);
+  --color-foreground: var(--ink);
+
+  /* Panels lift off the page by warming, not by brightening — there is no
+   * colour above --ivory in the palette to brighten towards. */
+  --color-card: var(--ivory-warm);
+  --color-card-foreground: var(--ink);
+  --color-popover: var(--ivory-warm);
+  --color-popover-foreground: var(--ink);
+
+  --color-primary: var(--umber);
+  --color-primary-foreground: var(--ivory);
+  --color-secondary: var(--sand);
+  --color-secondary-foreground: var(--umber);
+
+  --color-muted: var(--ivory-warm);
+  --color-muted-foreground: var(--stone-deep);
+
+  /* The accent is for fills, rules, and state marks — never for text, and
+   * never for a focus ring. --color-accent-foreground is what goes *on* it. */
+  --color-accent: var(--dusk-amber);
+  --color-accent-foreground: var(--ink);
+
+  /* Rules and field edges are the ink at low strength rather than a ninth
+   * colour. The channel triplets in tokens.css exist for exactly this — the
+   * package's own comment explains that re-typing `rgb(58 51 43 / .16)` as a
+   * literal is the drift it was created to stop. */
+  --color-border: rgb(var(--umber-rgb) / 0.16);
+  --color-input: rgb(var(--umber-rgb) / 0.24);
+  --color-ring: var(--umber);
+
+  /* No --color-destructive. The palette has no red, and inventing one here
+   * would put the console's error colour outside packages/tokens where the
+   * brand lives. See apps/admin/README.md — it is the open decision blocking
+   * shadcn's destructive variants. */
+
+  /* ---- type ----------------------------------------------------------- */
+
+  /* The stock families go the same way as the stock palette: the console reads
+   * in two faces and `font-sans` is not one of them. next/font names its
+   * variables --font-cormorant and --font-plex-mono in app/layout.tsx rather
+   * than --font-display/--font-ui, so that the face and the *role* stay two
+   * separate names and this file is the only place the two are joined. */
+  --font-*: initial;
+  --font-display: var(--font-cormorant), serif;
+  /* `monospace`, not `sans-serif`: if the face fails to load, the fallback
+   * still has to hold the fixed pitch every figure on screen is set on. */
+  --font-ui: var(--font-plex-mono), ui-monospace, monospace;
+
+  /* The four shared type steps are not declared here on purpose. Tailwind's
+   * font-size namespace is `--text-*`, which is the same name tokens.css
+   * already uses, so `text-xs`/`text-sm`/`text-base`/`text-lg` read the Mariva
+   * values through the cascade note at the top of this file. Declaring them
+   * would be `--text-lg: var(--text-lg)` — a property referencing itself.
+   * The three display steps have no Tailwind default to inherit from, so they
+   * are registered as utilities further down instead. */
+
+  /* ---- spacing -------------------------------------------------------- */
+
+  /* Tailwind's 0.25rem multiplier stays: a table cell, an input and a 44px
+   * touch target all need steps that Mariva's rhythm does not have. The rhythm
+   * is added beside it under its own name — it is a page-composition scale
+   * (section gaps, page gutters), and `gap-rhythm-3` says which of the two a
+   * reader is looking at. Naming it --spacing-3 would have collided with the
+   * multiplier's own p-3. */
+  --spacing-rhythm-1: var(--space-1);
+  --spacing-rhythm-2: var(--space-2);
+  --spacing-rhythm-3: var(--space-3);
+  --spacing-rhythm-4: var(--space-4);
+  --spacing-rhythm-5: var(--space-5);
+}
+
+/* Utilities for the token names Tailwind's namespaces already occupy. Declared
+ * with `@utility` rather than as theme keys because `--text-display:
+ * var(--text-display)` is a cycle, not a reference — same property name on both
+ * sides. These behave like any other utility: variants and breakpoints apply. */
+
+@utility text-display-sm {
+  font-size: var(--text-display-sm);
+}
+
+@utility text-display {
+  font-size: var(--text-display);
+}
+
+@utility text-display-lg {
+  font-size: var(--text-display-lg);
+}
+
+@utility tracking-caps {
+  letter-spacing: var(--tracking-caps);
+}
+
+@layer base {
+  /* The document's resting state. Tailwind's preflight has already zeroed
+   * margins and normalised the box model, so this adds only what preflight has
+   * no opinion about: which face the console reads in, and what it stands on. */
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-ui);
+    /* The weight both faces are drawn at across Mariva. */
+    font-weight: 300;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Lining figures are a repair, not a preference, and they have to travel with
+   * the display face wherever it is named. Cormorant Garamond is a Garamond
+   * revival, so its default figures are oldstyle: 3 5 7 9 drop below the
+   * baseline and 6 climbs above the x-height. A room count or a price set in
+   * this face steps up and down through the line until `lnum` is asked for.
+   *
+   * The trap is that font-variant-numeric is one value rather than a set of
+   * flags that merge down the cascade: a descendant writing `tabular-nums`
+   * replaces this instead of adding to it and silently gets oldstyle back.
+   * Every tabular context in the console writes `lining-nums tabular-nums`. */
+  .font-display {
+    font-variant-numeric: lining-nums;
+  }
+
+  /* Keyboard-first means the focus ring is a primary interface element, not an
+   * accessibility afterthought — an operator running check-in without a mouse
+   * navigates by it. It is drawn in --color-ring (see the contrast note above)
+   * and offset so it reads as a ring around the control rather than a border on
+   * it. :focus-visible, so a pointer click does not paint it. */
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+
+  /* The reduced-motion kill switch. NFR-04 already holds admin motion to
+   * sub-150ms feedback with no entrance animation, so there is very little here
+   * for this to catch — which is the point: it is the backstop that keeps a
+   * later screen from being the first place anyone checks. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
