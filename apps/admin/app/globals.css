@@ -16,6 +16,45 @@
 @import "@mariva/tokens/tokens.css";
 @import "tailwindcss";
 
+/* The two faces, carried in the lockfile rather than fetched while the app
+ * builds. next/font/google downloads the woff2 from fonts.gstatic.com during
+ * `next build`, which makes a green build depend on Google serving a CSS
+ * document whose file names still resolve — and when Google rotated the
+ * Cormorant Garamond binaries, the stale document some edges kept serving named
+ * files that 404, so the build failed on machines that reached those edges and
+ * passed on the ones that did not. A font is a dependency; it belongs where the
+ * other dependencies are.
+ *
+ * Every subset ships with its `unicode-range`, so a browser still downloads
+ * only latin and vietnamese here — the same bytes over the wire as before.
+ *
+ * The variable file covers 300–700 in one download, which is why the two
+ * weights the console sets cost what one used to. */
+@import "@fontsource-variable/cormorant-garamond/wght.css";
+@import "@fontsource/ibm-plex-mono/300.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+
+/* Named for the face, not the role. The role names — --font-display and
+ * --font-ui — are assigned from these in the `@theme` block below, so that the
+ * day a face is swapped there is exactly one line to change and no stylesheet
+ * anywhere is quietly asserting that "display" means "Cormorant".
+ *
+ * The same two faces the guest site sets, for the same two reasons — the
+ * console is a different product, not a different brand, and apps/web's layout
+ * records the measurements behind the pairing. The short version of the one
+ * that matters here: IBM Plex Mono carries ₫ (U+20AB) and the Vietnamese
+ * diacritics, which the console needs on every folio line and in every guest's
+ * own name.
+ *
+ * No italic is imported above, unlike the guest site: the arrival sets one line
+ * in italic for effect, and an operational screen has no equivalent. Loading a
+ * second drawn style would be bytes on the console's critical path for
+ * nothing. */
+:root {
+  --font-cormorant: "Cormorant Garamond Variable";
+  --font-plex-mono: "IBM Plex Mono";
+}
+
 /* Not `@theme inline`, and the distinction cost a build to find. Tailwind's
  * `inline` option substitutes each value into the utilities and then emits no
  * custom property for it — `.text-muted-foreground` compiles to
@@ -26,10 +65,10 @@
  * nothing at all.
  *
  * `inline` exists for theme values that reference a variable declared on a
- * narrower scope than the document root. Nothing here is: tokens.css declares
- * on `:root`, and next/font puts its class on <html>, which *is* `:root`. So
- * the plain form resolves correctly and leaves one name — the semantic one —
- * usable from both a utility and a stylesheet. */
+ * narrower scope than the document root. Nothing here is: tokens.css and the
+ * two face names above both declare on `:root`. So the plain form resolves
+ * correctly and leaves one name — the semantic one — usable from both a
+ * utility and a stylesheet. */
 @theme {
   /* ---- palette -------------------------------------------------------- */
 
@@ -139,10 +178,10 @@
   /* ---- type ----------------------------------------------------------- */
 
   /* The stock families go the same way as the stock palette: the console reads
-   * in two faces and `font-sans` is not one of them. next/font names its
-   * variables --font-cormorant and --font-plex-mono in app/layout.tsx rather
-   * than --font-display/--font-ui, so that the face and the *role* stay two
-   * separate names and this file is the only place the two are joined. */
+   * in two faces and `font-sans` is not one of them. The faces are named
+   * --font-cormorant and --font-plex-mono at the top of this file rather than
+   * --font-display/--font-ui, so that the face and the *role* stay two separate
+   * names and this block is the only place the two are joined. */
   --font-*: initial;
   --font-display: var(--font-cormorant), serif;
   /* `monospace`, not `sans-serif`: if the face fails to load, the fallback

@@ -175,12 +175,21 @@ it; it does not exist yet.
 
 ## 3. Type
 
-Two families, both from `next/font/google` in the root layout, both injected as
-custom properties:
+Two families, both self-hosted from `@fontsource` and imported by the root
+layout, both named as custom properties:
 
-- `--font-display` — **Literata**, always weight 300. The display voice.
-- `--font-ui` — **DM Mono**, weights 300 and 400. Everything else, including
-  every caps run. The monospace is the house's UI signature, not an accident.
+- `--font-display` — **Cormorant Garamond**, weights 300 and 400. The display
+  voice.
+- `--font-ui` — **IBM Plex Mono**, weights 300 and 400. Everything else,
+  including every caps run. The monospace is the house's UI signature, not an
+  accident.
+
+They are dependencies in the lockfile rather than a build-time download.
+`next/font/google` fetches from `fonts.gstatic.com` during `next build`, which
+made a green build depend on Google serving a CSS document whose file names
+still resolved — and when Google rotated a face's binaries, builds began failing
+by which CDN edge the machine reached. Each subset keeps its `unicode-range`, so
+a browser still downloads only `latin` and `vietnamese`.
 
 `globals.css` sets `--font-ui` at weight 300 on `body`, so the mono is the
 default and the serif is opt-in.
@@ -198,8 +207,9 @@ months of calendar plus a summary panel there is enough of it on screen at once
 for the texture to decide how the page feels.
 
 Two faces still, no new bytes, and the arrival untouched. It also fixes something
-`layout.tsx` documents at length: DM Mono has no Vietnamese subset, so ₫ fell
-through to whatever the system offered. Literata carries the mark.
+`layout.tsx` documents at length: DM Mono, the mono this pairing replaced, has no
+Vietnamese subset at all, so ₫ (U+20AB) fell through to whatever the system
+offered. IBM Plex Mono carries the mark and the diacritics both.
 
 ### The two global classes
 
