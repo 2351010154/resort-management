@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   CREDENTIALS_REFUSED,
   createStaffSessionStore,
+  MIN_REFRESH_DELAY_MS,
   needsRefresh,
   REFRESH_MARGIN_MS,
   refreshDelayMs,
@@ -68,12 +69,15 @@ describe("refresh timing", () => {
     );
   });
 
-  it("renews immediately when the margin has already been eaten", () => {
+  it("renews at once, but not in a loop, when the margin has already been eaten", () => {
     const now = Date.now();
 
-    // A laptop reopened after being asleep. The delay is clamped rather than
-    // negative, and the decision below says the same thing.
-    expect(refreshDelayMs(now - 5 * 60_000, now)).toBe(0);
+    // A laptop reopened after being asleep. The delay is floored rather than
+    // negative, and the decision below says the same thing. The floor is what
+    // keeps a token whose whole life is shorter than the margin — a
+    // misconfigured API — from scheduling every renewal at zero.
+    expect(refreshDelayMs(now - 5 * 60_000, now)).toBe(MIN_REFRESH_DELAY_MS);
+    expect(refreshDelayMs(now + 30_000, now)).toBe(MIN_REFRESH_DELAY_MS);
     expect(needsRefresh(now - 5 * 60_000, now)).toBe(true);
   });
 
