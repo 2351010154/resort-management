@@ -240,6 +240,9 @@ importers:
       '@internationalized/date':
         specifier: ^3.12.2
         version: 3.12.2
+      '@mariva/api-client':
+        specifier: workspace:*
+        version: link:../../packages/api-client
       '@mariva/shared':
         specifier: workspace:*
         version: link:../../packages/shared

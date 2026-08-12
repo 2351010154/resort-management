@@ -86,10 +86,19 @@ const MONDAYS = [
   "2027-07-26",
   "2027-08-02",
   "2027-08-09",
+  "2027-08-16",
+  "2027-08-23",
+  "2027-08-30",
+  "2027-09-06",
+  "2027-09-13",
 ];
 
 /** A reference the generator's alphabet allows and no booking here holds. */
 const NO_SUCH_REFERENCE = "ZZZZ-ZZZZ";
+
+/** A uuid no stay has — well-formed, so the route refuses it on the lookup
+ *  rather than on the shape. */
+const NO_SUCH_ID = "00000000-0000-4000-8000-000000000000";
 
 const RECEPTIONIST = {
   email: "le.tan@mariva.test",
@@ -221,6 +230,18 @@ describe("the capability each of the guest's routes declares", () => {
     ).toEqual({ key: "booking.read-own", action: "read" });
   });
 
+  it("names the read row for the hold the funnel carries, as a read", () => {
+    // The same row and the same action as the read above, because it is the
+    // same act named a different way — the funnel's url carries the hold id
+    // where a guest reading their stay back carries the reference.
+    expect(
+      reflector.get<CapabilityRequirement>(
+        CAPABILITY_KEY,
+        BookingController.prototype.readOwnHold,
+      ),
+    ).toEqual({ key: "booking.read-own", action: "read" });
+  });
+
   it("names the cancellation row, as a write", () => {
     expect(
       reflector.get<CapabilityRequirement>(
@@ -234,7 +255,71 @@ describe("the capability each of the guest's routes declares", () => {
     // 401 and not 403 — nobody at all is asked to sign in, where somebody
     // holding the wrong authority is refused.
     await http().get(ownPath(NO_SUCH_REFERENCE)).expect(401);
+    await http().get(holdPath(NO_SUCH_ID)).expect(401);
     await http().post(cancelPath(NO_SUCH_REFERENCE)).send({}).expect(401);
+  });
+});
+
+describe("the hold the funnel is standing on", () => {
+  it("answers to the id the funnel was given when it took the hold", async () => {
+    // The address `/booking/<hold>/details` and the two steps after it carry —
+    // `repository-structure.md` §`(booking)`. Without this the funnel could not
+    // survive a refresh: the stay, its total and its state would be whatever
+    // the tab was still holding.
+    const stay = await aGuestStay(anh);
+
+    const response = await anh.get(holdPath(stay.id)).expect(200);
+
+    expect(response.body).toMatchObject({
+      id: stay.id,
+      reference: stay.reference,
+      state: "HELD",
+    });
+
+    // The figure the payment step opens its attempt for, and the reason the
+    // screen reads the stay rather than trusting a number in the url.
+    expect(response.body.stayTotalGross).toMatch(/^\d+$/);
+  });
+
+  it("is not another guest's to read, and says so the same way as an id nobody holds", async () => {
+    const stay = await aGuestStay(anh);
+
+    const refused = await binh.get(holdPath(stay.id));
+    const missing = await binh.get(holdPath(NO_SUCH_ID));
+
+    expect(refused.status).toBe(404);
+    expect(missing.status).toBe(404);
+
+    // Identical in every field, the sentence included — and here it is
+    // identical outright rather than after a substitution, because the refusal
+    // names no id back. There is nothing for a caller trying ids to read.
+    expect(refused.body).toEqual(missing.body);
+  });
+
+  it("is unreachable when the desk took the stay, because a walk-in belongs to nobody", async () => {
+    const walkIn = await aWalkIn();
+
+    expect(await accountOn(walkIn.id)).toBeNull();
+
+    await anh.get(holdPath(walkIn.id)).expect(404);
+  });
+
+  it("still answers once the stay has stopped being a hold", async () => {
+    // The screen that reads this route is waiting for exactly that moment —
+    // `confirming/` polls until the gateway's callback has confirmed the stay.
+    // A route that answered only a `HELD` booking would refuse at the instant
+    // its caller was waiting for.
+    const stay = await aGuestStay(anh);
+
+    await confirm(stay.id);
+
+    const response = await anh.get(holdPath(stay.id)).expect(200);
+
+    expect(response.body).toMatchObject({
+      id: stay.id,
+      reference: stay.reference,
+      state: "CONFIRMED",
+    });
   });
 });
 
@@ -403,6 +488,14 @@ function http(): request.Agent {
 const ownPath = (reference: string) => `/bookings/mine/${reference}`;
 
 const cancelPath = (reference: string) => `${ownPath(reference)}/cancellation`;
+
+/** The funnel's own address for a hold — a member of the collection it posts to. */
+const holdPath = (bookingId: string) => `/bookings/holds/${bookingId}`;
+
+/** The desk confirming a stay, which is the only door that transition has. */
+function confirm(bookingId: string): request.Test {
+  return asDesk("post", `/bookings/${bookingId}/confirmation`).expect(200);
+}
 
 /** A call as the front desk. */
 function asDesk(

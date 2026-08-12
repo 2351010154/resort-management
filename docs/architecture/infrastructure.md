@@ -78,6 +78,23 @@ One internal `PaymentGateway` port — `createPayment` / `verifyCallback` /
   under each environment's own `API_URL`: `GET /payments/vnpay/ipn` for the
   gateway's report, `GET /payments/vnpay/return` for the payer's browser. Only
   the first is acted on — the return redirect confirms nothing about money.
+- **A paid callback confirms the stay**, in the commit that writes the payment
+  and the folio line. `booking.confirm` is behind `booking.write` and no guest
+  holds it, so the callback is the only thing that can make `HELD → CONFIRMED`
+  for a guest paying online — and a paid stay left `HELD` is one the TTL sweep
+  cancels minutes later. Only a hold moves; see
+  [`booking-state-machine.md`](booking-state-machine.md) §3.
+- **The payer's browser lands on the funnel, not on a confirmation.** The return
+  route sends it to `/booking/<hold>/confirming` under `WEB_ORIGIN`, carrying a
+  caption and the attempt's reference. The redirect and the IPN are independent
+  deliveries of one claim and either may arrive first, so that screen resolves
+  against the property's own record rather than reporting what the gateway told
+  the browser. A redirect the gateway did not sign carries nothing onward.
+- **A developer's machine cannot receive an IPN**, because it is a
+  server-to-server call to a public address while the return url is only a
+  browser redirect. `apps/api/scripts/replay-vnpay-ipn.mjs` delivers a correctly
+  signed one to a local API so the confirm path is exercised for real; a tunnel
+  and a terminal pointed at it is the other way.
 - **There is no daily report to fetch.** VNPay answers about one transaction at
   a time (`queryDr`); a day's totals live in a settlement file drawn from the
   merchant portal by hand. So the nightly reconciliation reconstructs the

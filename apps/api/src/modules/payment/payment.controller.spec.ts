@@ -83,6 +83,18 @@ const A_BOOKING = "9f1d4e2a-1c3b-4a5d-8e7f-0a1b2c3d4e5f";
 const REFERENCE = "0123456789abcdef".repeat(4);
 
 /**
+ * The stay {@link REFERENCE} was minted for: its first thirty-two characters,
+ * written back into the hyphens a uuid carries.
+ *
+ * Spelled out rather than computed from `REFERENCE`, so the test states the
+ * answer independently of the arithmetic the handler does to reach it.
+ */
+const STAY_IN_REFERENCE = "01234567-89ab-cdef-0123-456789abcdef";
+
+/** What the gateway says it moved, in đồng. */
+const AN_AMOUNT = 1_200_000n;
+
+/**
  * A callback as it comes off the wire: every value a string, because a query
  * string has no other kind. Nothing here is signed — the port is stood in for,
  * and what it is asked is asserted rather than what it makes of it.
@@ -351,11 +363,36 @@ describe("where the payer's browser is sent", () => {
       const location = new URL(response.headers.location);
 
       expect(location.origin).toBe(WEB_ORIGIN);
-      expect(location.pathname).toBe("/booking");
+      // The funnel's own landing for a gateway return, named by
+      // `repository-structure.md` §`(booking)` — and the stay in it is the
+      // booking half of the reference the gateway signed, written back as the
+      // uuid the route is addressed by.
+      expect(location.pathname).toBe(`/booking/${STAY_IN_REFERENCE}/confirming`);
       expect(location.searchParams.get("payment")).toBe(caption);
       expect(location.searchParams.get("reference")).toBe(REFERENCE);
     });
   }
+
+  it("hands a payer back to the funnel's door when the reference names no stay", async () => {
+    // Signed, and still not a reference this property mints — the booking half
+    // is not hex. There is no stay to open a page about, and composing the url
+    // anyway would be this property building its own 404.
+    verifyCallback.mockResolvedValue({
+      verified: true,
+      transaction: {
+        status: "FAILED" as const,
+        reference: "not-a-reference-this-property-would-ever-have-minted",
+        amount: AN_AMOUNT,
+      },
+    });
+
+    const response = await payerReturn();
+
+    const location = new URL(response.headers.location);
+
+    expect(location.pathname).toBe("/booking");
+    expect(location.searchParams.get("payment")).toBe("refused");
+  });
 
   it("carries nothing onward from a redirect the gateway did not sign", async () => {
     // A link anybody can compose. Following it into a page that names an
@@ -370,6 +407,10 @@ describe("where the payer's browser is sent", () => {
 
     expect(location.searchParams.get("payment")).toBe("unverified");
     expect(location.searchParams.has("reference")).toBe(false);
+    // No reference is no stay, so there is no confirming screen to land on
+    // either — the stay in that url would have come from the same unsigned
+    // string everything else here is being withheld from.
+    expect(location.pathname).toBe("/booking");
   });
 
   it("decides nothing about money", async () => {
@@ -560,7 +601,7 @@ function signedAs(status: "SUCCESS" | "FAILED" | "PENDING"): CallbackVerificatio
       transaction: {
         status,
         reference: REFERENCE,
-        amount: 1_200_000n,
+        amount: AN_AMOUNT,
         gatewayTransactionId: "14528901",
         paidAt: new Date("2027-11-02T02:10:00Z"),
       },
@@ -569,7 +610,7 @@ function signedAs(status: "SUCCESS" | "FAILED" | "PENDING"): CallbackVerificatio
 
   return {
     verified: true,
-    transaction: { status, reference: REFERENCE, amount: 1_200_000n },
+    transaction: { status, reference: REFERENCE, amount: AN_AMOUNT },
   };
 }
 

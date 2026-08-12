@@ -302,6 +302,36 @@ export class BookingController {
   }
 
   /**
+   * The hold the funnel is standing on, read back by its id — the same row and
+   * the same capability as the read above.
+   *
+   * The funnel's third step onward carries the hold id rather than the
+   * reference, per `repository-structure.md` §`(booking)`, and this is what lets
+   * those screens survive a refresh: the stay, its total and its state are read
+   * from the API rather than from whatever the tab happened to be holding. The
+   * screen that waits for the gateway reads it too, which is why the route
+   * answers a stay in any state and not only a `HELD` one.
+   *
+   * Declared as a read for the reason {@link readOwn} gives, and scoped the same
+   * way — the account is the session's, and the only thing the caller names is
+   * which stay.
+   */
+  @RequiresCapability("booking.read-own", "read")
+  @Implement(contract.booking.readOwnHold)
+  readOwnHold(@CurrentPrincipal() principal: Principal | null) {
+    return implement(contract.booking.readOwnHold).handler(async ({ input }) =>
+      onWire(
+        await this.transactions.run((exec) =>
+          this.bookings.ownHold(exec, {
+            bookingId: input.bookingId,
+            userId: guestAccount(principal, "read their own booking"),
+          }),
+        ),
+      ),
+    );
+  }
+
+  /**
    * The stay a guest calls off — `booking.cancel-own`, at §4's price.
    *
    * A write, so the declaration takes the default. The row is `⚠` for the guest
