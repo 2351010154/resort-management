@@ -17,7 +17,10 @@
 // own state is what this *property* has recorded. Only the second decides
 // anything: `payment.service.ts` confirms the stay in the same commit as the
 // payment, so a booking that has stopped being `HELD` is a booking whose money
-// landed, and nothing else is.
+// landed — with one exception, and it is the exception this screen exists at the
+// riskiest moment to get right. A hold the sweep released while the guest was at
+// the gateway has also stopped being `HELD`, and it is the opposite fact. So a
+// lost stay is ruled out before anything here reads a settled one as a booking.
 //
 // **It resolves rather than reporting.** A settled stay replaces this url with
 // `/bookings/<reference>` — replaced, not pushed, so the browser's back button
@@ -33,6 +36,7 @@ import {
   stayStyles as styles,
 } from "@/features/booking/components/stay-shell/stay-shell";
 import {
+  isBooked,
   isLost,
   isSettled,
   type PaymentCaption,
@@ -76,7 +80,14 @@ export function ConfirmingScreen({ hold }: { readonly hold: string }) {
     waitingForMoney ? isSettled : undefined,
   );
 
-  const settled = stay !== undefined && isSettled(stay);
+  // The hold went while the guest was away — cancelled by the sweep, or called
+  // off — against the stay that actually became a booking. Two questions and not
+  // one, because `isSettled` answers both with `true`: `isBooked` is where that
+  // is argued and where a spec holds it, and a screen that asked only whether
+  // the stay had stopped being held would thank a guest whose room went back on
+  // sale for a payment.
+  const lost = stay !== undefined && isLost(stay);
+  const settled = stay !== undefined && isBooked(stay);
   const reference = stay?.reference;
 
   useEffect(() => {
@@ -122,25 +133,17 @@ export function ConfirmingScreen({ hold }: { readonly hold: string }) {
     );
   }
 
-  // Already on its way to the booking. Rendered rather than returning nothing so
-  // that the screen does not blank between the state settling and the
-  // replacement landing.
-  if (settled) {
-    return (
-      <StayShell
-        stay={stay}
-        step="Confirmed"
-        subtitle="Your payment is confirmed. Taking you to your booking."
-        title="You are booked"
-      />
-    );
-  }
-
   // The hold went while the guest was at the gateway. If VNPay took the money
   // anyway, the nightly reconciliation is what surfaces it — `FR-PAY-05` — so
   // this says what the property will do rather than telling the guest to
   // chase it.
-  if (isLost(stay)) {
+  //
+  // Read before the settled branch below, and in that order for the reason
+  // `lost` exists at all: a cancelled stay is no longer held either, and the
+  // screen that told it it was booked would be issuing a receipt for a room the
+  // property has resold. `payment-screen.tsx` and `details-screen.tsx` ask the
+  // same two questions in the same order.
+  if (lost) {
     return (
       <StayShell
         stay={stay}
@@ -160,6 +163,20 @@ export function ConfirmingScreen({ hold }: { readonly hold: string }) {
           Choose again
         </button>
       </StayShell>
+    );
+  }
+
+  // Already on its way to the booking. Rendered rather than returning nothing so
+  // that the screen does not blank between the state settling and the
+  // replacement landing.
+  if (settled) {
+    return (
+      <StayShell
+        stay={stay}
+        step="Confirmed"
+        subtitle="Your payment is confirmed. Taking you to your booking."
+        title="You are booked"
+      />
     );
   }
 
