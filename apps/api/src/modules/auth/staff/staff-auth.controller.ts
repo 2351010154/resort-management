@@ -6,6 +6,12 @@
 // read is a token an injected script can take — the access token is short-lived
 // and lives in memory for exactly that reason, while the long-lived half never
 // enters the page at all.
+//
+// The cookie is also why these three stay outside the oRPC contract: nothing in
+// a contract handler reaches `Set-Cookie`. What the console shares with them
+// instead is the *shapes* — `staff-auth.dto.ts` re-exports them from
+// `@mariva/shared`, and the return types below are that session schema — so the
+// two hand-written ends of these routes break together or not at all.
 
 import {
   Body,
@@ -24,6 +30,7 @@ import { ZodValidationPipe } from "../../../common/validation/zod-validation.pip
 import {
   type StaffRefreshBody,
   staffRefreshSchema,
+  type StaffSession,
   type StaffSignInBody,
   staffSignInSchema,
 } from "./staff-auth.dto.js";
@@ -49,7 +56,7 @@ export class StaffAuthController {
     @Body(new ZodValidationPipe(staffSignInSchema)) body: StaffSignInBody,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
-  ): Promise<Omit<StaffSignInResult, "tokens"> & { accessToken: string; expiresIn: number }> {
+  ): Promise<StaffSession> {
     const result = await this.auth.signIn(body, contextOf(request));
 
     this.setRefreshCookie(response, result);
@@ -68,7 +75,7 @@ export class StaffAuthController {
     @Body(new ZodValidationPipe(staffRefreshSchema)) body: StaffRefreshBody,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
-  ): Promise<Omit<StaffSignInResult, "tokens"> & { accessToken: string; expiresIn: number }> {
+  ): Promise<StaffSession> {
     const presented = readRefreshCookie(request) ?? body.refreshToken;
 
     if (!presented) {
