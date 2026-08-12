@@ -58,9 +58,13 @@ export type StaffRefreshBody = z.infer<typeof staffRefreshSchema>;
 /** The account as a client may see it. The password digest and the activity
  *  flags are not in it, and the API's own `publicView` is what keeps them out. */
 export const staffSessionUserSchema = z.object({
-  id: z.string(),
-  email: z.string(),
-  fullName: z.string(),
+  // Typed as tightly as the row it comes from — `staff_user.id` is a Postgres
+  // `uuid` and the address went through `staffSignInSchema` on the way in. A
+  // looser field here would let a malformed session through the parse that
+  // exists to catch exactly that.
+  id: z.uuid(),
+  email: z.email().max(320),
+  fullName: z.string().min(1),
   role: staffRoleSchema,
 });
 
