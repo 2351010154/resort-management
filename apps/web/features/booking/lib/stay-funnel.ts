@@ -166,3 +166,24 @@ export function isSettled(stay: HeldStay): boolean {
 export function isLost(stay: HeldStay): boolean {
   return stay.state === "CANCELLED";
 }
+
+/**
+ * A stay that became a booking — the only reading of "not held any more" that a
+ * screen may congratulate somebody on.
+ *
+ * **Both halves, and the second is the one worth naming.** `isSettled` asks
+ * whether the stay stopped being a hold, and a cancellation stops it exactly as
+ * a payment does: `hold-expiry-sweep.ts` releases a hold whose TTL ran out while
+ * its guest was away at the gateway, and the stay it leaves behind satisfies
+ * `isSettled` while meaning the opposite of it. A screen reading the one
+ * predicate alone thanks that guest for a payment and sends them to a
+ * confirmation for a room that is back on sale.
+ *
+ * Written here rather than as an expression on each screen because it is the
+ * distinction the funnel turns on at its most expensive moment, and this is the
+ * file the screens read their vocabulary from — and the only one of the two
+ * places a `.spec.ts` can hold it to account.
+ */
+export function isBooked(stay: HeldStay): boolean {
+  return isSettled(stay) && !isLost(stay);
+}
