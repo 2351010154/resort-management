@@ -68,25 +68,64 @@ export function loginHref(from?: string | null): string {
     : `${LOGIN_ROUTE}?${RETURN_PARAM}=${encodeURIComponent(destination)}`;
 }
 
+/** Stands in for this console wherever a relative path has to be resolved to
+ *  decide whether it stays here. Not reachable and not a real origin, which is
+ *  the point: anything that resolves away from it resolved somewhere else. */
+const SAME_ORIGIN_PROBE = "https://console.invalid";
+
+/** Whether a candidate carries a character a URL parser would drop or refuse
+ *  — tab, newline and carriage return above all. A destination containing one
+ *  is not a destination anybody typed, and stripping it is what turns a path
+ *  that passed a prefix check into a different origin. */
+function hasControlCharacter(value: string): boolean {
+  for (const character of value) {
+    const code = character.codePointAt(0) ?? 0;
+
+    if (code < 0x20 || code === 0x7f) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 /**
  * The path the guard saved, if it is safe to go back to.
  *
- * Anything that is not a single-slash-rooted path on this origin is discarded
- * and the caller falls back to the role's landing. `//evil.example` and
- * `https://evil.example` are both what an open redirect looks like: a link to
- * the console's own login carrying somebody else's destination, followed by an
- * operator who has just typed their password and has no reason to read the
- * address bar. A backslash is refused with them because some browsers still
- * normalise it to a slash.
+ * Anything that does not resolve to this origin is discarded and the caller
+ * falls back to the role's landing. `//evil.example` and `https://evil.example`
+ * are both what an open redirect looks like: a link to the console's own login
+ * carrying somebody else's destination, followed by an operator who has just
+ * typed their password and has no reason to read the address bar.
+ *
+ * The decision is made by resolving the candidate rather than by inspecting its
+ * first two characters, because a prefix test answers a different question than
+ * the browser does. A URL parser strips tab, newline and carriage return before
+ * it resolves, so `/\n/evil.example` — three characters that pass any
+ * `startsWith` check — is `//evil.example` by the time anything navigates to
+ * it. Control characters are refused outright and the rest is settled by the
+ * same parser the browser would use, so the answer here and the answer there
+ * cannot disagree.
  */
 export function safeReturnPath(raw: string | null | undefined): string | null {
-  if (!raw?.startsWith("/")) {
+  if (!raw?.startsWith("/") || hasControlCharacter(raw)) {
     return null;
   }
 
-  if (raw.startsWith("//") || raw.startsWith("/\\")) {
+  let resolved: URL;
+
+  try {
+    resolved = new URL(raw, SAME_ORIGIN_PROBE);
+  } catch {
     return null;
   }
 
-  return raw;
+  if (resolved.origin !== SAME_ORIGIN_PROBE) {
+    return null;
+  }
+
+  // Rebuilt from the parsed URL rather than returned as it arrived, so what the
+  // caller navigates to is the thing that was judged safe and not a string that
+  // merely resolved to it once.
+  return `${resolved.pathname}${resolved.search}${resolved.hash}`;
 }

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   DEFAULT_LANDING,
+  LANDING_BY_ROLE,
   landingRouteFor,
   loginHref,
   safeReturnPath,
@@ -17,12 +18,15 @@ describe("landingRouteFor", () => {
     expect(landingRouteFor("ACCOUNTANT")).toBe("/payments");
   });
 
-  // Driven off the shared list rather than the five above, so a sixth role
-  // added to the contract is a failure here rather than an operator landing
-  // somewhere nobody chose.
-  it("has a destination for every role the contract defines", () => {
+  // Driven off the shared list rather than the five above. A sixth role added
+  // to the contract already fails to compile — `LANDING_BY_ROLE` is a
+  // `Record<StaffRole, string>` and would be missing a key — and this is the
+  // same fact at runtime, for the case where the map is edited to satisfy the
+  // compiler by pointing the new role at nothing in particular.
+  it("gives every role the contract defines a destination of its own", () => {
     for (const role of STAFF_ROLES) {
-      expect(landingRouteFor(role)).toMatch(/^\//);
+      expect(LANDING_BY_ROLE[role]).toMatch(/^\//);
+      expect(landingRouteFor(role)).toBe(LANDING_BY_ROLE[role]);
     }
   });
 
@@ -46,6 +50,26 @@ describe("safeReturnPath", () => {
     expect(safeReturnPath("arrivals")).toBeNull();
     expect(safeReturnPath(null)).toBeNull();
     expect(safeReturnPath("")).toBeNull();
+  });
+
+  // A URL parser strips these before it resolves, so each one below is
+  // `//evil.example` by the time a router acts on it while looking like a
+  // rooted path to any check that reads only the first two characters.
+  it("refuses a destination smuggling a control character past the leading slash", () => {
+    expect(safeReturnPath("/\n/evil.example")).toBeNull();
+    expect(safeReturnPath("/\t/evil.example")).toBeNull();
+    expect(safeReturnPath("/\r/evil.example")).toBeNull();
+    expect(safeReturnPath("/\u0000/evil.example")).toBeNull();
+    expect(safeReturnPath("/arrivals\n")).toBeNull();
+  });
+
+  // Returned as the parser resolved it, not as it arrived: what the caller
+  // navigates to has to be the string that was judged, or the judgement was
+  // about something else.
+  it("hands back the resolved path, query and fragment", () => {
+    expect(safeReturnPath("/arrivals/../payments?a=1#top")).toBe(
+      "/payments?a=1#top",
+    );
   });
 });
 
