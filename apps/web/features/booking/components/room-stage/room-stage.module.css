@@ -532,9 +532,19 @@
     transform 0.16s var(--ease-ui);
 }
 
-.continue:hover {
+.continue:hover:not(:disabled) {
   color: var(--umber);
   background: transparent;
+}
+
+/* Pressed, and the request it started is still out. The colours are the ones
+   `stay-shell.module.css` gives its own waiting button, because a guest moving
+   between the two screens is reading one funnel. */
+.continue:disabled {
+  cursor: default;
+  color: rgb(var(--ivory-rgb) / 0.6);
+  background: var(--stone);
+  border-color: var(--stone);
 }
 
 /* **The screen's one primary action, pressing down.**
@@ -544,9 +554,10 @@
  * takes the two lines under it with it. Moved down by one, it is a key being
  * pressed and nothing around it moves at all.
  *
- * It is the last thing the guest does on this screen before being told the
- * funnel stops here, which is the one moment the button must not feel
- * unresponsive — whatever the sentence underneath then says. */
+ * It is the last thing the guest does on this screen before the room is held
+ * and the funnel leaves for the stay's own url, which is the one moment the
+ * button must not feel unresponsive — the press answers immediately, and the
+ * disabled state below carries the wait that follows it. */
 .continue:active {
   transform: translateY(1px);
 }

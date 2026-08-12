@@ -173,12 +173,36 @@ const GATEWAY_RETURN_PATH = "payments/vnpay/return";
 /**
  * Where the payer is handed back to on the site they started from.
  *
- * The booking funnel, which is the page they left — not a page of its own. A
- * screen that reads the two parameters below is the guest funnel's to build, and
- * until it does the payer lands back where they were rather than on a 404, which
- * is the failure mode worth choosing between.
+ * `repository-structure.md` §`(booking)` names this route and says why it is
+ * not the confirmation: the redirect and the IPN are two independent deliveries
+ * of one claim, and the browser can arrive first. So the payer lands on a screen
+ * that resolves — which is this one — and the confirmation is the stay's own
+ * page once it does.
+ *
+ * The hold is in the path because every funnel step after the second has it
+ * there, and the screen needs it to ask what became of the stay. It is taken
+ * from the reference the gateway signed rather than from anything the payer
+ * could edit; {@link stayInReference} is where that is unpacked.
  */
-const PAYER_RETURN_PATH = "/booking";
+const PAYER_RETURN_PATH = "/booking/:hold/confirming";
+
+/**
+ * Where a payer goes when the redirect carried no reference this property can
+ * read — an unsigned link, or a signed one naming an attempt in a shape this
+ * property never mints.
+ *
+ * The funnel's own front door, which is the honest answer: without a reference
+ * there is no stay to show a page about, and the guest's booking, if they have
+ * one, is reachable from their account. The caption travels with them so the
+ * screen can say why they are here rather than showing a bare search.
+ */
+const PAYER_FALLBACK_PATH = "/booking";
+
+/** The characters of a reference that are the booking's id — `payment.service.ts`. */
+const STAY_HEX_LENGTH = 32;
+
+/** That half, and only if it is what a uuid with its hyphens taken out looks like. */
+const STAY_HEX_PATTERN = new RegExp(`^[0-9a-f]{${STAY_HEX_LENGTH}}$`);
 
 /**
  * What the payer's browser is told, which is a caption and not a fact about
@@ -586,12 +610,29 @@ export class PaymentController {
     return new URL(`/${GATEWAY_RETURN_PATH}`, this.env.API_URL).toString();
   }
 
-  /** The payer, sent on to the site with a caption and nothing else. */
+  /**
+   * The payer, sent on to the site with a caption and nothing else.
+   *
+   * The caption is what the gateway told the browser, and the screen it lands
+   * on treats it as a caption rather than as a fact — the note on {@link Caption}
+   * says why. The reference travels beside it because a support question about
+   * a payment starts from that string, and because the screen has to ask about
+   * one attempt rather than about the stay in general.
+   *
+   * A reference this property cannot read a stay out of sends the payer to the
+   * funnel's door instead of composing a url with an empty segment in it, which
+   * would be a 404 built by this property out of its own bad input.
+   */
   private handBack(
     caption: Caption,
     reference?: string,
   ): { url: string; statusCode: number } {
-    const url = new URL(PAYER_RETURN_PATH, this.env.WEB_ORIGIN);
+    const stay = reference ? stayInReference(reference) : undefined;
+
+    const url = new URL(
+      stay ? PAYER_RETURN_PATH.replace(":hold", stay) : PAYER_FALLBACK_PATH,
+      this.env.WEB_ORIGIN,
+    );
 
     url.searchParams.set("payment", caption);
 
@@ -601,6 +642,40 @@ export class PaymentController {
 
     return { url: url.toString(), statusCode: SEE_THE_FUNNEL };
   }
+}
+
+/**
+ * The stay a reference was minted for, as the uuid the funnel addresses it by.
+ *
+ * `payment.service.ts` mints a reference as the booking's id in bare hex
+ * followed by a nonce, and this is the only place that half is read back. What
+ * it is read for matters: an address to send a browser to, and not an authority
+ * over anything. The screen it lands on asks the API what became of that stay
+ * under the guest's own session, and `booking.read-own` refuses a stay that is
+ * not theirs — so a payer who edited the segment would be looking at a 404
+ * rather than at somebody else's booking.
+ *
+ * Nothing here trusts the string beyond its shape. A reference the gateway did
+ * not sign never reaches this — `payerReturn` drops it — and one that is signed
+ * but not in this property's shape produces nothing, which sends the payer to
+ * the funnel's door rather than to a url with a malformed segment in it.
+ */
+function stayInReference(reference: string): string | undefined {
+  const stay = reference.slice(0, STAY_HEX_LENGTH);
+
+  if (!STAY_HEX_PATTERN.test(stay)) {
+    return undefined;
+  }
+
+  // Back into the shape a uuid is written in — 8-4-4-4-12 — because that is
+  // what the route's parameter is and what the API will be asked about.
+  return [
+    stay.slice(0, 8),
+    stay.slice(8, 12),
+    stay.slice(12, 16),
+    stay.slice(16, 20),
+    stay.slice(20),
+  ].join("-");
 }
 
 /**

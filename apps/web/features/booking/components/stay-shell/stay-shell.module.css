@@ -1,0 +1,179 @@
+/* The frame the four screens after a room choice share.
+ *
+ * `auth-shell.module.css` states outright that it is not this: "a stay summary
+ * does not belong under a monogram and a greeting". So these have a frame of
+ * their own — quieter than either half of `/booking`, because a guest reading
+ * terms and a total is doing arithmetic rather than looking at rooms, and
+ * because `FR-BOOK-06` forbids `three`, `gsap` and `lenis` anywhere in this
+ * path. Nothing here loads an image.
+ *
+ * Everything reads from @mariva/tokens — design-foundations.md §2. Motion is CSS
+ * only, on the permitted properties, at 0.4s on --ease-ui: §5.
+ */
+
+.screen {
+  min-height: 100dvh;
+  display: grid;
+  place-items: start center;
+  padding: var(--space-4) var(--space-2) var(--space-3);
+  background: var(--ivory);
+  color: var(--ink);
+}
+
+.column {
+  position: relative;
+  width: 100%;
+  max-width: 34rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Where the guest is, in the sequence — the step rail's job on `/booking`, said
+   in one line here because these steps are linear and there is nothing to go
+   back to that is not the browser's own button. */
+.step {
+  font-family: var(--font-ui), sans-serif;
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--stone-deep);
+}
+
+.title {
+  font-size: var(--text-display-sm);
+  font-weight: 300;
+  line-height: 1.1;
+}
+
+/* A headline states, a caption qualifies — design-foundations.md §6. */
+.subtitle {
+  color: var(--stone-deep);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+}
+
+/* The stay, written back. A definition list because that is what it is: four
+   labelled facts, not a table and not a paragraph. */
+.summary {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-1) var(--space-2);
+  margin: var(--space-1) 0;
+  padding: var(--space-2) 0;
+  border-top: 1px solid rgb(var(--umber-rgb) / 0.15);
+  border-bottom: 1px solid rgb(var(--umber-rgb) / 0.15);
+}
+
+.summaryLabel {
+  font-family: var(--font-ui), sans-serif;
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--stone-deep);
+}
+
+.summaryValue {
+  font-size: var(--text-sm);
+  color: var(--ink);
+}
+
+/* The figure the guest is about to be asked for. Larger than the rest because
+   it is the one number on the screen that decides anything. */
+.total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.totalLabel {
+  font-family: var(--font-ui), sans-serif;
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--stone-deep);
+}
+
+/* `--text-lg` rather than a display step: this sits beside its own label in a
+   row, and a display size would out-shout the question the screen is asking. */
+.totalAmount {
+  font-size: var(--text-lg);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin-top: var(--space-1);
+}
+
+.submit {
+  padding: 0.9rem var(--space-2);
+  font: inherit;
+  color: var(--ivory);
+  background: var(--umber);
+  border: 1px solid var(--umber);
+  cursor: pointer;
+  transition:
+    background-color 0.4s var(--ease-ui),
+    color 0.4s var(--ease-ui),
+    border-color 0.4s var(--ease-ui);
+}
+
+.submit:hover:not(:disabled) {
+  color: var(--umber);
+  background: transparent;
+}
+
+.submit:disabled {
+  cursor: default;
+  color: rgb(var(--ivory-rgb) / 0.6);
+  background: var(--stone);
+  border-color: var(--stone);
+}
+
+.secondary {
+  align-self: flex-start;
+  padding: 0;
+  font-family: var(--font-ui), sans-serif;
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--stone-deep);
+  background: none;
+  border: none;
+  border-bottom: 1px solid transparent;
+  cursor: pointer;
+  transition:
+    color 0.4s var(--ease-ui),
+    border-color 0.4s var(--ease-ui);
+}
+
+.secondary:hover {
+  color: var(--umber);
+  border-bottom-color: var(--umber);
+}
+
+/* Announced when it arrives, because it arrives after a round trip. */
+.notice {
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  padding-left: var(--space-1);
+  border-left: 2px solid var(--dusk-amber);
+  color: var(--stone-deep);
+}
+
+.error {
+  composes: notice;
+  border-left-color: var(--umber);
+  color: var(--umber);
+}
+
+.footnote {
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--stone);
+}
