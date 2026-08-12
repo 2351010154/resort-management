@@ -580,6 +580,19 @@ function aStayBody(arrival: string, plan = "STANDARD"): object {
 }
 
 /**
+ * The same stay with somebody to write to, which is what the funnel's door
+ * requires and the desk's does not — `contract/booking.ts` splits the two
+ * inputs, so the two fixtures are split the same way.
+ */
+function aHeldStayBody(arrival: string, plan?: string): object {
+  return {
+    ...aStayBody(arrival, plan),
+    contactEmail: "funnel-guest@example.test",
+    contactName: "Funnel Guest",
+  };
+}
+
+/**
  * A stay the funnel took while this guest was signed in.
  *
  * Booked through the route rather than inserted, because the account on the row
@@ -594,7 +607,7 @@ async function aGuestStay(
 ): Promise<Stay> {
   const created = await guest
     .post("/bookings/holds")
-    .send(aStayBody(arrival, plan));
+    .send(aHeldStayBody(arrival, plan));
 
   if (created.status !== 201) {
     throw new Error(`the hold was refused: ${JSON.stringify(created.body)}`);
