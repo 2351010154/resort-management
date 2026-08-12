@@ -98,6 +98,22 @@ Three entries deserve their reason:
 | `CHECKED_IN` → `CHECKED_OUT` | Release unspent nights | Folio must balance; invoice job enqueued | Room → `DIRTY`, unless it is `OUT_OF_ORDER` |
 | `NO_SHOW` → `CHECKED_IN` | Re-consume remaining nights, fail if unavailable | Reverse the no-show charge | `MANAGER` only; room may be named, and must be when none is held |
 
+**Who makes `HELD` → `CONFIRMED`.** Two callers, and the funnel's is not the
+desk's. The desk confirms by hand under `booking.write`. A guest paying online
+never touches that route — no guest holds the capability — so the transition is
+made by the gateway callback that takes the money, in the same commit as the
+payment and the folio line (`payment.service.ts`). That is what the caption
+"deposit taken" means in practice, and it is not optional: a paid stay left
+`HELD` is one the TTL sweep above cancels within two minutes, releasing a room
+the guest has paid for.
+
+Only a hold moves. Money reaching a stay that is already `CONFIRMED` or
+`CHECKED_IN` is a balance rather than a deposit, and a callback against one
+posts the payment and changes no state — a refusal there would roll back money
+the gateway has already taken. The same is true of a callback that arrives after
+the sweep has cancelled the hold: the payment posts, the cancellation stands, and
+the nightly reconciliation is what surfaces the pair.
+
 ## 4. Guards
 
 Rejections that are not about the state pair.
