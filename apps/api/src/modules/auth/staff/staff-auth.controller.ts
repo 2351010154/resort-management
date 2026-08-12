@@ -6,6 +6,12 @@
 // read is a token an injected script can take — the access token is short-lived
 // and lives in memory for exactly that reason, while the long-lived half never
 // enters the page at all.
+//
+// The cookie is also why these three stay outside the oRPC contract: nothing in
+// a contract handler reaches `Set-Cookie`. What the console shares with them
+// instead is the *shapes* — `staff-auth.dto.ts` re-exports them from
+// `@mariva/shared`, and the return types below are that session schema — so the
+// two hand-written ends of these routes break together or not at all.
 
 import {
   Body,
@@ -16,14 +22,17 @@ import {
   Req,
   Res,
   UnauthorizedException,
+  UseGuards,
 } from "@nestjs/common";
 import type { Request, Response } from "express";
 import { ENV, type Env } from "../../../config/env.js";
 import { Unguarded } from "../../../common/auth/access.decorators.js";
+import { JsonRequestGuard } from "../../../common/auth/json-request.guard.js";
 import { ZodValidationPipe } from "../../../common/validation/zod-validation.pipe.js";
 import {
   type StaffRefreshBody,
   staffRefreshSchema,
+  type StaffSession,
   type StaffSignInBody,
   staffSignInSchema,
 } from "./staff-auth.dto.js";
@@ -49,7 +58,7 @@ export class StaffAuthController {
     @Body(new ZodValidationPipe(staffSignInSchema)) body: StaffSignInBody,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
-  ): Promise<Omit<StaffSignInResult, "tokens"> & { accessToken: string; expiresIn: number }> {
+  ): Promise<StaffSession> {
     const result = await this.auth.signIn(body, contextOf(request));
 
     this.setRefreshCookie(response, result);
@@ -61,6 +70,9 @@ export class StaffAuthController {
     };
   }
 
+  // The cookie is the credential here, so the browser presents it whether or
+  // not the page that asked meant to — hence `JsonRequestGuard`.
+  @UseGuards(JsonRequestGuard)
   @Unguarded("the refresh token is the credential; no session exists yet")
   @Post("refresh")
   @HttpCode(200)
@@ -68,7 +80,7 @@ export class StaffAuthController {
     @Body(new ZodValidationPipe(staffRefreshSchema)) body: StaffRefreshBody,
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
-  ): Promise<Omit<StaffSignInResult, "tokens"> & { accessToken: string; expiresIn: number }> {
+  ): Promise<StaffSession> {
     const presented = readRefreshCookie(request) ?? body.refreshToken;
 
     if (!presented) {
@@ -86,6 +98,7 @@ export class StaffAuthController {
     };
   }
 
+  @UseGuards(JsonRequestGuard)
   @Unguarded("ends a session; refusing an expired one would strand the cookie")
   @Post("sign-out")
   @HttpCode(204)
@@ -95,12 +108,10 @@ export class StaffAuthController {
   ): Promise<void> {
     await this.auth.signOut(readRefreshCookie(request));
 
-    response.clearCookie(REFRESH_COOKIE_NAME, {
-      path: REFRESH_COOKIE_PATH,
-      httpOnly: true,
-      sameSite: "lax",
-      secure: this.env.NODE_ENV === "production",
-    });
+    // Every attribute except `maxAge` has to match the cookie being cleared, or
+    // the browser treats this as a different cookie and leaves the real one in
+    // place — which is why both calls read the same object.
+    response.clearCookie(REFRESH_COOKIE_NAME, this.refreshCookieAttributes());
   }
 
   private setRefreshCookie(
@@ -108,15 +119,52 @@ export class StaffAuthController {
     result: StaffSignInResult,
   ): void {
     response.cookie(REFRESH_COOKIE_NAME, result.tokens.refreshToken, {
-      httpOnly: true,
-      // `lax` rather than `strict` for the same reason as the guest realm: the
-      // console is reached from a bookmark or a link, and `strict` would drop
-      // the cookie on that first navigation and demand a fresh sign-in.
-      sameSite: "lax",
-      secure: this.env.NODE_ENV === "production",
-      path: REFRESH_COOKIE_PATH,
+      ...this.refreshCookieAttributes(),
       maxAge: REFRESH_TOKEN_TTL_SECONDS * 1000,
     });
+  }
+
+  /**
+   * How the refresh cookie is scoped, and why `sameSite` is not one value.
+   *
+   * The console is served from a different site than this API — Vercel and
+   * Fly.io per `docs/architecture/infrastructure.md` §2 — and `WEB_ORIGIN` and
+   * `ADMIN_ORIGIN` being named separately for credentialed CORS is the same
+   * fact stated in `main.ts`. A `lax` cookie is not sent on a cross-site
+   * request and not even stored from one, so in production it would leave the
+   * console signing in successfully and losing the session at the first token
+   * renewal, with no way to restore it on reload. `none` is what a cookie
+   * crossing sites has to say, and the browser only accepts it alongside
+   * `secure`.
+   *
+   * Development stays `lax`: `localhost:3002` and `localhost:3001` differ by
+   * port, which is not a different site, so the stricter value works there —
+   * and `none` could not be used anyway, because it needs the HTTPS that a
+   * local API does not serve.
+   *
+   * Neither is `strict`. The console is reached from a bookmark or a link, and
+   * `strict` would drop the cookie on that first navigation and demand a fresh
+   * sign-in.
+   *
+   * What `lax` was also doing, silently, was keeping cross-site requests from
+   * carrying this cookie at all. `none` gives that up, so the two routes the
+   * cookie alone authorises say what they accept instead —
+   * `JsonRequestGuard`.
+   */
+  private refreshCookieAttributes(): {
+    httpOnly: true;
+    sameSite: "lax" | "none";
+    secure: boolean;
+    path: string;
+  } {
+    const isProduction = this.env.NODE_ENV === "production";
+
+    return {
+      httpOnly: true,
+      sameSite: isProduction ? "none" : "lax",
+      secure: isProduction,
+      path: REFRESH_COOKIE_PATH,
+    };
   }
 }
 
