@@ -114,6 +114,35 @@ describe("the booking row", () => {
     expect(booking.childAges.getSQLType()).toBe("smallint[]");
   });
 
+  it("carries the account that booked it in the type that account's ids are", () => {
+    // `guest_user.id` is Better Auth's 32-character base-62 string, and
+    // `guest-auth.ts` says why that table takes no database-generated key. A
+    // `uuid` here would be a foreign key Postgres refuses to create at all.
+    expect(booking.userId.getSQLType()).toBe("text");
+
+    const account: BookingRow["userId"] = "3Xk2p9QwR7tL1sVn4cB8dF6hJ0mZyU5e";
+
+    expect(account).toHaveLength(32);
+  });
+
+  it("finds one account's stays by an index that skips every walk-in", () => {
+    // Most stays at a forty-room property are taken at the desk and carry no
+    // account, so the index holds the rows the question is asked about and not
+    // the nulls underneath them — `booking_hold_expires_at_idx`'s argument.
+    const own = getTableConfig(booking).indexes.find(
+      (declared) => declared.config.name === "booking_user_id_idx",
+    );
+
+    expect(own?.config.where).toBeDefined();
+    expect(
+      (own?.config.columns ?? []).map((column) =>
+        "name" in column && typeof column.name === "string"
+          ? column.name
+          : "(expression)",
+      ),
+    ).toEqual(["user_id"]);
+  });
+
   it("leaves nullable exactly the columns a live booking may lack", () => {
     // A reason and an instant belong to a cancellation, an expiry to a hold, a
     // breakfast figure to `BB`, and a waiver to the manager who granted one.
@@ -126,6 +155,10 @@ describe("the booking row", () => {
     expect(booking.penaltyWaivedBy.notNull).toBe(false);
     expect(booking.holdExpiresAt.notNull).toBe(false);
     expect(booking.quotedBreakfastPerPersonGross.notNull).toBe(false);
+    // And the account, which most bookings do not have: a walk-in is somebody
+    // at the counter, and a `NOT NULL` here would mean inventing an account
+    // for a guest who will never sign in.
+    expect(booking.userId.notNull).toBe(false);
 
     expect(booking.quotedStayTotalGross.notNull).toBe(true);
     expect(booking.quotedPercentAdjustment.notNull).toBe(true);

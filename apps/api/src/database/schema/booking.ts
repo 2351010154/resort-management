@@ -14,7 +14,9 @@
 // - **The guest.** A booking is taken before anyone is identified — the funnel
 //   holds a room and asks for a name afterwards. The guest record and its
 //   foreign key are the next migration's, and nothing here needs one to be
-//   correct.
+//   correct. `user_id` below is not that: an account is who *booked*, and a
+//   `guest`/`registration` row is who slept in the room. The two are different
+//   questions and a stay routinely answers only one of them.
 // - **Charges, postings and refunds.** M4 computes the cancellation and no-show
 //   amounts and persists none of them. The folio is M6, and a money table
 //   written before the ledger that owns it is a second place for a balance to
@@ -35,6 +37,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
+import { user as guestUser } from "./guest-auth.js";
 import { staffUser } from "./identity.js";
 import { roomType } from "./inventory.js";
 import { ratePlanCodeEnum } from "./pricing.js";
@@ -79,6 +82,21 @@ export const booking = pgTable(
     // business and is not pinned here, so changing the format is not a
     // migration that has to rewrite every historical row.
     reference: text("reference").notNull().unique(),
+    // The account that made the booking, when one did.
+    //
+    // Nullable, and it will stay mostly null: a walk-in, a phone reservation
+    // and every stay the desk takes has nobody signed in behind it, and a
+    // `NOT NULL` here would mean inventing an account for a guest who will
+    // never log in. What the column buys is the ownership check `FR-GST-01`
+    // asks for — "always scoped to the requester's own record" — which the
+    // matrix calls `conditional` and leaves to the handler. Without a column
+    // the handler has nothing to compare, which is exactly why
+    // `contract/booking.ts` records `read-own` and `cancel-own` as blocked.
+    //
+    // `text` and not `uuid`, because `guest_user.id` is Better Auth's own
+    // 32-character base-62 string — `guest-auth.ts` says why that table takes
+    // no database-generated key.
+    userId: text("user_id").references(() => guestUser.id),
     state: bookingStateEnum("state").notNull(),
     cancellationReason: cancellationReasonEnum("cancellation_reason"),
     roomTypeId: uuid("room_type_id")
@@ -167,6 +185,13 @@ export const booking = pgTable(
     index("booking_hold_expires_at_idx")
       .on(table.holdExpiresAt)
       .where(sql`${table.holdExpiresAt} is not null`),
+    // "My bookings", which is the only question this column is read by. Partial
+    // for the reason the expiry above is: most stays at a forty-room property
+    // are taken at the desk and carry no account at all, and an index over
+    // those nulls would be an index of the rows nobody looks this way up by.
+    index("booking_user_id_idx")
+      .on(table.userId)
+      .where(sql`${table.userId} is not null`),
     // A stay of no nights is not a booking. `room_assignment` refuses the same
     // row for the same reason — an empty range holds nothing and collides with
     // nothing, which is how a booking would slip past the guarantee inventory
