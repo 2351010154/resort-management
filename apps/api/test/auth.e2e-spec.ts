@@ -254,13 +254,56 @@ describe("the staff realm", () => {
 
     const cookie = refreshCookie(signIn);
 
-    await http().post("/auth/staff/sign-out").set("cookie", cookie).expect(204);
+    await http()
+      .post("/auth/staff/sign-out")
+      .set("cookie", cookie)
+      .send({})
+      .expect(204);
 
     await http()
       .post("/auth/staff/refresh")
       .set("cookie", cookie)
       .send({})
       .expect(401);
+  });
+
+  // The refresh cookie is `sameSite: none` in production so the console can
+  // hold it across sites, which also means any site can make the browser send
+  // it. A cross-site `<form>` can only post these content types, so refusing
+  // them is what keeps a page an operator merely visits from revoking their
+  // session or rotating their token behind their back.
+  it.each([
+    "application/x-www-form-urlencoded",
+    "multipart/form-data",
+    "text/plain",
+  ])("refuses a %s post to the cookie-authorised routes", async (contentType) => {
+    const signIn = await http()
+      .post("/auth/staff/sign-in")
+      .send({ email: ADMIN.email, password: ADMIN.password })
+      .expect(200);
+
+    const cookie = refreshCookie(signIn);
+
+    await http()
+      .post("/auth/staff/sign-out")
+      .set("cookie", cookie)
+      .set("content-type", contentType)
+      .send("")
+      .expect(401);
+
+    await http()
+      .post("/auth/staff/refresh")
+      .set("cookie", cookie)
+      .set("content-type", contentType)
+      .send("")
+      .expect(401);
+
+    // Refused rather than spent: the cookie still works for the console.
+    await http()
+      .post("/auth/staff/refresh")
+      .set("cookie", cookie)
+      .send({})
+      .expect(200);
   });
 
   it("stops a deactivated account at the next request", async () => {
