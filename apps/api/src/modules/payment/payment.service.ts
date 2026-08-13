@@ -137,6 +137,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import { ORPCError } from "@orpc/nest";
 import { and, eq } from "drizzle-orm";
 import type { DbExecutor } from "../../database/database.module.js";
+import { booking } from "../../database/schema/booking.js";
 import { folio } from "../../database/schema/folio.js";
 import { payment, type PaymentRow } from "../../database/schema/payment.js";
 import { sqlStateOf } from "../../database/sql-state.js";
@@ -165,6 +166,17 @@ const UNIQUE_VIOLATION = "23505";
  * two ends should hold it.
  */
 const GATEWAY_METHOD = "VNPAY";
+
+/**
+ * What a guest is told about a stay that is not theirs and about one that is not
+ * there — the same sentence, said in one place so the two cannot drift apart.
+ *
+ * `mayCollectFor` argues why they read alike: a reply that separated them would
+ * confirm which ids name real stays to a caller holding one they should not
+ * have.
+ */
+const NO_STAY_OF_YOURS =
+  "No booking of yours has that id, so there is nothing here for you to pay for";
 
 /** A uuid with its hyphens taken out. */
 const UUID_HEX_LENGTH = 32;
@@ -477,6 +489,8 @@ export class PaymentService {
         });
       }
 
+      await this.collectsTheWholeStay(exec, request);
+
       return;
     }
 
@@ -491,10 +505,60 @@ export class PaymentService {
         request.guestAccountId,
       ))
     ) {
-      throw new ORPCError("NOT_FOUND", {
+      throw new ORPCError("NOT_FOUND", { message: NO_STAY_OF_YOURS });
+    }
+
+    await this.collectsTheWholeStay(exec, request);
+  }
+
+  /**
+   * The one amount a guest may open an attempt for — the stay's frozen total.
+   *
+   * **The amount is the guest's to send and not the guest's to choose.** The
+   * property collects the whole stay before arrival, so there is exactly one
+   * figure a guest door may be opened for; without this refusal a hostile client
+   * opens an attempt for a thousand đồng, pays it, and comes back holding a
+   * gateway success. Nothing downstream would catch it: {@link PaymentService}'s
+   * `record` confirms a paid hold from the callback's *status* and never from
+   * its amount, and it is right not to — `booking-state-machine.md` §3 captions
+   * `HELD → CONFIRMED` "deposit taken" and a refusal there would roll back money
+   * the gateway has already taken. So the only moment this can be refused is
+   * before an attempt exists to be paid, which is here.
+   *
+   * **Against `quoted_stay_total_gross` and never against a figure priced now.**
+   * §8 freezes what a booking was quoted and `assignment.service.ts` rewrites
+   * that column when a stay's room type changes, so the column *is* this stay's
+   * current price by construction — where a second calculation here would be a
+   * number that could disagree with the one the guest was shown.
+   *
+   * **The desk never reaches this.** All four staff roles hold the row `full`
+   * and a desk collects deposits, part payments and balances against one stay;
+   * that is a different operation performed by somebody the property has already
+   * trusted with the till, and scoping it would refuse the ordinary case.
+   */
+  private async collectsTheWholeStay(
+    exec: DbExecutor,
+    request: GatewayPaymentRequest,
+  ): Promise<void> {
+    const [stay] = await exec
+      .select({ quoted: booking.quotedStayTotalGross })
+      .from(booking)
+      .where(eq(booking.id, request.bookingId))
+      .limit(1);
+
+    // Unreachable from the account branch, which has just proved the row by
+    // matching it, and reachable from the proven branch only if the stay a
+    // credential names has gone. The same sentence either way, for the reason
+    // the branch above gives it.
+    if (!stay) {
+      throw new ORPCError("NOT_FOUND", { message: NO_STAY_OF_YOURS });
+    }
+
+    if (request.amount !== stay.quoted) {
+      throw new ORPCError("BAD_REQUEST", {
         message:
-          "No booking of yours has that id, so there is nothing here for you " +
-          "to pay for",
+          "The property collects the whole stay before arrival, so an attempt " +
+          "is opened for what the stay was quoted and not for part of it",
       });
     }
   }

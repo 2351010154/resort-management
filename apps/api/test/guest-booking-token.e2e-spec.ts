@@ -161,6 +161,15 @@ class StoppedClock extends BusinessDateService {
 interface Stay {
   readonly id: string;
   readonly reference: string;
+  /**
+   * What the API priced the stay at, as the wire carries it.
+   *
+   * Read off the hold rather than written down here, because it is the only
+   * amount the payment door below will take — `payment.service.ts` refuses a
+   * guest anything but the stay's frozen total — and a figure this file chose
+   * would be one the calendar could move out from under.
+   */
+  readonly total: string;
   /** The browser that took it, cookie jar and all. */
   readonly browser: request.Agent;
 }
@@ -492,11 +501,28 @@ describe("paying for the stay the credential names", () => {
 
     const opened = await stay.browser
       .post(attemptPath(stay.id))
-      .send({ amount: "100000", description: `Stay ${stay.reference}` })
+      .send({ amount: stay.total, description: `Stay ${stay.reference}` })
       .expect(200);
 
     expect(opened.body.paymentUrl).toMatch(/^https?:\/\//);
     expect(opened.body.reference).toMatch(/\S/);
+  });
+
+  it("refuses an attempt for part of the stay, and opens nothing", async () => {
+    // The credential proves which stay is being paid for and says nothing about
+    // how much of it. The property collects the whole stay before arrival, so
+    // the amount is refused against the total the hold was priced at — and it
+    // has to be refused here, because the callback that would follow confirms a
+    // paid hold from its status rather than from its amount.
+    const stay = await aStay();
+    const before = await attemptsOnFile();
+
+    await stay.browser
+      .post(attemptPath(stay.id))
+      .send({ amount: "1000", description: "A thousand đồng of it" })
+      .expect(400);
+
+    expect(await attemptsOnFile()).toBe(before);
   });
 
   it("refuses an attempt against another stay", async () => {
@@ -507,7 +533,7 @@ describe("paying for the stay the credential names", () => {
 
     await mine.browser
       .post(attemptPath(theirs.id))
-      .send({ amount: "100000", description: "Not mine to pay for" })
+      .send({ amount: theirs.total, description: "Not mine to pay for" })
       .expect(403);
 
     // Refused before anything was written: `mayCollectFor` runs ahead of the
@@ -706,6 +732,7 @@ async function anAnonymousHold(): Promise<
   return {
     id: created.body.id as string,
     reference: created.body.reference as string,
+    total: created.body.stayTotalGross as string,
     browser,
     setCookie,
   };
