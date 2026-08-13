@@ -89,13 +89,32 @@ describe("the hold rate limit", () => {
     ).toBe(1);
   });
 
-  it("keeps counting an address that is shorter than a prefix", () => {
-    // `::1` and the like: already narrower than a /64's worth of groups, so it
-    // is its own key rather than being truncated into one shared by everything.
+  it("counts a /64 whose written form elides the groups it is cut at", () => {
+    // The case a cut of the written form gets wrong. `2001:db8::7` is
+    // `2001:db8:0:0:…:7`, so these three are one /64 and one caller — but the
+    // `::` sits where the prefix is read from, and text sliced at the fourth
+    // colon would hand each of them a window of its own. The host part is the
+    // caller's to choose, so that is an unbounded allowance on the one public
+    // write.
+    const subject = guard(2);
+
+    expect(allowed(subject, ["2001:db8::7", "2001:db8::8", "2001:db8::9"])).toBe(
+      2,
+    );
+
+    // Still a different /64, so still a different caller.
+    expect(allowed(subject, ["2001:db9::7"])).toBe(1);
+  });
+
+  it("counts an address shorter than a prefix by the prefix it expands to", () => {
+    // `::1` and the link-local below are elided down to fewer groups than a /64
+    // has, and they are expanded like any other rather than kept whole: two
+    // hosts on one link are one caller, which is the same rule the case above
+    // states for a routed prefix.
     const subject = guard(1);
 
     expect(allowed(subject, ["::1", "::1"])).toBe(1);
-    expect(allowed(subject, ["fe80::2"])).toBe(1);
+    expect(allowed(subject, ["fe80::2", "fe80::3"])).toBe(1);
   });
 
   it("refuses a caller with no address at all as one caller", () => {
