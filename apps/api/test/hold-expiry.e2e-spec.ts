@@ -254,7 +254,10 @@ describe("the sweep as the runner requires it", () => {
       expect(registered).toBeInstanceOf(HoldExpirySweep);
       // Minutes, not hours. A TTL collected once a night would hold a room for
       // a day, which is the sweep running and the requirement still unmet.
-      expect(registered?.schedule).toMatch(/^\*\/\d+ \* \* \* \*$/);
+      // Every minute or every few of them — the cadence is the property's
+      // tolerance for how long an abandoned hold keeps a room, and either shape
+      // of the minute field satisfies the claim this case makes.
+      expect(registered?.schedule).toMatch(/^(\*|\*\/\d+) \* \* \* \*$/);
     } finally {
       await app.close();
     }
