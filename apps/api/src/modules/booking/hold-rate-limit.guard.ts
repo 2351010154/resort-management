@@ -19,13 +19,16 @@
 // machine is started the counter has to move to a shared store rather than
 // being tuned down to compensate.
 //
-// **The caller's address is the edge's word, not the client's.** `main.ts`
-// trusts exactly one proxy hop, so `request.ip` is what Fly appended to
-// `X-Forwarded-For` and not what a client put there. That is a property of the
-// deployment: reached off the proxy — a private-network address, or a future
-// host that does not rewrite the header — a caller could name their own address
-// and hold a private counter. The limiter is a cost, not an authorisation
-// decision, and this is the assumption it rests on.
+// It is also why this is a rate and not the whole answer. A limit that resets
+// per process cannot bound how many rooms are held at one moment, so
+// `booking.service.ts` bounds that in SQL — three live holds per caller — and
+// keys it off the same {@link callerOf} this counts by. The two are one policy
+// with one definition of a caller, and neither is a substitute for the other:
+// this refuses a caller asking too often, that refuses a caller holding too
+// much.
+//
+// **Who a caller is lives in `caller-key.ts`**, with the argument for the /64
+// and for the proxy hop the address is read off.
 //
 // **Fixed windows, not a token bucket.** A window that resets lets a caller
 // spend the whole allowance at the boundary and again immediately after, which
@@ -43,6 +46,7 @@ import {
   Injectable,
 } from "@nestjs/common";
 import type { Request } from "express";
+import { callerOf } from "./caller-key.js";
 
 /** How many holds one address may take, and over what. */
 export interface HoldRateLimitPolicy {
@@ -81,19 +85,6 @@ export const DEFAULT_HOLD_RATE_LIMIT: HoldRateLimitPolicy = {
  * expensive rather than to be an authorisation decision.
  */
 const TRACKED_CEILING = 10_000;
-
-/**
- * IPv6 is keyed by its /64 and not by the address.
- *
- * A client holds a whole /64 — eighteen quintillion addresses — at no cost, so
- * an exact-address key is a limit that binds the NAT'd family sharing one v4
- * address and nobody who is actually automating this. The prefix is the smallest
- * unit an operator hands out, so it is the unit worth counting.
- */
-const IPV6_PREFIX_GROUPS = 4;
-
-/** What an address has when none of it is elided. */
-const IPV6_GROUPS = 8;
 
 interface Window {
   count: number;
@@ -160,58 +151,4 @@ export class HoldRateLimitGuard implements CanActivate {
       this.windows.delete(oldest[0]);
     }
   }
-}
-
-/**
- * The caller a window is counted against — an address, or the prefix it sits
- * in when the address is IPv6.
- *
- * Express hands v4-mapped v6 addresses through as `::ffff:203.0.113.7`, which
- * is one address and is treated as one. A real v6 address is cut to its /64 for
- * the reason {@link IPV6_PREFIX_GROUPS} gives.
- */
-function callerOf(address: string | undefined): string {
-  if (!address) {
-    return "unknown";
-  }
-
-  if (!address.includes(":") || address.includes(".")) {
-    return address;
-  }
-
-  return expanded(address).slice(0, IPV6_PREFIX_GROUPS).join(":");
-}
-
-/**
- * The eight groups of an address, with anything a `::` stands in for written
- * out.
- *
- * Expanded before it is cut, and that order is the whole of it. A `::` elides a
- * run of zero groups that may begin anywhere, so the first four groups of the
- * *written* form are not the prefix whenever the run starts inside them:
- * `2001:db8::7` is `2001:db8:0:0:0:0:0:7`, and cutting the text would key it
- * under the whole address while `2001:db8::8` — the same /64, one host along —
- * took a window of its own. A caller who holds the prefix picks the host part,
- * so that is an allowance per address on the one door that takes rooms off the
- * shelf, which is exactly what {@link IPV6_PREFIX_GROUPS} exists to stop.
- *
- * A `::` appears at most once, which is what lets the two sides be read off a
- * single split. Nothing here validates the address: a malformed one keys to
- * whatever it expands to, because this is a counter rather than a parser, and
- * the zero count is floored so that a caller cannot turn one into a 500 on a
- * public route.
- */
-function expanded(address: string): string[] {
-  const groupsOf = (part: string) => (part === "" ? [] : part.split(":"));
-
-  if (!address.includes("::")) {
-    return groupsOf(address);
-  }
-
-  const [head = "", tail = ""] = address.split("::");
-  const stated = groupsOf(head);
-  const trailing = groupsOf(tail);
-  const elided = Math.max(IPV6_GROUPS - stated.length - trailing.length, 0);
-
-  return [...stated, ...Array<string>(elided).fill("0"), ...trailing];
 }

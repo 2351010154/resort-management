@@ -51,9 +51,9 @@ import {
   type RoomTypeCode,
   type StayDate,
 } from "@mariva/shared";
-import { Controller, Res, UseGuards } from "@nestjs/common";
+import { Controller, Req, Res, UseGuards } from "@nestjs/common";
 import { Implement, implement, ORPCError } from "@orpc/nest";
-import type { Response } from "express";
+import type { Request, Response } from "express";
 import {
   CurrentPrincipal,
   RequiresCapability,
@@ -69,6 +69,7 @@ import {
   BookingService,
   type CreateBookingInput,
 } from "./booking.service.js";
+import { callerOf } from "./caller-key.js";
 import { HoldRateLimitGuard } from "./hold-rate-limit.guard.js";
 
 /** The stay as it arrived, in the shape the service takes. */
@@ -106,12 +107,28 @@ export class BookingController {
    * their booking to somebody else's history — and `FR-GST-01` scopes every
    * read of that history to the requester, so the write has to be scoped by the
    * same authority the read will be.
+   *
+   * **The caller travels with the stay, and it is the same caller the guard
+   * counted.** `HoldRateLimitGuard` bounds how often this address may ask;
+   * `booking.service.ts` bounds how many rooms it may be holding when it stops
+   * asking, and the two are one policy only if they agree about who asked — so
+   * both read `caller-key.ts` off the address the proxy reported rather than
+   * each deciding for itself. Passed raw and stored hashed: nothing in this
+   * request needs an address, and `schema/booking.ts` says why the column may
+   * not hold one.
+   *
+   * Staff are not exempt, and there is nothing to exempt them from that the
+   * limiter above does not already apply. A receptionist reaching this row is
+   * taking a funnel booking on somebody's behalf and holds the room exactly as
+   * a guest would; the walk-in they take at the counter goes through
+   * {@link createConfirmed}, which has no TTL and so nothing to cap.
    */
   @UseGuards(HoldRateLimitGuard)
   @RequiresCapability("booking.create-own")
   @Implement(contract.booking.createHold)
   createHold(
     @CurrentPrincipal() principal: Principal | null,
+    @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
     return implement(contract.booking.createHold).handler(async ({ input }) => {
@@ -120,6 +137,7 @@ export class BookingController {
           ...asCreateInput(input),
           userId: bookingAccount(principal),
           contact: { email: input.contactEmail, name: input.contactName },
+          caller: callerOf(request.ip ?? request.socket.remoteAddress),
         }),
       );
 

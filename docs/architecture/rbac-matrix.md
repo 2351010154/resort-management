@@ -101,7 +101,7 @@ Legend: ✅ full · 👁 read-only · ⚠ conditional, see notes · — denied
 | Capability | G | RCP | HK | ACC | MGR | ADM | Notes |
 |---|:-:|:-:|:-:|:-:|:-:|:-:|---|
 | Availability + rate search | ✅ | ✅ | — | 👁 | ✅ | ✅ | Public, unauthenticated |
-| Create own booking | ✅ | ✅ | — | — | ✅ | ✅ | Public, unauthenticated; staff create on behalf; hold rate-limited |
+| Create own booking | ✅ | ✅ | — | — | ✅ | ✅ | Public, unauthenticated; staff create on behalf; a hold is rate-limited, capped at three live per caller, and capped as a share of each night while the caller has no account — `booking-state-machine.md` §3 |
 | Read own booking / stay history | ⚠ | — | — | — | — | — | Own records only; session or booking token |
 | Cancel own booking | ⚠ | — | — | — | — | — | Own, penalty per policy; session or booking token |
 | Own profile, loyalty, VIP tier | ⚠ | 👁 | — | — | 👁 | 👁 | |

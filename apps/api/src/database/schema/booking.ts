@@ -165,6 +165,28 @@ export const booking = pgTable(
       withTimezone: true,
       mode: "date",
     }),
+    // Who is holding it, as a digest — the column the concurrent-hold cap counts.
+    //
+    // `booking.create-own` is the one unauthenticated write that takes rooms off
+    // the shelf, and the rate in front of it bounds how *often* a caller may ask
+    // rather than how much they may hold at once. The difference is the whole
+    // reason for this column: an in-process counter cannot answer "how many
+    // rooms is this caller holding right now" across a restart or a second
+    // machine, and the rows themselves can. `booking.service.ts` counts the live
+    // holds carrying this value and refuses the fourth.
+    //
+    // **A salted digest and never an address.** `caller-key.ts` derives it, and
+    // says why the salt is the secret the API already requires: what the cap
+    // needs is equality between two requests, and equality is all a hash gives.
+    // Storing the address instead would put personal data about somebody who has
+    // not signed up for anything on a row every report joins to.
+    //
+    // Null on every stay the desk takes and on every hold taken outside a
+    // request — a sweep, a seed, a service test — so its presence is not what
+    // makes a row a hold. `booking_held_by_only_while_held` states the direction
+    // that is load-bearing instead: the value dies with the hold it bounds, so a
+    // caller cannot be charged for a room they gave back.
+    heldBy: text("held_by"),
 
     // ── How the stay ended, and on whose authority ───────────────────────────
     // The moment the cancellation arrived. §4's free window turns on an instant
@@ -216,6 +238,15 @@ export const booking = pgTable(
     index("booking_user_id_idx")
       .on(table.userId)
       .where(sql`${table.userId} is not null`),
+    // What the concurrent-hold cap asks, on the one route a stranger can reach:
+    // how many rooms this caller is holding. Partial on the state rather than on
+    // the column, because the cap counts live holds and every other state is a
+    // row it must never count — the check below keeps the two predicates
+    // describing the same set, and the state is the one the query is written
+    // against.
+    index("booking_held_by_idx")
+      .on(table.heldBy)
+      .where(sql`${table.state} = 'HELD'`),
     // A stay of no nights is not a booking. `room_assignment` refuses the same
     // row for the same reason — an empty range holds nothing and collides with
     // nothing, which is how a booking would slip past the guarantee inventory
@@ -260,6 +291,18 @@ export const booking = pgTable(
     check(
       "booking_hold_expiry_exactly_when_held",
       sql`(${table.state} = 'HELD') = (${table.holdExpiresAt} is not null)`,
+    ),
+    // One direction only, and the asymmetry with the expiry above is the point.
+    // A caller key outliving its hold is a caller charged for a room they gave
+    // back — a confirmed stay would go on counting against the three a caller
+    // may hold until the guest checked out — so the value is refused on every
+    // row that is not `HELD`. The converse is not true and must not be: a hold
+    // taken by the sweep's own fixtures, by the seed or by a service call has no
+    // request behind it and so no caller to name, and a biconditional would
+    // refuse those rows for having nobody to blame.
+    check(
+      "booking_held_by_only_while_held",
+      sql`${table.heldBy} is null or ${table.state} = 'HELD'`,
     ),
     // A room sleeps somebody. Zero adults with a list of children is a party
     // nobody could check in.

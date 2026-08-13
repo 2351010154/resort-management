@@ -31,7 +31,7 @@ import type { StayDate } from "@mariva/shared";
 import type { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import { call } from "@orpc/server";
-import type { Response } from "express";
+import type { Request, Response } from "express";
 import { eq, sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import request from "supertest";
@@ -502,9 +502,17 @@ describe("account attribution at the booking controller boundary", () => {
 
   it("keeps a null principal anonymous at the concrete handler", async () => {
     const controller = app.get(BookingController);
-    // The response is the handler's only other collaborator: the hold issues
-    // the booking-scoped cookie on it. Captured rather than stubbed away, so a
-    // handler that stopped issuing one would show up here as well.
+    // The request is the handler's second collaborator, and it is here for one
+    // field: the address the hold is counted against. Named rather than left
+    // empty so this case cannot be the one that shares a caller key with
+    // another — the concurrent-hold cap counts by it.
+    const request = {
+      ip: "198.51.100.203",
+      socket: {},
+    } as unknown as Request;
+    // The response is the third: the hold issues the booking-scoped cookie on
+    // it. Captured rather than stubbed away, so a handler that stopped issuing
+    // one would show up here as well.
     const issued: [string, string, object][] = [];
     const response = {
       cookie: (name: string, value: string, options: object) => {
@@ -512,7 +520,7 @@ describe("account attribution at the booking controller boundary", () => {
       },
     } as unknown as Response;
 
-    const created = await call(controller.createHold(null, response), {
+    const created = await call(controller.createHold(null, request, response), {
       ...A_HELD_STAY,
       checkIn: "2028-05-15",
       checkOut: "2028-05-17",
