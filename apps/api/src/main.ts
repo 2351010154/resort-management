@@ -36,6 +36,15 @@ async function bootstrap(): Promise<void> {
 
   const env = app.get<Env>(ENV);
 
+  // One proxy in front of this process — Fly's — and its `X-Forwarded-For` is
+  // where the caller's address is. Without this, `request.ip` is the proxy on
+  // every deployed request, which would make the funnel's rate limit
+  // (`hold-rate-limit.guard.ts`) one shared counter for the whole internet and
+  // the staff session log a record of Fly talking to itself. `1` and not `true`:
+  // trusting the whole chain would let a caller prepend an address of their
+  // choosing and get a private counter per forged hop.
+  app.set("trust proxy", 1);
+
   // Two origins, named rather than wildcarded, credentials on. A guest session
   // is a cookie and a staff session sends a bearer token, and neither crosses
   // an origin the browser has not been told to trust — `credentials: true`
