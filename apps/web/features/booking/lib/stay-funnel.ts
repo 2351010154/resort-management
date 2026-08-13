@@ -8,11 +8,13 @@
 // rather than from whatever the tab was carrying, which is what makes refresh
 // and the browser's back button work on steps that can expire.
 //
-// **The contact pair goes up with the hold**, because the API's funnel door
-// requires it: a stay taken on the web is one the property has to be able to
-// write to, and the desk's door — which takes a walk-in standing at the counter
-// — does not ask. It is an address and a name and nothing else; the phone is
-// checked against a document at check-in.
+// **The contact pair goes up just after the hold**, on its own door. The API's
+// funnel door takes the room and the nights and asks nobody who they are — a
+// hold that expires unpaid is inventory coming back, and the property has
+// nothing to send anybody about it — so the pair is written against the stay
+// that exists. A stay taken on the web is still one the property has to be able
+// to write to; what changed is which request carries it. It is an address and a
+// name and nothing else; the phone is checked against a document at check-in.
 //
 // **The amount is never sent up.** `createHold` takes the room, the nights, the
 // party and that pair, and the API prices them — `contract/booking.ts` is explicit that an
@@ -59,10 +61,10 @@ export function stayTotal(stay: HeldStay): bigint {
 /**
  * Who the confirmation goes to, and what to call them.
  *
- * Collected at the hold rather than after it, because the API's funnel door
- * requires the pair — `contract/booking.ts` splits the two creating inputs so
- * that a stay taken on the web always has somebody to write to, where a walk-in
- * the desk takes has nobody to write to and is not asked for one.
+ * Named against the hold rather than beside the request that takes it —
+ * `contract/booking.ts` moved the ask off the funnel's creating door, so what
+ * carries the pair is {@link holdStay}'s second call. A walk-in the desk takes
+ * has nobody to write to and is asked for neither.
  *
  * No phone. It is checked against a document at check-in, where the desk already
  * asks for it, and a number typed into a funnel is neither verified nor needed
@@ -110,9 +112,20 @@ export interface StayRequest {
  * cannot both reach a payment page for the last room. What comes back carries
  * the id the next three screens are addressed by and the expiry they count
  * down to.
+ *
+ * **Two calls, because the hold's door no longer takes a contact.** The API asks
+ * for the room first and for who is taking it second — `contract/booking.ts`
+ * argues the move — so the pair goes up against the stay that now exists rather
+ * than beside the request that creates it. The second call is what the screens
+ * read back, since it answers the same stay with the pair written on it.
+ *
+ * The order is the safe one: a hold that is refused never names anybody, and a
+ * contact that fails to save leaves a hold the guest still owns and the funnel
+ * can ask again on. Nothing here reserves a room in the guest's name before the
+ * property has agreed to hold it.
  */
 export async function holdStay(request: StayRequest): Promise<HeldStay> {
-  return await api.booking.createHold({
+  const held = await api.booking.createHold({
     roomType: request.roomType,
     // The nine characters the contract's codec decodes back into a
     // `CalendarDate` on the other side. A `Date` here would be an instant, and
@@ -122,6 +135,10 @@ export async function holdStay(request: StayRequest): Promise<HeldStay> {
     plan: request.plan,
     adults: request.adults,
     childAges: [...request.childAges],
+  });
+
+  return await api.booking.setOwnHoldContact({
+    bookingId: held.id,
     // Trimmed here rather than at the input, so the field a guest is typing in
     // never has characters removed under the cursor.
     contactEmail: request.contact.email.trim(),
