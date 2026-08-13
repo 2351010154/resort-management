@@ -261,12 +261,12 @@ export class PaymentController {
    *
    * **The handler adds no rule of its own, and that is deliberate.**
    * {@link PaymentService.createPaymentRequest} already refuses an amount of
-   * nothing or less, refuses an id that is not a booking's, and refuses a guest
-   * a stay that is not theirs — each before a row is written or a payer is sent
-   * anywhere, and each carrying an `ORPCError` that reaches the caller as the
-   * status it was written to be. A copy of any of them here would be a second
-   * place for one decision to live, and the two would agree until one was
-   * reworded.
+   * nothing or less, refuses an id that is not a booking's, refuses a guest a
+   * stay that is not theirs, and refuses a guest any amount but what that stay
+   * was quoted — each before a row is written or a payer is sent anywhere, and
+   * each carrying an `ORPCError` that reaches the caller as the status it was
+   * written to be. A copy of any of them here would be a second place for one
+   * decision to live, and the two would agree until one was reworded.
    *
    * **Three of the six fields the service needs are the request's, not the
    * body's.** A caller that could name its own `returnUrl` could send the payer
