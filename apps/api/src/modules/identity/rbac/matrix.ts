@@ -128,6 +128,56 @@ export const CAPABILITIES = [
     note: "Own, penalty per policy; session or booking token",
   },
   {
+    // The pair the funnel's review screen collects, against a hold the caller
+    // already has. Its own row rather than a second use of the create row above:
+    // that one is public and takes rooms off the shelf, this one is authenticated
+    // and edits a stay, and folding them together would make the unauthenticated
+    // door wider than it is.
+    //
+    // The same two credentials as the read and the cancellation, for the same
+    // reason — a guest who held a room without signing up has no session, and a
+    // funnel that could not learn their address would have nowhere to send the
+    // confirmation.
+    //
+    // Denied to every staff role. A receptionist correcting a guest's address
+    // does it on the booking through the desk's own doors, where the change is
+    // audited as the desk's act; this row is the guest speaking for themselves.
+    key: "booking.contact-own",
+    section: "Public and guest realm",
+    row: "Name the contact on own hold",
+    unauthenticated: false,
+    guest: "conditional",
+    staff: staff({}),
+    note: "Own hold only, while HELD; session or booking token",
+  },
+  {
+    // The funnel saying the guest is still on the hold it took. Its own row for
+    // the reason the contact pair has one: it is an authenticated write to a
+    // stay, where the create row above it is public and takes rooms off the
+    // shelf, and folding them together would widen the unauthenticated door.
+    //
+    // Not filed under `booking.read-own` either, though nothing it writes is
+    // about the booking as the guest reads it. That row is declared as a read on
+    // every route that carries it, and a write borrowing a read's row is how a
+    // 👁 grant stops meaning anything.
+    //
+    // The same two credentials as the read, the cancellation and the contact —
+    // the guest this exists for has no account, and a hold that could not be kept
+    // alive by the only credential the funnel issues would be a hold that always
+    // died at the grace.
+    //
+    // Denied to every staff role. Nobody at the desk is standing on a funnel
+    // screen, and a receptionist who wants a room held takes the booking through
+    // the desk's own door, which has no TTL to keep alive.
+    key: "booking.presence-own",
+    section: "Public and guest realm",
+    row: "Keep own hold alive",
+    unauthenticated: false,
+    guest: "conditional",
+    staff: staff({}),
+    note: "Own hold only; cooperative, never a defence; session or booking token",
+  },
+  {
     key: "guest.profile",
     section: "Public and guest realm",
     row: "Own profile, loyalty, VIP tier",

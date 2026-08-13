@@ -10,7 +10,7 @@ import "reflect-metadata";
 import type { ExecutionContext } from "@nestjs/common";
 import { HttpException } from "@nestjs/common";
 import { describe, expect, it } from "vitest";
-import { HoldRateLimitGuard } from "./hold-rate-limit.guard.js";
+import { HoldRateLimitGuard, minutesInWords } from "./hold-rate-limit.guard.js";
 
 const WINDOW_MS = 60_000;
 
@@ -40,6 +40,21 @@ function allowed(subject: HoldRateLimitGuard, ips: string[]): number {
   }
 
   return through;
+}
+
+/** What this guard says to a caller it has just refused. */
+function refusalFrom(subject: HoldRateLimitGuard, ip: string): string {
+  try {
+    subject.canActivate(from(ip));
+  } catch (error) {
+    if (error instanceof HttpException) {
+      return error.message;
+    }
+
+    throw error;
+  }
+
+  throw new Error(`${ip} was not refused`);
 }
 
 describe("the hold rate limit", () => {
@@ -117,6 +132,28 @@ describe("the hold rate limit", () => {
     expect(allowed(subject, ["fe80::2", "fe80::3"])).toBe(1);
   });
 
+  // What the refused caller is actually told. The status is the same one the two
+  // caps in `booking.service.ts` answer with, so the sentence is the only thing
+  // that says which of the three refused — and it is the only thing the guest
+  // can act on.
+  it("tells the caller how long to wait, and does not say they held rooms", () => {
+    const subject = guard(1);
+    const caller = "203.0.113.20";
+
+    subject.canActivate(from(caller));
+
+    const refusal = refusalFrom(subject, caller);
+
+    // A minute, because this guard's window is one — the sentence quotes the
+    // window the property configured rather than a figure written into the copy.
+    expect(refusal).toMatch(/wait a minute/i);
+
+    // The window counts asking, including the asks the caps downstream refuse,
+    // so the caller most likely to read this has taken no room at all. Telling
+    // them too many rooms are held from here describes rooms that do not exist.
+    expect(refusal).not.toMatch(/rooms held/i);
+  });
+
   it("refuses a caller with no address at all as one caller", () => {
     const subject = guard(1);
     const nowhere = {
@@ -125,5 +162,25 @@ describe("the hold rate limit", () => {
 
     expect(subject.canActivate(nowhere)).toBe(true);
     expect(() => subject.canActivate(nowhere)).toThrow(HttpException);
+  });
+});
+
+// Shared with the concurrent cap in `booking.service.ts`, which quotes the hold
+// TTL the same way this quotes its window. Both are figures a property sets, and
+// both are minimums of one.
+describe("the wait a refusal names", () => {
+  it("writes a single minute out rather than as a figure", () => {
+    expect(minutesInWords(1)).toBe("a minute");
+  });
+
+  it("keeps the figure for anything longer", () => {
+    expect(minutesInWords(10)).toBe("10 minutes");
+  });
+
+  // Rounded up, never down. A wait quoted shorter than it is sends the guest
+  // back to the refusal they were told they had waited out.
+  it("rounds a part of a minute up to the whole of it", () => {
+    expect(minutesInWords(0.5)).toBe("a minute");
+    expect(minutesInWords(2.1)).toBe("3 minutes");
   });
 });

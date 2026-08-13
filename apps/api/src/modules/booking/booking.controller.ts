@@ -20,21 +20,23 @@
 // be a second opinion reachable only over HTTP, which is the half of the system
 // no service test covers.
 //
-// **Ten capability rows govern eleven routes**, and which row governs which is
-// `rbac-matrix.md`'s §3, not this file's judgement. One row is read twice — a
-// walk-in and the deposit that confirms a hold are both "create / modify
-// booking" — and two of the ten are the policy/override pair §2 refuses to let
-// collapse into one endpoint with a check inside it.
+// **Twelve capability rows govern sixteen routes**, and which row governs which
+// is `rbac-matrix.md`'s §3, not this file's judgement. Rows are read more than
+// once where two routes are one authority — a walk-in and the deposit that
+// confirms a hold are both "create / modify booking", and the guest's own reads
+// are four routes under one row — and two of the twelve are the policy/override
+// pair §2 refuses to let collapse into one endpoint with a check inside it.
 //
-// **Three of the eleven are the guest's**, and they are the only handlers here
+// **Seven of the sixteen are the guest's**, and they are the only handlers here
 // that finish a decision the guard could not. The funnel's creation grants a
-// guest a booking; the two below it let that guest read and call off the stay
-// they were given. `rbac-matrix.md` grants both of those rows `⚠` — the guard
-// admits the caller and the ownership check is still owed — and the way it is
-// paid is the same both times: what the guard resolved is handed to the service
-// as half of the lookup, so the scope is a `where` clause rather than a
-// comparison a handler could forget. §2 puts it plainly: "Guest permissions are
-// always scoped to the requester's own record."
+// guest a booking; the rest let that guest read it, say who to write to, keep it
+// alive while they are still on it, price calling it off and call it off.
+// `rbac-matrix.md` grants every one of those rows `⚠` — the guard admits the
+// caller and the ownership check is still owed — and the way it is paid is the
+// same every time: what the guard resolved is handed to the service as half of
+// the lookup, so the scope is a `where` clause rather than a comparison a handler
+// could forget. §2 puts it plainly: "Guest permissions are always scoped to the
+// requester's own record."
 //
 // **What the guard resolves is now one of two credentials.** A guest who books
 // without an account has no session, so the hold issues a booking-scoped token
@@ -71,6 +73,7 @@ import {
 } from "./booking.service.js";
 import { callerOf } from "./caller-key.js";
 import { HoldRateLimitGuard } from "./hold-rate-limit.guard.js";
+import { PresenceRateLimitGuard } from "./presence-rate-limit.guard.js";
 
 /** The stay as it arrived, in the shape the service takes. */
 interface CreateBookingBody {
@@ -122,6 +125,21 @@ export class BookingController {
    * taking a funnel booking on somebody's behalf and holds the room exactly as
    * a guest would; the walk-in they take at the counter goes through
    * {@link createConfirmed}, which has no TTL and so nothing to cap.
+   *
+   * **The stay the browser already holds travels with the request, and it comes
+   * off the cookie rather than out of the body.** Picking a room is a move: the
+   * guest comparing a second room type is leaving the first, and the hold they
+   * are leaving is the one their own credential names. That credential is
+   * already on this request — `booking-token.service.ts` scopes the cookie to
+   * `/bookings` — so nothing was added to the wire to make the release
+   * possible, and a booking id a caller could *send* is exactly what this must
+   * not be: it would be a way to ask the property to release a hold on the
+   * strength of knowing its id.
+   *
+   * Read here rather than taken from the resolved principal, because this row
+   * is public and the principal on it is whatever else arrived. A guest who
+   * signed in mid-funnel resolves as their session and is still the same
+   * browser carrying the same hold.
    */
   @UseGuards(HoldRateLimitGuard)
   @RequiresCapability("booking.create-own")
@@ -132,12 +150,20 @@ export class BookingController {
     @Res({ passthrough: true }) response: Response,
   ) {
     return implement(contract.booking.createHold).handler(async ({ input }) => {
+      // Null for a browser holding nothing, one whose credential has expired,
+      // and one presenting a token this property did not sign — all three are a
+      // first room pick as far as this route is concerned, and the service
+      // matches the caller against the row before it releases anything.
+      const carried = this.bookingTokens.verify(
+        this.bookingTokens.presentedOn(request),
+      );
+
       const held = await this.transactions.run((exec) =>
         this.bookings.createHold(exec, {
           ...asCreateInput(input),
           userId: bookingAccount(principal),
-          contact: { email: input.contactEmail, name: input.contactName },
           caller: callerOf(request.ip ?? request.socket.remoteAddress),
+          replaces: carried?.bookingId ?? null,
         }),
       );
 
@@ -146,6 +172,12 @@ export class BookingController {
       // no account has no session for the ownership check to be about, and
       // `booking-token.service.ts` argues why the answer is a token rather
       // than an account created from the address just typed.
+      //
+      // Same name and same path, so it replaces the one the browser arrived
+      // with — and that overwrite is now the other half of a move rather than a
+      // stay quietly going out of reach. The hold the old cookie named has just
+      // been released against the same request, so what the browser is losing
+      // the address of is a booking that no longer holds a room.
       //
       // Issued to a signed-in guest as well, and deliberately: the funnel does
       // not ask whether anyone is signed in, the cookie is the same width
@@ -396,6 +428,104 @@ export class BookingController {
           }),
         ),
       ),
+    );
+  }
+
+  /**
+   * Where the confirmation goes, named against a hold already taken.
+   *
+   * The write half of the funnel's third screen. The room is held by the time
+   * this is called and the guest is looking at the total; what they are doing
+   * here is telling the property who is taking it, one press before the money.
+   * `contract/booking.ts` argues at {@link contract.booking.createHold} why the
+   * ask moved off the hold's door.
+   *
+   * **Its own capability, and the reason is the credential.** A guest who booked
+   * without an account carries nothing but the booking token the hold issued, so
+   * a row the token does not hold would refuse the very guest the passwordless
+   * funnel exists for. `booking.contact-own` is that row, granted to the token
+   * beside the read and the cancellation it already holds, and scoped exactly as
+   * they are — one stay, proved, and the handler still owes the ownership check
+   * that `⚠` stands for.
+   *
+   * Guarded like {@link cancelOwn}: the booking cookie is `sameSite: none` in
+   * production, so a cross-site `<form>` could otherwise post an address onto a
+   * stranger's stay. `JsonRequestGuard` refuses the three content types a form
+   * can send, which leaves `fetch` and therefore `main.ts`'s origin allowlist.
+   */
+  @UseGuards(JsonRequestGuard)
+  @RequiresCapability("booking.contact-own")
+  @Implement(contract.booking.setOwnHoldContact)
+  setOwnHoldContact(@CurrentPrincipal() principal: Principal | null) {
+    return implement(contract.booking.setOwnHoldContact).handler(
+      async ({ input }) =>
+        onWire(
+          await this.transactions.run((exec) =>
+            this.bookings.setHoldContact(exec, {
+              bookingId: input.bookingId,
+              owner: ownerOf(principal, "name the contact on their own stay", {
+                bookingId: input.bookingId,
+              }),
+              contact: {
+                email: input.contactEmail,
+                name: input.contactName,
+              },
+            }),
+          ),
+        ),
+    );
+  }
+
+  /**
+   * The funnel saying the guest is still standing on their hold.
+   *
+   * `booking.presence-own`, and the fourth of this file's guest routes. It exists
+   * so that a hold costs the property the time a guest is actually spending on it
+   * rather than a full TTL whatever they did — `booking.service.ts`'s
+   * `markPresence` argues the trade, and `hold-expiry-sweep.ts` is what acts on
+   * it. Nothing here can lengthen a hold: the sweep takes the earlier of the two
+   * deadlines, so the most this route can ever do is bring one forward.
+   *
+   * Scoped exactly as the routes above it are — {@link ownerOf} builds the owner
+   * from what the guard resolved and from nothing in the body, and the service
+   * puts it in the `where` clause, so a stay that is not the caller's is the same
+   * `NOT_FOUND` as one that does not exist.
+   *
+   * **Rate-limited on its own policy**, because this is the one route in the
+   * application a page calls on a timer. `HoldRateLimitGuard` would be the wrong
+   * one: its allowance is thirty in ten minutes, so a single funnel pinging for
+   * ten of them would spend the allowance it needs to take a room at all.
+   *
+   * Guarded like {@link cancelOwn} and {@link setOwnHoldContact}, and here the
+   * reason is the departure this route also carries. The booking cookie is
+   * `sameSite: none` in production, so a cross-site page can make the browser
+   * send a request with it attached — and a request that says the guest has left
+   * puts their room back on sale a minute later. `JsonRequestGuard` refuses the
+   * three content types a `<form>` can post, which leaves `fetch` and the beacon,
+   * both of which preflight into `main.ts`'s origin allowlist.
+   */
+  @UseGuards(JsonRequestGuard, PresenceRateLimitGuard)
+  @RequiresCapability("booking.presence-own")
+  @Implement(contract.booking.markHoldPresence)
+  markHoldPresence(@CurrentPrincipal() principal: Principal | null) {
+    return implement(contract.booking.markHoldPresence).handler(
+      async ({ input }) => {
+        await this.transactions.run((exec) =>
+          this.bookings.markPresence(exec, {
+            bookingId: input.bookingId,
+            owner: ownerOf(principal, "keep their own hold alive", {
+              bookingId: input.bookingId,
+            }),
+            leaving: input.leaving,
+          }),
+        );
+
+        // The stay it was recorded against, and nothing else. The whole point of
+        // this route is that it is one statement — answering with the booking
+        // would mean reading back a row the caller is already looking at, once
+        // every twenty seconds, for every open funnel.
+        return { bookingId: input.bookingId };
+      },
     );
   }
 

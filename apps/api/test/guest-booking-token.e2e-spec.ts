@@ -29,6 +29,16 @@
 // 7. **No door answers differently for an address that has an account.** Sign-up,
 //    password reset and the funnel's hold, all put to an address the property
 //    knows and to one it does not.
+// 8. **The cookie is what makes a room pick a move.** A guest comparing room
+//    types holds one room and not one per type, the release is keyed to the
+//    browser rather than to the address it came from, and a pick the property
+//    refuses leaves the room the guest already had exactly where it was.
+// 9. **The cookie is also what keeps a hold alive, and only its own.** The funnel
+//    says every twenty seconds that it is still open, and the three things that
+//    must be true of that are asserted here: it can never buy longer than the TTL
+//    the property already granted, it reaches no stay but the one the credential
+//    names — in either direction, on a shared address — and a cross-site page
+//    cannot make a browser say its guest has left.
 //
 // Every stay arrives on a Monday inside the seeded calendar, for the reason
 // `guest-own-booking.e2e-spec.ts` gives: the seed closes weekend arrivals and
@@ -37,7 +47,7 @@
 import "reflect-metadata";
 
 import { parseDate } from "@internationalized/date";
-import type { StayDate } from "@mariva/shared";
+import type { RoomTypeCode, StayDate } from "@mariva/shared";
 import type { INestApplication } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { Test } from "@nestjs/testing";
@@ -101,12 +111,44 @@ const MONDAYS = [
   "2027-11-15",
   "2027-11-22",
   "2027-11-29",
+  "2027-12-06",
+  "2027-12-13",
+  "2027-12-20",
+  "2027-12-27",
+  "2028-01-03",
+  "2028-01-10",
+  "2028-01-17",
+  "2028-01-24",
+  "2028-01-31",
+  "2028-02-07",
+  "2028-02-14",
+  "2028-02-21",
+  "2028-02-28",
+  "2028-03-06",
+  "2028-03-13",
+  "2028-03-20",
+  "2028-03-27",
+  "2028-04-03",
+  "2028-04-10",
+  "2028-04-17",
 ];
 
-/** Small enough to prove the refusal without taking thirty rooms off the shelf,
- *  and the reason `booking.module.ts` provides the figure rather than hiding it
- *  inside the guard. */
-const HOLD_LIMIT = 2;
+/**
+ * Small enough to prove the refusal without taking thirty rooms off the shelf,
+ * and the reason `booking.module.ts` provides the figure rather than hiding it
+ * inside the guard.
+ *
+ * Three rather than two, because the replacement suite below is a browser
+ * picking a room three times from one address and the limiter counts every ask
+ * — a guest comparing three room types would otherwise be refused by the rate
+ * before the thing under test ran at all.
+ *
+ * Three is also the ceiling. Past it the loop below would take a fourth hold on
+ * one address without a cookie to replace anything, and the refusal it asserts
+ * would come from the concurrent cap in `booking.service.ts` rather than from
+ * the limiter this suite is about.
+ */
+const HOLD_LIMIT = 3;
 
 /** An account the property knows, for the enumeration assertions. */
 const REGISTERED = {
@@ -302,36 +344,126 @@ describe("the credential a hold issues", () => {
     });
   });
 
-  it("records the contact pair the funnel collected", async () => {
-    // The address the confirmation goes to, on the booking rather than in a
-    // `registration` row — `schema/booking.ts` argues the difference.
+  it("takes the room before it knows who is taking it", async () => {
+    // The hold's door asks nothing about the guest, which is what lets the room
+    // step be a room step: somebody still comparing five types is not asked for
+    // their name in order to reserve twenty minutes of one of them.
     const stay = await aStay();
 
-    const [stored] = await db
-      .select({
-        contactEmail: booking.contactEmail,
-        contactName: booking.contactName,
-      })
-      .from(booking)
-      .where(eq(booking.id, stay.id));
+    expect(await contactOn(stay.id)).toEqual({
+      contactEmail: null,
+      contactName: null,
+    });
+  });
 
-    expect(stored).toEqual({
+  it("names the contact on the stay it holds, and reads it back", async () => {
+    // The review screen's write, with nothing but the url and the cookie —
+    // which is the case the credential exists for. The address goes on the
+    // booking rather than into a `registration` row; `schema/booking.ts` argues
+    // the difference.
+    const stay = await aStay();
+
+    const response = await stay.browser
+      .put(contactPath(stay.id))
+      .send({
+        contactEmail: "funnel-guest@example.test",
+        contactName: "Funnel Guest",
+      })
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      id: stay.id,
+      contactEmail: "funnel-guest@example.test",
+      contactName: "Funnel Guest",
+    });
+
+    expect(await contactOn(stay.id)).toEqual({
       contactEmail: "funnel-guest@example.test",
       contactName: "Funnel Guest",
     });
   });
+
+  it("replaces the pair when a guest corrects a typo", async () => {
+    // `PUT`, so the second send is not a second contact. A guest who mistyped
+    // their address on the review screen fixes it in place rather than leaving
+    // the property holding two.
+    const stay = await aStay();
+
+    await stay.browser
+      .put(contactPath(stay.id))
+      .send({ contactEmail: "typo@example.test", contactName: "Funnel Guest" })
+      .expect(200);
+
+    await stay.browser
+      .put(contactPath(stay.id))
+      .send({ contactEmail: "right@example.test", contactName: "Funnel Guest" })
+      .expect(200);
+
+    expect(await contactOn(stay.id)).toEqual({
+      contactEmail: "right@example.test",
+      contactName: "Funnel Guest",
+    });
+  });
+
+  it("will not name a contact on a stay that has stopped being a hold", async () => {
+    // After the money the address is what a confirmation went to and what the
+    // desk matches a guest against, so the route refuses rather than letting a
+    // booking's paper trail be edited after the fact. A cancellation is the
+    // cheapest way out of `HELD` this file has; the sweep's expiry leaves the
+    // stay in the same place.
+    const stay = await aStay();
+
+    await stay.browser.post(cancelPath(stay.reference)).send({}).expect(200);
+
+    await stay.browser
+      .put(contactPath(stay.id))
+      .send({
+        contactEmail: "too-late@example.test",
+        contactName: "Funnel Guest",
+      })
+      .expect(409);
+
+    expect(await contactOn(stay.id)).toEqual({
+      contactEmail: null,
+      contactName: null,
+    });
+  });
+
+  it("refuses an address that is not one, and writes nothing", async () => {
+    // The contract's schema is the authority and it answers before anything is
+    // written — a confirmed stay nobody can be written to is the one outcome
+    // this route exists to prevent.
+    const stay = await aStay();
+
+    await stay.browser
+      .put(contactPath(stay.id))
+      .send({ contactEmail: "not-an-address", contactName: "Funnel Guest" })
+      .expect(400);
+
+    expect(await contactOn(stay.id)).toEqual({
+      contactEmail: null,
+      contactName: null,
+    });
+  });
 });
 
-describe("the routes the credential's two rows govern", () => {
-  // The guard's ceiling is per row, and a row governs more than one route: five
-  // handlers declare these two. Four name a stay and are scoped by it; `listOwn`
-  // names none and closes itself to the realm with `@SessionOnly`, which the
-  // guard enforces. A sixth added later would be admitted without anyone
-  // deciding that, which is the failure the allowlist in `access.guard.ts`
-  // prevents one level up and cannot prevent here. So the set is pinned: adding
-  // a route under either row fails this until somebody says which of the two
-  // kinds it is.
-  const STAY_SCOPED = ["readOwn", "readOwnHold", "cancellationQuote", "cancelOwn"];
+describe("the routes the credential's rows govern", () => {
+  // The guard's ceiling is per row, and a row governs more than one route: seven
+  // handlers declare these four. Six name a stay and are scoped by it;
+  // `listOwn` names none and closes itself to the realm with `@SessionOnly`,
+  // which the guard enforces. A seventh added later would be admitted without
+  // anyone deciding that, which is the failure the allowlist in
+  // `access.guard.ts` prevents one level up and cannot prevent here. So the set
+  // is pinned: adding a route under any of the rows fails this until somebody
+  // says which of the two kinds it is.
+  const STAY_SCOPED = [
+    "readOwn",
+    "readOwnHold",
+    "setOwnHoldContact",
+    "markHoldPresence",
+    "cancellationQuote",
+    "cancelOwn",
+  ];
   const REFUSES_THE_REALM = ["listOwn"];
 
   it("is exactly the handlers that have been thought about", () => {
@@ -351,7 +483,9 @@ describe("the routes the credential's two rows govern", () => {
 
         return (
           required?.key === "booking.read-own" ||
-          required?.key === "booking.cancel-own"
+          required?.key === "booking.cancel-own" ||
+          required?.key === "booking.contact-own" ||
+          required?.key === "booking.presence-own"
         );
       })
       .sort();
@@ -595,6 +729,314 @@ describe("the rate limit in front of the public door", () => {
   });
 });
 
+describe("the room a guest moves off", () => {
+  it("leaves one room held however many the guest compares", async () => {
+    // Picking a room is a move. A guest comparing three types used to leave
+    // three rooms held and meet the concurrent cap that exists for callers who
+    // are not shopping — so this asserts the two halves of the repair together:
+    // no refusal on the way through, and one live hold at the end of it.
+    const browser = request.agent(app.getHttpServer());
+    const caller = nextCaller();
+    const arrival = nextMonday();
+    const beforeDeluxe = await soldOn(arrival, "DELUXE");
+    const beforeSuperior = await soldOn(arrival, "SUPERIOR");
+
+    const deluxe = await pickRoom(browser, caller, aHoldBody(arrival));
+    const superior = await pickRoom(
+      browser,
+      caller,
+      aHoldBody(arrival, "SUPERIOR"),
+    );
+    const premier = await pickRoom(
+      browser,
+      caller,
+      aHoldBody(arrival, "PREMIER"),
+    );
+
+    expect([deluxe.status, superior.status, premier.status]).toEqual([
+      201, 201, 201,
+    ]);
+
+    // The two the guest walked away from, released and filed as what they are.
+    // `HOLD_REPLACED` and not `GUEST_REQUEST`: nobody cancelled anything, and a
+    // property whose cancellation rate counted these would be measuring how
+    // many room types its guests compare.
+    expect(await endingOf(deluxe.body.id)).toEqual({
+      state: "CANCELLED",
+      reason: "HOLD_REPLACED",
+    });
+    expect(await endingOf(superior.body.id)).toEqual({
+      state: "CANCELLED",
+      reason: "HOLD_REPLACED",
+    });
+    expect(await stateOf(premier.body.id)).toBe("HELD");
+
+    // And the rooms are back on the shelf, which is the point of releasing them
+    // — a cancelled row that kept its night would be a room nobody could sell
+    // and nobody was holding.
+    expect(await soldOn(arrival, "DELUXE")).toBe(beforeDeluxe);
+    expect(await soldOn(arrival, "SUPERIOR")).toBe(beforeSuperior);
+
+    // The credential moved with the room. The stay the browser can still read
+    // is the one it is holding.
+    await browser.get(holdPath(premier.body.id)).expect(200);
+    await browser.get(holdPath(deluxe.body.id)).expect(403);
+  });
+
+  it("will not release a hold belonging to another browser on the same address", async () => {
+    // A household, a hotel lobby, an office — one address, two people, two
+    // rooms. The release is keyed to the cookie and the address is only a
+    // second lock on it, so the neighbour's room is untouched. If this ever
+    // fails, the funnel is cancelling strangers' holds on shared wifi.
+    const address = nextCaller();
+    const arrival = nextMonday();
+    const theirs = request.agent(app.getHttpServer());
+    const mine = request.agent(app.getHttpServer());
+
+    const neighbour = await pickRoom(theirs, address, aHoldBody(arrival));
+    const first = await pickRoom(mine, address, aHoldBody(arrival));
+    const second = await pickRoom(
+      mine,
+      address,
+      aHoldBody(arrival, "SUPERIOR"),
+    );
+
+    expect([neighbour.status, first.status, second.status]).toEqual([
+      201, 201, 201,
+    ]);
+
+    expect(await stateOf(neighbour.body.id)).toBe("HELD");
+    expect(await endingOf(first.body.id)).toEqual({
+      state: "CANCELLED",
+      reason: "HOLD_REPLACED",
+    });
+    expect(await stateOf(second.body.id)).toBe("HELD");
+  });
+
+  it("keeps the hold a refused pick could not replace", async () => {
+    // The ordering the whole design turns on: the new room is taken first and
+    // the old one released after, so a pick the property refuses leaves the
+    // guest exactly where they were. Refused here by the anonymous share of the
+    // night — two strangers are already holding half of the four Panorama
+    // Suites — because that is the refusal a guest can walk into while
+    // comparing rooms.
+    const contested = nextMonday();
+
+    for (let stranger = 0; stranger < 2; stranger += 1) {
+      await pickRoom(
+        request.agent(app.getHttpServer()),
+        nextCaller(),
+        aHoldBody(contested, "PANORAMA_SUITE"),
+      ).expect(201);
+    }
+
+    const browser = request.agent(app.getHttpServer());
+    const caller = nextCaller();
+    const held = await pickRoom(browser, caller, aHoldBody(nextMonday()));
+
+    expect(held.status).toBe(201);
+
+    const refused = await pickRoom(
+      browser,
+      caller,
+      aHoldBody(contested, "PANORAMA_SUITE"),
+    );
+
+    expect(refused.status).toBe(429);
+
+    // The room the guest had, still theirs — and still the room their cookie
+    // names, which is what makes the funnel's next screen work rather than
+    // stranding them on a stay they can no longer read.
+    expect(await stateOf(held.body.id)).toBe("HELD");
+    expect(refused.headers["set-cookie"]).toBeUndefined();
+    await browser.get(holdPath(held.body.id)).expect(200);
+  });
+
+  it("leaves a hold alone while money for it is in flight", async () => {
+    // The guest is in their banking app with the QR code up and the funnel tab
+    // still open behind it, so coming back to look at one more room is an
+    // ordinary thing to do. Releasing the room they are paying for would put it
+    // back on sale with the money already on its way — so the pick succeeds,
+    // the second room is held beside the first, and the one nobody finishes
+    // runs out its TTL.
+    const browser = request.agent(app.getHttpServer());
+    const caller = nextCaller();
+    const paying = await pickRoom(browser, caller, aHoldBody(nextMonday()));
+
+    expect(paying.status).toBe(201);
+
+    await browser
+      .post(attemptPath(paying.body.id))
+      .send({
+        amount: paying.body.stayTotalGross,
+        description: `Stay ${paying.body.reference}`,
+      })
+      .expect(200);
+
+    const compared = await pickRoom(
+      browser,
+      caller,
+      aHoldBody(nextMonday(), "SUPERIOR"),
+    );
+
+    expect(compared.status).toBe(201);
+
+    // Untouched, and untouched in both halves of what a release writes: the
+    // state, and the reason column that would name this one funnel churn.
+    expect(await endingOf(paying.body.id)).toEqual({
+      state: "HELD",
+      reason: null,
+    });
+    expect(await stateOf(compared.body.id)).toBe("HELD");
+  });
+});
+
+describe("the funnel saying the guest is still there", () => {
+  it("records a sighting against the stay the credential names", async () => {
+    // Nothing but the url and the cookie, which is the whole case: the funnel
+    // pings from a browser nobody is signed in on, and the route is under
+    // `/bookings` precisely so the credential is attached to it at all.
+    const stay = await aStay();
+    const taken = await lastSeenOn(stay.id);
+
+    const response = await stay.browser
+      .post(presencePath(stay.id))
+      .send({})
+      .expect(200);
+
+    expect(response.body).toEqual({ bookingId: stay.id });
+
+    const seen = await lastSeenOn(stay.id);
+
+    expect(seen).not.toBeNull();
+    expect(seen!.getTime()).toBeGreaterThanOrEqual(taken!.getTime());
+  });
+
+  it("marks a departure in the past, not the present", async () => {
+    // The closing tab's beacon. It backdates the last sighting so the sweep
+    // takes the hold on its next tick rather than cancelling anything here —
+    // one guarded release path, and the reprieve is what keeps a reload from
+    // costing a guest their room.
+    const stay = await aStay();
+
+    await stay.browser
+      .post(presencePath(stay.id))
+      .send({ leaving: true })
+      .expect(200);
+
+    const seen = await lastSeenOn(stay.id);
+    const secondsAgo = (Date.now() - seen!.getTime()) / 1000;
+
+    // Well into the past, and not so far that the reprieve has gone: the
+    // default grace is two minutes and the departure keeps the last twenty
+    // seconds of it.
+    expect(secondsAgo).toBeGreaterThan(60);
+    expect(secondsAgo).toBeLessThan(120);
+
+    // And a guest who was only reloading takes it straight back.
+    await stay.browser.post(presencePath(stay.id)).send({}).expect(200);
+
+    expect((await lastSeenOn(stay.id))!.getTime()).toBeGreaterThan(
+      seen!.getTime(),
+    );
+  });
+
+  it("never lets a hold outlive the TTL it was granted", async () => {
+    // The claim the whole feature has to be incapable of breaking, asserted at
+    // the door rather than only at the sweep: a ping writes a sighting and
+    // touches nothing else, so a browser cannot ask for more time than the
+    // property gave it however often it asks.
+    const stay = await aStay();
+    const granted = await expiryOn(stay.id);
+
+    for (let ping = 0; ping < 3; ping += 1) {
+      await stay.browser.post(presencePath(stay.id)).send({}).expect(200);
+    }
+
+    expect((await expiryOn(stay.id))!.getTime()).toBe(granted!.getTime());
+  });
+
+  it("refuses a stay that is not the caller's, and leaves it where it was", async () => {
+    // Two browsers, and one of them holding a credential for a different stay.
+    // The refusal comes off the token before any query, exactly as it does for
+    // the read and the cancellation — so a caller cannot learn which ids are
+    // holds by watching which of them answer.
+    const mine = await aStay();
+    const theirs = await aStay();
+    const before = await lastSeenOn(theirs.id);
+
+    await mine.browser.post(presencePath(theirs.id)).send({}).expect(403);
+    await mine.browser
+      .post(presencePath(theirs.id))
+      .send({ leaving: true })
+      .expect(403);
+
+    expect((await lastSeenOn(theirs.id))!.getTime()).toBe(before!.getTime());
+  });
+
+  it("leaves a neighbour's hold alone while its own guest is present", async () => {
+    // One address, two browsers, two rooms — a household, a lobby, an office.
+    // Presence is keyed to the stay the cookie names, so nothing one browser
+    // says about its own hold reaches the other's, in either direction.
+    const address = nextCaller();
+    const mine = request.agent(app.getHttpServer());
+    const theirs = request.agent(app.getHttpServer());
+
+    const held = await pickRoom(mine, address, aHoldBody(nextMonday()));
+    const neighbour = await pickRoom(
+      theirs,
+      address,
+      aHoldBody(nextMonday(), "SUPERIOR"),
+    );
+
+    expect([held.status, neighbour.status]).toEqual([201, 201]);
+
+    const untouched = await lastSeenOn(neighbour.body.id);
+
+    await mine.post(presencePath(held.body.id)).send({}).expect(200);
+    await mine
+      .post(presencePath(held.body.id))
+      .send({ leaving: true })
+      .expect(200);
+
+    expect((await lastSeenOn(neighbour.body.id))!.getTime()).toBe(
+      untouched!.getTime(),
+    );
+    expect(await stateOf(neighbour.body.id)).toBe("HELD");
+  });
+
+  it("refuses a departure a cross-site form could have sent", async () => {
+    // The cookie is `sameSite: none` in production, so a page an unrelated site
+    // serves can make the browser send this — and this one says the guest has
+    // left, which puts their room back on sale a minute later.
+    // `json-request.guard.ts` refuses the three content types a `<form>` can
+    // post, which leaves `fetch` and the beacon, both of which preflight into
+    // the origin allowlist.
+    const stay = await aStay();
+    const before = await lastSeenOn(stay.id);
+
+    for (const contentType of [
+      "text/plain",
+      "application/x-www-form-urlencoded",
+      "multipart/form-data; boundary=x",
+    ]) {
+      await stay.browser
+        .post(presencePath(stay.id))
+        .set("Content-Type", contentType)
+        .send("")
+        .expect(401);
+    }
+
+    expect((await lastSeenOn(stay.id))!.getTime()).toBe(before!.getTime());
+  });
+
+  it("is refused outright from a browser holding no credential", async () => {
+    const stay = await aStay();
+
+    await http().post(presencePath(stay.id)).send({}).expect(401);
+  });
+});
+
 describe("no door tells a caller which addresses have accounts", () => {
   it("answers sign-up the same for a known address and an unknown one", async () => {
     const known = await http()
@@ -662,6 +1104,10 @@ const cancelPath = (reference: string) => `${ownPath(reference)}/cancellation`;
 
 const holdPath = (bookingId: string) => `/bookings/holds/${bookingId}`;
 
+const contactPath = (bookingId: string) => `${holdPath(bookingId)}/contact`;
+
+const presencePath = (bookingId: string) => `${holdPath(bookingId)}/presence`;
+
 const attemptPath = (bookingId: string) =>
   `/bookings/${bookingId}/payment-attempts`;
 
@@ -689,18 +1135,37 @@ function nextMonday(): string {
   return monday;
 }
 
-/** Two nights of a Deluxe with somebody to write to — the funnel's own body. */
-function aHoldBody(arrival: string): object {
+/** Two nights of a room type — the funnel's own body, Deluxe unless the caller
+ *  is comparing types. */
+function aHoldBody(arrival: string, roomType = "DELUXE"): object {
   return {
-    roomType: "DELUXE",
+    roomType,
     checkIn: arrival,
     checkOut: parseDate(arrival).add({ days: 2 }).toString(),
     plan: "STANDARD",
     adults: 2,
     childAges: [],
-    contactEmail: "funnel-guest@example.test",
-    contactName: "Funnel Guest",
   };
+}
+
+/**
+ * One room pick, from a browser that keeps its cookie jar and an address that
+ * stays the same across picks.
+ *
+ * Both halves matter to what the suite below asserts: the cookie is what makes
+ * the second pick a move rather than a second room, and the address is what the
+ * caller digest is taken from — a browser that changed networks between picks
+ * would be a different caller and its old hold would stand.
+ */
+function pickRoom(
+  browser: request.Agent,
+  caller: string,
+  body: object,
+): request.Test {
+  return browser
+    .post("/bookings/holds")
+    .set("X-Forwarded-For", caller)
+    .send(body);
 }
 
 /**
@@ -782,6 +1247,42 @@ async function attemptsOnFile(): Promise<number> {
   return row?.count ?? 0;
 }
 
+/** Who the stay says to write to, straight off the row. */
+async function contactOn(bookingId: string): Promise<{
+  contactEmail: string | null;
+  contactName: string | null;
+} | undefined> {
+  const [row] = await db
+    .select({
+      contactEmail: booking.contactEmail,
+      contactName: booking.contactName,
+    })
+    .from(booking)
+    .where(eq(booking.id, bookingId));
+
+  return row;
+}
+
+/** When the funnel last said the guest was standing on this hold. */
+async function lastSeenOn(bookingId: string): Promise<Date | null | undefined> {
+  const [row] = await db
+    .select({ lastSeenAt: booking.lastSeenAt })
+    .from(booking)
+    .where(eq(booking.id, bookingId));
+
+  return row?.lastSeenAt;
+}
+
+/** The deadline the property granted, which presence may never move. */
+async function expiryOn(bookingId: string): Promise<Date | null | undefined> {
+  const [row] = await db
+    .select({ holdExpiresAt: booking.holdExpiresAt })
+    .from(booking)
+    .where(eq(booking.id, bookingId));
+
+  return row?.holdExpiresAt;
+}
+
 async function stateOf(bookingId: string): Promise<string | undefined> {
   const [row] = await db
     .select({ state: booking.state })
@@ -791,17 +1292,34 @@ async function stateOf(bookingId: string): Promise<string | undefined> {
   return row?.state;
 }
 
-/** What the property has sold of the Deluxe on one night — the number a refused
- *  call must leave alone. */
-async function soldOn(stayDate: string): Promise<number> {
+/** How a stay ended, straight off the row — the state and the reason together,
+ *  because a cancellation is only half described by either. */
+async function endingOf(bookingId: string): Promise<{
+  state: string;
+  reason: string | null;
+} | undefined> {
+  const [row] = await db
+    .select({ state: booking.state, reason: booking.cancellationReason })
+    .from(booking)
+    .where(eq(booking.id, bookingId));
+
+  return row;
+}
+
+/** What the property has sold of one room type on one night — the number a
+ *  refused call must leave alone, and the one a released hold must give back. */
+async function soldOn(
+  stayDate: string,
+  code: RoomTypeCode = "DELUXE",
+): Promise<number> {
   const [row] = await db
     .select({ sold: typeInventory.soldRooms })
     .from(typeInventory)
     .innerJoin(roomType, eq(typeInventory.roomTypeId, roomType.id))
-    .where(and(eq(roomType.code, "DELUXE"), eq(typeInventory.stayDate, stayDate)));
+    .where(and(eq(roomType.code, code), eq(typeInventory.stayDate, stayDate)));
 
   if (!row) {
-    throw new Error(`the calendar has no Deluxe inventory for ${stayDate}`);
+    throw new Error(`the calendar has no ${code} inventory for ${stayDate}`);
   }
 
   return row.sold;
