@@ -1,6 +1,6 @@
-// The two things a route may say about access, and the only two.
+// The three things a route may say about access, and the only three.
 //
-// A route that says neither is unreachable — docs/architecture/rbac-matrix.md
+// A route that says none of them is unreachable — docs/architecture/rbac-matrix.md
 // §2, deny by default. That is enforced in `AccessGuard`, not here; this file
 // only names the metadata.
 
@@ -48,6 +48,28 @@ export const RequiresCapability = (
     key: capability,
     action,
   });
+
+export const SESSION_ONLY_KEY = "mariva:session-only";
+
+/**
+ * Closes a route to the booking-scoped credential, leaving the row it is under
+ * open to it.
+ *
+ * A capability row is wider than a route, and `booking.read-own` is where that
+ * bites: three of its four routes name one stay and the fourth asks which stays
+ * there are. `BOOKING_TOKEN_ROWS` in `access.guard.ts` can admit the row or
+ * refuse it and cannot tell the four apart, so the narrowing has to be said on
+ * the route — but it is still an authorisation decision, and
+ * `access.guard.ts`'s first line is that there is one place those happen. This
+ * is that sentence: declared here, enforced there, and never a comparison a
+ * handler could forget while returning the rows it had already fetched.
+ *
+ * The required reason is `@Unguarded`'s rule for `@Unguarded`'s purpose — a
+ * route narrowed by a decorator with no argument is a narrowing a reviewer has
+ * to reconstruct.
+ */
+export const SessionOnly = (reason: string) =>
+  SetMetadata(SESSION_ONLY_KEY, reason);
 
 export const UNGUARDED_KEY = "mariva:unguarded";
 

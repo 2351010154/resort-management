@@ -16,6 +16,23 @@
 //   3. Resolve the caller. A bearer token goes to Passport, a cookie to Better
 //      Auth, and a request carrying both is treated as staff — one request, one
 //      realm, never a union of two.
+//
+//      There is now a third realm, and it does not change that sentence. A
+//      guest who booked without an account holds the booking-scoped credential
+//      the hold issued, and it is resolved only when neither of the first two
+//      answered: a request carrying a session *and* a booking cookie is the
+//      session's, because the session is the wider claim, it names an account
+//      the ownership query can be scoped by, and a credential that could
+//      override it would be a way to make a signed-in guest act as somebody
+//      else. So the order is bearer, then session, then booking token — one of
+//      the three, decided by what arrived, never a union.
+//   3b. The third realm has a ceiling the other two do not. `BOOKING_TOKEN_ROWS`
+//      is the whole of what it may reach; every other row is `denied` for it,
+//      including rows nobody has written yet. A route inside one of those two
+//      rows may still close itself to the credential with `@SessionOnly` — a
+//      row is wider than a route, and one route of `booking.read-own` answers
+//      with every stay an account has taken rather than with the one a token
+//      names.
 //   4. Look the caller's grant up in the matrix and compare it to what the
 //      route does with the row. `denied` is a 403 whether the caller is a guest
 //      on a staff route, a staff member on a guest route, or a receptionist
@@ -37,11 +54,13 @@ import type { Request } from "express";
 import { isObservable, lastValueFrom } from "rxjs";
 import { capability } from "../../modules/identity/rbac/matrix.js";
 import { permits } from "../../modules/identity/rbac/roles.js";
+import { BookingTokenService } from "../../modules/auth/booking-token/booking-token.service.js";
 import { GuestAuthService } from "../../modules/auth/guest/guest-auth.service.js";
 import { STAFF_JWT_STRATEGY } from "../../modules/auth/staff/staff-jwt.strategy.js";
 import {
   CAPABILITY_KEY,
   type CapabilityRequirement,
+  SESSION_ONLY_KEY,
   UNGUARDED_KEY,
 } from "./access.decorators.js";
 import {
@@ -59,12 +78,35 @@ export class StaffJwtGuard extends AuthGuard(STAFF_JWT_STRATEGY) {}
 
 const BEARER_PREFIX = "bearer ";
 
+/**
+ * Every row a booking token opens, and the list is closed.
+ *
+ * The three the funnel's guest needs on the stay they took: read it, pay for
+ * it, and call it off. Written as a list rather than as a property of the row,
+ * so that adding a capability to `matrix.ts` cannot widen a credential already
+ * in circulation — the new row is refused by default and admitting it is an
+ * edit to this line, which is a line a reviewer sees.
+ *
+ * Payment is here because the funnel is passwordless end to end or it is not
+ * passwordless: a guest who may hold a room and may call it off, and who must
+ * register to pay for it, meets the sign-up wall one screen later than if there
+ * had never been a credential. Every row here is still one booking's — the
+ * handler behind each is scoped to the stay the token names, and
+ * `payment.service.ts` refuses an attempt opened against any other.
+ */
+const BOOKING_TOKEN_ROWS: ReadonlySet<string> = new Set([
+  "booking.read-own",
+  "booking.cancel-own",
+  "payment.open-attempt",
+]);
+
 @Injectable()
 export class AccessGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly guestAuth: GuestAuthService,
     private readonly staffJwt: StaffJwtGuard,
+    private readonly bookingTokens: BookingTokenService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -119,6 +161,20 @@ export class AccessGuard implements CanActivate {
       throw new UnauthorizedException("Sign in to use this");
     }
 
+    // Asked before the grant, because the row would answer yes. A booking token
+    // holds `booking.read-own` and this refusal is not about the authority it
+    // holds — it is about the route being wider than the credential, which is
+    // why the sentence tells the caller to sign in rather than that they may
+    // not read their own stays.
+    if (
+      principal.realm === "booking" &&
+      this.reflector.getAllAndOverride<string>(SESSION_ONLY_KEY, targets)
+    ) {
+      throw new ForbiddenException(
+        "Sign in to use this — the link you followed opens one booking only",
+      );
+    }
+
     const grant = grantFor(row, principal);
 
     if (!permits(grant, required.action)) {
@@ -158,7 +214,18 @@ export class AccessGuard implements CanActivate {
       return (request as Request & { user?: StaffPrincipal }).user ?? null;
     }
 
-    return this.guestAuth.principalFrom(request.headers);
+    const session = await this.guestAuth.principalFrom(request.headers);
+
+    if (session) {
+      return session;
+    }
+
+    // Last, and only when nothing else answered. An unsigned, edited or expired
+    // token is `null` here and the request continues as anonymous — which is a
+    // 401 on the two rows the credential exists for, and the same answer a
+    // browser that never held one gets. The refusal names no booking, because
+    // the token that failed is the only thing that could have named one.
+    return this.bookingTokens.verify(this.bookingTokens.presentedOn(request));
   }
 
   private async runStaffStrategy(context: ExecutionContext): Promise<void> {
@@ -179,5 +246,21 @@ function grantFor(
   row: ReturnType<typeof capability>,
   principal: Principal,
 ): (typeof row)["guest"] {
-  return principal.realm === "guest" ? row.guest : row.staff[principal.role];
+  if (principal.realm === "staff") {
+    return row.staff[principal.role];
+  }
+
+  if (principal.realm === "guest") {
+    return row.guest;
+  }
+
+  // A booking token, which is a guest on exactly two rows and nobody anywhere
+  // else. The public rows are the one exception and they are not a widening:
+  // anyone at all may search for a room and take a hold, and holding a
+  // credential cannot leave a caller with less authority than a stranger.
+  if (row.unauthenticated) {
+    return "full";
+  }
+
+  return BOOKING_TOKEN_ROWS.has(row.key) ? row.guest : "denied";
 }

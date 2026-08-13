@@ -449,6 +449,12 @@ export const CAPABILITIES = [
   // The handler owes it: a payment attempt is only this caller's to open when
   // the stay's `user_id` is the requester's account, and a stay the desk took
   // holds a null there and is therefore nobody's.
+  //
+  // The account is one of two ways that condition is paid. A funnel guest who
+  // never signed up holds the booking-scoped token the hold issued, and it opens
+  // this row for the one stay it names — without it the funnel would take a
+  // booking from a stranger and then demand they register to pay for it, which
+  // is the sign-up wall moved one screen later rather than removed.
   {
     key: "payment.open-attempt",
     section: "Folio and money",
@@ -461,7 +467,7 @@ export const CAPABILITIES = [
       MANAGER: "full",
       ADMIN: "full",
     }),
-    note: "Guest: own booking. The handler must confirm the stay belongs to the requesting account",
+    note: "Guest: own booking, by session or booking token. The handler must confirm the stay belongs to the requesting account, or is the one the token names",
   },
   {
     key: "folio.refund-policy",
