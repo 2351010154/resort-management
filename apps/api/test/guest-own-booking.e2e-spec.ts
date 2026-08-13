@@ -199,6 +199,14 @@ beforeAll(async () => {
     .compile();
 
   app = moduleRef.createNestApplication();
+
+  // What `main.ts` sets on the deployed process, and what makes the holds below
+  // separable callers. `booking.service.ts` caps how many rooms one caller may
+  // be holding at once, and every request out of this file would otherwise be
+  // the loopback address — one caller, taking the whole file's stays, refused
+  // part-way through for a reason none of these cases is about.
+  app.getHttpAdapter().getInstance().set("trust proxy", 1);
+
   await app.init();
 
   db = app.get<Database>(DRIZZLE);
@@ -719,6 +727,7 @@ async function aGuestStay(
 ): Promise<Stay> {
   const created = await guest
     .post("/bookings/holds")
+    .set("X-Forwarded-For", nextCaller())
     .send(aHeldStayBody(arrival, plan));
 
   if (created.status !== 201) {
@@ -726,6 +735,20 @@ async function aGuestStay(
   }
 
   return { id: created.body.id as string, reference: created.body.reference };
+}
+
+/**
+ * One address per hold, so this file never meets the cap on how many rooms one
+ * caller may hold — the same device `guest-booking-token.e2e-spec.ts` uses
+ * against the rate limiter, and for the same reason: a browser is a caller, and
+ * a suite is not.
+ */
+let callerOrdinal = 0;
+
+function nextCaller(): string {
+  callerOrdinal += 1;
+
+  return `192.0.2.${callerOrdinal}`;
 }
 
 /** A stay the desk took. Nobody is signed in behind it, which is the case the

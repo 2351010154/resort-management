@@ -48,7 +48,7 @@ import {
 } from "@mariva/shared";
 import { Inject, Injectable } from "@nestjs/common";
 import { ORPCError } from "@orpc/nest";
-import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, isNull, lt, sql } from "drizzle-orm";
 import { ENV, type Env } from "../../config/env.js";
 import type { DbExecutor } from "../../database/database.module.js";
 import {
@@ -63,6 +63,7 @@ import { HousekeepingService } from "../housekeeping/housekeeping.service.js";
 import { InventoryService } from "../inventory/inventory.service.js";
 import { AssignmentService, type HeldRoom } from "./assignment.service.js";
 import { BusinessDateService } from "./business-date.service.js";
+import { hashedCaller } from "./caller-key.js";
 import { type PolicyCharge, policyCharge } from "./cancellation-calculator.js";
 import {
   validateArrivalWindow,
@@ -77,6 +78,50 @@ import { assertFunnelMaySell } from "./stay-restriction-guard.js";
 import { StayQuoteService } from "./stay-quote.service.js";
 
 const MS_PER_MINUTE = 60_000;
+
+/**
+ * How many rooms one caller may be holding at once through the public funnel.
+ *
+ * Three, and the figure is about what a person does rather than about what a
+ * script cannot. A guest takes one hold; the guest who changes their mind about
+ * a room type takes a second while the first runs out its TTL, and a household
+ * behind one address does that twice over. Past three the caller is not
+ * shopping — they are keeping rooms off the shelf, which at a forty-room
+ * property is a measurable share of a night for the ten minutes it lasts.
+ *
+ * This is the bound `hold-rate-limit.guard.ts` cannot state. That limiter is a
+ * rate, so it says how often a caller may ask and nothing about how much is
+ * outstanding when they stop asking; and it lives in one process, so a restart
+ * or a second machine forgets it. A count of live rows forgets nothing.
+ */
+const CONCURRENT_HOLDS_PER_CALLER = 3;
+
+/**
+ * The fewest anonymous holds a night must admit however full it is.
+ *
+ * The floor is deliberate, and the plain "half of what is left" rule is what it
+ * is protecting against. On a night with two rooms free, half is one, and the
+ * second genuine guest of the evening would be turned away on the busiest and
+ * most valuable night the property has — to stop an abuser from holding a
+ * single room. The share cap exists to stop a stranger taking a night's
+ * inventory wholesale; it must not become the reason a nearly-full night stops
+ * selling.
+ */
+const ANONYMOUS_HOLD_FLOOR = 2;
+
+/**
+ * How much of a night's remaining rooms may be held by callers who are not
+ * signed in.
+ *
+ * A half, so a night is never more than about half-held by people the property
+ * cannot contact, and never below {@link ANONYMOUS_HOLD_FLOOR}. A signed-in
+ * guest is outside this entirely: an account is a name, an address the property
+ * verified and a stay history, so a hold behind one is a booking that can be
+ * chased rather than an anonymous claim on a room.
+ */
+function anonymousHoldCeiling(remaining: number): number {
+  return Math.max(ANONYMOUS_HOLD_FLOOR, Math.floor(remaining / 2));
+}
 
 /** What a stay is sold as. The price is not in here — see `stay-quote.service.ts`. */
 export interface CreateBookingInput {
@@ -108,6 +153,29 @@ export interface CreateBookingInput {
    * it. `schema/booking.ts` says why it is not a `registration` row.
    */
   readonly contact?: BookingContact | null;
+}
+
+/**
+ * The same stay, from the one door a stranger can write through.
+ *
+ * The extra field is not about the booking: it is who asked for it, and it is
+ * there because the two limits on that door — a rate in this process and a count
+ * of live holds in SQL — have to agree about who a caller is. `caller-key.ts`
+ * is that definition, and `booking.controller.ts` reads it off the request the
+ * proxy handed over.
+ */
+export interface CreateHoldInput extends CreateBookingInput {
+  /**
+   * The caller key, or null when nothing asked over HTTP.
+   *
+   * Null is a real answer and not a missing value: a seed, a fixture and a
+   * service call have no request behind them, and a hold taken that way is
+   * outside the concurrent cap because there is no caller to count it against.
+   * The raw key crosses this boundary and never reaches a column —
+   * {@link BookingService.createHold} hashes it, for the reason
+   * `caller-key.ts` gives.
+   */
+  readonly caller?: string | null;
 }
 
 /** Somebody to write to about a stay. No phone — it is taken against a
@@ -247,14 +315,192 @@ export class BookingService {
    * funnel takes a booking from somebody who never signed in, and that stay is
    * reachable by its reference and by nothing else. When the caller *is* signed
    * in, `input.userId` is what {@link isOwner} will later match on.
+   *
+   * **Two refusals stand in front of the sale, and the order they run in is the
+   * argument for them being here at all.** `hold-rate-limit.guard.ts` opens by
+   * saying that a refused call must not have priced a stay, consumed a night or
+   * spent a reference — that is why the rate is a guard rather than a check
+   * inside the handler — and these two keep the same property by running before
+   * anything below them reads a rate or moves a counter. What they add is the
+   * two things a rate cannot say: how much one caller may be holding at once,
+   * and how much of a night may be held by people the property cannot contact.
+   *
+   * The property's own published rules sit between them, deliberately. A stay
+   * that breaks a two-night minimum is refused for breaking it rather than for
+   * the anonymous share of a night the guest was never going to be sold — the
+   * refusal a guest can act on is the one they should get.
    */
-  async createHold(
-    exec: DbExecutor,
-    input: CreateBookingInput,
-  ): Promise<Booking> {
-    await assertFunnelMaySell(exec, input);
+  async createHold(exec: DbExecutor, input: CreateHoldInput): Promise<Booking> {
+    // Hashed once, here, and passed down. The raw key is the address the proxy
+    // reported and it goes no further than this line — `caller-key.ts` argues
+    // why a digest is enough for a cap whose only question is whether two
+    // requests came from the same caller.
+    const heldBy = input.caller
+      ? hashedCaller(input.caller, this.env.BETTER_AUTH_SECRET)
+      : null;
 
-    return await this.create(exec, input, "HELD");
+    await this.assertCallerHoldsFewEnough(exec, heldBy);
+    await assertFunnelMaySell(exec, input);
+    await this.assertAnonymousShareIsFree(exec, input);
+
+    return await this.create(exec, input, "HELD", heldBy);
+  }
+
+  /**
+   * Refuses a caller already holding {@link CONCURRENT_HOLDS_PER_CALLER} rooms.
+   *
+   * The count is of live holds and not of holds taken: `hold_expires_at > now()`
+   * is what makes an abandoned funnel session stop costing the caller their
+   * allowance the moment the TTL passes, whether or not `hold-expiry-sweep.ts`
+   * has reached the row yet. Between the expiry and the sweep a booking is
+   * `HELD` and holding nothing anybody should be charged for, and a cap that
+   * counted it would make the sweep's cadence part of the policy.
+   *
+   * No lock, and no `for update`. Two requests from one caller arriving together
+   * can both read three and both be admitted, which is a fourth room held for
+   * one TTL by a caller who worked for it — and the alternative is every hold on
+   * the public door serialising against every other hold from the same address.
+   * This is a cost imposed on automation, not an invariant, and
+   * `type_inventory_sold_at_most_total` is still the thing that cannot be raced.
+   *
+   * 429 rather than 409, because the answer is "not yet" rather than "not this
+   * stay": the same room is sellable to this caller ten minutes from now, and
+   * `hold-rate-limit.guard.ts` already teaches the funnel what that status means
+   * on this route.
+   */
+  private async assertCallerHoldsFewEnough(
+    exec: DbExecutor,
+    heldBy: string | null,
+  ): Promise<void> {
+    if (!heldBy) {
+      return;
+    }
+
+    const [live] = await exec
+      .select({ holds: count() })
+      .from(booking)
+      .where(
+        and(
+          eq(booking.heldBy, heldBy),
+          eq(booking.state, "HELD"),
+          gt(booking.holdExpiresAt, sql`now()`),
+        ),
+      );
+
+    if ((live?.holds ?? 0) >= CONCURRENT_HOLDS_PER_CALLER) {
+      // The reply says nothing about the property's inventory, because a
+      // refused call has not looked at any — the same line the limiter's own
+      // message keeps.
+      throw new ORPCError("TOO_MANY_REQUESTS", {
+        message: `You are already holding ${CONCURRENT_HOLDS_PER_CALLER} rooms. Finish or drop one of them, or wait for its hold to run out, and then take another`,
+      });
+    }
+  }
+
+  /**
+   * Refuses a hold that would take more of a night than callers without an
+   * account may hold between them.
+   *
+   * The cap is per night and per room type, which is the unit inventory is sold
+   * in — a stay is refused on the first of its nights that is already at the
+   * ceiling, because that is the night the guest would have to move.
+   *
+   * **A signed-in guest is not subject to it, and that is the message.** An
+   * account is a verified address and a stay history; a hold behind one can be
+   * chased, reminded and read back. So the refusal is not "the property is
+   * full" — it is not, or `reserve` would be the one refusing — it is an
+   * invitation to become somebody the property can contact, and the sentence has
+   * to say so or the guest reads a sell-out where there is inventory left.
+   *
+   * The two figures come from the two modules that own them.
+   * `inventory.service.ts` owns what a free room is and reads it through this
+   * transaction; the count of anonymous holds is read off `booking` here,
+   * because a hold is a booking and this file is where §3's effects live. What
+   * is *not* recomputed anywhere is availability: no `sold_rooms` arithmetic
+   * appears in this file, for the reason `hold-expiry-sweep.ts` gives at length
+   * about restating §3 in a second place.
+   */
+  private async assertAnonymousShareIsFree(
+    exec: DbExecutor,
+    input: CreateHoldInput,
+  ): Promise<void> {
+    if (input.userId) {
+      return;
+    }
+
+    const free = await this.inventory.remaining(exec, input);
+    const anonymous = await this.anonymousHoldsPerNight(exec, input);
+
+    for (const [night, remaining] of free) {
+      const held = anonymous.get(night) ?? 0;
+
+      if (held + 1 > anonymousHoldCeiling(remaining)) {
+        throw new ORPCError("TOO_MANY_REQUESTS", {
+          message: `Too many rooms of that type on ${night} are held by guests who have not signed in. Sign in and this hold is yours, or try again in a few minutes`,
+        });
+      }
+    }
+  }
+
+  /**
+   * How many live anonymous holds cover each night of the requested stay.
+   *
+   * The overlapping holds are read whole and counted here rather than being
+   * grouped per night in SQL, and the reason is the join that would take: a
+   * count per night means one row per night per hold, which is `type_inventory`
+   * joined back to `booking` on a range — and this file would then be reading
+   * the inventory table for something other than the counter it is not allowed
+   * to reimplement. A hold is one row and there are at most a night's worth of
+   * them, so the tally is cheap and the query stays a plain overlap.
+   *
+   * Half-open on both sides, the convention the whole system keeps: a stay
+   * departing on the morning of the night this one arrives holds nothing that
+   * night.
+   */
+  private async anonymousHoldsPerNight(
+    exec: DbExecutor,
+    input: CreateHoldInput,
+  ): Promise<ReadonlyMap<string, number>> {
+    const checkIn = input.checkIn.toString();
+    const checkOut = input.checkOut.toString();
+
+    const overlapping = await exec
+      .select({
+        checkInDate: booking.checkInDate,
+        checkOutDate: booking.checkOutDate,
+      })
+      .from(booking)
+      .innerJoin(roomType, eq(roomType.id, booking.roomTypeId))
+      .where(
+        and(
+          eq(roomType.code, input.roomType),
+          eq(booking.state, "HELD"),
+          isNull(booking.userId),
+          gt(booking.holdExpiresAt, sql`now()`),
+          lt(booking.checkInDate, checkOut),
+          gt(booking.checkOutDate, checkIn),
+        ),
+      );
+
+    const perNight = new Map<string, number>();
+
+    for (const held of overlapping) {
+      for (
+        let night = input.checkIn;
+        night.compare(input.checkOut) < 0;
+        night = night.add({ days: 1 })
+      ) {
+        const date = night.toString();
+
+        // ISO dates compare as text, which is what lets a night be tested
+        // against a stored range without parsing either end of it.
+        if (held.checkInDate <= date && date < held.checkOutDate) {
+          perNight.set(date, (perNight.get(date) ?? 0) + 1);
+        }
+      }
+    }
+
+    return perNight;
   }
 
   /**
@@ -296,9 +542,20 @@ export class BookingService {
     // The expiry goes with the state. A confirmed stay carrying a stale TTL is
     // a date the sweep could act on, and what it would do with it is cancel a
     // room the property has sold.
+    //
+    // The caller key goes with it, and for the mirror-image reason: the stay is
+    // sold, so the room it occupies is no longer one its caller is *holding*.
+    // Left behind, it would count against the three that caller may hold until
+    // the guest checked out — a guest who paid for their room punished by the
+    // limit that exists to stop a guest who never will.
     const [confirmed] = await exec
       .update(booking)
-      .set({ state: next, holdExpiresAt: null, updatedAt: new Date() })
+      .set({
+        state: next,
+        holdExpiresAt: null,
+        heldBy: null,
+        updatedAt: new Date(),
+      })
       .where(eq(booking.id, bookingId))
       .returning();
 
@@ -315,9 +572,9 @@ export class BookingService {
    * nothing took it: `confirm` above is behind `booking.write`, which is
    * `RECEPTIONIST` and up, so a guest paying their own hold had no path to the
    * transition their payment is the whole reason for. What that cost is not an
-   * unconfirmed booking. It is `hold-expiry-sweep.ts` reaching a stay two
-   * minutes later, finding it `HELD` past its TTL, and cancelling a room the
-   * guest has paid for.
+   * unconfirmed booking. It is `hold-expiry-sweep.ts` reaching a stay a minute
+   * later, finding it `HELD` past its TTL, and cancelling a room the guest has
+   * paid for.
    *
    * **Only from `HELD`, and every other state is a no-op rather than a
    * refusal.** Money reaches a stay at more than one moment — a deposit against
@@ -431,8 +688,13 @@ export class BookingService {
         penaltyWaivedBy: waivedBy,
         // A cancelled hold no longer holds anything, and
         // `booking_hold_expiry_exactly_when_held` refuses the row that kept its
-        // expiry.
+        // expiry. The caller key goes the same way under
+        // `booking_held_by_only_while_held`, which is what returns the
+        // allowance to whoever was holding this room — including on the sweep's
+        // own path, so a caller who abandoned three funnel sessions is free to
+        // book again as soon as their rooms are back on the shelf.
         holdExpiresAt: null,
+        heldBy: null,
         updatedAt: new Date(),
       })
       .where(eq(booking.id, bookingId))
@@ -1207,11 +1469,17 @@ export class BookingService {
    * back the whole transition — the caller's transaction is what guarantees no
    * booking row survives an inventory refusal, and no consumed night survives a
    * failed insert.
+   *
+   * `heldBy` arrives already hashed and only from the funnel's door. The desk's
+   * path passes null, which is `booking_held_by_only_while_held` satisfied by
+   * the state it writes and by the value it does not: a walk-in is confirmed on
+   * the spot, so there is nothing outstanding for a cap to count.
    */
   private async create(
     exec: DbExecutor,
     input: CreateBookingInput,
     state: BookingState,
+    heldBy: string | null = null,
   ): Promise<Booking> {
     // §2's *(new)* row, enforced rather than assumed. Creation straight into
     // `CHECKED_IN` is refused because a stay nobody booked has no inventory
@@ -1286,6 +1554,11 @@ export class BookingService {
             quotedBreakfastPerPersonGross: quote.breakfastPerPersonGross,
             quotedExtraPersonPerNightGross: quote.extraPersonPerNightGross,
             holdExpiresAt: state === "HELD" ? this.holdExpiry() : null,
+            // Written on the same condition as the expiry above, because the
+            // two die together: the check constraint refuses a caller key on
+            // anything that is not a hold, and a hold is the only row a cap has
+            // any business counting.
+            heldBy: state === "HELD" ? heldBy : null,
           })
           .onConflictDoNothing({ target: booking.reference })
           .returning();

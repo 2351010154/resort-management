@@ -34,8 +34,8 @@
 // second pass to come back empty, so a limited sweep with more than N expired
 // holds would hand back the next batch and be rejected as non-idempotent. The
 // backlog this would guard against cannot form anyway while the cron fires every
-// couple of minutes; if it ever does, the answer is a larger transaction once,
-// not a sweep that reports success having done part of the work.
+// minute; if it ever does, the answer is a larger transaction once, not a sweep
+// that reports success having done part of the work.
 
 import { Injectable } from "@nestjs/common";
 import { and, eq, lt, sql } from "drizzle-orm";
@@ -44,15 +44,21 @@ import { booking } from "../../database/schema/booking.js";
 import type { SweepJob } from "../../jobs/sweep-job.js";
 import { BookingService } from "./booking.service.js";
 
-// Every two minutes, and the cadence is a promise about lateness rather than a
+// Every minute, and the cadence is a promise about lateness rather than a
 // performance decision: a hold is released somewhere between its TTL and its TTL
 // plus this. No cadence makes that overshoot zero — `BOOKING_HOLD_TTL_MINUTES`
 // floors at one minute — and the direction it errs in is the safe one, since a
 // night still counted as sold is a night the property declines to sell twice.
-// The query behind each tick is a scan of the partial index
+//
+// A minute rather than the two it was, and the minute bought is the last one of
+// the overshoot: with the TTL at ten, an abandoned funnel session costs the
+// property a room for at most eleven minutes rather than seventeen. That matters
+// because the door the hold came through is public and unauthenticated, so the
+// overshoot is time a stranger holds a room for free — and it is not paid for in
+// load. The query behind each tick is a scan of the partial index
 // `booking_hold_expires_at_idx`, which exists for this sweep and covers only the
-// rows that are still held.
-const EVERY_TWO_MINUTES = "*/2 * * * *";
+// rows that are still held; on a night with nothing expired it reads nothing.
+const EVERY_MINUTE = "* * * * *";
 
 /**
  * Cancels every hold whose TTL has run out, releasing its nights.
@@ -64,7 +70,7 @@ const EVERY_TWO_MINUTES = "*/2 * * * *";
 @Injectable()
 export class HoldExpirySweep implements SweepJob {
   readonly name = "hold-expiry";
-  readonly schedule = EVERY_TWO_MINUTES;
+  readonly schedule = EVERY_MINUTE;
 
   constructor(private readonly bookings: BookingService) {}
 

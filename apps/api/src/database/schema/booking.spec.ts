@@ -184,6 +184,7 @@ describe("the booking row", () => {
       "booking_child_ages_are_ages",
       "booking_covers_at_least_one_night",
       "booking_has_an_adult",
+      "booking_held_by_only_while_held",
       "booking_hold_expiry_exactly_when_held",
       "booking_names_a_waiver_authority_exactly_when_waived",
       "booking_quoted_adjustment_within_bounds",
