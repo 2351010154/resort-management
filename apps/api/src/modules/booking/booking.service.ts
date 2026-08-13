@@ -48,7 +48,7 @@ import {
 } from "@mariva/shared";
 import { Inject, Injectable } from "@nestjs/common";
 import { ORPCError } from "@orpc/nest";
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, desc, eq, isNull, sql } from "drizzle-orm";
 import { ENV, type Env } from "../../config/env.js";
 import type { DbExecutor } from "../../database/database.module.js";
 import {
@@ -63,6 +63,7 @@ import { HousekeepingService } from "../housekeeping/housekeeping.service.js";
 import { InventoryService } from "../inventory/inventory.service.js";
 import { AssignmentService, type HeldRoom } from "./assignment.service.js";
 import { BusinessDateService } from "./business-date.service.js";
+import { type PolicyCharge, policyCharge } from "./cancellation-calculator.js";
 import {
   validateArrivalWindow,
   validateRoomAssigned,
@@ -70,7 +71,7 @@ import {
 } from "./guards/check-in.guard.js";
 import { validateFolioSettled } from "./guards/check-out.guard.js";
 import { FOLIO_PORT, type FolioPort } from "./ports/folio.port.js";
-import { applyTransition } from "./state-machine.js";
+import { applyTransition, LEGAL_TRANSITIONS } from "./state-machine.js";
 import { retryOnCollision } from "./reference-generator.js";
 import { assertFunnelMaySell } from "./stay-restriction-guard.js";
 import { StayQuoteService } from "./stay-quote.service.js";
@@ -95,6 +96,25 @@ export interface CreateBookingInput {
    * somebody else's bookings.
    */
   readonly userId?: string | null;
+  /**
+   * Where the confirmation goes and what to call the person it goes to, on the
+   * one door that collects it.
+   *
+   * Absent on every stay the desk takes, which is `contract/booking.ts`'s split
+   * carried down here: a walk-in is somebody at the counter and there is
+   * nowhere to send anything. Unlike {@link CreateBookingInput.userId} this
+   * *is* a value the caller sends, and it is not authority — it is an address
+   * to write to, claimed by whoever booked, and nothing is granted by holding
+   * it. `schema/booking.ts` says why it is not a `registration` row.
+   */
+  readonly contact?: BookingContact | null;
+}
+
+/** Somebody to write to about a stay. No phone — it is taken against a
+ *  document at check-in, where the desk already asks for it. */
+export interface BookingContact {
+  readonly email: string;
+  readonly name: string;
 }
 
 /**
@@ -160,9 +180,29 @@ export type CheckInGuest = { readonly guestId: string } | NewGuest;
  */
 export interface OwnBooking {
   readonly reference: string;
-  /** The guest account, off the session. Never a value a caller may send. */
-  readonly userId: string;
+  readonly owner: BookingOwner;
 }
+
+/**
+ * What makes a stay the caller's — an account, or one stay they have proved.
+ *
+ * Two credentials and one `where` clause, which is the point of the union. A
+ * signed-in guest owns every booking filed under their account, so the scope is
+ * the account; a guest who booked without one holds a credential naming a
+ * single stay, so the scope is that stay's id. Neither is a comparison made
+ * after the row arrives, and neither is a value a caller may send:
+ * `booking.controller.ts` builds this from what the guard resolved and from
+ * nothing in the body.
+ *
+ * `proven` carries the id rather than the reference even where the route
+ * addresses the stay by reference, because the id is what the credential was
+ * minted against and the reference is what the caller typed. The two must agree
+ * for a row to come back, and that is the whole of the ownership check on this
+ * branch.
+ */
+export type BookingOwner =
+  | { readonly kind: "account"; readonly userId: string }
+  | { readonly kind: "proven"; readonly bookingId: string };
 
 /**
  * The same pair, keyed by the id the funnel carries instead of the reference.
@@ -175,8 +215,7 @@ export interface OwnBooking {
  */
 export interface OwnHold {
   readonly bookingId: string;
-  /** The guest account, off the session. Never a value a caller may send. */
-  readonly userId: string;
+  readonly owner: BookingOwner;
 }
 
 @Injectable()
@@ -1012,13 +1051,13 @@ export class BookingService {
    */
   async ownHold(
     exec: DbExecutor,
-    { bookingId, userId }: OwnHold,
+    { bookingId, owner }: OwnHold,
   ): Promise<Booking> {
     const [row] = await exec
       .select({ booking, roomTypeCode: roomType.code })
       .from(booking)
       .innerJoin(roomType, eq(booking.roomTypeId, roomType.id))
-      .where(and(eq(booking.id, bookingId), eq(booking.userId, userId)))
+      .where(and(eq(booking.id, bookingId), scopedTo(owner)))
       .limit(1);
 
     if (!row) {
@@ -1028,6 +1067,75 @@ export class BookingService {
     }
 
     return this.asBooking(row);
+  }
+
+  /**
+   * What calling that stay off would cost, asked before calling it off —
+   * `property-and-tariff.md` §4's grid, priced and not posted.
+   *
+   * **The calculator, and no second opinion.** `folio.service.ts` prices the
+   * charge the same way when the cancellation actually happens, and a quote
+   * assembled from §4's sentences instead of from `policyCharge` would be a
+   * figure the property quoted and a different figure it charged. So this
+   * gathers exactly what that call gathers — the plan, the arrival, the stored
+   * per-night prices in stay order — and hands them over.
+   *
+   * **The instant is now, because that is what the guest is deciding at.** §4's
+   * free window closes at a wall-clock time, so the quote and the cancellation
+   * agree only while the guest is still on the same side of 18:00; a quote is a
+   * question and holds nothing, which is the honest shape of that and the
+   * reason nothing here is written down.
+   *
+   * **Only from a state a cancellation could reach.** `state-machine.ts` owns
+   * which those are, asked here rather than restated: a guest already in the
+   * building or a stay already called off has no cancellation to price, and
+   * answering them with a number they cannot act on would read as an offer.
+   */
+  async cancellationQuote(
+    exec: DbExecutor,
+    own: OwnBooking,
+  ): Promise<PolicyCharge> {
+    const { booking: row } = await this.findOwn(exec, own);
+
+    // The table and not `isLegalTransition`, and the difference is the whole of
+    // this line. That function answers §4's idempotency rule as well as §2's
+    // grid, so it calls `CANCELLED → CANCELLED` legal — which is right for a
+    // retried cancellation and wrong here: a stay already called off has
+    // nothing left to price, and quoting it would put a figure on a screen
+    // beside a button that does nothing.
+    if (!LEGAL_TRANSITIONS[row.state].includes("CANCELLED")) {
+      throw new ORPCError("CONFLICT", {
+        message: `A booking that is ${row.state} cannot be cancelled, so there is nothing to quote`,
+      });
+    }
+
+    // Every night the stay sold, in stay order, which is the basis §4 charges
+    // against — "the first night" is `booking_night`'s first row and never the
+    // total over the count, because a weekend night costs more than a Tuesday.
+    const nights = await exec
+      .select({ gross: bookingNight.standardGross })
+      .from(bookingNight)
+      .where(eq(bookingNight.bookingId, row.id))
+      .orderBy(asc(bookingNight.stayDate));
+
+    if (nights.length === 0) {
+      // `folio.service.ts` answers this the same way and says why: the
+      // calculator's `RangeError` is right about the input being malformed, and
+      // from a route it is a stay whose stored prices are missing, which a 500
+      // would say nothing useful about.
+      throw new ORPCError("CONFLICT", {
+        message:
+          "That stay has no stored night prices, so §4's grid has nothing to " +
+          "scale — the per-night figures are frozen when the booking is taken",
+      });
+    }
+
+    return policyCharge({
+      plan: row.ratePlanCode,
+      checkInDate: parseDate(row.checkInDate),
+      nights: nights.map((night) => night.gross),
+      event: { kind: "CANCELLATION", cancelledAt: new Date() },
+    });
   }
 
   /**
@@ -1071,13 +1179,13 @@ export class BookingService {
    */
   private async findOwn(
     exec: DbExecutor,
-    { reference, userId }: OwnBooking,
+    { reference, owner }: OwnBooking,
   ): Promise<{ booking: BookingRow; roomTypeCode: RoomTypeCode }> {
     const [row] = await exec
       .select({ booking, roomTypeCode: roomType.code })
       .from(booking)
       .innerJoin(roomType, eq(booking.roomTypeId, roomType.id))
-      .where(and(eq(booking.reference, reference), eq(booking.userId, userId)))
+      .where(and(eq(booking.reference, reference), scopedTo(owner)))
       .limit(1);
 
     if (!row) {
@@ -1161,6 +1269,12 @@ export class BookingService {
             // mistyped id fails the transition rather than writing a booking
             // nobody can be shown.
             userId: input.userId ?? null,
+            // Null at the desk's door and required at the funnel's — the split
+            // is which route was called, and `contract/booking.ts` argues why
+            // it is two inputs rather than one schema with a check inside a
+            // handler.
+            contactEmail: input.contact?.email ?? null,
+            contactName: input.contact?.name ?? null,
             roomTypeId: quote.roomTypeId,
             checkInDate: input.checkIn.toString(),
             checkOutDate: input.checkOut.toString(),
@@ -1260,4 +1374,21 @@ export class BookingService {
       holdExpiresAt: row.holdExpiresAt,
     };
   }
+}
+
+/**
+ * The half of the `where` clause that makes a lookup about the caller's own
+ * stay — {@link BookingOwner}, as SQL.
+ *
+ * An account is compared to `user_id`, and SQL's equality never matches a null,
+ * so every stay the desk took stays unreachable by any account at all. A proven
+ * booking is compared to the primary key, which is the narrowest clause there
+ * is: it can select one row and that row is the one the credential was minted
+ * for. Either way the scope is in the query rather than in a comparison
+ * afterwards, which is what makes it unforgettable.
+ */
+function scopedTo(owner: BookingOwner) {
+  return owner.kind === "account"
+    ? eq(booking.userId, owner.userId)
+    : eq(booking.id, owner.bookingId);
 }

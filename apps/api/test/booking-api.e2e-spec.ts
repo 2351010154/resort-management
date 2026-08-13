@@ -31,6 +31,7 @@ import type { StayDate } from "@mariva/shared";
 import type { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import { call } from "@orpc/server";
+import type { Response } from "express";
 import { eq, sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import request from "supertest";
@@ -501,7 +502,17 @@ describe("account attribution at the booking controller boundary", () => {
 
   it("keeps a null principal anonymous at the concrete handler", async () => {
     const controller = app.get(BookingController);
-    const created = await call(controller.createHold(null), {
+    // The response is the handler's only other collaborator: the hold issues
+    // the booking-scoped cookie on it. Captured rather than stubbed away, so a
+    // handler that stopped issuing one would show up here as well.
+    const issued: [string, string, object][] = [];
+    const response = {
+      cookie: (name: string, value: string, options: object) => {
+        issued.push([name, value, options]);
+      },
+    } as unknown as Response;
+
+    const created = await call(controller.createHold(null, response), {
       ...A_HELD_STAY,
       checkIn: "2028-05-15",
       checkOut: "2028-05-17",
@@ -514,6 +525,11 @@ describe("account attribution at the booking controller boundary", () => {
       .where(eq(booking.id, created.id));
 
     expect(stored?.userId).toBeNull();
+
+    // Anonymous on the row and still handed the credential for the stay: that
+    // is the whole of the funnel's answer to a guest with no account.
+    expect(issued).toHaveLength(1);
+    expect(issued[0]?.[0]).toBe("mariva_booking");
   });
 });
 
