@@ -1,6 +1,12 @@
 // Two realms, one module. They share nothing but this file: no table, no
 // secret, no session type, no token format — docs/architecture/rbac-matrix.md
 // §1. What they do share is the guard, which is why it is registered here.
+//
+// The booking-scoped token is a third credential and not a third realm in that
+// sense: it is a guest-realm credential that names one stay rather than an
+// account, it opens exactly two rows, and it cannot become a session. It lives
+// in its own module so that the booking module can issue it without importing
+// everything here.
 
 import { Module } from "@nestjs/common";
 import { APP_GUARD } from "@nestjs/core";
@@ -15,6 +21,7 @@ import { DRIZZLE, type Database } from "../../database/database.module.js";
 import { IdentityModule } from "../identity/identity.module.js";
 import { MailerService } from "../notification/mailer.service.js";
 import { NotificationModule } from "../notification/notification.module.js";
+import { BookingTokenModule } from "./booking-token/booking-token.module.js";
 import { createGuestAuth } from "./guest/guest-auth.factory.js";
 import { GuestAuthController } from "./guest/guest-auth.controller.js";
 import { GuestAuthService } from "./guest/guest-auth.service.js";
@@ -29,6 +36,9 @@ import {
 
 @Module({
   imports: [
+    // The third credential the guard resolves — a booking-scoped token, which
+    // is neither realm's session and belongs to neither realm's folder.
+    BookingTokenModule,
     IdentityModule,
     NotificationModule,
     PassportModule,

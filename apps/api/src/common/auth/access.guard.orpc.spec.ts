@@ -25,6 +25,7 @@ import { Test } from "@nestjs/testing";
 import request from "supertest";
 import { z } from "zod";
 import { afterEach, describe, expect, it } from "vitest";
+import type { BookingTokenService } from "../../modules/auth/booking-token/booking-token.service.js";
 import type { GuestAuthService } from "../../modules/auth/guest/guest-auth.service.js";
 import type { Principal } from "./principal.js";
 import { RequiresCapability } from "./access.decorators.js";
@@ -137,6 +138,13 @@ async function appAs(caller: Principal | null): Promise<INestApplication> {
                 caller?.realm === "guest" ? caller : null,
             } as unknown as GuestAuthService,
             staffJwt,
+            // Never presents one. This file is about how the guard's refusals
+            // cross the oRPC boundary, and the third credential changes nothing
+            // about that crossing.
+            {
+              presentedOn: () => undefined,
+              verify: () => null,
+            } as unknown as BookingTokenService,
           ),
         inject: [Reflector, StaffJwtGuard],
       },

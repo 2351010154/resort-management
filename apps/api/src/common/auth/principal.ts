@@ -25,7 +25,29 @@ export interface StaffPrincipal {
   readonly role: StaffRole;
 }
 
-export type Principal = GuestPrincipal | StaffPrincipal;
+/**
+ * A guest who never signed up, holding the credential their hold issued.
+ *
+ * The third realm, and the narrowest. It names no account — that is the whole
+ * point of it: an anonymous booking has no account for a session to be about,
+ * and inventing one would require looking the typed address up, which is the
+ * enumeration oracle `booking-token.service.ts` refuses to introduce. What it
+ * names instead is one stay, both ways that stay can be addressed, so the
+ * ownership check the two `⚠` rows still owe is a `where` clause here exactly
+ * as it is for a session.
+ *
+ * It is not a login and it never widens. `access.guard.ts` grants it
+ * `booking.read-own` and `booking.cancel-own` and refuses it every other row,
+ * including rows the matrix has not been written yet — a credential that grew
+ * as the matrix grew would be a hole nobody edited into existence.
+ */
+export interface BookingPrincipal {
+  readonly realm: "booking";
+  readonly bookingId: string;
+  readonly reference: string;
+}
+
+export type Principal = GuestPrincipal | StaffPrincipal | BookingPrincipal;
 
 /**
  * What the guard decided, handed to the handler.
