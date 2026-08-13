@@ -31,6 +31,7 @@ import type { StayDate } from "@mariva/shared";
 import type { INestApplication } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import { call } from "@orpc/server";
+import type { Response } from "express";
 import { eq, sql } from "drizzle-orm";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import request from "supertest";
@@ -44,6 +45,7 @@ import { seedDatabase } from "../src/database/seed/seed.js";
 import { BusinessDateService } from "../src/modules/booking/business-date.service.js";
 import { BookingController } from "../src/modules/booking/booking.controller.js";
 import {
+  capability,
   type CapabilityKey,
   staffGrant,
   STAFF_ROLES,
@@ -81,7 +83,7 @@ const A_GUEST = {
 } as const;
 
 /**
- * A stay body both creating routes take.
+ * The stay itself, which is what both creating routes are about.
  *
  * Two adults and no child, because a `SUPERIOR` sleeps two — `property.ts` §1 —
  * and a party above the maximum is refused rather than priced. The room numbers
@@ -95,6 +97,22 @@ const A_STAY = {
   plan: "STANDARD",
   adults: 2,
   childAges: [],
+} as const;
+
+/**
+ * The same stay as a funnel states it — with somebody to send the confirmation
+ * to.
+ *
+ * The pair is required at the hold's door and absent from the desk's, which is
+ * `contract/booking.ts`'s split rather than this fixture's convenience: a
+ * walk-in is standing at the counter and has nowhere to be written to. So the
+ * two bodies are two constants, and a test posting the wrong one to either route
+ * fails on the shape rather than on something further in.
+ */
+const A_HELD_STAY = {
+  ...A_STAY,
+  contactEmail: "held-stay@example.test",
+  contactName: "Held Stay",
 } as const;
 
 const GUEST_EMAIL = "booking-owner@example.test";
@@ -284,15 +302,41 @@ const ROUTES: readonly {
     path: (id) => `/bookings/${id}/early-departure`,
     capability: "booking.early-checkout",
   },
-  // The guest's own two. Every staff role is denied both rows, so what these
-  // lines assert is the cross-realm direction `rbac-matrix.md` §4 calls
+  // The guest's own. Every staff role is denied both rows, so what these lines
+  // assert is the cross-realm direction `rbac-matrix.md` §4 calls
   // non-negotiable: a staff token on a guest route is refused, and refused by
   // the guard rather than by the handler's ownership check. `guest-own-booking.e2e-spec.ts`
   // asserts the other side, with a real session on each of two accounts.
+  //
+  // Two of them answer `501` to a caller the guard admits, because their shapes
+  // are frozen ahead of the service work behind them. That is why the admitted
+  // branch of the loop below asserts what a route is *not* rather than what it
+  // is: the declaration is what is under test here, and a stub declares one.
   {
     name: "readOwn",
     method: "get",
     path: () => `/bookings/mine/${NO_SUCH_REFERENCE}`,
+    capability: "booking.read-own",
+    action: "read",
+  },
+  {
+    name: "readOwnHold",
+    method: "get",
+    path: (id) => `/bookings/holds/${id}`,
+    capability: "booking.read-own",
+    action: "read",
+  },
+  {
+    name: "listOwn",
+    method: "get",
+    path: () => "/bookings/mine",
+    capability: "booking.read-own",
+    action: "read",
+  },
+  {
+    name: "cancellationQuote",
+    method: "get",
+    path: () => `/bookings/mine/${NO_SUCH_REFERENCE}/cancellation-quote`,
     capability: "booking.read-own",
     action: "read",
   },
@@ -427,7 +471,7 @@ describe("account attribution at the booking controller boundary", () => {
     const response = await guestSession.agent
       .post("/bookings/holds")
       .send({
-        ...A_STAY,
+        ...A_HELD_STAY,
         checkIn: "2028-05-01",
         checkOut: "2028-05-03",
       })
@@ -443,7 +487,7 @@ describe("account attribution at the booking controller boundary", () => {
 
   it("does not file a staff HTTP booking under the staff account", async () => {
     const response = await as("RECEPTIONIST", "post", "/bookings/holds", {
-      ...A_STAY,
+      ...A_HELD_STAY,
       checkIn: "2028-05-08",
       checkOut: "2028-05-10",
     }).expect(201);
@@ -458,8 +502,18 @@ describe("account attribution at the booking controller boundary", () => {
 
   it("keeps a null principal anonymous at the concrete handler", async () => {
     const controller = app.get(BookingController);
-    const created = await call(controller.createHold(null), {
-      ...A_STAY,
+    // The response is the handler's only other collaborator: the hold issues
+    // the booking-scoped cookie on it. Captured rather than stubbed away, so a
+    // handler that stopped issuing one would show up here as well.
+    const issued: [string, string, object][] = [];
+    const response = {
+      cookie: (name: string, value: string, options: object) => {
+        issued.push([name, value, options]);
+      },
+    } as unknown as Response;
+
+    const created = await call(controller.createHold(null, response), {
+      ...A_HELD_STAY,
       checkIn: "2028-05-15",
       checkOut: "2028-05-17",
       childAges: [],
@@ -471,6 +525,11 @@ describe("account attribution at the booking controller boundary", () => {
       .where(eq(booking.id, created.id));
 
     expect(stored?.userId).toBeNull();
+
+    // Anonymous on the row and still handed the credential for the stay: that
+    // is the whole of the funnel's answer to a guest with no account.
+    expect(issued).toHaveLength(1);
+    expect(issued[0]?.[0]).toBe("mariva_booking");
   });
 });
 
@@ -481,14 +540,20 @@ describe("the capability each booking route declares", () => {
   // the handler, so an admitted caller answers 400 or 404 and a refused one
   // answers 403 either way, and no route can succeed and leave a booking behind.
   for (const route of ROUTES) {
+    // A row marked public admits everybody, and its role columns describe what a
+    // screen should offer rather than a wall — `rbac-matrix.md`'s own note, and
+    // the reason the guard checks this before it compares any grant. Reading the
+    // flag off the matrix rather than naming the route keeps this true when the
+    // next row is opened.
+    const isPublic = capability(route.capability).unauthenticated;
+
     for (const role of STAFF_ROLES) {
       // ⚠ satisfies a write and 👁 does not, which is `permits`' whole job —
       // asked here rather than spelled out, so the read route below is held to
       // the same rule as the writes without this file restating it.
-      const admitted = permits(
-        staffGrant(route.capability, role),
-        route.action ?? "write",
-      );
+      const admitted =
+        isPublic ||
+        permits(staffGrant(route.capability, role), route.action ?? "write");
 
       it(`${admitted ? "admits" : "refuses"} ${role} on ${route.name}`, async () => {
         const response = await as(
@@ -506,15 +571,27 @@ describe("the capability each booking route declares", () => {
     }
   }
 
-  it("refuses a stranger holding no session", async () => {
+  it("refuses a stranger holding no session, except on a public row", async () => {
     // 401 and not 403 — `rbac-matrix.md`'s own note on the implementation: a
     // guest session on a staff row is refused, and nobody at all is asked to
     // sign in.
+    //
+    // The hold is the exception, and it is the whole point of the row: a visitor
+    // books before they have an account, so the guard admits them and the empty
+    // body is refused by the schema instead. Asserting that it is *not* 401 is
+    // the claim worth making here — the status it does get is a fact about the
+    // body this loop deliberately does not send.
     for (const route of ROUTES) {
-      await http()
+      const response = await http()
         [route.method](route.path(NO_SUCH_BOOKING))
-        .send({})
-        .expect(401);
+        .send({});
+
+      if (capability(route.capability).unauthenticated) {
+        expect(response.status, route.name).not.toBe(401);
+        continue;
+      }
+
+      expect(response.status, route.name).toBe(401);
     }
   });
 });
@@ -678,7 +755,7 @@ describe("a hold from the public funnel", () => {
     // `FR-PRC-04`'s three bands surviving the round trip — a count could only
     // ever have been quoted as an adult.
     const response = await as("RECEPTIONIST", "post", "/bookings/holds", {
-      ...A_STAY,
+      ...A_HELD_STAY,
       roomType: "PREMIER",
       checkIn: "2027-07-01",
       checkOut: "2027-07-03",

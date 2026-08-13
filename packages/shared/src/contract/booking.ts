@@ -38,8 +38,10 @@
 // §8 freezes what a booking was quoted, and the one operation that adds nights
 // prices them off the calendar rather than off a number a caller sent.
 //
-// **The guest's own two routes address a stay by its reference**, and they are
-// the only routes here that do. Every other one names a `bookingId`, which is a
+// **The guest's own routes address a stay by its reference**, and they are the
+// only routes here that do — the read, the cancellation and the quote that
+// prices it, with `/bookings/mine` naming no stay at all because the question it
+// answers is which stays there are. Every other one names a `bookingId`, which is a
 // uuid the desk holds and a guest never sees; what a guest was given is the
 // eight characters printed on their confirmation. Putting them under
 // `/bookings/mine/` rather than at `/bookings/{reference}` is the same choice
@@ -75,7 +77,11 @@ import {
 import { vndAmountSchema } from "../money.js";
 import { chargeBasisSchema } from "../policy-charge.js";
 import { ratePlanCodeSchema, roomTypeCodeSchema } from "../rate-calendar.js";
-import { isoStayDateSchema, stayDateSchema } from "../stay-date.js";
+import {
+  isoStayDateSchema,
+  type StayDate,
+  stayDateSchema,
+} from "../stay-date.js";
 import { LARGEST_PLAUSIBLE_PARTY, OLDEST_CHILD_AGE } from "./availability.js";
 
 /** The booking every route below acts on. */
@@ -111,41 +117,104 @@ const partyFields = {
     .default([]),
 };
 
+/** The stay itself, as both creating transitions state it. */
+const stayFields = {
+  roomType: roomTypeCodeSchema,
+  checkIn: stayDateSchema,
+  checkOut: stayDateSchema,
+  // The plan the prices are quoted under, defaulted to the one the other two
+  // are derived from — `availability.ts` defaults its search the same way.
+  plan: ratePlanCodeSchema.default("STANDARD"),
+  ...partyFields,
+};
+
 /**
- * A stay as it is sold — the body behind both of §2's creating transitions.
+ * Who to write to about the stay, and what to call them.
  *
- * One schema for the two, because §2's *(new)* row differs in the state reached
- * and in nothing else the caller states: a walk-in and a funnel booking name the
- * same type, the same nights, the same plan and the same party. What separates
- * them is which route was called, which is what makes "only the funnel can
- * create `HELD`" (`FR-BOOK-02`) a fact about the routing table rather than a
- * flag a caller could set.
+ * **On the booking and not on `registration`.** A registration row is the legal
+ * check-in record — `schema/guest.ts` gives it `is_primary` and `registered_at`,
+ * allows one primary per booking and feeds the residence report — so writing one
+ * at hold time would file somebody as having checked in to a room they have not
+ * seen, and corrupt the occupancy the property reports on. This pair is a far
+ * smaller claim: an address the confirmation goes to and a name to put at the
+ * top of it.
+ *
+ * **No phone.** It is verified against a document at check-in, where the desk
+ * already collects it, and a number typed into a funnel is neither verified nor
+ * needed before the guest arrives.
+ *
+ * Bounded at the lengths `checkInGuestSchema` bounds the same two facts at, so
+ * a guest who books and later registers is not refused at the desk for a name
+ * the funnel accepted.
+ */
+const contactFields = {
+  contactEmail: z.email().max(254),
+  contactName: z.string().trim().min(1).max(120),
+};
+
+/**
+ * A departure after an arrival, and a party a room could hold.
+ *
+ * Predicates rather than two copies of each `.refine()`, because both creating
+ * inputs below are the same stay and a rule that drifted between them would let
+ * the funnel sell a night the desk refuses. They are structural on purpose —
+ * each takes the fields it judges and nothing else, so either schema's inferred
+ * type satisfies them without either being named here.
+ */
+const departsAfterArrival = (stay: { checkIn: StayDate; checkOut: StayDate }) =>
+  stay.checkIn.compare(stay.checkOut) < 0;
+
+const partyFitsARoom = (stay: {
+  adults: number;
+  childAges: readonly unknown[];
+}) => stay.adults + stay.childAges.length <= LARGEST_PLAUSIBLE_PARTY;
+
+const DEPARTURE_MESSAGE = {
+  message: "checkOut must fall after checkIn",
+  path: ["checkOut"],
+};
+
+const PARTY_MESSAGE = {
+  message: `a party of more than ${LARGEST_PLAUSIBLE_PARTY} is not a booking`,
+  path: ["childAges"],
+};
+
+/**
+ * A stay as the desk sells it — the body behind §2's *(new)* → `CONFIRMED`.
  *
  * The stay's price is not a field. §8 has a booking freeze what it was quoted,
  * and the quote is computed inside the transaction that consumes the nights —
  * an amount arriving here would be a price the guest proposed.
+ *
+ * No contact pair, and that is the difference between this door and the one
+ * below rather than an omission. A walk-in is somebody at the counter: the
+ * property has them in front of it, takes their document at check-in, and has
+ * nowhere to send a confirmation that the desk is not already handing over.
  */
 export const createBookingInput = z
-  .object({
-    roomType: roomTypeCodeSchema,
-    checkIn: stayDateSchema,
-    checkOut: stayDateSchema,
-    // The plan the prices are quoted under, defaulted to the one the other two
-    // are derived from — `availability.ts` defaults its search the same way.
-    plan: ratePlanCodeSchema.default("STANDARD"),
-    ...partyFields,
-  })
-  .refine((input) => input.checkIn.compare(input.checkOut) < 0, {
-    message: "checkOut must fall after checkIn",
-    path: ["checkOut"],
-  })
-  .refine(
-    (input) => input.adults + input.childAges.length <= LARGEST_PLAUSIBLE_PARTY,
-    {
-      message: `a party of more than ${LARGEST_PLAUSIBLE_PARTY} is not a booking`,
-      path: ["childAges"],
-    },
-  );
+  .object(stayFields)
+  .refine(departsAfterArrival, DEPARTURE_MESSAGE)
+  .refine(partyFitsARoom, PARTY_MESSAGE);
+
+/**
+ * The same stay, from a funnel — §2's *(new)* → `HELD`, with somebody to write
+ * to.
+ *
+ * **Two inputs and not one schema with two optional fields**, which is the same
+ * choice `rbac-matrix.md` §2 makes for policy and override: the rule that a
+ * funnel booking names a contact and a walk-in does not is enforced by which
+ * route was called, not by a check inside a handler that shares a body with the
+ * desk's. A required field on a schema both doors take would refuse the walk-in;
+ * an optional one required by the hold's handler would put the funnel's rule
+ * somewhere a reader of the contract cannot see it.
+ *
+ * Everything else is {@link createBookingInput}, spread from the same fields so
+ * the two doors cannot come to disagree about what a stay is.
+ */
+export const createHoldInput = z
+  .object({ ...stayFields, ...contactFields })
+  .refine(departsAfterArrival, DEPARTURE_MESSAGE)
+  .refine(partyFitsARoom, PARTY_MESSAGE);
 
 /**
  * A booking as it leaves the API — the shape `booking.service.ts` returns,
@@ -433,7 +502,7 @@ export const booking = {
     // makes "only the funnel can create `HELD`" enforceable by the capability
     // guard rather than by a check inside a handler.
     .route({ method: "POST", path: "/bookings/holds", successStatus: 201 })
-    .input(createBookingInput)
+    .input(createHoldInput)
     .output(bookingSchema),
 
   createConfirmed: oc
@@ -554,6 +623,49 @@ export const booking = {
     .route({ method: "GET", path: "/bookings/holds/{bookingId}" })
     .input(ownHoldInput)
     .output(bookingSchema),
+
+  listOwn: oc
+    // The collection the two routes above are members of, and the only one of
+    // the guest's routes that names no stay — the question is which stays there
+    // are, so there is nothing to put in the path.
+    //
+    // A bare array and not a page. `FR-GST-01`'s stay history is one account's
+    // own bookings at a forty-room property: a guest who has stayed enough times
+    // to need a cursor does not exist yet, and a shape that promised paging
+    // would have to be honoured by a service that has none.
+    //
+    // **Reachable by a session and never by a booking token.** A credential
+    // scoped to one stay must not enumerate the others — that is the whole of
+    // what scoping it means — so this route is the one guest read that a token
+    // is refused on. `access.guard.ts` is where that is enforced.
+    .route({ method: "GET", path: "/bookings/mine" })
+    .output(z.array(bookingSchema)),
+
+  cancellationQuote: oc
+    // What calling the stay off would cost, read before deciding to — a GET
+    // under the cancellation's own address, because it is that operation's
+    // price and not a resource of its own.
+    //
+    // **A read that writes nothing and holds nothing.** No figure is reserved
+    // and no state moves; the number is `cancellation-calculator.ts`'s, computed
+    // from the same booking at the same instant the cancellation would be priced
+    // at, and a second implementation here would be a quote that could disagree
+    // with the charge the folio later posts.
+    //
+    // It matters because of full prepay. The guest has already paid the stay in
+    // full, so the question they are actually asking is how much comes back, and
+    // stating only `property-and-tariff.md` §4's rule would leave them
+    // subtracting a figure they have never seen.
+    //
+    // `policyChargeSchema` rather than a shape of its own, and `basis` travels
+    // with the amount for the reason that schema gives: a free cancellation and
+    // a zero charge are the same number and different facts.
+    .route({
+      method: "GET",
+      path: "/bookings/mine/{reference}/cancellation-quote",
+    })
+    .input(ownBookingInput)
+    .output(policyChargeSchema),
 
   cancelOwn: oc
     // The same sub-resource the desk's cancellation is a POST to, under the

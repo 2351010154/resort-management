@@ -18,11 +18,28 @@ Two things the implementation had to settle that this document did not say:
   already required the first; the second is what "sign in" means when nobody
   has. A route with no declaration at all is 403 for everyone, including an
   administrator, because the refusal is about the route rather than the caller.
-- **The public row is public.** Row 1 of §3 is marked *Public, unauthenticated*,
-  and the guard lets anyone reach it — including a signed-in housekeeper, whose
-  column says `—`. The role columns on that row describe what a screen should
-  offer, not a wall; enforcing them would refuse a member of staff a page any
-  stranger can load.
+- **The public rows are public.** Rows 1 and 2 of §3 are marked *Public,
+  unauthenticated*, and the guard lets anyone reach them — including a signed-in
+  housekeeper, whose column says `—`. The role columns on those rows describe
+  what a screen should offer, not a wall; enforcing them would refuse a member of
+  staff a page any stranger can load.
+- **Three of the guest's rows accept a credential that is not a session.** A
+  guest books without an account, so *Read own booking*, *Cancel own booking* and
+  *Open a gateway payment attempt* are reachable by a Better Auth session **or**
+  by the booking-scoped token issued when the hold was taken. The three are the
+  funnel end to end — hold the room, pay for it, change your mind — and a token
+  admitted to two of them would only move the sign-up wall one screen later. It
+  opens exactly one stay and satisfies no other row; §1's "no token opens both
+  realms" is unaffected, because it is not a staff credential and it is not a
+  login. `common/auth/access.guard.ts` resolves it, and the ⚠ on all three rows
+  still means the handler owes the ownership check — paid against the account on
+  a session and against the booking the token names otherwise.
+  A request carrying a session **and** a booking token is the session's: it is
+  the wider claim, it names an account the ownership query can be scoped by, and
+  a credential able to override it would let a signed-in guest act as somebody
+  else. The token also stops at the routes that name a stay — the stay list under
+  *Read own booking* is a session's only, because a credential scoped to one
+  booking cannot answer a question about all of them.
 
 **Status:** proposed defaults. Derived from the advisory reports plus ordinary
 hotel practice. **Five** decisions are the owner's call, not an engineering one.
@@ -84,9 +101,9 @@ Legend: ✅ full · 👁 read-only · ⚠ conditional, see notes · — denied
 | Capability | G | RCP | HK | ACC | MGR | ADM | Notes |
 |---|:-:|:-:|:-:|:-:|:-:|:-:|---|
 | Availability + rate search | ✅ | ✅ | — | 👁 | ✅ | ✅ | Public, unauthenticated |
-| Create own booking | ✅ | ✅ | — | — | ✅ | ✅ | Staff create on behalf |
-| Read own booking / stay history | ⚠ | — | — | — | — | — | Own records only |
-| Cancel own booking | ⚠ | — | — | — | — | — | Own, penalty per policy |
+| Create own booking | ✅ | ✅ | — | — | ✅ | ✅ | Public, unauthenticated; staff create on behalf; hold rate-limited |
+| Read own booking / stay history | ⚠ | — | — | — | — | — | Own records only; session or booking token |
+| Cancel own booking | ⚠ | — | — | — | — | — | Own, penalty per policy; session or booking token |
 | Own profile, loyalty, VIP tier | ⚠ | 👁 | — | — | 👁 | 👁 | |
 | Upload own ID scan | ⚠ | — | — | — | — | — | |
 | Post-stay feedback | ⚠ | — | — | — | 👁 | 👁 | Tied to a `CHECKED_OUT` booking |
@@ -135,7 +152,7 @@ Legend: ✅ full · 👁 read-only · ⚠ conditional, see notes · — denied
 | Read folio | ⚠ | ✅ | — | ✅ | ✅ | ✅ | Guest: own, settled view |
 | Post charge (room, service, minibar) | — | ✅ | — | ✅ | ✅ | ✅ | |
 | Post payment | — | ✅ | — | ✅ | ✅ | ✅ | |
-| Open a gateway payment attempt | ⚠ | ✅ | — | ✅ | ✅ | ✅ | Guest: own booking. The handler must confirm the stay belongs to the requesting account |
+| Open a gateway payment attempt | ⚠ | ✅ | — | ✅ | ✅ | ✅ | Guest: own booking, by session or booking token. The handler must confirm the stay belongs to the requesting account, or is the one the token names |
 | Refund within policy | — | ✅ | — | ✅ | ✅ | ✅ | ⚑ |
 | Refund override / discretionary | — | — | — | — | ✅ | ✅ | ⚑ |
 | Reverse a posting | — | — | — | ✅ | ✅ | ✅ | Never a delete |

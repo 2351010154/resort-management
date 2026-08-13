@@ -91,7 +91,12 @@ import {
   TARIFF_RATES,
 } from "@/features/booking/lib/rate-calendar-fixture";
 import { roomType } from "@/features/booking/lib/room-types";
-import { holdStay } from "@/features/booking/lib/stay-funnel";
+import {
+  isContactAnswered,
+  NO_CONTACT,
+  type StayContact,
+  holdStay,
+} from "@/features/booking/lib/stay-funnel";
 import {
   indexNights,
   nightsInRange,
@@ -140,6 +145,17 @@ export function BookingScreen() {
   const [picked, setPicked] = useState<RoomTypeCode | null>(null);
   const [nextStep, setNextStep] = useState<string | null>(null);
   const [holding, setHolding] = useState(false);
+  /**
+   * Who the confirmation goes to — state of this visit, and deliberately not of
+   * the URL.
+   *
+   * Everything the guest answers about the *stay* is a search param, because
+   * `/booking` is stateless and shareable. An address and a name are neither:
+   * they belong to the person at the keyboard rather than to the search, and a
+   * link that carried them would put a guest's own details into anything they
+   * forwarded to somebody else.
+   */
+  const [contact, setContact] = useState<StayContact>(NO_CONTACT);
   const router = useRouter();
 
   /**
@@ -154,9 +170,21 @@ export function BookingScreen() {
    * so two presses are two stays on one guest's account for the same room —
    * and the second would be the one the funnel navigated to, leaving the first
    * to expire quietly against inventory nobody could sell in the meantime.
+   *
+   * **An unanswered contact pair is refused here rather than at the API.** The
+   * refusal would be identical either way; what differs is that this one costs
+   * no round trip and lands on the line the guest is already reading, where a
+   * 400 arriving a second later reads as the property having gone wrong.
    */
   async function takeHold(roomType: RoomTypeCode): Promise<void> {
     if (holding || !search.range) {
+      return;
+    }
+
+    if (!isContactAnswered(contact)) {
+      setNextStep(
+        "We need an email address and a name to hold the room — that is where the confirmation goes.",
+      );
       return;
     }
 
@@ -171,6 +199,7 @@ export function BookingScreen() {
         plan: search.plan,
         adults: search.party.adults,
         childAges: search.party.children.map((child) => child.age),
+        contact,
       });
 
       router.push(`/booking/${stay.id}/details`);
@@ -596,18 +625,23 @@ export function BookingScreen() {
                     search anybody can share, which is exactly why the id goes
                     in the path and the steps stop being search params.
 
-                    The line under the button is now what went wrong, when
-                    something does. The most likely refusal is the honest one: a
-                    guest who has not signed in cannot take a hold, because
-                    `booking.create-own` is denied to the unauthenticated and
-                    the stay has to belong to an account before a payment
-                    attempt can be scoped to it. */}
+                    **No sign-in stands in front of it.** `booking.create-own`
+                    is a public row — a visitor books before they have an
+                    account, not after — so what the door asks for is an address
+                    to send the confirmation to and a name to put on it, which
+                    is the pair collected beside the button. The account, if the
+                    guest ever wants one, is offered after the money has landed.
+
+                    The line under the button is what went wrong, when something
+                    does, including the unanswered pair. */}
                 <RoomStage
+                  contact={contact}
                   holding={holding}
                   key={selectedType.code}
                   nights={stayLength}
                   note={nextStep}
                   offer={selectedOffer}
+                  onContactChange={setContact}
                   onContinue={() => void takeHold(selectedType.code)}
                   plan={search.plan}
                   type={selectedType}

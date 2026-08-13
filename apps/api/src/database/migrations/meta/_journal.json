@@ -169,6 +169,13 @@
       "when": 1786425439509,
       "tag": "0023_loyalty_ledger_append_only",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1786543153886,
+      "tag": "0024_booking_contact",
+      "breakpoints": true
     }
   ]
 }
