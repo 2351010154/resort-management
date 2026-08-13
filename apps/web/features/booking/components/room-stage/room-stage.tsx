@@ -95,6 +95,7 @@ import {
   ROOM_AMENITIES,
   type RoomType,
 } from "@/features/booking/lib/room-types";
+import type { StayContact } from "@/features/booking/lib/stay-funnel";
 import { Money } from "../money";
 import styles from "./room-stage.module.css";
 
@@ -105,6 +106,8 @@ export function RoomStage({
   nights,
   note,
   holding,
+  contact,
+  onContactChange,
   onContinue,
 }: {
   readonly type: RoomType;
@@ -132,6 +135,17 @@ export function RoomStage({
    * has; a caller with no request to make renders the button as it always was.
    */
   readonly holding?: boolean;
+  /**
+   * Who the confirmation goes to — the one thing this plate asks of the guest.
+   *
+   * It sits with `Continue` rather than on a step of its own, because it is the
+   * price of that press: the API's funnel door requires an address and a name,
+   * and a screen that took the hold first and asked afterwards would be holding
+   * a room against nobody. Two fields, no phone, and nothing that looks like an
+   * account — the guest is buying a stay, not registering.
+   */
+  readonly contact: StayContact;
+  readonly onContactChange: (contact: StayContact) => void;
   readonly onContinue: () => void;
 }) {
   const reduced = useReducedMotion();
@@ -338,6 +352,42 @@ export function RoomStage({
         </p>
 
         <div className={styles.act}>
+          {/* Labelled rather than placeheld. A placeholder is the label until
+              the field has anything in it, and then it is gone — which is
+              exactly when a guest checking what they typed needs it. */}
+          <div className={styles.contact}>
+            <label className={styles.field}>
+              <span className={`${styles.fieldTerm} caps-label`}>Name</span>
+              <input
+                autoComplete="name"
+                className={styles.input}
+                disabled={holding}
+                onChange={(event) =>
+                  onContactChange({ ...contact, name: event.target.value })
+                }
+                type="text"
+                value={contact.name}
+              />
+            </label>
+            <label className={styles.field}>
+              <span className={`${styles.fieldTerm} caps-label`}>Email</span>
+              <input
+                autoComplete="email"
+                className={styles.input}
+                disabled={holding}
+                // `inputMode` and not `type="email"`, so the browser's own
+                // bubble does not pre-empt the line under the button that this
+                // screen answers every other refusal on.
+                inputMode="email"
+                onChange={(event) =>
+                  onContactChange({ ...contact, email: event.target.value })
+                }
+                type="text"
+                value={contact.email}
+              />
+            </label>
+          </div>
+
           <button
             className={styles.continue}
             data-stage-continue

@@ -30,7 +30,11 @@ export interface Capability {
   readonly section: string;
   /** The row's capability label, verbatim. */
   readonly row: string;
-  /** Reachable without any session at all. Exactly one row is (§3, row 1). */
+  /**
+   * Reachable without any session at all — §3's first two rows and no others.
+   * A stranger searches for a room and holds one; everything past that point
+   * either identifies them or is scoped by a credential they were issued.
+   */
   readonly unauthenticated: boolean;
   /** What the guest realm's single role may do. */
   readonly guest: Grant;
@@ -76,31 +80,52 @@ export const CAPABILITIES = [
     note: "Public, unauthenticated",
   },
   {
+    // Public, and the second row that is. A guest books before they have an
+    // account, not after: requiring a session here would put a sign-up wall in
+    // front of the only thing a stranger came to the site to do, and the account
+    // that a booking may later be attached to is offered once the money has
+    // landed. The stay it creates belongs to whoever holds the credential
+    // `booking.controller.ts` issues alongside it, which is what the two
+    // conditional rows below are read against.
+    //
+    // It is also the first unauthenticated write in the application, and it
+    // reserves inventory. Availability search above answers a question; this one
+    // takes rooms off the shelf, so the route behind it is rate-limited by IP —
+    // without that, the public door is a way to hold the property empty for
+    // nothing.
     key: "booking.create-own",
     section: "Public and guest realm",
     row: "Create own booking",
-    unauthenticated: false,
+    unauthenticated: true,
     guest: "full",
     staff: staff({ RECEPTIONIST: "full", MANAGER: "full", ADMIN: "full" }),
-    note: "Staff create on behalf",
+    note: "Public, unauthenticated; staff create on behalf; hold rate-limited",
   },
   {
+    // ⚠ against a session **or** a booking-scoped token. The guest who booked
+    // without an account has no session to be scoped by, and the token issued
+    // when they took the hold is what names the one stay they may read. The
+    // guard resolves which credential arrived; the handler still owes the
+    // ownership check either way, which is what ⚠ has always meant on this row.
     key: "booking.read-own",
     section: "Public and guest realm",
     row: "Read own booking / stay history",
     unauthenticated: false,
     guest: "conditional",
     staff: staff({}),
-    note: "Own records only",
+    note: "Own records only; session or booking token",
   },
   {
+    // The same pair of credentials as the read above, and for the same reason:
+    // a guest who could not cancel the stay they booked anonymously would have
+    // to telephone the desk to undo something they did on the web.
     key: "booking.cancel-own",
     section: "Public and guest realm",
     row: "Cancel own booking",
     unauthenticated: false,
     guest: "conditional",
     staff: staff({}),
-    note: "Own, penalty per policy",
+    note: "Own, penalty per policy; session or booking token",
   },
   {
     key: "guest.profile",
@@ -424,6 +449,12 @@ export const CAPABILITIES = [
   // The handler owes it: a payment attempt is only this caller's to open when
   // the stay's `user_id` is the requester's account, and a stay the desk took
   // holds a null there and is therefore nobody's.
+  //
+  // The account is one of two ways that condition is paid. A funnel guest who
+  // never signed up holds the booking-scoped token the hold issued, and it opens
+  // this row for the one stay it names — without it the funnel would take a
+  // booking from a stranger and then demand they register to pay for it, which
+  // is the sign-up wall moved one screen later rather than removed.
   {
     key: "payment.open-attempt",
     section: "Folio and money",
@@ -436,7 +467,7 @@ export const CAPABILITIES = [
       MANAGER: "full",
       ADMIN: "full",
     }),
-    note: "Guest: own booking. The handler must confirm the stay belongs to the requesting account",
+    note: "Guest: own booking, by session or booking token. The handler must confirm the stay belongs to the requesting account, or is the one the token names",
   },
   {
     key: "folio.refund-policy",

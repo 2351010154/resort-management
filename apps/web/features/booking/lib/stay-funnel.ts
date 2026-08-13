@@ -8,8 +8,14 @@
 // rather than from whatever the tab was carrying, which is what makes refresh
 // and the browser's back button work on steps that can expire.
 //
-// **The amount is never sent up.** `createHold` takes the room, the nights and
-// the party, and the API prices them — `contract/booking.ts` is explicit that an
+// **The contact pair goes up with the hold**, because the API's funnel door
+// requires it: a stay taken on the web is one the property has to be able to
+// write to, and the desk's door — which takes a walk-in standing at the counter
+// — does not ask. It is an address and a name and nothing else; the phone is
+// checked against a document at check-in.
+//
+// **The amount is never sent up.** `createHold` takes the room, the nights, the
+// party and that pair, and the API prices them — `contract/booking.ts` is explicit that an
 // amount arriving with the request would be a price the guest proposed. So the
 // figure the payment step collects is `stayTotalGross` off the hold the API
 // wrote, and the fixture prices `/booking` renders from cannot leak into money.
@@ -50,6 +56,42 @@ export function stayTotal(stay: HeldStay): bigint {
   return BigInt(stay.stayTotalGross);
 }
 
+/**
+ * Who the confirmation goes to, and what to call them.
+ *
+ * Collected at the hold rather than after it, because the API's funnel door
+ * requires the pair — `contract/booking.ts` splits the two creating inputs so
+ * that a stay taken on the web always has somebody to write to, where a walk-in
+ * the desk takes has nobody to write to and is not asked for one.
+ *
+ * No phone. It is checked against a document at check-in, where the desk already
+ * asks for it, and a number typed into a funnel is neither verified nor needed
+ * before the guest arrives.
+ */
+export interface StayContact {
+  readonly email: string;
+  readonly name: string;
+}
+
+/** Nothing entered yet — the value a screen starts a fresh funnel from. */
+export const NO_CONTACT: StayContact = { email: "", name: "" };
+
+/**
+ * Whether the pair is answered well enough to send.
+ *
+ * The bare shape of an address and a name that is not blank, and nothing
+ * cleverer: the API's schema is the authority on both and will refuse what this
+ * lets through, so a stricter rule here would be a second opinion that refuses a
+ * guest the property would have accepted. What this is for is answering *before*
+ * the request, so a blank field is a line under the button rather than a round
+ * trip that consumes nothing and reads like a failure.
+ */
+export function isContactAnswered(contact: StayContact): boolean {
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(contact.email.trim())
+    ? contact.name.trim().length > 0
+    : false;
+}
+
 /** What the funnel knows when it asks for a hold. */
 export interface StayRequest {
   readonly roomType: RoomTypeCode;
@@ -58,6 +100,7 @@ export interface StayRequest {
   readonly plan: RatePlanCode;
   readonly adults: number;
   readonly childAges: readonly number[];
+  readonly contact: StayContact;
 }
 
 /**
@@ -79,6 +122,10 @@ export async function holdStay(request: StayRequest): Promise<HeldStay> {
     plan: request.plan,
     adults: request.adults,
     childAges: [...request.childAges],
+    // Trimmed here rather than at the input, so the field a guest is typing in
+    // never has characters removed under the cursor.
+    contactEmail: request.contact.email.trim(),
+    contactName: request.contact.name.trim(),
   });
 }
 

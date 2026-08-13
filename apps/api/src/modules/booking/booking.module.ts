@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { BookingTokenModule } from "../auth/booking-token/booking-token.module.js";
 import { FolioModule } from "../folio/folio.module.js";
 import { FolioService } from "../folio/folio.service.js";
 import { GuestModule } from "../guest/guest.module.js";
@@ -10,6 +11,11 @@ import { AssignmentService } from "./assignment.service.js";
 import { BookingController } from "./booking.controller.js";
 import { BookingService } from "./booking.service.js";
 import { BusinessDateService } from "./business-date.service.js";
+import {
+  DEFAULT_HOLD_RATE_LIMIT,
+  HOLD_RATE_LIMIT_POLICY,
+  HoldRateLimitGuard,
+} from "./hold-rate-limit.guard.js";
 import { FOLIO_PORT } from "./ports/folio.port.js";
 import { SearchController } from "./search.controller.js";
 import { SearchService } from "./search.service.js";
@@ -73,8 +79,15 @@ import { StayQuoteService } from "./stay-quote.service.js";
 // answers about is a stay. It reads across two of the imports above — the
 // housekeeping board for what a room is, the guest table for who a person is —
 // and changes nothing, which is why it needs neither a port nor an export.
+//
+// `BookingTokenModule` is imported for one call: the hold issues the credential
+// that makes the funnel's next four screens reachable for a guest with no
+// account. The whole of `AuthModule` is not imported for it — that module owns
+// two realms, their controllers and the global guard, and this controller needs
+// none of them.
 @Module({
   imports: [
+    BookingTokenModule,
     FolioModule,
     GuestModule,
     HousekeepingModule,
@@ -89,6 +102,11 @@ import { StayQuoteService } from "./stay-quote.service.js";
     SearchService,
     StayQuoteService,
     { provide: FOLIO_PORT, useExisting: FolioService },
+    HoldRateLimitGuard,
+    // The figure, provided rather than read off the constant inside the guard,
+    // so a suite can state a small limit instead of taking thirty rooms off the
+    // shelf to prove the refusal.
+    { provide: HOLD_RATE_LIMIT_POLICY, useValue: DEFAULT_HOLD_RATE_LIMIT },
   ],
   exports: [AssignmentService, BookingService, BusinessDateService],
 })

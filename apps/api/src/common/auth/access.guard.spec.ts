@@ -30,6 +30,7 @@ import { describe, expect, it } from "vitest";
 import {
   CAPABILITIES,
   type Capability,
+  capability as rowFor,
 } from "../../modules/identity/rbac/matrix.js";
 import {
   CAPABILITY_ACTIONS,
@@ -38,8 +39,13 @@ import {
   STAFF_ROLES,
   type StaffRole,
 } from "../../modules/identity/rbac/roles.js";
-import { CAPABILITY_KEY, UNGUARDED_KEY } from "./access.decorators.js";
+import {
+  CAPABILITY_KEY,
+  SESSION_ONLY_KEY,
+  UNGUARDED_KEY,
+} from "./access.decorators.js";
 import { AccessGuard, type StaffJwtGuard } from "./access.guard.js";
+import type { BookingTokenService } from "../../modules/auth/booking-token/booking-token.service.js";
 import type { GuestAuthService } from "../../modules/auth/guest/guest-auth.service.js";
 import { ACCESS_DECISION, type Principal } from "./principal.js";
 
@@ -85,8 +91,17 @@ function guardFor(caller: Caller) {
 
   const staffJwt = { canActivate: () => true } as unknown as StaffJwtGuard;
 
+  // The third credential is resolved last and only when the first two answered
+  // nothing, so a stub that never verifies one leaves every case in this file
+  // exactly as it was. `booking-token.e2e-spec.ts` is where the token's own
+  // rows are asserted, against a real signature.
+  const bookingTokens = {
+    presentedOn: () => undefined,
+    verify: () => (caller?.realm === "booking" ? caller : null),
+  } as unknown as BookingTokenService;
+
   return {
-    guard: new AccessGuard(new Reflector(), guestAuth, staffJwt),
+    guard: new AccessGuard(new Reflector(), guestAuth, staffJwt, bookingTokens),
     request,
   };
 }
@@ -239,6 +254,91 @@ describe("every row of the RBAC matrix", () => {
       }
     });
   }
+});
+
+describe("the booking-scoped credential, against every row", () => {
+  // The ceiling `access.guard.ts` puts on the third credential, asserted the
+  // way §4 asserts a role: over the whole table rather than over the two rows
+  // somebody remembered. A capability added to the matrix is a capability this
+  // block refuses the token by default, which is the property that makes the
+  // credential safe to leave in a browser for a week after a stay.
+  const OPENS = new Set([
+    "booking.read-own",
+    "booking.cancel-own",
+    "payment.open-attempt",
+  ]);
+
+  const TOKEN: Principal = {
+    realm: "booking",
+    bookingId: "11111111-1111-4111-8111-111111111111",
+    reference: "AAAA-1111",
+  };
+
+  for (const capability of CAPABILITIES) {
+    if (capability.unauthenticated) {
+      it(`reaches the public row: ${capability.row}`, async () => {
+        // Holding a credential cannot leave a caller with less authority than
+        // the stranger they would otherwise be.
+        const outcome = await reach(TOKEN, capability, "write");
+
+        expect(outcome.allowed).toBe(true);
+      });
+
+      continue;
+    }
+
+    if (OPENS.has(capability.key)) {
+      it(`opens: ${capability.row}`, async () => {
+        for (const action of CAPABILITY_ACTIONS) {
+          const outcome = await reach(TOKEN, capability, action);
+
+          expect(outcome.allowed, action).toBe(true);
+        }
+      });
+
+      continue;
+    }
+
+    it(`is refused with 403 on: ${capability.row}`, async () => {
+      for (const action of CAPABILITY_ACTIONS) {
+        const outcome = await reach(TOKEN, capability, action);
+
+        expect(outcome.status, action).toBe(403);
+      }
+    });
+  }
+
+  // A route inside a row the token opens, closed to it on the route.
+  // `booking.read-own` governs four handlers and one of them answers with every
+  // stay an account has taken; a row can admit the credential or refuse it and
+  // cannot tell the four apart, so the narrowing is declared per route and
+  // enforced here. `booking.controller.ts` is where it is declared, and
+  // `guest-booking-token.e2e-spec.ts` pins which route carries it.
+  describe("a route the row opens and the route closes", () => {
+    const OPENED = rowFor("booking.read-own");
+
+    const asSessionOnly = (caller: Caller) =>
+      attempt(caller, {
+        [CAPABILITY_KEY]: { key: OPENED.key, action: "read" },
+        [SESSION_ONLY_KEY]: "a credential scoped to one stay opens one stay",
+      });
+
+    it("refuses the booking-scoped credential with 403", async () => {
+      const outcome = await asSessionOnly(TOKEN);
+
+      expect(outcome.status).toBe(403);
+    });
+
+    it("leaves the same row's other routes open to it", async () => {
+      // The refusal is the route's and not a demotion of the credential — a
+      // token that lost the row would fail the read beside this one too.
+      expect((await reach(TOKEN, OPENED, "read")).allowed).toBe(true);
+    });
+
+    it("admits a signed-in guest, which is what the route is narrowed to", async () => {
+      expect((await asSessionOnly(GUEST)).allowed).toBe(true);
+    });
+  });
 });
 
 describe("the two realms", () => {

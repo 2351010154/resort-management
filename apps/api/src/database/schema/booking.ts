@@ -11,12 +11,13 @@
 //
 // What is deliberately *not* here:
 //
-// - **The guest.** A booking is taken before anyone is identified — the funnel
-//   holds a room and asks for a name afterwards. The guest record and its
-//   foreign key are the next migration's, and nothing here needs one to be
-//   correct. `user_id` below is not that: an account is who *booked*, and a
-//   `guest`/`registration` row is who slept in the room. The two are different
-//   questions and a stay routinely answers only one of them.
+// - **The guest.** A booking is taken before anyone is identified. The guest
+//   record and its foreign key are the next migration's, and nothing here needs
+//   one to be correct. Neither of the two columns that look like it is it:
+//   `user_id` is the account that *booked*, `contact_email`/`contact_name` are
+//   where the confirmation goes, and a `guest`/`registration` row is who slept
+//   in the room and showed a document to prove it. Three different questions,
+//   and a stay routinely answers only one of them.
 // - **Charges, postings and refunds.** M4 computes the cancellation and no-show
 //   amounts and persists none of them. The folio is M6, and a money table
 //   written before the ledger that owns it is a second place for a balance to
@@ -97,6 +98,29 @@ export const booking = pgTable(
     // 32-character base-62 string — `guest-auth.ts` says why that table takes
     // no database-generated key.
     userId: text("user_id").references(() => guestUser.id),
+    // Where the confirmation goes, and what to call the person it goes to.
+    //
+    // Not `registration`'s, and that is the load-bearing part. A registration
+    // row is the statutory check-in record — `guest.ts` gives it `is_primary`
+    // and `registered_at`, allows one primary per booking and feeds the
+    // residence report — so writing one when a funnel takes a hold would file
+    // somebody as resident in a room they have not seen and put a stay into the
+    // occupancy figures a day or more before anybody arrives. What a funnel has
+    // at that moment is an address and a name typed into a form, which is a much
+    // smaller claim and belongs on the booking that was taken.
+    //
+    // Nullable, because most stays have neither. A walk-in is somebody at the
+    // counter: the desk hands them the confirmation and takes their document at
+    // check-in, so there is nowhere to send anything and no form to have typed a
+    // name into. `contract/booking.ts` splits the two creating inputs so that
+    // the funnel's door requires the pair the desk's door has no use for, which
+    // is why the requirement is not a `NOT NULL` here — the column is shared by
+    // both doors and only one of them collects.
+    //
+    // No phone. It is checked against a document at check-in, where the desk
+    // already asks for it.
+    contactEmail: text("contact_email"),
+    contactName: text("contact_name"),
     state: bookingStateEnum("state").notNull(),
     cancellationReason: cancellationReasonEnum("cancellation_reason"),
     roomTypeId: uuid("room_type_id")

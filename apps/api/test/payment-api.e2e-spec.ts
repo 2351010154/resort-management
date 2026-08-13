@@ -89,6 +89,17 @@ const RETURN_PATH = "/payments/vnpay/return";
  *  a 401 below is the guard running rather than a route that does not exist. */
 const A_GUARDED_PATH = "/housekeeping/board";
 
+/**
+ * What every stay below was quoted, and therefore what a guest may open an
+ * attempt for.
+ *
+ * One figure for the fixtures and the requests both, because the guest door
+ * takes exactly one: `payment.service.ts` refuses a guest any amount but the
+ * stay's frozen total, so a suite whose fixture priced a stay at one number and
+ * whose requests sent another would prove only that the refusal fires. The desk
+ * is the realm that may send something else, and the case below that does it
+ * says so.
+ */
 const AMOUNT: VndAmount = 1_200_000n;
 
 const ARRIVAL_DATE = "2027-11-02";
@@ -401,6 +412,26 @@ describe("a guest holding a real session", () => {
     expect(noSuchStay.body).toEqual(notMine.body);
   });
 
+  it("is refused an amount that is not the whole stay, and opens nothing", async () => {
+    // The property collects the stay in full before arrival, so there is exactly
+    // one figure this door may be opened for. Nothing downstream would catch a
+    // smaller one: the callback confirms a paid hold from its *status* and never
+    // from its amount, so a guest who could name the figure could pay a thousand
+    // đồng and come back holding a gateway success against a confirmed stay.
+    const stayId = await aBooking(guestAccountId);
+
+    const response = await guest
+      .post(attemptPath(stayId))
+      .send(anAttempt({ amount: (AMOUNT / 1000n).toString() }));
+
+    expect(response.status).toBe(400);
+
+    // Refused before the folio is opened, like every other refusal on this door
+    // — a `PENDING` row behind a rejected call is money the property would
+    // appear to be waiting for.
+    expect(await attemptsOn(stayId)).toHaveLength(0);
+  });
+
   describe("paying for the stay they are holding", () => {
     it("is confirmed by the gateway's own callback, over the wire", async () => {
       // The whole journey, through the two routes VNPay actually touches and the
@@ -584,6 +615,30 @@ describe("the attempt the desk opens", () => {
     });
   });
 
+  it("takes an amount that is not the whole stay, which a guest may not", async () => {
+    // The other half of the guest refusal above, and the reason it is a realm
+    // rule rather than a rule about the number. A desk collects deposits, part
+    // payments and balances against one stay — every staff role holds this row
+    // `full` — so the figure is the caller's, and scoping it would refuse the
+    // ordinary use of the route.
+    const stayId = await aBooking();
+    const deposit = AMOUNT / 2n;
+
+    const response = await as(
+      "RECEPTIONIST",
+      stayId,
+      anAttempt({ amount: deposit.toString() }),
+    ).expect(200);
+
+    const rows = await attemptsOn(stayId);
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      amount: deposit,
+      attemptReference: response.body.reference,
+    });
+  });
+
   it("gives one stay as many attempts as it takes", async () => {
     // A payer who abandoned checkout, a card that was declined, a deposit and
     // then the balance. Each is its own row under its own reference, which is
@@ -751,7 +806,7 @@ async function aBooking(userId: string | null = null): Promise<string> {
       checkOutDate: DEPARTURE_DATE,
       ratePlanCode: "STANDARD",
       adults: 2,
-      quotedStayTotalGross: 5_400_000n,
+      quotedStayTotalGross: AMOUNT,
       quotedPercentAdjustment: 0,
       quotedExtraPersonPerNightGross: 600_000n,
     })
@@ -785,7 +840,7 @@ async function aHold(userId: string): Promise<string> {
       checkOutDate: DEPARTURE_DATE,
       ratePlanCode: "STANDARD",
       adults: 2,
-      quotedStayTotalGross: 5_400_000n,
+      quotedStayTotalGross: AMOUNT,
       quotedPercentAdjustment: 0,
       quotedExtraPersonPerNightGross: 600_000n,
     })

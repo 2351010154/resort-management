@@ -78,6 +78,13 @@ const A_STAY = {
   childAges: [],
 } as const;
 
+/** The same stay through the funnel's door, which asks who to write to. */
+const A_HELD_STAY = {
+  ...A_STAY,
+  contactEmail: "journey-guest@example.test",
+  contactName: "Journey Guest",
+} as const;
+
 const A_GUEST = {
   fullName: "Ngô Thị Bích",
   cccdNumber: "079301007788",
@@ -196,7 +203,7 @@ function as(
 
 describe("a stay taken at the funnel and walked to the trolley", () => {
   it("is created as a hold that consumes every night of it", async () => {
-    const response = await as("post", "/bookings/holds", A_STAY).expect(201);
+    const response = await as("post", "/bookings/holds", A_HELD_STAY).expect(201);
 
     bookingId = response.body.id;
 
