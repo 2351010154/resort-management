@@ -222,18 +222,26 @@ export const envSchema = z.object({
   // How long a hold holds — `FR-BOOK-02`, which states outright that "the TTL
   // length is configuration, not a constant".
   //
-  // Fifteen minutes covers the funnel's guest-details and payment steps plus a
+  // Ten minutes covers the funnel's guest-details and payment steps plus a
   // gateway round trip, and it is the figure a property tunes when it finds
   // guests timing out mid-payment or rooms sitting held behind abandoned carts.
   // The floor is one minute rather than zero: a TTL of zero would have the
   // sweep cancel every hold the instant it was taken, which is the funnel
   // silently not working rather than a configuration anybody meant.
+  //
+  // It was fifteen, and the five minutes were given back to the property rather
+  // than to the funnel. This is the length an abandoned cart costs a room, and
+  // the public door it sits behind is the one an unauthenticated caller reaches
+  // — so the number is a share of the property held by strangers, multiplied by
+  // however many holds are outstanding. Ten still leaves a guest longer than a
+  // card payment takes, and `hold-expiry-sweep.ts` collects it a minute later,
+  // which puts the worst case for an abandoned room at eleven minutes.
   BOOKING_HOLD_TTL_MINUTES: z.coerce
     .number()
     .int()
     .min(1)
     .max(1_440)
-    .default(15),
+    .default(10),
 
   // The two guard relaxations `booking-state-machine.md` §7 leaves to the owner.
   // Both default to the blocked reading §7 assumes, and both are here rather
