@@ -1,0 +1,773 @@
+/* The review screen: two plates and a summary that stays put.
+ *
+ * Everything reads from @mariva/tokens — design-foundations.md §2. Motion is CSS
+ * only, on the permitted properties, at 0.4s on --ease-ui: §5. Nothing here loads
+ * `three`, `gsap` or `lenis`, which `FR-BOOK-06` forbids anywhere in this path.
+ *
+ * **The measure is stated once and the bar reads it.** `--funnel-measure` and
+ * `--funnel-gutter` are the pair `funnel-nav.module.css` lines its type up
+ * against, so the wordmark lands on the same vertical as the left plate's edge.
+ * The pattern is repeated from `booking-screen.module.css` rather than shared,
+ * which is the same trade that file already made: a screen owns its frame.
+ *
+ * **The plates are lighter than the page they lie on.** The comp separates them
+ * by tone rather than by an edge alone, and the palette already holds the pair:
+ * --ivory-warm is the wall and --ivory is the thing set down on it. A hairline
+ * and a low shadow carry the rest, so the plates still read as plates at a
+ * contrast where the tone difference does not.
+ */
+
+.screen {
+  --funnel-measure: 96.75rem;
+  --funnel-gutter: var(--page-gutter);
+  /* The corner the funnel cuts every ivory box with, and the smaller one for
+     what sits inside them. Re-stated here rather than imported for the same
+     reason as the gutter below: `booking-screen.module.css` declares them on its
+     own `.screen`, and this route never descends from that one, so a `var()`
+     alone resolves to nothing and every plate and photograph on this page draws
+     square. */
+  --plate-radius: 0.75rem;
+  --row-radius: 0.5rem;
+  /* The window's own margin. Repeated from `booking-screen.module.css` rather
+     than imported: a custom property cannot be shared across modules without a
+     global, and a global gutter would be one more thing a screen could not set
+     for itself. */
+  --page-gutter: clamp(var(--space-2), 3.7vw, 3.875rem);
+  /* The summary column: a third of the measure, and never more than 32rem.
+     Fractional through the middle so the two columns keep the comp's two-to-one
+     at every laptop width — a fixed 32rem is two thirds of the form beside it at
+     1280 and the balance the composition is built on inverts. Capped at the top
+     because what the column holds — a 16:9 frame, four labelled rows and a
+     figure — has a size it wants and does not improve by getting wider on a
+     large monitor. */
+  --aside-width: clamp(20rem, 30vw, 32rem);
+  --plate-pad: clamp(var(--space-2), 3vw, 3rem);
+  --aside-pad: clamp(var(--space-2), 1.8vw, 1.75rem);
+  --plate-edge: 1px solid rgb(var(--umber-rgb) / 0.09);
+  /* Two shadows and neither of them dramatic: the tight one is the plate's own
+     contact with the page, the wide one is the air under it. Cast in umber
+     rather than in black, because a neutral shadow on a warm ground greys it. */
+  --plate-lift:
+    0 1px 2px rgb(var(--umber-rgb) / 0.04),
+    0 0.75rem 2rem rgb(var(--umber-rgb) / 0.05);
+
+  min-height: 100dvh;
+  background: var(--ivory-warm);
+  color: var(--ink);
+}
+
+.frame {
+  width: 100%;
+  max-width: calc(var(--funnel-measure) + 2 * var(--page-gutter));
+  margin-inline: auto;
+  padding: var(--space-3) var(--page-gutter) var(--space-4);
+}
+
+/* The one decision the layout makes: what is being agreed to on the left, the
+   arithmetic and the press on the right. */
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--aside-width);
+  align-items: start;
+  gap: var(--space-3);
+}
+
+/* Tighter than the column gap, and deliberately: the two plates are two parts
+   of one form, where the summary beside them is a different kind of thing. */
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.plate {
+  padding: var(--plate-pad);
+  background: var(--ivory);
+  border: var(--plate-edge);
+  border-radius: var(--plate-radius);
+  box-shadow: var(--plate-lift);
+}
+
+/* ---- The room, read back ------------------------------------------------- */
+
+/* Not `--text-display-sm`: that step is sized for a screen whose heading is the
+   only thing on it, and at this measure it would out-shout the total, which is
+   the figure this page exists to show. */
+.title {
+  font-size: clamp(1.9rem, 2.4vw, 2.5rem);
+  font-weight: 300;
+  line-height: 1.15;
+}
+
+/* A headline states, a caption qualifies — design-foundations.md §6. */
+.lede {
+  margin-top: 0.375rem;
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--stone-deep);
+}
+
+/* The room's name and the one way to change it, on one line with a rule under
+   them. The rule is the seam between "which room" and "what is true of it". */
+.roomHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding-bottom: 0.625rem;
+  border-bottom: 1px solid rgb(var(--umber-rgb) / 0.15);
+}
+
+.roomName {
+  font-size: clamp(1.35rem, 1.7vw, 1.75rem);
+  font-weight: 300;
+  line-height: 1.2;
+}
+
+/* Underlined standing, not on hover. It is the only way off this screen that is
+   not the browser's back button, and a link a guest has to find by sweeping the
+   pointer over the heading is not offered. */
+.change {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  flex: 0 0 auto;
+  min-height: 2.75rem; /* 44px — the tap floor the whole funnel is set to. */
+  font-size: var(--text-sm);
+  color: var(--dusk-amber);
+  border-bottom: 1px solid currentcolor;
+  transition: color 0.4s var(--ease-ui);
+}
+
+.change:hover {
+  color: var(--umber);
+}
+
+.change:focus-visible {
+  outline: 2px solid var(--dusk-amber);
+  outline-offset: 4px;
+}
+
+.changeMark {
+  width: 0.875rem;
+  height: 0.875rem;
+  /* The rule under the link is the link's, and a chevron sitting on it reads as
+     an arrow with a line through it. */
+  margin-bottom: 0.0625rem;
+}
+
+/* Four facts, two across. The gap grows with the window because the left column
+   holds "One king bed (1.80 m) · one single bed (1.00 m)" and the right holds
+   "42 m²" — equal tracks with a fixed gutter would leave the second one adrift
+   in its own half. */
+.facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: clamp(var(--space-3), 6vw, 9rem);
+  row-gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.fact {
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr);
+  align-items: start;
+  gap: 0.875rem;
+  min-width: 0;
+}
+
+.factLines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+/* Value first, then the word for it — `room-facts.ts` argues the order. Not set
+   in caps: `text-transform: uppercase` over these prints "42 M²" and "(1.80 M)",
+   and the metre is a lower-case symbol that becomes a different unit in capitals.
+   Weight and colour separate the two lines instead. */
+.factValue {
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--ink);
+}
+
+/* The aspect words arrive lower-case — `property-and-tariff.md` §1 writes them
+   as "city" and "garden", which is how they read inside a sentence and not how
+   they read as the first word of a line. `::first-letter` rather than
+   `text-transform: capitalize`, which would turn "one king bed (1.80 m)" into
+   title case, and rather than uppercasing the lot, which would print "42 M²" —
+   the metre is a lower-case symbol and a capital makes it a different unit. */
+.factValue::first-letter {
+  text-transform: uppercase;
+}
+
+.factTerm {
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  color: var(--stone);
+}
+
+/* A strip rather than a frame. The summary beside it shows the room at 16:9 with
+   a real description; this one is the plate's own footer — enough of the room to
+   place what has just been read, and not a second gallery. */
+/* `height: auto` is load-bearing and not tidying. Both frames carry `width` and
+   `height` attributes so the browser reserves the right box before the bytes
+   arrive, and those attributes are presentational hints that set the CSS
+   `height` — which outranks nothing here, because nothing else sets it. Left
+   alone, the strip below draws 1280px tall and `aspect-ratio` is used to derive
+   a width nobody asked for. */
+.roomShot {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 11 / 2;
+  margin-top: var(--space-3);
+  object-fit: cover;
+  border-radius: var(--row-radius);
+}
+
+/* ---- Details and payment -------------------------------------------------- */
+
+.plateTitle {
+  font-size: clamp(1.3rem, 1.6vw, 1.625rem);
+  font-weight: 300;
+  line-height: 1.2;
+}
+
+/* The two-across arrangement the comp sets, at the gutter it sets. It collapses
+   before the boxes get too short to read a long address back in. */
+.pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2) var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  min-width: 0;
+}
+
+/* Labelled rather than placeheld, and in sentence case rather than the funnel's
+   caps run: this is a form label beside a form label, and a caps label at
+   `--tracking-caps` reads as a section heading for the field under it. */
+.fieldTerm {
+  font-size: var(--text-xs);
+  color: var(--ink);
+}
+
+.input {
+  min-height: 2.5rem;
+  padding: 0 0.875rem;
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid rgb(var(--umber-rgb) / 0.18);
+  border-radius: var(--row-radius);
+  transition: border-color 0.4s var(--ease-ui);
+}
+
+.input::placeholder {
+  color: var(--stone);
+}
+
+.input:hover:not(:disabled) {
+  border-color: rgb(var(--umber-rgb) / 0.32);
+}
+
+.input:focus-visible {
+  outline: none;
+  border-color: var(--dusk-amber);
+}
+
+.input:disabled {
+  color: var(--stone);
+}
+
+/* The heading of the payment block and the control that swaps it, on one line —
+   the swap belongs to the words beside it rather than to the panel below, which
+   is why it is up here and not above the fields it changes. */
+.payHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.payTerm {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: var(--text-sm);
+  color: var(--ink);
+}
+
+/* A fieldset drawn as a segmented control. `border: 0` and a hidden legend,
+   because the border and the caption a fieldset draws by default are a second
+   frame around two words. */
+.swap {
+  display: inline-flex;
+  padding: 0.1875rem;
+  border: 1px solid rgb(var(--umber-rgb) / 0.18);
+  border-radius: var(--row-radius);
+}
+
+/* Visually hidden, not `display: none` — the group still needs a name in the
+   accessibility tree, and `display: none` takes it out of that tree entirely. */
+.swapLegend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.swapOption {
+  display: inline-flex;
+}
+
+/* The input keeps its size and its place in the tab order and is painted over by
+   the face beside it, so the control is a real radio group to everything that is
+   not a pair of eyes. */
+.swapInput {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.swapFace {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 5.5rem;
+  min-height: 2rem;
+  padding: 0 0.875rem;
+  font-size: var(--text-xs);
+  color: var(--stone-deep);
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition:
+    background-color 0.4s var(--ease-ui),
+    color 0.4s var(--ease-ui);
+}
+
+.swapFace:hover {
+  color: var(--umber);
+}
+
+.swapInput:checked + .swapFace {
+  color: var(--ivory);
+  background: var(--umber);
+}
+
+.swapInput:focus-visible + .swapFace {
+  outline: 2px solid var(--dusk-amber);
+  outline-offset: 2px;
+}
+
+/* A box with the glyph at one end and two lines beside it — the comp's shape for
+   a field that needs saying what it is as well as what goes in it. */
+.boxField {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr);
+  align-items: start;
+  gap: 0.875rem;
+  min-width: 0;
+  padding: 0.875rem 1rem;
+  border: 1px solid rgb(var(--umber-rgb) / 0.18);
+  border-radius: var(--row-radius);
+  transition: border-color 0.4s var(--ease-ui);
+}
+
+.boxField:hover {
+  border-color: rgb(var(--umber-rgb) / 0.32);
+}
+
+/* The focus ring is on the box and not on the input inside it, because the box
+   is what a guest sees as the control. `:focus-within` is what carries it. */
+.boxField:focus-within {
+  border-color: var(--dusk-amber);
+}
+
+.boxLines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.boxTerm {
+  font-size: var(--text-xs);
+  color: var(--ink);
+}
+
+/* No border of its own: the box around it is the frame, and a second one inside
+   would be a field inside a field. */
+.boxInput {
+  width: 100%;
+  padding: 0;
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+}
+
+.boxInput::placeholder {
+  color: var(--stone);
+}
+
+.boxInput:focus-visible {
+  outline: none;
+}
+
+.boxInput:disabled {
+  color: var(--stone);
+}
+
+.providers {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  border: 0;
+}
+
+.provider {
+  display: block;
+  min-width: 0;
+}
+
+.providerFace {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  height: 100%;
+  padding: 0.875rem 1rem;
+  border: 1px solid rgb(var(--umber-rgb) / 0.18);
+  border-radius: var(--row-radius);
+  cursor: pointer;
+  transition:
+    border-color 0.4s var(--ease-ui),
+    background-color 0.4s var(--ease-ui);
+}
+
+.providerFace:hover {
+  border-color: rgb(var(--umber-rgb) / 0.32);
+}
+
+.swapInput:checked + .providerFace {
+  background: rgb(var(--dusk-amber-rgb) / 0.08);
+  border-color: var(--dusk-amber);
+}
+
+.swapInput:focus-visible + .providerFace {
+  outline: 2px solid var(--dusk-amber);
+  outline-offset: 2px;
+}
+
+/* A provider this property cannot take money through. Dimmed and uncheckable
+   rather than absent, because the question "do you take MoMo" is one the screen
+   should answer — and answering it with silence leaves a guest hunting. */
+.provider[data-accepted="false"] .providerFace {
+  color: var(--stone);
+  cursor: not-allowed;
+  border-style: dashed;
+}
+
+.provider[data-accepted="false"] .providerFace:hover {
+  border-color: rgb(var(--umber-rgb) / 0.18);
+}
+
+.providerName {
+  font-size: var(--text-sm);
+  color: inherit;
+}
+
+.providerBlurb {
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--stone);
+}
+
+/* ---- The summary --------------------------------------------------------- */
+
+.aside {
+  min-width: 0;
+}
+
+/* Sticky, because the total is what a guest filling in a form keeps looking back
+   at. `--space-2` of clearance under the bar, and `max-height` so a short window
+   scrolls the summary's own overflow instead of hiding the button under the fold
+   — a sticky block taller than the viewport pins its top and strands its foot. */
+.asidePlate {
+  position: sticky;
+  top: var(--space-2);
+  max-height: calc(100dvh - 2 * var(--space-2));
+  overflow-y: auto;
+  padding: var(--aside-pad);
+  background: var(--ivory);
+  border: var(--plate-edge);
+  border-radius: var(--plate-radius);
+  box-shadow: var(--plate-lift);
+}
+
+.asideShot {
+  width: 100%;
+  height: auto; /* See `.roomShot` — the `height` attribute is a hint that wins. */
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: var(--row-radius);
+}
+
+.asideTitle {
+  margin-top: var(--space-2);
+  font-size: clamp(1.3rem, 1.6vw, 1.625rem);
+  font-weight: 300;
+  line-height: 1.2;
+}
+
+.stayRows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.stayRow {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr);
+  align-items: start;
+  gap: 0.875rem;
+  min-width: 0;
+}
+
+/* Term over value here, and value over term in the facts grid above. Not an
+   inconsistency: the facts are being compared against the other rooms, so the
+   value leads; these are being checked one at a time against what the guest
+   meant to book, so the question leads and the answer sits under it. */
+.stayLines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.stayTerm {
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  color: var(--stone);
+}
+
+.stayValue {
+  font-size: var(--text-sm);
+  line-height: 1.45;
+  color: var(--ink);
+}
+
+.timer {
+  margin-top: var(--space-2);
+}
+
+/* The rule is the seam between what the stay *is* and what it costs. */
+.totalBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid rgb(var(--umber-rgb) / 0.15);
+}
+
+.totalTerm {
+  font-size: var(--text-sm);
+  color: var(--ink);
+}
+
+/* The one figure on the screen that decides anything, and the only place a
+   display size is spent on this page.
+
+   `lining-nums` is repeated rather than inherited from `.font-display`:
+   `font-variant-numeric` is one property, so naming `tabular-nums` alone would
+   drop the lining correction and hand Cormorant's oldstyle figures back — a
+   total whose 3s and 7s hang below the line. */
+.totalFigure {
+  font-size: clamp(1.75rem, 2vw, 2.125rem);
+  font-weight: 300;
+  line-height: 1.15;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.totalNote {
+  font-size: var(--text-xs);
+  line-height: 1.5;
+  color: var(--stone);
+}
+
+/* The screen's one primary action, and the one place --dusk-amber is spent as a
+   ground — §2. */
+.complete {
+  width: 100%;
+  min-height: 3rem; /* 48px. 44 is the floor, and this is the button. */
+  margin-top: var(--space-2);
+  padding: 0 var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--ivory);
+  background: var(--dusk-amber);
+  border: 1px solid var(--dusk-amber);
+  border-radius: var(--row-radius);
+  /* The transform is the press, and it runs at 0.16s against the colours' 0.4s.
+     Two speeds because they answer two different things: a pointer crossing the
+     button has all the time in the world, and a finger on it does not. */
+  transition:
+    background-color 0.4s var(--ease-ui),
+    color 0.4s var(--ease-ui),
+    transform 0.16s var(--ease-ui);
+}
+
+.complete:hover:not(:disabled) {
+  color: var(--umber);
+  background: transparent;
+}
+
+.complete:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+/* Pressed, and the two requests it started are still out. The colours are the
+   ones `stay-shell.module.css` gives its own waiting button, because a guest
+   moving between the two screens is reading one funnel. */
+.complete:disabled {
+  cursor: default;
+  color: rgb(var(--ivory-rgb) / 0.6);
+  background: var(--stone);
+  border-color: var(--stone);
+}
+
+.complete:focus-visible {
+  outline: 2px solid var(--umber);
+  outline-offset: 2px;
+}
+
+/* Where every refusal on this screen lands: directly under the button that was
+   pressed, so the answer arrives where the guest is already looking. */
+.foot {
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--stone);
+}
+
+/* Nothing has been refused yet. The element stays in the document — a live
+   region has to be there before the message is — but it stops reserving the
+   gap it would need if it were saying something. */
+.foot:empty {
+  margin-top: 0;
+}
+
+/* The glyph beside a value, painted as a mask over the colour it inherits — see
+   `room-facts.ts` for why this is a mask and not an `<img>`. */
+.mark {
+  display: block;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: 0 0 auto;
+  color: var(--dusk-amber);
+  background: currentcolor;
+  mask-image: var(--mark);
+  mask-repeat: no-repeat;
+  mask-size: contain;
+  mask-position: center;
+  -webkit-mask-image: var(--mark);
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  -webkit-mask-position: center;
+}
+
+/* The lock is a caption rather than a fact, and sits at the size of the words it
+   punctuates. */
+.payTerm .mark {
+  width: 0.875rem;
+  height: 0.875rem;
+  color: var(--dusk-amber);
+}
+
+/* §9. One pixel, snapped rather than travelled, is not worth the exception — the
+   button's own colour inversion is the press here. */
+@media (prefers-reduced-motion: reduce) {
+  .complete:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+/* ---- Narrow -------------------------------------------------------------- */
+
+/* Under a laptop's measure the summary stops being a column beside the form and
+   becomes the last thing on a page that scrolls. It also stops being sticky:
+   pinned to the top of a stacked page it would cover the fields above it. */
+@media (max-width: 68rem) {
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .asidePlate {
+    position: static;
+    max-height: none;
+    overflow-y: visible;
+  }
+
+  /* The strip was cut for a plate two thirds of a wide window. One column across
+     is nearly twice as wide, and at 11:2 it becomes a letterbox slot. */
+  .roomShot {
+    aspect-ratio: 12 / 5;
+  }
+}
+
+/* At a phone's measure two tracks are under 160px each, which "One king bed
+   (1.80 m) · one single bed (1.00 m)" and "Enter your email address" both need
+   more than. One column, in the same reading order, with room to say it. */
+@media (max-width: 48rem) {
+  .frame {
+    padding-block: var(--space-2) var(--space-3);
+  }
+
+  .facts,
+  .pair,
+  .providers {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .roomShot {
+    aspect-ratio: 2 / 1;
+  }
+
+  .payHead {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .swap {
+    width: 100%;
+  }
+
+  .swapOption {
+    flex: 1 1 0;
+  }
+
+  .swapFace {
+    width: 100%;
+    min-width: 0;
+  }
+}

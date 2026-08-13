@@ -25,7 +25,7 @@
 // **It resolves rather than reporting.** A settled stay replaces this url with
 // `/bookings/<reference>` — replaced, not pushed, so the browser's back button
 // does not walk a confirmed guest into a payment page they have finished with.
-// A refusal sends them back to `payment` with the reason. Only a wait that
+// A refusal sends them back to `details` with the reason. Only a wait that
 // outlasts the poll stops here, and then it says where the booking is rather
 // than spinning forever.
 
@@ -183,6 +183,15 @@ export function ConfirmingScreen({ hold }: { readonly hold: string }) {
   // Still held, and either the gateway refused or nothing has landed yet. The
   // room is still theirs for as long as the TTL runs, so the offer is to try
   // the payment again rather than to start over.
+  //
+  // That offer lands on `details` and not on `payment`, because `details` is the
+  // screen that now owns this: it writes the contact, opens the attempt and
+  // sends the browser to the gateway. The payment page it took that over from is
+  // still served, for a bookmark or a press of back out of VNPay, but it is not
+  // where this funnel sends anybody. `details` also re-reads the stay as it
+  // mounts, so a hold the sweep released between this render and that press is
+  // answered on arrival instead of becoming an attempt opened against nights the
+  // property has already put back on sale.
   return (
     <StayShell
       stay={stay}
@@ -193,7 +202,7 @@ export function ConfirmingScreen({ hold }: { readonly hold: string }) {
       <div className={styles.actions}>
         <button
           className={styles.submit}
-          onClick={() => router.push(`/booking/${stay.id}/payment`)}
+          onClick={() => router.push(`/booking/${stay.id}/details`)}
           type="button"
         >
           Try the payment again

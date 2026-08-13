@@ -65,7 +65,14 @@ import {
   useReducedMotion,
 } from "motion/react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { type ReactNode, useCallback, useMemo, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   plateMotion,
   stepMotion,
@@ -84,6 +91,10 @@ import {
 } from "@/features/booking/lib/booking-view";
 import { alternatives } from "@/features/booking/lib/nearest-availability";
 import {
+  recallStay,
+  rememberStay,
+} from "@/features/booking/lib/remembered-stay";
+import {
   monthOfNights,
   propertyToday,
   roomRateTable,
@@ -91,12 +102,7 @@ import {
   TARIFF_RATES,
 } from "@/features/booking/lib/rate-calendar-fixture";
 import { roomType } from "@/features/booking/lib/room-types";
-import {
-  isContactAnswered,
-  NO_CONTACT,
-  type StayContact,
-  holdStay,
-} from "@/features/booking/lib/stay-funnel";
+import { holdRefusal, holdStay } from "@/features/booking/lib/stay-funnel";
 import {
   indexNights,
   nightsInRange,
@@ -105,7 +111,6 @@ import {
   quoteStay,
   stayNights,
 } from "@/features/booking/lib/stay-quote";
-import { apiMessage } from "@/lib/api";
 import styles from "./booking-screen.module.css";
 import { ConciergeNote } from "./concierge-note/concierge-note";
 import { DatesStage } from "./dates-stage/dates-stage";
@@ -145,17 +150,6 @@ export function BookingScreen() {
   const [picked, setPicked] = useState<RoomTypeCode | null>(null);
   const [nextStep, setNextStep] = useState<string | null>(null);
   const [holding, setHolding] = useState(false);
-  /**
-   * Who the confirmation goes to — state of this visit, and deliberately not of
-   * the URL.
-   *
-   * Everything the guest answers about the *stay* is a search param, because
-   * `/booking` is stateless and shareable. An address and a name are neither:
-   * they belong to the person at the keyboard rather than to the search, and a
-   * link that carried them would put a guest's own details into anything they
-   * forwarded to somebody else.
-   */
-  const [contact, setContact] = useState<StayContact>(NO_CONTACT);
   const router = useRouter();
 
   /**
@@ -171,25 +165,36 @@ export function BookingScreen() {
    * and the second would be the one the funnel navigated to, leaving the first
    * to expire quietly against inventory nobody could sell in the meantime.
    *
-   * **An unanswered contact pair is refused here rather than at the API.** The
-   * refusal would be identical either way; what differs is that this one costs
-   * no round trip and lands on the line the guest is already reading, where a
-   * 400 arriving a second later reads as the property having gone wrong.
+   * **A refusal is not the same thing as a failure**, and `holdRefusal` is where
+   * the two are told apart. The property answers 429 to a caller who has to wait
+   * — the rate in front of the door, the rooms one address may hold at once, the
+   * share of a night addresses without an account may take — and every one of
+   * those sentences names the wait, and one of them offers signing in. Printing
+   * "try again in a moment" over the top of that would be this screen inventing
+   * a shorter wait than the property's.
+   *
+   * **The search is written down on the way out, and only the search.** This is
+   * the last moment the room the guest chose is known to this screen, and a hold
+   * now gives its room back a couple of minutes after the tab closes — so a guest
+   * who leaves and comes back is offered the question they were asking rather
+   * than a room the property has since resold. `remembered-stay.ts` is what may
+   * be kept and what may not; nothing about who anybody is goes near it.
    */
   async function takeHold(roomType: RoomTypeCode): Promise<void> {
     if (holding || !search.range) {
       return;
     }
 
-    if (!isContactAnswered(contact)) {
-      setNextStep(
-        "We need an email address and a name to hold the room — that is where the confirmation goes.",
-      );
-      return;
-    }
-
     setHolding(true);
     setNextStep(null);
+
+    rememberStay({
+      checkIn: search.range.checkIn,
+      checkOut: search.range.checkOut,
+      party: search.party,
+      plan: search.plan,
+      roomType,
+    });
 
     try {
       const stay = await holdStay({
@@ -199,18 +204,12 @@ export function BookingScreen() {
         plan: search.plan,
         adults: search.party.adults,
         childAges: search.party.children.map((child) => child.age),
-        contact,
       });
 
       router.push(`/booking/${stay.id}/details`);
     } catch (error) {
       setHolding(false);
-      setNextStep(
-        apiMessage(
-          error,
-          "The room could not be held just now. Nothing has been charged — try again in a moment.",
-        ),
-      );
+      setNextStep(holdRefusal(error));
     }
   }
 
@@ -282,6 +281,59 @@ export function BookingScreen() {
     },
     [search],
   );
+
+  /**
+   * The search a previous visit left behind, put back into the URL.
+   *
+   * **A guest who leaves the funnel loses their room within a couple of minutes
+   * now, and losing the room is right — losing the question is not.** They chose
+   * dates, a party and a room type; the hold went back on sale because nobody was
+   * standing on it, and none of that is a reason to make them answer the calendar
+   * again. So the search comes back and a fresh hold is taken from the room step,
+   * against whatever the property actually has left.
+   *
+   * **The URL always wins.** A link with dates in it is somebody being sent
+   * somewhere specific, and a remembered search overwriting it would be the app
+   * arguing with the address bar.
+   *
+   * **Once per visit, and the ref is what makes that true.** `[Change]` clears
+   * the range on purpose, and an effect that restored on every render with an
+   * empty range would put the dates straight back and leave the guest unable to
+   * start again. This is a first-paint restoration, not a rule about what an
+   * empty search means.
+   *
+   * Written straight through `commit`, so there is still one writer to the URL —
+   * and `replaceState` rather than a push, because arriving on a restored search
+   * is not a step the back button should have to walk out of.
+   */
+  const restored = useRef(false);
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `commit` closes over the search and so changes on every render, and this effect must run once per visit rather than once per render — the ref above is the guard, and listing it as a dependency would be a lint rule satisfied by an effect that no longer does what it says.
+  useEffect(() => {
+    if (restored.current || search.range) {
+      return;
+    }
+
+    restored.current = true;
+
+    const remembered = recallStay(minDate);
+
+    if (!remembered) {
+      return;
+    }
+
+    // Straight to the rooms, because the dates step is a question this guest has
+    // already answered. The room they had is a preference and not a promise —
+    // `selected` falls back to the first the property can offer if that type is
+    // gone, which is what the guest would have found anyway.
+    setPicked(remembered.roomType);
+    commit({
+      range: { checkIn: remembered.checkIn, checkOut: remembered.checkOut },
+      party: remembered.party,
+      plan: remembered.plan,
+      step: "rooms",
+    });
+  }, [search.range, minDate]);
 
   const onRangeChange = useCallback(
     (range: StayRange | null) => {
@@ -625,23 +677,22 @@ export function BookingScreen() {
                     search anybody can share, which is exactly why the id goes
                     in the path and the steps stop being search params.
 
-                    **No sign-in stands in front of it.** `booking.create-own`
-                    is a public row — a visitor books before they have an
-                    account, not after — so what the door asks for is an address
-                    to send the confirmation to and a name to put on it, which
-                    is the pair collected beside the button. The account, if the
-                    guest ever wants one, is offered after the money has landed.
+                    **No sign-in stands in front of it, and nothing else is
+                    asked for either.** `booking.create-own` is a public row — a
+                    visitor books before they have an account, not after — and
+                    the door no longer wants a name or an address. Those are the
+                    review screen's, one press before the money, because a hold
+                    that expires unpaid is inventory coming back rather than
+                    something the property has to write to anybody about.
 
-                    The line under the button is what went wrong, when something
-                    does, including the unanswered pair. */}
+                    So this press does one thing: it takes the room. The line
+                    under the button is what went wrong, when something does. */}
                 <RoomStage
-                  contact={contact}
                   holding={holding}
                   key={selectedType.code}
                   nights={stayLength}
                   note={nextStep}
                   offer={selectedOffer}
-                  onContactChange={setContact}
                   onContinue={() => void takeHold(selectedType.code)}
                   plan={search.plan}
                   type={selectedType}

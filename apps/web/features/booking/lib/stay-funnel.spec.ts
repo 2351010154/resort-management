@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   type HeldStay,
+  holdRefusal,
   isBooked,
   isLost,
   isSettled,
@@ -19,6 +20,8 @@ const stayIn = (state: HeldStay["state"]): HeldStay => ({
   id: "0f8fad5b-d9cb-469f-a165-70867728950e",
   reference: "MRV4K2QX",
   userId: "guest-account",
+  contactEmail: "mai@example.com",
+  contactName: "Mai Tran",
   state,
   cancellationReason: null,
   roomType: "DELUXE",
@@ -91,6 +94,60 @@ describe("isBooked", () => {
   // them to a confirmation for a room that is back on sale.
   it("is false for a hold that was released while the guest was paying", () => {
     expect(isBooked(stayIn("CANCELLED"))).toBe(false);
+  });
+});
+
+/**
+ * What the transport hands a caller when the API refuses, in the shape oRPC
+ * builds it: a status and the handler's own sentence. Written out rather than
+ * constructed through the client, because the two fields below are the whole of
+ * what the funnel reads and a real round trip would only prove the network.
+ */
+const refusal = (status: number, message?: string) =>
+  Object.assign(new Error(message ?? ""), { status, message: message ?? "" });
+
+describe("holdRefusal", () => {
+  // The three 429s on this door all say how long the wait is, and one of them
+  // offers signing in. Only the API knows either, so the sentence goes through
+  // untouched.
+  it("hands a refusal's own sentence through, wait and all", () => {
+    const said =
+      "Rooms cannot be held from this connection at the moment. A hold lasts at most 10 minutes, so try again after that.";
+
+    expect(holdRefusal(refusal(429, said))).toBe(said);
+  });
+
+  it("keeps the invitation to sign in when that is the escape offered", () => {
+    const said =
+      "Too many rooms of that type on 2026-08-20 are held by guests who have not signed in. Sign in and this hold is yours, or try again in 10 minutes.";
+
+    expect(holdRefusal(refusal(429, said))).toBe(said);
+  });
+
+  // The line the old path printed over every one of them. A wait measured in
+  // minutes answered with "a moment" is the screen inventing a shorter wait than
+  // the property's, and it reads as an outage rather than as an answer.
+  it("does not call a refusal a failure when its body arrived empty", () => {
+    const note = holdRefusal(refusal(429));
+
+    expect(note).not.toContain("in a moment");
+    expect(note).toContain("a few minutes");
+  });
+
+  // A fault, and the fact a guest wants first about one. Reached by whatever
+  // carried no sentence at all — a rejection with nothing in it, an API that is
+  // not up — which is the only case `apiMessage` has nothing better for.
+  it("falls back to the funnel's own sentence when the failure carried none", () => {
+    expect(holdRefusal(undefined)).toBe(
+      "The room could not be held just now. Nothing has been charged — try again in a moment.",
+    );
+    expect(holdRefusal({ status: 500 })).toContain("Nothing has been charged");
+  });
+
+  it("still prefers what a handler said about anything other than a wait", () => {
+    const said = "That room is no longer free for those nights.";
+
+    expect(holdRefusal(refusal(409, said))).toBe(said);
   });
 });
 
