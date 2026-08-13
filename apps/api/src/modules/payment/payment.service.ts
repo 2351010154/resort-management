@@ -213,8 +213,32 @@ export interface GatewayPaymentRequest {
    * Null is the desk, and the desk is not scoped. All four staff roles hold the
    * row `full` and take a walk-in's card against a stay that belongs to no
    * account at all — a scope applied to them would refuse the ordinary case.
+   *
+   * Null is also the funnel's guest who never signed up, and their scope is the
+   * field below rather than this one — see it for why the two are separate.
    */
   readonly guestAccountId: string | null;
+
+  /**
+   * The single stay a booking-scoped credential proved, when that is what the
+   * caller holds.
+   *
+   * The funnel takes a booking before anyone has an account, so the guest paying
+   * for it has no `user_id` to be compared against —
+   * `auth/booking-token/booking-token.service.ts` says why that credential is a
+   * token rather than an account created from a typed address. Their authority
+   * is still an ownership one; it is just proved about the booking instead of
+   * about an account.
+   *
+   * A separate field and not a second meaning for the one above, because the two
+   * fail in opposite directions. `guestAccountId` is null for a caller who is
+   * *not* scoped, so folding a proven booking into it as another null would turn
+   * the funnel's narrowest caller into the property's widest one. Optional
+   * rather than nullable for the same reason the field above is nullable rather
+   * than optional: the desk and the account holder must both keep stating what
+   * they are, and only the new caller carries the new field.
+   */
+  readonly provenBookingId?: string;
 }
 
 export interface OpenedPayment {
@@ -441,6 +465,21 @@ export class PaymentService {
     exec: DbExecutor,
     request: GatewayPaymentRequest,
   ): Promise<void> {
+    // A booking-scoped caller is scoped to exactly one stay, and it is the one
+    // their credential names. Asserted here as well as at the handler, because
+    // this is the method that decides whether a payment page may be opened
+    // against a stay — a caller reaching the service by any other route gets the
+    // same answer as one arriving through the controller.
+    if (request.provenBookingId !== undefined) {
+      if (request.provenBookingId !== request.bookingId) {
+        throw new ORPCError("FORBIDDEN", {
+          message: "This link opens only the booking it was issued for",
+        });
+      }
+
+      return;
+    }
+
     if (request.guestAccountId === null) {
       return;
     }

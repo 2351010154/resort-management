@@ -303,6 +303,7 @@ export class PaymentController {
         returnUrl: this.gatewayReturnUrl(),
         payerIpAddress,
         guestAccountId: guestAccount(principal),
+        provenBookingId: provenBooking(principal, input.bookingId),
       }),
     );
   }
@@ -697,6 +698,39 @@ function stayInReference(reference: string): string | undefined {
  */
 function guestAccount(principal: Principal | null): string | null {
   return principal?.realm === "guest" ? principal.userId : null;
+}
+
+/**
+ * The one stay a booking-scoped caller has proved, when that is the authority
+ * they hold.
+ *
+ * The funnel takes a booking from somebody who never signed up — the hold
+ * issues them a credential naming that stay and nothing else — and this is the
+ * route where they pay for it. There is no account to scope by, so the scope is
+ * the booking itself, and it is settled here from the credential before the
+ * service is asked anything: a token minted for one stay naming another is
+ * refused on its face, with no lookup behind the refusal to leak whether the id
+ * exists.
+ *
+ * `undefined` for everybody else, which is what leaves the two existing
+ * authorities exactly as they were — an account scopes by `user_id`, the desk
+ * is unscoped.
+ */
+function provenBooking(
+  principal: Principal | null,
+  bookingId: string,
+): string | undefined {
+  if (principal?.realm !== "booking") {
+    return undefined;
+  }
+
+  if (principal.bookingId !== bookingId) {
+    throw new ORPCError("FORBIDDEN", {
+      message: "This link opens only the booking it was issued for",
+    });
+  }
+
+  return principal.bookingId;
 }
 
 /**

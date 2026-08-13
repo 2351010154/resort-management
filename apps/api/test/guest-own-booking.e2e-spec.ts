@@ -1,6 +1,6 @@
-// The two routes a guest reaches their own stay through — `FR-GST-01`'s read
-// and the cancellation beside it — over HTTP, against a real Postgres, the real
-// capability guard and a real Better Auth session.
+// The routes a guest reaches their own stay through — `FR-GST-01`'s reads, the
+// cancellation beside them and the price of it — over HTTP, against a real
+// Postgres, the real capability guard and a real Better Auth session.
 //
 // `guest-account-link.e2e-spec.ts` proves the column and the `where` clause by
 // calling the service. What only exists once there are routes is the claim this
@@ -28,6 +28,15 @@
 //    deadline, and `folio-refunds.e2e-spec.ts` gives that argument — but
 //    *whichever* fires, it has to fire the same way on both paths, and that is
 //    the whole of "the guest pays the policy".
+// 5. **The quote and the charge are one number.** The figure the guest is shown
+//    before deciding is the figure the folio posts after they have — asserted
+//    end to end, because two implementations of §4's grid would each pass their
+//    own tests and disagree only here. `guest-cancellation-quote.e2e-spec.ts`
+//    pins which row fires for which stay; this pins that the two agree.
+// 6. **The stay list is the account's and the account's only.** Newest arrival
+//    first, cancelled stays kept, another guest's stays and every walk-in
+//    absent. The credential it refuses is a booking token, and that refusal is
+//    `guest-booking-token.e2e-spec.ts`'s.
 //
 // Every stay below arrives on a Monday inside the seeded calendar. The seed
 // writes minimum stays and closed arrivals on weekend nights only and the funnel
@@ -91,6 +100,14 @@ const MONDAYS = [
   "2027-08-30",
   "2027-09-06",
   "2027-09-13",
+  "2027-09-20",
+  "2027-09-27",
+  "2027-10-04",
+  "2027-10-11",
+  "2027-10-18",
+  "2027-10-25",
+  "2027-11-01",
+  "2027-11-08",
 ];
 
 /** A reference the generator's alphabet allows and no booking here holds. */
@@ -392,7 +409,7 @@ describe("the stay a guest calls off", () => {
   it("cancels at the guest's own request, with no waiver behind it", async () => {
     const stay = await aGuestStay(anh);
 
-    const response = await anh.post(cancelPath(stay.reference)).expect(200);
+    const response = await anh.post(cancelPath(stay.reference)).send({}).expect(200);
 
     expect(response.body).toMatchObject({
       id: stay.id,
@@ -421,9 +438,9 @@ describe("the stay a guest calls off", () => {
     // second must not release the nights again.
     const stay = await aGuestStay(anh);
 
-    await anh.post(cancelPath(stay.reference)).expect(200);
+    await anh.post(cancelPath(stay.reference)).send({}).expect(200);
 
-    const again = await anh.post(cancelPath(stay.reference)).expect(200);
+    const again = await anh.post(cancelPath(stay.reference)).send({}).expect(200);
 
     expect(again.body.state).toBe("CANCELLED");
   });
@@ -431,7 +448,7 @@ describe("the stay a guest calls off", () => {
   it("leaves another guest's stay standing", async () => {
     const stay = await aGuestStay(anh);
 
-    await binh.post(cancelPath(stay.reference)).expect(404);
+    await binh.post(cancelPath(stay.reference)).send({}).expect(404);
 
     // The refusal is worth nothing if the transition ran first. `findOwn` is the
     // first statement in the service method for exactly this reason.
@@ -443,7 +460,7 @@ describe("the stay a guest calls off", () => {
 
     expect(await accountOn(walkIn.id)).toBeNull();
 
-    await anh.post(cancelPath(walkIn.reference)).expect(404);
+    await anh.post(cancelPath(walkIn.reference)).send({}).expect(404);
 
     expect(await stateOf(walkIn.id)).toBe("CONFIRMED");
   });
@@ -468,7 +485,7 @@ describe("what the guest's cancellation costs", () => {
     const guests = await aGuestStay(anh, nights, "NONREF");
     const desks = await aWalkIn(nights, "NONREF");
 
-    await anh.post(cancelPath(guests.reference)).expect(200);
+    await anh.post(cancelPath(guests.reference)).send({}).expect(200);
     await asDesk("post", `/bookings/${desks.id}/cancellation`, {
       reason: "GUEST_REQUEST",
     }).expect(200);
@@ -479,10 +496,105 @@ describe("what the guest's cancellation costs", () => {
     expect(byGuest).toEqual(byDesk);
     expect(BigInt(byGuest.amount)).toBeGreaterThan(0n);
   });
+
+  it("is what the quote said it would be, before the guest committed to it", async () => {
+    // The claim the quote exists for, and the one no unit test can make: the
+    // figure the guest was shown and the figure the property later posts are
+    // the same number and the same row of §4's grid. Two implementations of the
+    // grid would pass every test either of them had and fail this one.
+    //
+    // `NONREF` for the reason above — a plan whose charge is above zero on any
+    // day the suite runs, so an agreement here cannot be two zeroes agreeing.
+    const stay = await aGuestStay(anh, nextMonday(), "NONREF");
+
+    const quoted = await anh
+      .get(`${ownPath(stay.reference)}/cancellation-quote`)
+      .expect(200);
+
+    await anh.post(cancelPath(stay.reference)).send({}).expect(200);
+
+    const posted = await policyChargeOn(stay.id);
+
+    expect(posted.amount).toBe(quoted.body.amount);
+    expect(posted.chargeBasis).toBe(quoted.body.basis);
+  });
+
+  it("is refused as a quote once the stay has already been called off", async () => {
+    // Nothing left to price. A figure answered here would be one the guest
+    // could not act on, which a screen would render as an offer.
+    const stay = await aGuestStay(anh);
+
+    await anh.post(cancelPath(stay.reference)).send({}).expect(200);
+
+    await anh.get(`${ownPath(stay.reference)}/cancellation-quote`).expect(409);
+  });
+});
+
+describe("every stay one account has taken", () => {
+  it("answers the account's own bookings, newest arrival first", async () => {
+    // Three arrivals in ascending order, booked in an order that is not it —
+    // so what the list returns is the query's ordering rather than the order
+    // the rows happened to be written in. Insertion order would put these
+    // exactly the other way round.
+    const [early, middle, late] = [nextMonday(), nextMonday(), nextMonday()];
+
+    const first = await aGuestStay(anh, early!);
+    const second = await aGuestStay(anh, middle!);
+    const third = await aGuestStay(anh, late!);
+
+    const mine = new Set([first.id, second.id, third.id]);
+    const listed = (await stays(anh))
+      .filter((stay) => mine.has(stay.id))
+      .map((stay) => stay.id);
+
+    expect(listed).toEqual([third.id, second.id, first.id]);
+  });
+
+  it("keeps a stay the guest called off, because it still happened to them", async () => {
+    // A list that dropped it would answer "where did my booking go?" with
+    // nothing at all, which is the one question this screen exists for.
+    const stay = await aGuestStay(anh);
+
+    await anh.post(cancelPath(stay.reference)).send({}).expect(200);
+
+    expect(
+      (await stays(anh)).find((listed) => listed.id === stay.id),
+    ).toMatchObject({ state: "CANCELLED" });
+  });
+
+  it("holds no stay of another account's, and none the desk took", async () => {
+    // The `where` clause, from the other side. A walk-in is the case a
+    // comparison written in TypeScript gets wrong — `user_id` is null on it,
+    // and null is not an account.
+    const mine = await aGuestStay(binh);
+    const theirs = await aGuestStay(anh);
+    const walkIn = await aWalkIn();
+
+    expect(await accountOn(walkIn.id)).toBeNull();
+
+    const listed = (await stays(binh)).map((stay) => stay.id);
+
+    expect(listed).toContain(mine.id);
+    expect(listed).not.toContain(theirs.id);
+    expect(listed).not.toContain(walkIn.id);
+  });
+
+  it("refuses a caller holding no session at all", async () => {
+    await http().get("/bookings/mine").expect(401);
+  });
 });
 
 function http(): request.Agent {
   return request(app.getHttpServer());
+}
+
+/** The account's stay history, as the screen reads it. */
+async function stays(
+  guest: request.Agent,
+): Promise<{ id: string; state: string; checkIn: string }[]> {
+  const response = await guest.get("/bookings/mine").expect(200);
+
+  return response.body;
 }
 
 const ownPath = (reference: string) => `/bookings/mine/${reference}`;

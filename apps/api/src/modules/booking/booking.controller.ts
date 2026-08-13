@@ -31,31 +31,45 @@
 // guest a booking; the two below it let that guest read and call off the stay
 // they were given. `rbac-matrix.md` grants both of those rows `⚠` — the guard
 // admits the caller and the ownership check is still owed — and the way it is
-// paid is the same both times: the account comes off the session and is handed
-// to the service as half of the lookup, so the scope is a `where` clause rather
-// than a comparison a handler could forget. §2 puts it plainly: "Guest
-// permissions are always scoped to the requester's own record."
+// paid is the same both times: what the guard resolved is handed to the service
+// as half of the lookup, so the scope is a `where` clause rather than a
+// comparison a handler could forget. §2 puts it plainly: "Guest permissions are
+// always scoped to the requester's own record."
+//
+// **What the guard resolves is now one of two credentials.** A guest who books
+// without an account has no session, so the hold issues a booking-scoped token
+// and those two routes accept it — `booking-token.service.ts` for what it is and
+// `access.guard.ts` for the ceiling on it. Nothing about the ownership check
+// softens: an account scopes the lookup to `user_id`, a token scopes it to the
+// one booking it was minted for, and both are the `where` clause.
 
 import {
   contract,
+  PROPERTY_TIME_ZONE,
   type CancellationReason,
   type RatePlanCode,
   type RoomTypeCode,
   type StayDate,
 } from "@mariva/shared";
-import { Controller } from "@nestjs/common";
+import { Controller, Res, UseGuards } from "@nestjs/common";
 import { Implement, implement, ORPCError } from "@orpc/nest";
+import type { Response } from "express";
 import {
   CurrentPrincipal,
   RequiresCapability,
+  SessionOnly,
 } from "../../common/auth/access.decorators.js";
+import { JsonRequestGuard } from "../../common/auth/json-request.guard.js";
 import type { Principal } from "../../common/auth/principal.js";
+import { BookingTokenService } from "../auth/booking-token/booking-token.service.js";
 import { TransactionRunner } from "../../database/transaction-runner.js";
 import {
   type Booking,
+  type BookingOwner,
   BookingService,
   type CreateBookingInput,
 } from "./booking.service.js";
+import { HoldRateLimitGuard } from "./hold-rate-limit.guard.js";
 
 /** The stay as it arrived, in the shape the service takes. */
 interface CreateBookingBody {
@@ -72,6 +86,7 @@ export class BookingController {
   constructor(
     private readonly bookings: BookingService,
     private readonly transactions: TransactionRunner,
+    private readonly bookingTokens: BookingTokenService,
   ) {}
 
   /**
@@ -92,19 +107,50 @@ export class BookingController {
    * read of that history to the requester, so the write has to be scoped by the
    * same authority the read will be.
    */
+  @UseGuards(HoldRateLimitGuard)
   @RequiresCapability("booking.create-own")
   @Implement(contract.booking.createHold)
-  createHold(@CurrentPrincipal() principal: Principal | null) {
-    return implement(contract.booking.createHold).handler(async ({ input }) =>
-      onWire(
-        await this.transactions.run((exec) =>
-          this.bookings.createHold(exec, {
-            ...asCreateInput(input),
-            userId: bookingAccount(principal),
-          }),
-        ),
-      ),
-    );
+  createHold(
+    @CurrentPrincipal() principal: Principal | null,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    return implement(contract.booking.createHold).handler(async ({ input }) => {
+      const held = await this.transactions.run((exec) =>
+        this.bookings.createHold(exec, {
+          ...asCreateInput(input),
+          userId: bookingAccount(principal),
+          contact: { email: input.contactEmail, name: input.contactName },
+        }),
+      );
+
+      // The credential that makes the next four screens reachable, issued
+      // inside the same request that created the thing it names. A guest with
+      // no account has no session for the ownership check to be about, and
+      // `booking-token.service.ts` argues why the answer is a token rather
+      // than an account created from the address just typed.
+      //
+      // Issued to a signed-in guest as well, and deliberately: the funnel does
+      // not ask whether anyone is signed in, the cookie is the same width
+      // either way — one stay — and a browser that signs out mid-funnel keeps
+      // the stay it was part-way through paying for. The guard prefers the
+      // session when both arrive.
+      //
+      // Not to staff. The matrix lets a receptionist reach this row to take a
+      // booking on somebody's behalf, and the stay is filed under nobody; a
+      // credential for a guest's stay left in a desk browser for a week after
+      // checkout is authority the desk was never meant to keep.
+      if (principal?.realm !== "staff") {
+        this.bookingTokens.issue(response, {
+          bookingId: held.id,
+          reference: held.reference,
+          expiresAt: this.bookingTokens.expiryFor(
+            held.checkOut.toDate(PROPERTY_TIME_ZONE),
+          ),
+        });
+      }
+
+      return onWire(held);
+    });
   }
 
   /**
@@ -294,7 +340,9 @@ export class BookingController {
         await this.transactions.run((exec) =>
           this.bookings.ownBooking(exec, {
             reference: input.reference,
-            userId: guestAccount(principal, "read their own booking"),
+            owner: ownerOf(principal, "read their own booking", {
+              reference: input.reference,
+            }),
           }),
         ),
       ),
@@ -324,7 +372,9 @@ export class BookingController {
         await this.transactions.run((exec) =>
           this.bookings.ownHold(exec, {
             bookingId: input.bookingId,
-            userId: guestAccount(principal, "read their own booking"),
+            owner: ownerOf(principal, "read their own booking", {
+              bookingId: input.bookingId,
+            }),
           }),
         ),
       ),
@@ -335,24 +385,32 @@ export class BookingController {
    * Every stay this account has taken — `booking.read-own`'s "stay history"
    * half, which until now had a service method and no door.
    *
-   * **A session and never a booking token.** The other guest reads name one
-   * stay and are opened by whichever credential proves that stay is the
-   * caller's; this one names none and answers with all of them. A credential
-   * scoped to a single booking that could list the account's others would not be
-   * scoped to a single booking, so the refusal is the guard's and is the reason
-   * `rbac-matrix.md` records the token against the two routes that name a stay
-   * rather than against the row.
+   * **A session and never a booking token**, said as `@SessionOnly` so the
+   * refusal stays in the guard. The other guest reads name one stay and are
+   * opened by whichever credential proves that stay is the caller's; this one
+   * names none and answers with all of them. A credential scoped to a single
+   * booking that could list the account's others would not be scoped to a single
+   * booking, which is also why `rbac-matrix.md` records the token against the
+   * routes that name a stay rather than against the row.
    *
    * Ordering, and what the list includes, are `getOwnBookings`'s and are argued
    * there: newest arrival first, cancelled and expired stays kept, because a
    * list that dropped them would answer "where did my booking go?" with nothing.
    */
+  @SessionOnly("a list of every stay is not one booking's to answer")
   @RequiresCapability("booking.read-own", "read")
   @Implement(contract.booking.listOwn)
-  listOwn() {
-    return implement(contract.booking.listOwn).handler(async () =>
-      notYet("The list of your stays"),
-    );
+  listOwn(@CurrentPrincipal() principal: Principal | null) {
+    return implement(contract.booking.listOwn).handler(async () => {
+      const stays = await this.transactions.run((exec) =>
+        this.bookings.getOwnBookings(
+          exec,
+          accountOf(principal, "list the stays they have taken"),
+        ),
+      );
+
+      return stays.map(onWire);
+    });
   }
 
   /**
@@ -363,12 +421,25 @@ export class BookingController {
    * same instant {@link cancelOwn} would be priced at. Nothing is written and
    * nothing is held: a quote is a question, and a second calculation living here
    * would be a number that could disagree with the charge the folio posts.
+   *
+   * A booking token opens it, and that is the difference from the list above:
+   * this one names the stay it is about, so the credential scoped to that stay
+   * is proof enough — {@link ownerOf} scopes the lookup exactly as it does for
+   * the read and the cancellation either side of it.
    */
   @RequiresCapability("booking.read-own", "read")
   @Implement(contract.booking.cancellationQuote)
-  cancellationQuote() {
-    return implement(contract.booking.cancellationQuote).handler(async () =>
-      notYet("A cancellation quote"),
+  cancellationQuote(@CurrentPrincipal() principal: Principal | null) {
+    return implement(contract.booking.cancellationQuote).handler(
+      async ({ input }) =>
+        this.transactions.run((exec) =>
+          this.bookings.cancellationQuote(exec, {
+            reference: input.reference,
+            owner: ownerOf(principal, "price their own cancellation", {
+              reference: input.reference,
+            }),
+          }),
+        ),
     );
   }
 
@@ -388,6 +459,15 @@ export class BookingController {
    * charge `folio.service.ts` prices on the next request is the grid's, unwaived,
    * and identical to the one a desk cancellation leaves behind.
    */
+  // The credential on this route can be a cookie, which means the browser
+  // presents it whether or not the page that asked meant to — and in production
+  // the booking cookie is `sameSite: none`, so a cross-site page can ask. The
+  // whole input is in the path, so nothing else would stop a `<form>` post.
+  // `json-request.guard.ts` is the answer the staff refresh routes already use,
+  // and it is a decision here rather than the accident body parsing currently
+  // provides: refuse the three content types a form can send, so the only way
+  // in is a `fetch` that preflights into `main.ts`'s origin allowlist.
+  @UseGuards(JsonRequestGuard)
   @RequiresCapability("booking.cancel-own")
   @Implement(contract.booking.cancelOwn)
   cancelOwn(@CurrentPrincipal() principal: Principal | null) {
@@ -396,7 +476,9 @@ export class BookingController {
         await this.transactions.run((exec) =>
           this.bookings.cancelOwn(exec, {
             reference: input.reference,
-            userId: guestAccount(principal, "cancel their own booking"),
+            owner: ownerOf(principal, "cancel their own booking", {
+              reference: input.reference,
+            }),
           }),
         ),
       ),
@@ -427,21 +509,28 @@ export class BookingController {
 }
 
 /**
- * A route whose shape is settled and whose behaviour is not.
+ * The account a stay list is about.
  *
- * Both callers are guest read surfaces whose contract entries exist so that the
- * funnel's screens can be designed against a frozen shape while the service work
- * behind them is still being written. `501` and not an empty answer: a quote of
- * zero and a stay list with nothing in it are both things a screen would render
- * as fact, and a screen built against either would be built against a lie that
- * disappears when the handler lands.
+ * The one guest read that {@link ownerOf} cannot serve, and the reason is what
+ * the route asks: every other guest route names a stay, so a credential proving
+ * that one stay is an answer. This route names none, so the only thing that can
+ * scope it is an account — and a booking token has none. That caller is refused
+ * by `@SessionOnly` in the guard before reaching here; this is the compiler's
+ * half of the same rule, and it means the `where` clause below can never be
+ * handed a value that is not an account.
  *
- * Returns `never`, so a handler that forgets to throw does not typecheck.
+ * `FORBIDDEN` for a staff principal, which `booking.read-own` has already
+ * denied — stated for the reason {@link attributedStaff} gives, so that an
+ * unreachable branch is a refusal rather than a null meeting a query.
  */
-function notYet(what: string): never {
-  throw new ORPCError("NOT_IMPLEMENTED", {
-    message: `${what} is not answerable yet`,
-  });
+function accountOf(principal: Principal | null, act: string): string {
+  if (principal?.realm !== "guest") {
+    throw new ORPCError("FORBIDDEN", {
+      message: `Only a signed-in guest may ${act}`,
+    });
+  }
+
+  return principal.userId;
 }
 
 /**
@@ -463,30 +552,57 @@ function bookingAccount(principal: Principal | null): string | null {
 }
 
 /**
- * The account whose own stay is being read or called off.
+ * What makes the stay being read or called off the caller's own — the account
+ * off the session, or the single booking a credential proves.
  *
  * Required where {@link bookingAccount} is nullable, and that is the difference
  * between the two rows rather than a stricter reading of one. Creating a booking
  * admits a caller with no account and files the stay under nobody; a `read-own`
- * with no account to be the owner of is not a narrower request, it is a request
- * with no subject — and answering it with a null would hand the service's
- * `where` clause a value SQL matches against nothing, which is the right answer
- * arrived at by accident.
+ * with no owner at all is not a narrower request, it is a request with no
+ * subject — and answering it with a null would hand the service's `where`
+ * clause a value SQL matches against nothing, which is the right answer arrived
+ * at by accident.
  *
- * `FORBIDDEN` and not `UNAUTHORIZED`: the caller who reaches this and is not a
- * guest holds a valid staff session, and `rbac-matrix.md` §1 fixes a staff token
- * on a guest route at 403. Unreachable — both rows deny every staff role, so the
- * guard has already refused them — and stated because the alternative is a null
- * account meeting a query further in.
+ * **The token's scope is settled before any lookup.** A credential minted for
+ * one stay, presented against another, is refused here from the token alone —
+ * no query runs, so the refusal cannot tell the caller whether the reference
+ * they named exists. That is why this one is a 403 where the service's
+ * mismatched-owner answer is a 404: the service is refusing a stay it looked
+ * for, and this is refusing a credential on its face.
+ *
+ * `FORBIDDEN` and not `UNAUTHORIZED` for a caller who is neither: they hold a
+ * valid staff session, and `rbac-matrix.md` §1 fixes a staff token on a guest
+ * route at 403. Unreachable — both rows deny every staff role, so the guard has
+ * already refused them — and stated because the alternative is a null account
+ * meeting a query further in.
  */
-function guestAccount(principal: Principal | null, act: string): string {
-  if (principal?.realm !== "guest") {
-    throw new ORPCError("FORBIDDEN", {
-      message: `Only a signed-in guest may ${act}`,
-    });
+function ownerOf(
+  principal: Principal | null,
+  act: string,
+  addressed: { reference?: string; bookingId?: string },
+): BookingOwner {
+  if (principal?.realm === "guest") {
+    return { kind: "account", userId: principal.userId };
   }
 
-  return principal.userId;
+  if (principal?.realm === "booking") {
+    const opensThis =
+      addressed.reference !== undefined
+        ? addressed.reference === principal.reference
+        : addressed.bookingId === principal.bookingId;
+
+    if (!opensThis) {
+      throw new ORPCError("FORBIDDEN", {
+        message: "This link opens only the booking it was issued for",
+      });
+    }
+
+    return { kind: "proven", bookingId: principal.bookingId };
+  }
+
+  throw new ORPCError("FORBIDDEN", {
+    message: `Only the guest who made a booking may ${act}`,
+  });
 }
 
 /**
