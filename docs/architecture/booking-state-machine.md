@@ -98,14 +98,46 @@ Three entries deserve their reason:
 | `CHECKED_IN` → `CHECKED_OUT` | Release unspent nights | Folio must balance; invoice job enqueued | Room → `DIRTY`, unless it is `OUT_OF_ORDER` |
 | `NO_SHOW` → `CHECKED_IN` | Re-consume remaining nights, fail if unavailable | Reverse the no-show charge | `MANAGER` only; room may be named, and must be when none is held |
 
+**What → `HELD` refuses, beyond the counter.** The funnel's door is the only
+unauthenticated write that consumes inventory, so the effect above is reachable
+by a stranger, repeatedly, at no cost. Three things bound it, and the first is
+the only one that is merely a rate:
+
+| Bound | Unit | Refusal |
+|---|---|---|
+| Requests per caller | 30 in 10 minutes, per address or IPv6 /64 | `429` |
+| Live holds per caller | 3 outstanding, counted in SQL off `booking.held_by` | `429` |
+| Anonymous share of a night | `max(2, ⌊remaining ÷ 2⌋)` per night per room type, counting holds with no account behind them | `429`, naming the night and pointing at signing in |
+
+The second exists because a rate cannot say how much is outstanding: a caller
+pacing themselves under the limit can still stand on any number of rooms, and a
+counter that lives in one process forgets what it allowed when that process
+restarts. `held_by` is a salted digest of the caller and never an address; it is
+written only while the row is `HELD` and cleared by every transition out of it,
+so a stay that was confirmed or cancelled stops counting against whoever held
+it.
+
+The third bounds how much of a night can be withdrawn from sale by people the
+property cannot contact. A signed-in guest is outside it entirely — an account
+is a verified address and a stay history, so that hold can be chased — which is
+why the refusal invites the guest to sign in rather than reporting a sell-out.
+The floor of two is deliberate: a plain half-of-what-is-left rule would turn away
+the second genuine guest of the evening on a nearly-full night, which is the
+busiest and most valuable moment the property has.
+
+All three refuse **before** the stay is priced, before a night is consumed and
+before a reference is spent, so a refused call leaves nothing behind. None of
+them is the oversell guarantee: that is `type_inventory_sold_at_most_total`, and
+it is the only one of these that cannot be raced.
+
 **Who makes `HELD` → `CONFIRMED`.** Two callers, and the funnel's is not the
 desk's. The desk confirms by hand under `booking.write`. A guest paying online
 never touches that route — no guest holds the capability — so the transition is
 made by the gateway callback that takes the money, in the same commit as the
 payment and the folio line (`payment.service.ts`). That is what the caption
 "deposit taken" means in practice, and it is not optional: a paid stay left
-`HELD` is one the TTL sweep above cancels within two minutes, releasing a room
-the guest has paid for.
+`HELD` is one the TTL sweep above cancels within a minute, releasing a room the
+guest has paid for.
 
 Only a hold moves. Money reaching a stay that is already `CONFIRMED` or
 `CHECKED_IN` is a balance rather than a deposit, and a callback against one
