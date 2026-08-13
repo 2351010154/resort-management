@@ -42,9 +42,9 @@ import {
 } from "@mariva/shared";
 import { Injectable } from "@nestjs/common";
 import { ORPCError } from "@orpc/nest";
-import { eq, type SQL, sql } from "drizzle-orm";
+import { and, eq, gte, lt, type SQL, sql } from "drizzle-orm";
 import type { DbExecutor } from "../../database/database.module.js";
-import { roomType } from "../../database/schema/inventory.js";
+import { roomType, typeInventory } from "../../database/schema/inventory.js";
 import { sqlStateOf } from "../../database/sql-state.js";
 
 /** Postgres' SQLSTATE for the refusal this service expects. */
@@ -117,6 +117,57 @@ export class InventoryService {
     stay: StayInventory,
   ): Promise<InventoryMovement> {
     return await this.move(exec, stay, RESTORE);
+  }
+
+  /**
+   * What is still for sale on each night of a stay, in the caller's own
+   * transaction.
+   *
+   * The one read of the counter this service offers, and it is here rather than
+   * in the caller that wants it because `total_rooms - sold_rooms` is the
+   * definition of a free room and this module owns that definition.
+   * `availability.service.ts` computes the same difference for the search grid
+   * and cannot serve this caller: it holds its own connection, so a booking
+   * transition would be deciding on a figure read from a different snapshot
+   * than the one it is about to move.
+   *
+   * **Not a permission to sell, and never used as one.** `type_inventory_sold_at_most_total`
+   * is what refuses an oversell, and {@link reserve} is where the answer is
+   * taken under the row lock; a number read here is true when it is read and
+   * may be one lower by the time the caller acts. What it is good for is a
+   * policy that only has to be approximately right — how much of a night the
+   * public funnel may hold anonymously — and reading it under a lock would be a
+   * booking transition serialising every other one on the same nights for the
+   * sake of a cap.
+   *
+   * Nights the property never opened for sale have no row and are absent from
+   * the answer rather than reported as zero. A caller that treats their absence
+   * as sold out would refuse a stay for a reason that is not true; {@link reserve}
+   * refuses it for the reason that is.
+   */
+  async remaining(
+    exec: DbExecutor,
+    stay: StayInventory,
+  ): Promise<ReadonlyMap<string, number>> {
+    const rows = await exec
+      .select({
+        stayDate: typeInventory.stayDate,
+        free: sql<number>`${typeInventory.totalRooms} - ${typeInventory.soldRooms}`,
+      })
+      .from(typeInventory)
+      .innerJoin(roomType, eq(roomType.id, typeInventory.roomTypeId))
+      .where(
+        and(
+          eq(roomType.code, stay.roomType),
+          gte(typeInventory.stayDate, stay.checkIn.toString()),
+          lt(typeInventory.stayDate, stay.checkOut.toString()),
+        ),
+      )
+      .orderBy(typeInventory.stayDate);
+
+    // Arrival first, because a caller refusing a stay names the night it
+    // refused on and the earliest one is the one a guest can act on.
+    return new Map(rows.map((row) => [row.stayDate, Number(row.free)]));
   }
 
   private async move(
