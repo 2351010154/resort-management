@@ -502,12 +502,15 @@ describe("account attribution at the booking controller boundary", () => {
 
   it("keeps a null principal anonymous at the concrete handler", async () => {
     const controller = app.get(BookingController);
-    // The request is the handler's second collaborator, and it is here for one
-    // field: the address the hold is counted against. Named rather than left
-    // empty so this case cannot be the one that shares a caller key with
-    // another — the concurrent-hold cap counts by it.
+    // The request is the handler's second collaborator, and it is here for two
+    // fields. The address is the one the hold is counted against — named rather
+    // than left empty so this case cannot be the one that shares a caller key
+    // with another, since the concurrent-hold cap counts by it. The headers are
+    // where the handler looks for the booking cookie naming a hold this browser
+    // is moving off; empty is the honest fixture for a caller that holds none.
     const request = {
       ip: "198.51.100.203",
+      headers: {},
       socket: {},
     } as unknown as Request;
     // The response is the third: the hold issues the booking-scoped cookie on

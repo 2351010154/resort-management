@@ -10,14 +10,11 @@
 // priced a stay, has not consumed a night and has not spent a reference. The
 // transaction the controller opens is downstream of this.
 //
-// **In memory, which is correct for one instance and wrong for two.** The
-// counter lives in this process, so two Fly machines behind one hostname would
-// each allow the full rate and the property would face twice the limit written
-// here. That is the same caveat Better Auth's own limiter carries
-// (`guest-auth.factory.ts`), and the same answer applies: it is honest at one
-// instance, it is the deployment this milestone has, and the day a second
-// machine is started the counter has to move to a shared store rather than
-// being tuned down to compensate.
+// **The counting itself is `caller-windows.ts`'s**, shared with the presence
+// route's own limiter — including the fact that it is in memory, which is correct
+// for one instance and wrong for two. What stays here is the policy this door
+// takes and the sentence it refuses with, which are the two things about a limit
+// that are not arithmetic.
 //
 // It is also why this is a rate and not the whole answer. A limit that resets
 // per process cannot bound how many rooms are held at one moment, so
@@ -29,13 +26,6 @@
 //
 // **Who a caller is lives in `caller-key.ts`**, with the argument for the /64
 // and for the proxy hop the address is read off.
-//
-// **Fixed windows, not a token bucket.** A window that resets lets a caller
-// spend the whole allowance at the boundary and again immediately after, which
-// is twice the rate for one moment. For a limit whose job is to stop sustained
-// automated holds rather than to smooth traffic, that is an acceptable and
-// well-understood edge; the alternative is per-caller timestamp lists, which is
-// memory this guard would then have to bound.
 
 import {
   type CanActivate,
@@ -47,12 +37,10 @@ import {
 } from "@nestjs/common";
 import type { Request } from "express";
 import { callerOf } from "./caller-key.js";
+import { type CallerRatePolicy, CallerWindows } from "./caller-windows.js";
 
 /** How many holds one address may take, and over what. */
-export interface HoldRateLimitPolicy {
-  readonly limit: number;
-  readonly windowMs: number;
-}
+export type HoldRateLimitPolicy = CallerRatePolicy;
 
 /** Injected rather than read off a constant, so a test can state a small limit
  *  without taking thirty rooms off the shelf to prove the refusal. */
@@ -73,82 +61,62 @@ export const DEFAULT_HOLD_RATE_LIMIT: HoldRateLimitPolicy = {
 };
 
 /**
- * How many callers are tracked at once, and what happens past it.
+ * A wait, in the words a refusal names it in.
  *
- * A hard ceiling and not only an expiry sweep. A caller cycling addresses —
- * which the grouping below makes expensive but not impossible — would otherwise
- * grow this map without bound, and a sweep that found every window fresh would
- * walk the whole thing on every request while freeing nothing. Past the ceiling
- * the expired entries go first and, if that frees none, the oldest window is
- * evicted: the caller it belonged to gets a fresh allowance, which is the safe
- * direction to fail for a limiter whose job is to make sustained automation
- * expensive rather than to be an authorisation decision.
+ * All three 429s on this route quote a figure the property configures — the
+ * window below, and `BOOKING_HOLD_TTL_MINUTES` for the two caps in
+ * `booking.service.ts`, which is why this is exported and imported there rather
+ * than written out twice. A property is free to set either to one, and
+ * "1 minutes" is the kind of sentence a guest notices instead of the
+ * instruction inside it.
+ *
+ * Rounded up, always. A wait quoted shorter than it is sends the guest back to
+ * the refusal they were told they had already waited out.
  */
-const TRACKED_CEILING = 10_000;
+export function minutesInWords(minutes: number): string {
+  const whole = Math.max(1, Math.ceil(minutes));
 
-interface Window {
-  count: number;
-  startedAt: number;
+  return whole === 1 ? "a minute" : `${whole} minutes`;
 }
 
 @Injectable()
 export class HoldRateLimitGuard implements CanActivate {
-  private readonly windows = new Map<string, Window>();
+  private readonly windows: CallerWindows;
 
   constructor(
     @Inject(HOLD_RATE_LIMIT_POLICY)
     private readonly policy: HoldRateLimitPolicy,
-  ) {}
+  ) {
+    this.windows = new CallerWindows(policy);
+  }
 
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<Request>();
     const caller = callerOf(request.ip ?? request.socket.remoteAddress);
-    const now = Date.now();
 
-    if (this.windows.size >= TRACKED_CEILING) {
-      this.makeRoom(now);
-    }
-
-    const current = this.windows.get(caller);
-
-    if (!current || now - current.startedAt >= this.policy.windowMs) {
-      this.windows.set(caller, { count: 1, startedAt: now });
-
+    if (this.windows.admits(caller)) {
       return true;
     }
 
-    current.count += 1;
-
-    if (current.count > this.policy.limit) {
-      // 429 and a sentence a person could act on. The reply says nothing about
-      // the property's inventory, because a refused call never looked at any.
-      throw new HttpException(
-        "Too many rooms held from here. Wait a few minutes and try again.",
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
-    }
-
-    return true;
-  }
-
-  /** Expired windows first, then the oldest — see {@link TRACKED_CEILING}. */
-  private makeRoom(now: number): void {
-    let oldest: [string, Window] | undefined;
-
-    for (const entry of this.windows) {
-      if (now - entry[1].startedAt >= this.policy.windowMs) {
-        this.windows.delete(entry[0]);
-
-        continue;
-      }
-
-      if (!oldest || entry[1].startedAt < oldest[1].startedAt) {
-        oldest = entry;
-      }
-    }
-
-    if (this.windows.size >= TRACKED_CEILING && oldest) {
-      this.windows.delete(oldest[0]);
-    }
+    // 429 and a sentence a person could act on. The reply says nothing about
+    // the property's inventory, because a refused call never looked at any.
+    //
+    // **It says requests and not rooms, and the difference is not pedantry.**
+    // This counts asking, including the asks the caps downstream refused — the
+    // case `hold-rate-limit.guard.spec.ts` holds it to — so the caller most
+    // likely to arrive here is one whose earlier attempts were all turned down
+    // and who has therefore held nothing at all. "Too many rooms held from
+    // here" told that person about rooms that do not exist.
+    //
+    // **And it names the wait rather than gesturing at one.** The window is
+    // fixed, so it reopens `windowMs` after it started and waiting the whole
+    // of it always works; "a few minutes" against a ten-minute window is an
+    // instruction that sends the guest back to this same sentence.
+    throw new HttpException(
+      `Too many attempts to hold a room from here. Wait ${minutesInWords(
+        this.policy.windowMs / 60_000,
+      )} and try again.`,
+      HttpStatus.TOO_MANY_REQUESTS,
+    );
   }
 }

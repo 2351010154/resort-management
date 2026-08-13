@@ -36,10 +36,11 @@ export interface StaffPrincipal {
  * ownership check the two `⚠` rows still owe is a `where` clause here exactly
  * as it is for a session.
  *
- * It is not a login and it never widens. `access.guard.ts` grants it
- * `booking.read-own` and `booking.cancel-own` and refuses it every other row,
- * including rows the matrix has not been written yet — a credential that grew
- * as the matrix grew would be a hole nobody edited into existence.
+ * It is not a login and it never widens. `access.guard.ts` names the handful of
+ * rows it grants — reading the stay, calling it off, saying where to write about
+ * it, paying for it — and refuses every other row, including rows the matrix has
+ * not been written yet. A credential that grew as the matrix grew would be a
+ * hole nobody edited into existence.
  */
 export interface BookingPrincipal {
   readonly realm: "booking";

@@ -32,10 +32,10 @@ guest walks into an occupied room.
 
 **Why no `EXPIRED` state.** An abandoned hold and a guest cancellation differ in
 *reason*, not in what the system must do. Both release inventory and end the
-booking. `CANCELLED` carries a reason code — `HOLD_EXPIRED`, `GUEST_REQUEST`,
-`STAFF_ERROR`, `PAYMENT_FAILED`, `OVERBOOK_WALK`, `FORCE_MAJEURE` — so the
-distinction is recorded without a seventh state, which would buy nothing and
-double the transition table.
+booking. `CANCELLED` carries a reason code — `HOLD_EXPIRED`, `HOLD_REPLACED`,
+`GUEST_REQUEST`, `STAFF_ERROR`, `PAYMENT_FAILED`, `OVERBOOK_WALK`,
+`FORCE_MAJEURE` — so the distinction is recorded without a seventh state, which
+would buy nothing and double the transition table.
 
 **What the reason code is, and is not.** It is the audit record of *why* the stay
 ended, and it prices nothing. `property-and-tariff.md` §4's grid is keyed on the
@@ -89,9 +89,9 @@ Three entries deserve their reason:
 
 | Transition | Inventory | Money | Other |
 |---|---|---|---|
-| → `HELD` | `sold_rooms += 1` per night | None | TTL timer starts |
+| → `HELD` | `sold_rooms += 1` per night | None | TTL timer starts; first sighting recorded |
 | `HELD` → `CONFIRMED` | Unchanged | Deposit posted if taken | Confirmation email |
-| `HELD` → `CANCELLED` | Release all nights | Refund deposit if any | Reason `HOLD_EXPIRED` when the TTL job fires |
+| `HELD` → `CANCELLED` | Release all nights | Refund deposit if any | Reason `HOLD_EXPIRED` when the hold runs out — on either of the two clocks below — and `HOLD_REPLACED` when the same browser takes another room |
 | `CONFIRMED` → `CANCELLED` | Release all nights | Penalty per policy, refund remainder | Reason code required, always |
 | `CONFIRMED` → `CHECKED_IN` | Unchanged | First room-night posted by night audit, not at check-in | Room assignment mandatory; registration record written |
 | `CONFIRMED` → `NO_SHOW` | Release nights **after** the arrival night | No-show charge per policy | Room hold cut back to the arrival night; written by the night audit |
@@ -105,9 +105,9 @@ the only one that is merely a rate:
 
 | Bound | Unit | Refusal |
 |---|---|---|
-| Requests per caller | 30 in 10 minutes, per address or IPv6 /64 | `429` |
-| Live holds per caller | 3 outstanding, counted in SQL off `booking.held_by` | `429` |
-| Anonymous share of a night | `max(2, ⌊remaining ÷ 2⌋)` per night per room type, counting holds with no account behind them | `429`, naming the night and pointing at signing in |
+| Requests per caller | 30 in 10 minutes, per address or IPv6 /64 | `429`, naming the window as the wait |
+| Live holds per caller | 3 outstanding, counted in SQL off `booking.held_by` | `429`, naming the hold TTL as the wait |
+| Anonymous share of a night | `max(2, ⌊remaining ÷ 2⌋)` per night per room type, counting holds with no account behind them | `429`, naming the night, pointing at signing in, and naming the TTL for a guest who would rather not |
 
 The second exists because a rate cannot say how much is outstanding: a caller
 pacing themselves under the limit can still stand on any number of rooms, and a
@@ -129,6 +129,139 @@ All three refuse **before** the stay is priced, before a night is consumed and
 before a reference is spent, so a refused call leaves nothing behind. None of
 them is the oversell guarantee: that is `type_inventory_sold_at_most_total`, and
 it is the only one of these that cannot be raced.
+
+**What the three sentences may say, and what they may not.** They share a status,
+so the sentence is the only thing that tells a guest which bound answered and the
+only thing they can act on. Two rules hold across all of them.
+
+- **Claim nothing the reader cannot check.** Once a room pick became a move, one
+  browser holds one room however many types it compares — so the second bound is
+  no longer reachable by a person shopping, and the caller who meets it is
+  several strangers behind one router. The refusal therefore states that holding
+  is closed for that connection rather than telling the reader they hold three
+  rooms and should drop one, which for that reader is false and impossible to
+  act on. The rate says *attempts* for the same reason: it counts asking,
+  including the asks the caps below it refuse, so its reader has often held
+  nothing at all.
+- **Name the wait, in minutes.** Every bound here clears on a figure the property
+  configures — the limiter's window, and the hold TTL for the other two, since
+  both count only live holds and every one of those is gone within a TTL. "A few
+  minutes" against a ten-minute window sends the guest back to the same refusal.
+  The figures are read from configuration at the point the sentence is built and
+  are never written into copy, in the API or in the funnel.
+
+The share cap is the one refusal that describes anything beyond the caller, and
+it earns it: the escape it offers is signing in, and an invitation with its
+reason removed is one a guest has no cause to accept. It still describes only the
+*anonymous* share, never what the property has left, so it cannot be read as a
+sell-out. The `apps/web` funnel prints all three verbatim and adds its own
+sentence only when a refusal arrived with none — `stay-funnel.ts` tells a wait
+from a fault by the status, never by the words.
+
+**Picking a room is a move, so → `HELD` releases the room the browser was on.**
+A guest comparing three room types took three holds and gave none of them back,
+which is one person meeting a cap written for callers who are not shopping — and
+it cost the property up to three rooms per abandoned funnel session for a full
+TTL. So `createHold` releases the hold the caller's own cookie names, in the same
+transaction, with reason `HOLD_REPLACED`.
+
+**Three conditions, all required, all read under the released row's lock:** the
+cookie names it, `held_by` matches the caller now asking, and the row is still
+`HELD` with no payment attempt on it still `PENDING`. Anything else is left
+alone, silently — the new hold succeeds either way, and the room the guest did
+not come back to runs out its TTL. Five things make that safe:
+
+- **The cookie decides which hold, and the caller digest is a second lock.** The
+  credential `booking-token.service.ts` issues is signed, `httpOnly` and names
+  one stay, and its path is already `/bookings` — so it arrives on this route
+  with nothing added to the wire, and a booking id is never something a caller
+  may *send*. `held_by` must match as well, so a cookie copied to another network
+  releases nothing.
+- **Take first, release second.** A pick the property refuses — sold out, or past
+  the anonymous share of the night — leaves the guest holding the room they had,
+  with their cookie still naming it. The caller counts two live holds for the
+  length of the transaction, which is what the headroom in the cap of three is
+  for; a cap of one would make this ordering impossible.
+- **Only a row that is still `HELD`, read `for update`.** A stay that has been
+  paid for is `CONFIRMED` and one the sweep reached is `CANCELLED`, and the lock
+  is what stops a payment landing between the read and the release.
+- **Never a hold with money in flight.** The state answers for money that
+  arrived; a `PENDING` attempt is money on its way. A guest sent to the gateway
+  is in a banking app with the funnel tab still open behind it, so comparing one
+  more room is ordinary — and releasing that room would sell it while they are
+  paying for it. So a hold carrying a `PENDING` attempt is never released here,
+  the new hold is taken anyway, and the guest briefly holds two rooms, which the
+  cap of three absorbs. Refusing the pick instead would be refusing a guest for
+  changing their mind.
+- **It reaches no charge.** The release goes through the same `cancel` the TTL
+  sweep calls, which posts no money at all; §4's charge is `folio.refund-policy`,
+  raised by a manager against a folio an unpaid hold does not have. A room change
+  that billed a guest is the one failure this transition must not have, and
+  `HOLD_REPLACED` is refused on the desk's cancellation route for the same reason
+  `HOLD_EXPIRED` is: neither is a reason a person may claim.
+
+The reason is its own code rather than `GUEST_REQUEST` because nobody cancelled
+anything. Counted as a guest cancellation it would make the property's
+cancellation rate a function of how many room types its guests compare.
+
+**A hold ends at the earlier of two clocks, and the second one is the guest.**
+The TTL is a ceiling: it says how long a room may be held at the very most. What
+it cannot say is whether anybody is still there — so a guest who closed the tab
+thirty seconds into a ten-minute hold cost the property the other nine and a
+half, and on a night at the anonymous share cap that is the room the next guest
+is turned away from. The funnel now says every twenty seconds that it is still
+open (`POST /bookings/holds/{bookingId}/presence`), and `hold-expiry-sweep.ts`
+releases a hold at `min(hold_expires_at, last_seen_at + BOOKING_HOLD_GRACE_SECONDS)`.
+The grace is two minutes by default and is configuration, beside the TTL.
+
+Worst case for an abandoned funnel session goes from a TTL plus the sweep's
+cadence — eleven minutes — to about three. A closing tab shortens that again with
+a `sendBeacon` that marks its departure, and marking is all it does: the sweep
+still decides, so there is one release path rather than one per caller.
+
+**Three rules hold it in place, and none of them is optional.**
+
+- **Presence may only ever shorten a hold, never extend it.** It is a `min` and
+  not a `max`. A tab left open with a ping running holds its room for exactly one
+  TTL, the same as a tab nobody is watching — otherwise a browser saying "still
+  here" forever would pin a room indefinitely, which is precisely the abuse the
+  three bounds above exist to prevent. Nothing on the presence route writes
+  `hold_expires_at`.
+- **Presence never releases a hold with a `PENDING` payment attempt.** A guest
+  paying by QR code is in a banking app with the funnel tab backgrounded or
+  closed, which is the likeliest moment for presence to be absent and the worst
+  moment to resell their room. So a hold that is due *only* because nobody has
+  said they are there is left alone while an attempt against it is still
+  `PENDING`, and it runs out its TTL like any other. "In flight" has one
+  definition, shared with the room a guest moves off.
+  The TTL branch is deliberately **not** guarded the same way. A hold whose TTL
+  has passed is cancelled whether or not an attempt is open, exactly as before:
+  a callback that lands after the room has gone is answered by `confirmPaidHold`
+  and by `FR-PAY-05`'s nightly reconciliation, and guarding it here would be a
+  room held indefinitely by an attempt nobody ever finishes — a decision about
+  inventory the property has not taken.
+- **Presence is cooperative and is never a defence.** The door is public, so
+  anybody automating the funnel simply never says it and keeps their rooms for
+  the full TTL exactly as they do today. Nothing was relaxed in exchange:
+  `CONCURRENT_HOLDS_PER_CALLER`, the anonymous share and the rate in front of the
+  hold are all unchanged, and "abandoned holds release themselves now" is not an
+  argument for widening any of them. It does the work only for the callers who
+  choose to send it, which is every real guest and no attacker.
+
+The route is a guest row of its own (`booking.presence-own`), opened by the same
+booking-scoped credential as the read, the contact and the cancellation, scoped
+to one stay by the same `where` clause, rate-limited on its own policy — sharing
+the hold's would spend on heartbeats the allowance a guest needs to book — and
+behind `json-request.guard.ts`, because a departure a cross-site page could send
+would put a stranger's room back on sale. It is mounted under `/bookings` because
+that is the cookie's path; anywhere else and every ping arrives anonymous.
+
+A returning guest gets their **search** back and not their hold: dates, party,
+plan and room type are kept in `localStorage`, the room went back on sale because
+nobody was standing on it, and the return visit takes a fresh hold against
+whatever the property actually has left. Nothing identifying is stored — no
+contact pair, no booking reference — which is the same decision
+`contract/booking.ts` records about where contact belongs.
 
 **Who makes `HELD` → `CONFIRMED`.** Two callers, and the funnel's is not the
 desk's. The desk confirms by hand under `booking.write`. A guest paying online
@@ -175,6 +308,17 @@ each is a separate endpoint with its own `@RequiresCapability()` declaration.
 | Change rate | `CONFIRMED`, `CHECKED_IN` | Below the plan price is `MANAGER` only |
 | Post charge / payment | `CHECKED_IN`, `CONFIRMED` | Deposits post pre-arrival |
 | Add or edit guest details | all but `CANCELLED` | |
+| Name the contact on a hold | `HELD` only | The guest's own, from the funnel's review screen — see below |
+
+**Who the confirmation goes to is named while the stay is still a hold, and only
+then.** The funnel takes the room first and asks who is taking it on the review
+screen, one press before the gateway — a hold that expires unpaid is inventory
+coming back, and the property has nothing to send anybody about it. Past `HELD`
+the address stops being editable through that door: it is what a confirmation was
+sent to and what the desk matches a guest against at check-in, so a route that
+could still rewrite it would let a booking's paper trail be edited after the fact.
+A later correction is the desk's, through *Add or edit guest details*, where the
+change is recorded as the desk's act.
 
 **Handing a vacated room back.** A move and a checked-in upgrade both leave a
 slept-in room nobody is returning to, so both set it `DIRTY` — the same effect §3

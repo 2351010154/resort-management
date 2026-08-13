@@ -97,6 +97,23 @@ const BEARER_PREFIX = "bearer ";
 const BOOKING_TOKEN_ROWS: ReadonlySet<string> = new Set([
   "booking.read-own",
   "booking.cancel-own",
+  // Naming who the confirmation goes to. Admitted for the same reason payment
+  // is: the funnel is passwordless end to end or it is not. The hold is taken
+  // before anybody is asked who they are, so the address arrives one screen
+  // later — and a token that could pay for a stay but not say where to write
+  // about it would leave the anonymous guest paid up and uncontactable.
+  "booking.contact-own",
+  // Saying the guest is still on the hold. Admitted for the same reason the two
+  // above are: the browser holding this credential is the funnel, and the funnel
+  // is the only thing that can know. A hold whose presence could only be reported
+  // by a signed-in guest would be one that always died at the grace for exactly
+  // the passwordless guest this credential exists for.
+  //
+  // It widens nothing. The row it opens can shorten that one stay's hold and
+  // cannot lengthen it past a TTL the property already granted, so the most a
+  // stolen copy of this cookie buys is keeping alive — or giving back — a room
+  // the thief cannot read, pay for or check into.
+  "booking.presence-own",
   "payment.open-attempt",
 ]);
 

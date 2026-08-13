@@ -43,6 +43,7 @@ import { migrate } from "drizzle-orm/node-postgres/migrator";
 import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { AppModule } from "../src/app.module.js";
+import { ENV, type Env } from "../src/config/env.js";
 import { type Database, DRIZZLE } from "../src/database/database.module.js";
 import { booking } from "../src/database/schema/booking.js";
 import { roomType, typeInventory } from "../src/database/schema/inventory.js";
@@ -108,6 +109,15 @@ const CONCURRENT_HOLDS = 3;
  */
 const RATE_LIMIT = 6;
 
+/**
+ * The window that rate is spent over, and the wait the limiter's refusal quotes.
+ *
+ * The deployed figure rather than a small one, because the sentence names it: a
+ * window measured in seconds would prove the refusal without proving that what
+ * it tells the guest to wait is what the property actually makes them wait.
+ */
+const RATE_WINDOW_MINUTES = 10;
+
 class StoppedClock extends BusinessDateService {
   constructor() {
     super(new SystemConfigService());
@@ -156,6 +166,16 @@ let sweep: HoldExpirySweep;
 let mailer: RecordingMailer;
 /** A browser with a real guest session, for the one cap that exempts one. */
 let signedIn: request.Agent;
+/**
+ * How long a hold lasts, read off the running application.
+ *
+ * Unlike {@link CONCURRENT_HOLDS} this is not written out: the TTL is
+ * configuration a property tunes — `env.ts` says so outright — and both refusals
+ * below quote it as the wait they ask the guest for. A figure copied here would
+ * be a second opinion about a knob, and the assertion worth making is that the
+ * sentence names *the* wait rather than that it names ten minutes.
+ */
+let holdTtl: number;
 
 beforeAll(async () => {
   mailer = new RecordingMailer();
@@ -166,7 +186,7 @@ beforeAll(async () => {
     .overrideProvider(MailerService)
     .useValue(mailer)
     .overrideProvider(HOLD_RATE_LIMIT_POLICY)
-    .useValue({ limit: RATE_LIMIT, windowMs: 10 * 60_000 })
+    .useValue({ limit: RATE_LIMIT, windowMs: RATE_WINDOW_MINUTES * 60_000 })
     .compile();
 
   app = moduleRef.createNestApplication();
@@ -179,7 +199,11 @@ beforeAll(async () => {
 
   db = app.get<Database>(DRIZZLE);
   bookings = app.get(BookingService);
-  sweep = new HoldExpirySweep(bookings);
+  // Built by hand rather than resolved, because this file boots `AppModule`
+  // without the jobs registry that provides it — and handed the running app's
+  // own configuration, so the two clocks it reads are the property's.
+  sweep = new HoldExpirySweep(bookings, app.get<Env>(ENV));
+  holdTtl = app.get<Env>(ENV).BOOKING_HOLD_TTL_MINUTES;
 
   await migrate(db, { migrationsFolder: "./src/database/migrations" });
   await db.execute(
@@ -215,7 +239,18 @@ describe("the rooms one caller may be holding at once", () => {
 
     const refused = await hold(caller, ARRIVALS[CONCURRENT_HOLDS]!).expect(429);
 
-    expect(refused.body.message).toContain(String(CONCURRENT_HOLDS));
+    // The wait, in the sentence, as a figure. A refusal that says "not yet"
+    // without saying how long is one a guest can only answer by pressing again.
+    expect(refused.body.message).toContain(`${holdTtl} minutes`);
+
+    // And nothing about rooms the reader is supposed to be holding. Since a
+    // room pick releases the room the browser was on, one browser holds one room
+    // however many types it compares — so the caller who reaches this cap is
+    // several strangers behind one router, and "you are already holding three
+    // rooms" is a claim none of them can check or act on.
+    expect(refused.body.message).not.toMatch(
+      new RegExp(`${CONCURRENT_HOLDS} rooms?`, "i"),
+    );
 
     // The refusal ran before anything priced the stay or moved a counter, which
     // is the property `hold-rate-limit.guard.ts` argues a limit on this door
@@ -338,6 +373,10 @@ describe("the share of a night guests without an account may hold", () => {
     // The sentence has to steer the guest rather than report a sell-out, since
     // the property is not sold out and signing in takes the room.
     expect(refused.body.message).toMatch(/sign(ed)? in/i);
+    // And the guest who would rather not sign in is owed the same figure the
+    // concurrent cap quotes: every hold in the count is a live one, so all of
+    // them are gone within a TTL of now.
+    expect(refused.body.message).toContain(`${holdTtl} minutes`);
 
     // Refused before the counter moved, again — two anonymous holds and no more.
     expect(await soldOn(ARRIVALS[0]!)).toBe(6);
@@ -402,7 +441,7 @@ describe("the rate in front of the door", () => {
     // case stated over HTTP.
     const byTheCap = await hold(caller, ARRIVALS[CONCURRENT_HOLDS]!).expect(429);
 
-    expect(byTheCap.body.message).toContain(String(CONCURRENT_HOLDS));
+    expect(byTheCap.body.message).toContain(`${holdTtl} minutes`);
 
     for (let asked = CONCURRENT_HOLDS + 1; asked < RATE_LIMIT; asked += 1) {
       await hold(caller, ARRIVALS[CONCURRENT_HOLDS]!).expect(429);
@@ -414,7 +453,16 @@ describe("the rate in front of the door", () => {
       429,
     );
 
-    expect(byTheRate.body.message).toContain("Too many rooms held from here");
+    expect(byTheRate.body.message).toContain("attempts to hold a room");
+
+    // **This caller held nothing, and the sentence must not say they did.**
+    // Every hold they took is still live, so the four requests that reached the
+    // limiter were all refused by the cap first — a limiter that reported
+    // "too many rooms held from here" would be describing rooms that were never
+    // taken. It names the window instead, in the same words the cap names the
+    // TTL, so waiting the stated time actually works.
+    expect(byTheRate.body.message).not.toMatch(/rooms held/i);
+    expect(byTheRate.body.message).toContain(`${RATE_WINDOW_MINUTES} minutes`);
 
     await hold(nextCaller(), ARRIVALS[CONCURRENT_HOLDS]!).expect(201);
   });

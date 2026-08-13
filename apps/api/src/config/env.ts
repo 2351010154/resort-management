@@ -243,6 +243,38 @@ export const envSchema = z.object({
     .max(1_440)
     .default(10),
 
+  // How long a hold outlives the guest who was standing on it.
+  //
+  // The TTL above is the *longest* a hold can last. This is the other half of
+  // when it dies: the funnel says it is still open every twenty seconds, and
+  // `hold-expiry-sweep.ts` releases a hold at the earlier of its TTL and this
+  // long after the last of those arrived. It is a figure rather than a constant
+  // for the same reason the TTL is — the trade it makes is the property's, and
+  // it is a different trade than the TTL's.
+  //
+  // **Two minutes, and it is generous on purpose.** What this costs when it is
+  // too short is a guest in a lift, in a tunnel, or on a phone that locked,
+  // losing a room they are still buying — and they lose it silently, because
+  // nothing on their screen said their connection was what was holding it. Four
+  // consecutive failed pings at twenty seconds is still inside two minutes.
+  // Shortening it to reclaim inventory faster trades a guest's booking for a few
+  // room-minutes, which is the wrong direction on every night that is not sold
+  // out. Lengthen it with a complaint; shorten it only with data about guests who
+  // left, never with a number about rooms.
+  //
+  // The floor is thirty seconds rather than zero. Below the interval the funnel
+  // pings at, a guest sitting still on the review screen is released *between*
+  // two of their own pings — the feature releasing exactly the guests it was
+  // built to keep. Nothing above the TTL has any effect at all, since the hold
+  // dies at the earlier of the two; the ceiling is an hour so that a mistyped
+  // figure reads as configuration rather than as this being switched off.
+  BOOKING_HOLD_GRACE_SECONDS: z.coerce
+    .number()
+    .int()
+    .min(30)
+    .max(3_600)
+    .default(120),
+
   // The two guard relaxations `booking-state-machine.md` §7 leaves to the owner.
   // Both default to the blocked reading §7 assumes, and both are here rather
   // than hardcoded because §7 records them as open: a property that decides the
