@@ -92,6 +92,9 @@ const TRACKED_CEILING = 10_000;
  */
 const IPV6_PREFIX_GROUPS = 4;
 
+/** What an address has when none of it is elided. */
+const IPV6_GROUPS = 8;
+
 interface Window {
   count: number;
   startedAt: number;
@@ -176,17 +179,39 @@ function callerOf(address: string | undefined): string {
     return address;
   }
 
-  // An expanded address has eight groups; a `::` elides one or more zero groups
-  // and can only appear once. Either way the first four groups of the written
-  // form are the prefix — unless the elision is inside them, and then the
-  // address is shorter than a /64's worth of significant groups and is already
-  // its own prefix.
-  const groups = address.split(":");
-  const elided = address.includes("::");
+  return expanded(address).slice(0, IPV6_PREFIX_GROUPS).join(":");
+}
 
-  if (elided && groups.indexOf("") < IPV6_PREFIX_GROUPS) {
-    return address;
+/**
+ * The eight groups of an address, with anything a `::` stands in for written
+ * out.
+ *
+ * Expanded before it is cut, and that order is the whole of it. A `::` elides a
+ * run of zero groups that may begin anywhere, so the first four groups of the
+ * *written* form are not the prefix whenever the run starts inside them:
+ * `2001:db8::7` is `2001:db8:0:0:0:0:0:7`, and cutting the text would key it
+ * under the whole address while `2001:db8::8` — the same /64, one host along —
+ * took a window of its own. A caller who holds the prefix picks the host part,
+ * so that is an allowance per address on the one door that takes rooms off the
+ * shelf, which is exactly what {@link IPV6_PREFIX_GROUPS} exists to stop.
+ *
+ * A `::` appears at most once, which is what lets the two sides be read off a
+ * single split. Nothing here validates the address: a malformed one keys to
+ * whatever it expands to, because this is a counter rather than a parser, and
+ * the zero count is floored so that a caller cannot turn one into a 500 on a
+ * public route.
+ */
+function expanded(address: string): string[] {
+  const groupsOf = (part: string) => (part === "" ? [] : part.split(":"));
+
+  if (!address.includes("::")) {
+    return groupsOf(address);
   }
 
-  return groups.slice(0, IPV6_PREFIX_GROUPS).join(":");
+  const [head = "", tail = ""] = address.split("::");
+  const stated = groupsOf(head);
+  const trailing = groupsOf(tail);
+  const elided = Math.max(IPV6_GROUPS - stated.length - trailing.length, 0);
+
+  return [...stated, ...Array<string>(elided).fill("0"), ...trailing];
 }
