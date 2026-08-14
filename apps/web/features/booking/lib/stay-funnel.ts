@@ -269,7 +269,12 @@ export async function readStay(bookingId: string): Promise<HeldStay> {
  * precisely so that a few of these going missing costs nobody a room.
  */
 export async function markPresence(bookingId: string): Promise<void> {
-  await api.booking.markHoldPresence({ bookingId });
+  // `leaving` is sent rather than left to a default, and the contract requires
+  // it for that reason: with the id in the path it is the only thing left to put
+  // in a body, and a request with no body carries no `content-type` — which is
+  // the one shape `json-request.guard.ts` refuses. Saying it is what makes this
+  // a JSON request at all.
+  await api.booking.markHoldPresence({ bookingId, leaving: false });
 }
 
 /**
