@@ -197,6 +197,13 @@
       "when": 1786619515441,
       "tag": "0027_booking_last_seen_at",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1786695093410,
+      "tag": "0028_booking_link_and_anonymous_revocation",
+      "breakpoints": true
     }
   ]
 }
