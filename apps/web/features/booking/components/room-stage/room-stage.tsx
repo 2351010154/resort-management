@@ -240,10 +240,13 @@ export function RoomStage({
                     different unit. So the value is separated from the term by
                     weight and colour instead, which is the same read without
                     rewriting an SI symbol. */}
-                <div className={styles.factLines}>
-                  <dd className={styles.factValue}>{fact.value}</dd>
-                  <dt className={styles.factTerm}>{fact.term}</dt>
-                </div>
+                {/* `dd` and `dt` sit directly in the one wrapping `div`. A
+                    `dl` may group each pair in a single `div` and no deeper, so
+                    the stacked column these two read as is made by grid
+                    placement in the stylesheet rather than by a second element
+                    — which is the nesting `dlitem` was failing on. */}
+                <dd className={styles.factValue}>{fact.value}</dd>
+                <dt className={styles.factTerm}>{fact.term}</dt>
               </div>
             ))}
           </dl>

@@ -281,15 +281,25 @@
 .fact {
   display: grid;
   grid-template-columns: 1.25rem minmax(0, 1fr);
-  gap: 0.5rem;
+  /* Two rows, because the value and the term are now laid out by this grid
+     rather than stacked inside a wrapper element: a `dl` may group a pair in one
+     `div` and no deeper, so the column they read as is made here. The glyph
+     spans both rows so it stays on one vertical beside the pair. */
+  grid-template-rows: auto auto;
+  column-gap: 0.5rem;
+  row-gap: 0.125rem;
   align-items: start;
   min-width: 0;
 }
 
 /* A CSS mask over `currentColor` — see the note in `room-stage.tsx`. --stone,
    which §2 gives to "what is nearly furniture": the words carry the fact and the
-   glyph only says which fact it is. */
+   glyph only says which fact it is.
+
+   It spans both rows of `.fact`, which is what keeps one glyph beside the pair
+   it marks rather than one per line. */
 .factIcon {
+  grid-row: 1 / span 2;
   width: 1.25rem;
   height: 1.25rem;
   color: var(--stone);
@@ -304,10 +314,11 @@
   -webkit-mask-position: center;
 }
 
-.factLines {
-  display: flex;
-  flex-direction: column;
-  gap: 0.125rem;
+/* Kept as a no-op class name so the value and term can be placed in the second
+   column of `.fact` without a wrapper element between them and the `dl`. */
+.factValue,
+.factTerm {
+  grid-column: 2;
   min-width: 0;
 }
 
