@@ -18,11 +18,19 @@ import {
 } from "../../common/auth/access.guard.js";
 import { ENV, type Env } from "../../config/env.js";
 import { DRIZZLE, type Database } from "../../database/database.module.js";
+import { BookingModule } from "../booking/booking.module.js";
 import { IdentityModule } from "../identity/identity.module.js";
-import { MailerService } from "../notification/mailer.service.js";
+import { MailQueue } from "../notification/mail-queue.service.js";
 import { NotificationModule } from "../notification/notification.module.js";
 import { BookingTokenModule } from "./booking-token/booking-token.module.js";
+import {
+  ACCOUNT_LINK_RATE_LIMIT_POLICY,
+  AccountLinkRateLimitGuard,
+  DEFAULT_ACCOUNT_LINK_RATE_LIMIT,
+} from "./guest/account-link-rate-limit.guard.js";
 import { createGuestAuth } from "./guest/guest-auth.factory.js";
+import { GuestAttachController } from "./guest/guest-attach.controller.js";
+import { GuestAttachService } from "./guest/guest-attach.service.js";
 import { GuestAuthController } from "./guest/guest-auth.controller.js";
 import { GuestAuthService } from "./guest/guest-auth.service.js";
 import { GUEST_AUTH } from "./guest/guest-auth.tokens.js";
@@ -39,6 +47,13 @@ import {
     // The third credential the guard resolves — a booking-scoped token, which
     // is neither realm's session and belongs to neither realm's folder.
     BookingTokenModule,
+    // For the attach flow's one call: writing the owner of a stay and giving up
+    // its anonymous credential is `booking.service.ts`'s, in its transaction and
+    // in its order, and a second implementation of that pair here would be the
+    // one that forgot which of the two goes first. The dependency runs this way
+    // and not the other because creating the account is Better Auth's, which is
+    // this module's — `booking.module.ts` says it imports no part of this one.
+    BookingModule,
     IdentityModule,
     NotificationModule,
     PassportModule,
@@ -53,15 +68,27 @@ import {
       }),
     }),
   ],
-  controllers: [GuestAuthController, StaffAuthController],
+  controllers: [GuestAuthController, GuestAttachController, StaffAuthController],
   providers: [
     {
       provide: GUEST_AUTH,
-      inject: [DRIZZLE, ENV, MailerService],
-      useFactory: (db: Database, env: Env, mailer: MailerService) =>
-        createGuestAuth({ db, env, mailer }),
+      // The queue rather than the mailer: this realm's two emails are handed
+      // over and delivered elsewhere, so a sign-up for a registered address
+      // and one for a new address take the same time to answer.
+      inject: [DRIZZLE, ENV, MailQueue],
+      useFactory: (db: Database, env: Env, mail: MailQueue) =>
+        createGuestAuth({ db, env, mail }),
     },
     GuestAuthService,
+    GuestAttachService,
+    AccountLinkRateLimitGuard,
+    // The figure, provided rather than read off the constant inside the guard,
+    // so a suite can state a small limit instead of creating five accounts to
+    // prove the refusal — `booking.module.ts` does the same for the funnel's.
+    {
+      provide: ACCOUNT_LINK_RATE_LIMIT_POLICY,
+      useValue: DEFAULT_ACCOUNT_LINK_RATE_LIMIT,
+    },
     StaffAuthService,
     StaffTokenService,
     StaffJwtStrategy,
