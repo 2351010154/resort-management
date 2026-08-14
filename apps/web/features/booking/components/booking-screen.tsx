@@ -173,12 +173,13 @@ export function BookingScreen() {
    * "try again in a moment" over the top of that would be this screen inventing
    * a shorter wait than the property's.
    *
-   * **The search is written down on the way out, and only the search.** This is
-   * the last moment the room the guest chose is known to this screen, and a hold
-   * now gives its room back a couple of minutes after the tab closes — so a guest
-   * who leaves and comes back is offered the question they were asking rather
-   * than a room the property has since resold. `remembered-stay.ts` is what may
-   * be kept and what may not; nothing about who anybody is goes near it.
+   * **The search is written down briefly on the way out, and only the search.**
+   * This is the last moment the room the guest chose is known to this screen,
+   * and a hold now gives its room back a couple of minutes after the tab closes
+   * — so a guest who leaves and comes back is offered the question they were
+   * asking rather than a room the property has since resold.
+   * `remembered-stay.ts` is what may be kept and what may not; nothing about who
+   * anybody is goes near it.
    */
   async function takeHold(roomType: RoomTypeCode): Promise<void> {
     if (holding || !search.range) {
@@ -283,14 +284,16 @@ export function BookingScreen() {
   );
 
   /**
-   * The search a previous visit left behind, put back into the URL.
+   * The search a recently interrupted visit left behind, put back into the URL.
    *
    * **A guest who leaves the funnel loses their room within a couple of minutes
-   * now, and losing the room is right — losing the question is not.** They chose
-   * dates, a party and a room type; the hold went back on sale because nobody was
-   * standing on it, and none of that is a reason to make them answer the calendar
-   * again. So the search comes back and a fresh hold is taken from the room step,
-   * against whatever the property actually has left.
+   * now, and losing the room is right — losing the question immediately is
+   * not.** They chose dates, a party and a room type; the hold went back on sale
+   * because nobody was standing on it, and none of that is a reason to make them
+   * answer the calendar again. So the search comes back and a fresh hold is
+   * taken from the room step, against whatever the property actually has left.
+   * The remembered search expires after fifteen minutes, so a later visit still
+   * begins as a new one.
    *
    * **The URL always wins.** A link with dates in it is somebody being sent
    * somewhere specific, and a remembered search overwriting it would be the app
@@ -310,11 +313,18 @@ export function BookingScreen() {
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: `commit` closes over the search and so changes on every render, and this effect must run once per visit rather than once per render — the ref above is the guard, and listing it as a dependency would be a lint rule satisfied by an effect that no longer does what it says.
   useEffect(() => {
-    if (restored.current || search.range) {
+    if (restored.current) {
       return;
     }
 
+    // Mark the attempt before checking the URL. A dated link wins for the whole
+    // mounted visit: if the guest then clears or replaces that range, an older
+    // local search must not rise underneath the edit they are making now.
     restored.current = true;
+
+    if (search.range) {
+      return;
+    }
 
     const remembered = recallStay(minDate);
 
@@ -322,16 +332,15 @@ export function BookingScreen() {
       return;
     }
 
-    // Straight to the rooms, because the dates step is a question this guest has
-    // already answered. The room they had is a preference and not a promise —
-    // `selected` falls back to the first the property can offer if that type is
-    // gone, which is what the guest would have found anyway.
+    // Back to the dates with the stay panel open. The guest can see exactly what
+    // was recovered and choose whether to continue; restoring an answer must
+    // not silently advance the funnel to the next question.
     setPicked(remembered.roomType);
     commit({
       range: { checkIn: remembered.checkIn, checkOut: remembered.checkOut },
       party: remembered.party,
       plan: remembered.plan,
-      step: "rooms",
+      step: "dates",
     });
   }, [search.range, minDate]);
 

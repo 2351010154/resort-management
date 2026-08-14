@@ -19,6 +19,8 @@ import { describe, expect, it } from "vitest";
 import { decodeStay, encodeStay, type RememberedStay } from "./remembered-stay";
 
 const TODAY = parseDate("2026-08-10");
+const SAVED_AT = Date.UTC(2026, 7, 10, 10, 0, 0);
+const FIFTEEN_MINUTES = 15 * 60 * 1000;
 
 const A_SEARCH: RememberedStay = {
   checkIn: parseDate("2026-09-01"),
@@ -29,8 +31,8 @@ const A_SEARCH: RememberedStay = {
 };
 
 /** The one string a visit leaves behind, back as a search. */
-const roundTrip = (stay: RememberedStay, today = TODAY) =>
-  decodeStay(encodeStay(stay), today);
+const roundTrip = (stay: RememberedStay, today = TODAY, now = SAVED_AT) =>
+  decodeStay(encodeStay(stay, SAVED_AT), today, now);
 
 describe("the search a visit leaves behind", () => {
   it("comes back as the stay that was asked about", () => {
@@ -41,7 +43,8 @@ describe("the search a visit leaves behind", () => {
     // Field by field on purpose. A contact pair, a booking reference or an id
     // arriving in this key would be a guest's stay left in a lobby browser, and
     // an assertion that only checked the fields it expected would not see it.
-    expect(JSON.parse(encodeStay(A_SEARCH))).toEqual({
+    expect(JSON.parse(encodeStay(A_SEARCH, SAVED_AT))).toEqual({
+      savedAt: SAVED_AT,
       checkIn: "2026-09-01",
       checkOut: "2026-09-03",
       adults: 2,
@@ -64,6 +67,26 @@ describe("the search a visit leaves behind", () => {
 });
 
 describe("a search that is not offered back", () => {
+  it("expires after fifteen minutes", () => {
+    expect(roundTrip(A_SEARCH, TODAY, SAVED_AT + FIFTEEN_MINUTES - 1)).toEqual(
+      A_SEARCH,
+    );
+    expect(roundTrip(A_SEARCH, TODAY, SAVED_AT + FIFTEEN_MINUTES)).toBeNull();
+  });
+
+  it("drops a timeless value written before expiry was introduced", () => {
+    const stored = JSON.parse(encodeStay(A_SEARCH, SAVED_AT));
+    const { savedAt: _, ...legacy } = stored;
+
+    expect(decodeStay(JSON.stringify(legacy), TODAY, SAVED_AT)).toBeNull();
+  });
+
+  it("drops a value dated in the future", () => {
+    expect(
+      decodeStay(encodeStay(A_SEARCH, SAVED_AT + 1), TODAY, SAVED_AT),
+    ).toBeNull();
+  });
+
   it("drops one whose arrival the property has passed", () => {
     expect(roundTrip(A_SEARCH, parseDate("2026-09-02"))).toBeNull();
   });
@@ -75,20 +98,24 @@ describe("a search that is not offered back", () => {
   });
 
   it("drops a value nothing wrote, rather than believing half of it", () => {
-    expect(decodeStay(null, TODAY)).toBeNull();
-    expect(decodeStay("", TODAY)).toBeNull();
-    expect(decodeStay("not json", TODAY)).toBeNull();
-    expect(decodeStay("[]", TODAY)).toBeNull();
+    expect(decodeStay(null, TODAY, SAVED_AT)).toBeNull();
+    expect(decodeStay("", TODAY, SAVED_AT)).toBeNull();
+    expect(decodeStay("not json", TODAY, SAVED_AT)).toBeNull();
+    expect(decodeStay("[]", TODAY, SAVED_AT)).toBeNull();
     expect(
-      decodeStay(JSON.stringify({ checkIn: "2026-09-01" }), TODAY),
+      decodeStay(JSON.stringify({ checkIn: "2026-09-01" }), TODAY, SAVED_AT),
     ).toBeNull();
   });
 
   it("drops a date that is not one", () => {
-    const stored = JSON.parse(encodeStay(A_SEARCH));
+    const stored = JSON.parse(encodeStay(A_SEARCH, SAVED_AT));
 
     expect(
-      decodeStay(JSON.stringify({ ...stored, checkIn: "garbage" }), TODAY),
+      decodeStay(
+        JSON.stringify({ ...stored, checkIn: "garbage" }),
+        TODAY,
+        SAVED_AT,
+      ),
     ).toBeNull();
     // Shaped like a date and not a day that exists — the same refusal the url
     // codec makes, for the same reason.
@@ -96,26 +123,35 @@ describe("a search that is not offered back", () => {
       decodeStay(
         JSON.stringify({ ...stored, checkIn: "2026-02-31" }),
         parseDate("2026-01-01"),
+        SAVED_AT,
       ),
     ).toBeNull();
   });
 
   it("refuses a reversed stay rather than reordering it", () => {
-    const stored = JSON.parse(encodeStay(A_SEARCH));
+    const stored = JSON.parse(encodeStay(A_SEARCH, SAVED_AT));
 
     expect(
-      decodeStay(JSON.stringify({ ...stored, checkOut: "2026-08-30" }), TODAY),
+      decodeStay(
+        JSON.stringify({ ...stored, checkOut: "2026-08-30" }),
+        TODAY,
+        SAVED_AT,
+      ),
     ).toBeNull();
   });
 
   it("drops a plan or a room type the property does not sell", () => {
-    const stored = JSON.parse(encodeStay(A_SEARCH));
+    const stored = JSON.parse(encodeStay(A_SEARCH, SAVED_AT));
 
     expect(
-      decodeStay(JSON.stringify({ ...stored, plan: "FREE" }), TODAY),
+      decodeStay(JSON.stringify({ ...stored, plan: "FREE" }), TODAY, SAVED_AT),
     ).toBeNull();
     expect(
-      decodeStay(JSON.stringify({ ...stored, roomType: "PENTHOUSE" }), TODAY),
+      decodeStay(
+        JSON.stringify({ ...stored, roomType: "PENTHOUSE" }),
+        TODAY,
+        SAVED_AT,
+      ),
     ).toBeNull();
   });
 });
@@ -125,10 +161,11 @@ describe("a search somebody edited by hand", () => {
   // bounded exactly as a typed search is — a party of nine restored out of here
   // would quote a stay the property has no room for.
   it("clamps a party to what the property can sleep", () => {
-    const stored = JSON.parse(encodeStay(A_SEARCH));
+    const stored = JSON.parse(encodeStay(A_SEARCH, SAVED_AT));
     const restored = decodeStay(
       JSON.stringify({ ...stored, adults: 99, childAges: [40, 2, 2, 2, 2] }),
       TODAY,
+      SAVED_AT,
     );
 
     expect(restored?.party.adults).toBe(4);
@@ -140,10 +177,11 @@ describe("a search somebody edited by hand", () => {
   });
 
   it("reads a party of the wrong shape as no party at all", () => {
-    const stored = JSON.parse(encodeStay(A_SEARCH));
+    const stored = JSON.parse(encodeStay(A_SEARCH, SAVED_AT));
     const restored = decodeStay(
       JSON.stringify({ ...stored, adults: "two", childAges: "3,9" }),
       TODAY,
+      SAVED_AT,
     );
 
     expect(restored?.party).toEqual({ adults: 2, children: [] });
