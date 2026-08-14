@@ -36,11 +36,12 @@ class RolloverAt extends SystemConfigService {
 // beside the service rather than a suite in `test/`.
 const NO_EXECUTOR = undefined as unknown as DbExecutor;
 
-// The three variables with no default, plus whichever rollover the case wants.
+// The four variables with no default, plus whichever rollover the case wants.
 // `parseEnv` rather than a hand-built object, so the default this suite asserts
 // is the one the API actually seeds the row with.
 function envWith(overrides: NodeJS.ProcessEnv = {}): Env {
   return parseEnv({
+    NODE_ENV: "test",
     DATABASE_URL: "postgres://localhost:5432/mariva",
     BETTER_AUTH_SECRET: "a".repeat(32),
     STAFF_JWT_SECRET: "b".repeat(32),

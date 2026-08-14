@@ -578,6 +578,7 @@ function productionEnvironment(): Env {
     GOOGLE_CLIENT_ID: "placeholder",
     GOOGLE_CLIENT_SECRET: "placeholder",
     ADMIN_ORIGIN: "https://placeholder.invalid",
+    TRUSTED_CLIENT_IP_HEADER: "fly-client-ip",
     STANDARD_VAT_RATE_BPS: String(CONFIGURED.standardVatRateBps),
     REDUCED_VAT_RATE_BPS: String(CONFIGURED.reducedVatRateBps),
     SERVICE_CHARGE_RATE_BPS: String(CONFIGURED.serviceChargeRateBps),
