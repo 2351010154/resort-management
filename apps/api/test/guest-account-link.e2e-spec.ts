@@ -50,6 +50,7 @@ import { GuestService } from "../src/modules/guest/guest.service.js";
 import { HousekeepingService } from "../src/modules/housekeeping/housekeeping.service.js";
 import { InventoryService } from "../src/modules/inventory/inventory.service.js";
 import { SystemConfigService } from "../src/modules/system-config/system-config.service.js";
+import { noConfirmations, noStayLinks } from "./no-announcement.js";
 
 const SEED_FROM = parseDate("2027-06-01");
 
@@ -97,6 +98,11 @@ function deskAt(today: StayDate): BookingService {
     new HousekeepingService(),
     new FolioStubService(),
     { BOOKING_HOLD_TTL_MINUTES: 15 } as Env,
+    // Neither is reached here: the confirmation email is minted and queued only
+    // by the transition a paid hold makes, which nothing in this file drives.
+    // Stubs that say so if they are, rather than casts that say nothing.
+    noStayLinks,
+    noConfirmations,
   );
 }
 
