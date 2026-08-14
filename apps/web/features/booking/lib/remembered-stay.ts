@@ -1,5 +1,5 @@
-// What a guest was looking for, kept so a return visit does not start from
-// nothing.
+// What a guest was looking for, kept briefly so an interrupted visit does not
+// start from nothing.
 //
 // **A search, not a person, and not a booking.** Two dates, how many people, the
 // ages that price them, the rate plan and which room was picked — every one of
@@ -17,10 +17,10 @@
 // return visit is a fresh search that takes a fresh hold, and it is fresh
 // availability rather than a promise about a room the property may have sold.
 //
-// **A stale search is dropped rather than shown.** Dates that have gone past
-// would be refused by the API and would look like a bug on the screen, so the
-// only staleness test is the one that matters: a stay that arrives before the
-// property's own today is not offered back.
+// **A stale search is dropped rather than shown.** Fifteen minutes is enough to
+// recover from a closed tab or an accidental navigation without turning a much
+// later visit into a continuation the guest did not ask for. Dates that have
+// gone past are also refused because the API would reject them at the hold.
 //
 // The reading and the writing are split from the storage for the reason
 // `booking-search.ts` splits its codec from the url: the pair is what a spec can
@@ -43,7 +43,10 @@ import type { Child, Party } from "./stay-quote";
 
 /** Where it is kept. Versioned in the name, so a shape that changes is a key
  *  nothing reads rather than a value something mis-parses. */
-const STORAGE_KEY = "mariva:booking-search:v1";
+const STORAGE_KEY = "mariva:booking-search:v2";
+
+/** A remembered search is an interruption aid, not a default for a later visit. */
+const REMEMBERED_STAY_TTL_MS = 15 * 60 * 1000;
 
 /** What a guest was looking for when they last left the funnel. */
 export interface RememberedStay {
@@ -57,6 +60,7 @@ export interface RememberedStay {
 
 /** The stored text, which is JSON and is never trusted to be. */
 interface StoredStay {
+  readonly savedAt: number;
   readonly checkIn: string;
   readonly checkOut: string;
   readonly adults: number;
@@ -72,8 +76,9 @@ interface StoredStay {
  * value this module was never asked to keep cannot arrive here by being attached
  * to something that was.
  */
-export function encodeStay(stay: RememberedStay): string {
+export function encodeStay(stay: RememberedStay, savedAt = Date.now()): string {
   const stored: StoredStay = {
+    savedAt,
     checkIn: stay.checkIn.toString(),
     checkOut: stay.checkOut.toString(),
     adults: stay.party.adults,
@@ -102,6 +107,7 @@ export function encodeStay(stay: RememberedStay): string {
 export function decodeStay(
   raw: string | null,
   today: StayDate,
+  now = Date.now(),
 ): RememberedStay | null {
   if (!raw) {
     return null;
@@ -120,6 +126,19 @@ export function decodeStay(
   }
 
   const stored = parsed as Partial<StoredStay>;
+
+  // Values written before the time limit existed have no `savedAt`, so they are
+  // deliberately refused too: the new fifteen-minute rule applies immediately
+  // rather than only after this version has written the key once.
+  if (
+    typeof stored.savedAt !== "number" ||
+    !Number.isSafeInteger(stored.savedAt) ||
+    stored.savedAt > now ||
+    now - stored.savedAt >= REMEMBERED_STAY_TTL_MS
+  ) {
+    return null;
+  }
+
   const checkIn = readDate(stored.checkIn);
   const checkOut = readDate(stored.checkOut);
   const plan = readPlan(stored.plan);
