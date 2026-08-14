@@ -570,3 +570,62 @@ describe("where a mailed credential travels in the URL", () => {
     }
   });
 });
+
+/**
+ * A stay can gain an owner before it is paid for: a guest who is already
+ * registered signs in while the hold is open, attaches it, and pays through
+ * their session. Attaching gives up the anonymous credential, so by the time
+ * the confirmation is composed the booking has an owner and no cookie of its
+ * own — and both of the links this message normally carries are wrong for it.
+ */
+describe("the confirmation for a stay that already has an owner", () => {
+  it("mails no credential at all, and points at the page instead", async () => {
+    const queued: OutgoingEmail[] = [];
+    const stay = await aHold({ email: UNREGISTERED, name: "Nguyễn An" });
+
+    // What `attachToAccount` leaves behind: an owner, and the instant the
+    // anonymous credential was surrendered. Written in that order, because
+    // `booking_revokes_anonymous_access_only_with_an_account` refuses the
+    // reverse.
+    await db
+      .update(booking)
+      .set({ userId: AN_ACCOUNT, anonAccessRevokedAt: sql`now()` })
+      .where(eq(booking.id, stay.id));
+
+    await transactions.run((exec) =>
+      confirmerOver(async (email) => {
+        queued.push(email);
+      }).confirmPaidHold(exec, stay.id),
+    );
+
+    const message = queued[0]!;
+
+    expect(
+      message.text,
+      "A re-issue link minted for a surrendered stay is refused by the same " +
+        "column on every redemption, so the message would advertise a " +
+        "credential that cannot be spent.",
+    ).not.toContain("#stay=");
+    expect(
+      message.text,
+      "The stay already belongs to an account, so an offer to create the one " +
+        "that keeps it is an offer about something that has happened.",
+    ).not.toContain("#invitation=");
+
+    // The way in is still named — the page itself, which its owner reaches by
+    // signing in.
+    expect(message.text).toContain(
+      `${WEB_ORIGIN}/bookings/${encodeURIComponent(stay.reference)}`,
+    );
+
+    // And nothing was written either, which is the half a body assertion would
+    // miss: a link minted and left out of the message is a standing row nobody
+    // knows exists.
+    const links = await db
+      .select({ purpose: bookingLink.purpose })
+      .from(bookingLink)
+      .where(eq(bookingLink.bookingId, stay.id));
+
+    expect(links).toHaveLength(0);
+  });
+});
