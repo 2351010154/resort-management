@@ -60,8 +60,15 @@ describe("the presence rate limit", () => {
     // `caller-key.ts` is the one definition — so a household behind one address
     // is one window whichever of its holds is being kept alive.
     expect(allowed(guard(1), ["203.0.113.32", "203.0.113.33"])).toBe(2);
-    expect(allowed(guard(2), ["2001:db8:9:9:aaaa::1", "2001:db8:9:9:bbbb::2"]))
-      .toBe(2);
+  });
+
+  it("counts a v6 prefix as the one caller it is", () => {
+    // An allowance of one against two addresses in the same /64, so the figure
+    // only comes out at one if the two shared a window. Stated at the limit
+    // rather than under it: two pings under an allowance of two pass whether the
+    // prefix grouped them or not, which is a case that cannot fail.
+    expect(allowed(guard(1), ["2001:db8:9:9:aaaa::1", "2001:db8:9:9:bbbb::2"]))
+      .toBe(1);
   });
 
   it("refuses with a status the funnel can drop, and no instruction in it", () => {
