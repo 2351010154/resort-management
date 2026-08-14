@@ -19,6 +19,13 @@ export * from "./pricing.js";
 // `modules/booking`.
 export * from "./booking.js";
 
+// The links a confirmation email carries — one that re-issues the booking
+// cookie, one that creates the account a stay attaches to — and the instant
+// each is spent at, which is what makes them single-use. Beside the booking
+// because that is what they point at, and owned by `modules/auth/booking-token`
+// because that is what signs them.
+export * from "./booking-link.js";
+
 // Who stayed and who read their ID number: the guest record, the registration
 // written at check-in, and the unmask audit trail. Owned by `modules/guest`.
 export * from "./guest.js";
