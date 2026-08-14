@@ -12,7 +12,7 @@ import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import type { Env } from "../../../config/env.js";
 import type { Database } from "../../../database/database.module.js";
 import * as guestAuthSchema from "../../../database/schema/guest-auth.js";
-import type { MailerService } from "../../notification/mailer.service.js";
+import type { MailQueue } from "../../notification/mail-queue.service.js";
 import {
   resetPassword,
   verifyEmail,
@@ -44,9 +44,9 @@ export type GuestAuth = ReturnType<typeof createGuestAuth>;
 export function createGuestAuth(deps: {
   readonly db: Database;
   readonly env: Env;
-  readonly mailer: MailerService;
+  readonly mail: MailQueue;
 }) {
-  const { db, env, mailer } = deps;
+  const { db, env, mail } = deps;
 
   return betterAuth({
     appName: "Mariva",
@@ -79,8 +79,15 @@ export function createGuestAuth(deps: {
       requireEmailVerification: true,
       resetPasswordTokenExpiresIn: HOUR_IN_SECONDS,
 
+      // Queued, not sent. Both of this realm's emails are handed over rather
+      // than awaited, for the reason `mail-queue.service.ts` sets out: the
+      // request that composed the message must not take longer than one that
+      // had nothing to send, or how long the answer took says which of the two
+      // branches ran. Reset is as exposed as sign-up here — the route answers
+      // an unknown address and a registered one identically, and only a
+      // registered one has a mail to send.
       sendResetPassword: async ({ user, url }) => {
-        await mailer.send(
+        await mail.enqueue(
           resetPassword({ to: user.email, name: user.name, url }),
         );
       },
@@ -137,7 +144,9 @@ export function createGuestAuth(deps: {
       expiresIn: HOUR_IN_SECONDS,
 
       sendVerificationEmail: async ({ user, url }) => {
-        await mailer.send(verifyEmail({ to: user.email, name: user.name, url }));
+        await mail.enqueue(
+          verifyEmail({ to: user.email, name: user.name, url }),
+        );
       },
     },
 
@@ -164,6 +173,26 @@ export function createGuestAuth(deps: {
       // RBAC matrix forbids, expressed in the one place browsers can see.
       cookiePrefix: "mariva_guest",
       useSecureCookies: env.NODE_ENV === "production",
+
+      // Where the rate limiter below is told the caller is.
+      //
+      // Better Auth reads this out of headers and nothing else — it is handed a
+      // Web `Request`, so Express's `trust proxy` and `request.ip`, which is
+      // what the hold limiter keys on, are invisible to it. Its own default is
+      // `x-forwarded-for` read verbatim, and a caller behind no proxy writes
+      // that header themselves: every attempt would arrive as a new address
+      // holding a new quota, and the five-a-minute floor below would be a
+      // formality.
+      //
+      // So the header is named by configuration and trusted because of what
+      // wrote it. Unset — development and CI, where nothing is in front of this
+      // process — the library's default stands, since no header there is more
+      // truthful than another and every caller shares one bucket regardless.
+      // `env.ts` refuses production without it, so the empty branch is local.
+      ipAddress:
+        env.TRUSTED_CLIENT_IP_HEADER === undefined
+          ? {}
+          : { ipAddressHeaders: [env.TRUSTED_CLIENT_IP_HEADER] },
       defaultCookieAttributes: {
         httpOnly: true,
         // `lax`, not `strict`: the verification link in an email is a
