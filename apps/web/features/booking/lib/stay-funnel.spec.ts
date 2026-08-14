@@ -1,10 +1,12 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   type HeldStay,
   holdRefusal,
   isBooked,
   isLost,
   isSettled,
+  markDeparture,
+  markPresence,
   readCaption,
   stayTotal,
 } from "./stay-funnel";
@@ -164,5 +166,79 @@ describe("stayTotal", () => {
     const asText = { ...stayIn("HELD"), stayTotalGross: "4200000" };
 
     expect(stayTotal(asText as unknown as HeldStay)).toBe(4_200_000n);
+  });
+});
+
+/**
+ * The two ways the funnel says where the guest is, asserted at the wire and not
+ * at the call.
+ *
+ * **This is the one place a request's shape is the subject**, and it is here
+ * because the shape is what broke: the API refuses anything that is not
+ * `application/json` on this route — a cross-site `<form>` can post three
+ * content types and none of them is JSON — and a heartbeat carrying no body
+ * carries no content type either. Both calls were correct at the call site and
+ * one of them 401'd every twenty seconds, so a test that stopped at "the client
+ * was asked for a presence ping" would have watched it happen.
+ */
+describe("saying the guest is still here", () => {
+  const HOLD = "0f8fad5b-d9cb-469f-a165-70867728950e";
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  /** The request the real client builds, caught on its way out. */
+  async function sent(): Promise<Request> {
+    const calls: Request[] = [];
+
+    vi.stubGlobal("fetch", async (request: Request) => {
+      calls.push(request);
+
+      return new Response(JSON.stringify({ bookingId: HOLD }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    });
+
+    await markPresence(HOLD);
+
+    return calls[0]!;
+  }
+
+  it("sends the heartbeat as json, body and all", async () => {
+    const request = await sent();
+
+    expect(request.headers.get("content-type")).toMatch(/\/json\b/);
+    expect(await request.text()).not.toBe("");
+  });
+
+  // The regression itself. `leaving` is in the body and the id is in the path,
+  // so a `leaving` the client could omit is a request with nothing in it — and
+  // the guard reads a request with nothing in it as a form post and refuses it.
+  it("says it is not leaving rather than leaving the body empty", async () => {
+    expect(await (await sent()).json()).toEqual({ leaving: false });
+  });
+
+  it("addresses the hold it is about", async () => {
+    expect(new URL((await sent()).url).pathname).toBe(
+      `/bookings/holds/${HOLD}/presence`,
+    );
+  });
+
+  // The departure travels by beacon rather than by the client — a request
+  // started as the page goes away is abandoned unless the browser is told to
+  // keep it — so it builds its own body and has to declare the same type.
+  it("types the departure beacon as json too", () => {
+    const beacon = vi.fn().mockReturnValue(true);
+
+    vi.stubGlobal("navigator", { sendBeacon: beacon });
+
+    markDeparture(HOLD);
+
+    const [url, body] = beacon.mock.calls[0] as [string, Blob];
+
+    expect(url).toContain(`/bookings/holds/${HOLD}/presence`);
+    expect(body.type).toBe("application/json");
   });
 });
