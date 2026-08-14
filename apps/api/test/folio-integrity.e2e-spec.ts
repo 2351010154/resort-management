@@ -76,6 +76,7 @@ import { HousekeepingService } from "../src/modules/housekeeping/housekeeping.se
 import { InventoryService } from "../src/modules/inventory/inventory.service.js";
 import { CatalogService } from "../src/modules/operations/catalog.service.js";
 import { SystemConfigService } from "../src/modules/system-config/system-config.service.js";
+import { noConfirmations, noStayLinks } from "./no-announcement.js";
 
 /** Raised by `folio_posting_refuse_rewrite()` — `migrations/0011`. */
 const APPEND_ONLY_VIOLATION = "MV001";
@@ -724,6 +725,11 @@ function deskAt(today: StayDate): BookingService {
     // simplest implementation is the honest one.
     new FolioStubService(),
     { BOOKING_HOLD_TTL_MINUTES: HOLD_TTL_MINUTES } as Env,
+    // Neither is reached here: the confirmation email is minted and queued only
+    // by the transition a paid hold makes, which nothing in this file drives.
+    // Stubs that say so if they are, rather than casts that say nothing.
+    noStayLinks,
+    noConfirmations,
   );
 }
 

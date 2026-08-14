@@ -159,6 +159,9 @@ describe("the booking row", () => {
     // at the counter, and a `NOT NULL` here would mean inventing an account
     // for a guest who will never sign in.
     expect(booking.userId.notNull).toBe(false);
+    // Null on every stay whose anonymous credential is still good, which is
+    // every stay until somebody attaches one to an account.
+    expect(booking.anonAccessRevokedAt.notNull).toBe(false);
 
     expect(booking.quotedStayTotalGross.notNull).toBe(true);
     expect(booking.quotedPercentAdjustment.notNull).toBe(true);
@@ -193,7 +196,30 @@ describe("the booking row", () => {
       "booking_quoted_total_positive",
       "booking_reason_exactly_when_cancelled",
       "booking_records_a_cancellation_instant_exactly_when_cancelled",
+      "booking_revokes_anonymous_access_only_with_an_account",
     ]);
+  });
+
+  it("cannot give up its anonymous credential with nobody to recover through", () => {
+    // The stranding rule, and the reason revocation is safe to make permanent.
+    // A guest whose cookie has been revoked reaches the stay by signing in, and
+    // one who never chose a password gets one by resetting it to the address the
+    // confirmation was mailed to. Revoking a stay filed under nobody would leave
+    // neither route, so the row is refused instead of the guest being locked out
+    // of something they paid for.
+    //
+    // Written as an implication and not a biconditional: an attached stay may
+    // perfectly well never have had a cookie to give up, because the guest was
+    // signed in when they booked.
+    const stranding = getTableConfig(booking).checks.find(
+      (check) =>
+        check.name === "booking_revokes_anonymous_access_only_with_an_account",
+    );
+
+    expect(stranding).toBeDefined();
+    expect(booking.anonAccessRevokedAt.getSQLType()).toBe(
+      "timestamp with time zone",
+    );
   });
 
   it("addresses a booking by a reference nothing else answers to", () => {

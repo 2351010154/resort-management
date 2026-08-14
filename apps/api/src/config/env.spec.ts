@@ -27,6 +27,7 @@ const PRODUCTION_BASE = {
   GOOGLE_CLIENT_ID: "google-client-id",
   GOOGLE_CLIENT_SECRET: "google-client-secret",
   ADMIN_ORIGIN: "https://admin.mariva.test",
+  TRUSTED_CLIENT_IP_HEADER: "fly-client-ip",
   // Deliberately not the provisional figures: a test that reused them could
   // not tell a value that was read from one that was assumed.
   STANDARD_VAT_RATE_BPS: "1100",
@@ -210,6 +211,71 @@ describe("ADMIN_ORIGIN", () => {
     const env = parseEnv({ ...PRODUCTION_BASE });
 
     expect(env.ADMIN_ORIGIN).toBe("https://admin.mariva.test");
+  });
+});
+
+describe("which environment this is", () => {
+  it("refuses to boot without being told", () => {
+    // Not a harmless default. Every production refusal in `env.ts` is phrased
+    // as "unless this is production", so a process that never said would skip
+    // all of them at once — no mailer, no OAuth client, no VAT rate anybody
+    // chose, no trusted address header — and would report none of it. Better
+    // Auth reads the same variable for itself and would draw the same
+    // conclusion, resolving every caller alive to one loopback address and one
+    // rate-limit bucket with it.
+    expect(() => parseEnv(without({ ...PRODUCTION_BASE }, "NODE_ENV"))).toThrow(
+      /NODE_ENV/,
+    );
+
+    expect(() =>
+      parseEnv(without({ ...DEVELOPMENT_BASE }, "NODE_ENV")),
+    ).toThrow(EnvValidationError);
+  });
+
+  it("refuses an environment it does not have rules for", () => {
+    expect(() =>
+      parseEnv({ ...DEVELOPMENT_BASE, NODE_ENV: "staging" }),
+    ).toThrow(/NODE_ENV/);
+  });
+});
+
+describe("the header the guest realm's rate limiter believes", () => {
+  it("refuses to boot in production without one", () => {
+    // Unset, Better Auth falls back to reading `x-forwarded-for` as written.
+    // Behind an edge that appends rather than replaces, that is a header the
+    // caller controls — and a credential-stuffing limit whose bucket the
+    // attacker chooses is not a limit.
+    expect(() =>
+      parseEnv(without({ ...PRODUCTION_BASE }, "TRUSTED_CLIENT_IP_HEADER")),
+    ).toThrow(/TRUSTED_CLIENT_IP_HEADER/);
+  });
+
+  it("is left unset outside production, where nothing sits in front", () => {
+    const env = parseEnv({ ...DEVELOPMENT_BASE });
+
+    expect(env.TRUSTED_CLIENT_IP_HEADER).toBeUndefined();
+  });
+
+  it("takes the name of whichever edge is in front", () => {
+    // A different host is a different variable rather than a different deploy.
+    const env = parseEnv({
+      ...DEVELOPMENT_BASE,
+      TRUSTED_CLIENT_IP_HEADER: "cf-connecting-ip",
+    });
+
+    expect(env.TRUSTED_CLIENT_IP_HEADER).toBe("cf-connecting-ip");
+  });
+
+  it("refuses something that is not a header name", () => {
+    // A malformed name matches no header, which resolves every caller to no
+    // address at all — the limiter still runs and quietly shares one bucket.
+    // That is a failure worth having at boot rather than in production traffic.
+    expect(() =>
+      parseEnv({
+        ...DEVELOPMENT_BASE,
+        TRUSTED_CLIENT_IP_HEADER: "fly client ip",
+      }),
+    ).toThrow(/TRUSTED_CLIENT_IP_HEADER/);
   });
 });
 

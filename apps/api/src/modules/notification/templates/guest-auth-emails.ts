@@ -8,11 +8,15 @@
 
 import type { OutgoingEmail } from "../mailer.service.js";
 
-const PROPERTY = "Mariva";
+export const PROPERTY = "Mariva";
 
 /** Minimal escaping for the two values these templates interpolate. Neither is
- *  attacker-free: a display name comes from a sign-up form. */
-function escapeHtml(value: string): string {
+ *  attacker-free: a display name comes from a sign-up form.
+ *
+ *  Exported because every template in this directory needs exactly this, and a
+ *  second copy is how one of them ends up a version behind the other. An
+ *  escaper that differs between two files is an escaper nobody can audit. */
+export function escapeHtml(value: string): string {
   return value
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")

@@ -98,6 +98,34 @@ export const booking = pgTable(
     // 32-character base-62 string — `guest-auth.ts` says why that table takes
     // no database-generated key.
     userId: text("user_id").references(() => guestUser.id),
+    // When the credential a guest who never signed up carries stopped opening
+    // this stay.
+    //
+    // `booking-token.service.ts` mints that credential as a signature over two
+    // facts and an expiry, and verifies it by arithmetic alone — no row is read
+    // to admit it, which is what keeps it cheap enough to present on every
+    // request under `/bookings`. The cost of that is the one thing arithmetic
+    // cannot answer: whether the credential has since been surrendered. This
+    // column is that answer, and it is read by the ownership query that was
+    // already going to run — `scopedTo` in `booking.service.ts` carries it on
+    // the anonymous branch and nowhere else, so a signed-in guest is unaffected
+    // by it and the read path issues no extra statement for it.
+    //
+    // **Permanent once written, and recovery is the account.** A cookie left in
+    // a lobby browser and a guest who has just attached this stay to an account
+    // are the same fact from the property's side: the anonymous copy is loose
+    // and must stop working. Nothing un-revokes it, because the way back is to
+    // sign in — and a guest who never chose a password gets one by resetting it
+    // to the address the confirmation was mailed to.
+    //
+    // That recovery is what `booking_revokes_anonymous_access_only_with_an_account`
+    // below insists on. Revoking a stay that is filed under nobody would leave a
+    // guest who has paid with no credential and no account to recover through,
+    // which is a lock-out rather than a revocation.
+    anonAccessRevokedAt: timestamp("anon_access_revoked_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
     // Where the confirmation goes, and what to call the person it goes to.
     //
     // Not `registration`'s, and that is the load-bearing part. A registration
@@ -343,6 +371,16 @@ export const booking = pgTable(
     check(
       "booking_held_by_only_while_held",
       sql`${table.heldBy} is null or ${table.state} = 'HELD'`,
+    ),
+    // One direction, and it is the one that keeps a paying guest reachable. The
+    // anonymous credential is surrendered *to* an account — the stay is attached
+    // and the loose copy dies in the same transaction — so an account is what
+    // stands between revocation and a lock-out. Written the other way round it
+    // would say every attached stay has given up its cookie, which is false: a
+    // guest who signed in before booking never had one to give up.
+    check(
+      "booking_revokes_anonymous_access_only_with_an_account",
+      sql`${table.anonAccessRevokedAt} is null or ${table.userId} is not null`,
     ),
     // A room sleeps somebody. Zero adults with a list of children is a party
     // nobody could check in.

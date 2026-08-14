@@ -58,6 +58,7 @@ import { ORPCError } from "@orpc/nest";
 import { eq, getTableColumns, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
+import type { PinoLogger } from "nestjs-pino";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Env } from "../src/config/env.js";
@@ -68,6 +69,7 @@ import * as schema from "../src/database/schema/index.js";
 import { roomType } from "../src/database/schema/inventory.js";
 import { payment } from "../src/database/schema/payment.js";
 import { TransactionRunner } from "../src/database/transaction-runner.js";
+import { BookingTokenService } from "../src/modules/auth/booking-token/booking-token.service.js";
 import { AssignmentService } from "../src/modules/booking/assignment.service.js";
 import { BookingService } from "../src/modules/booking/booking.service.js";
 import { BusinessDateService } from "../src/modules/booking/business-date.service.js";
@@ -77,6 +79,12 @@ import { FolioService } from "../src/modules/folio/folio.service.js";
 import { GuestService } from "../src/modules/guest/guest.service.js";
 import { HousekeepingService } from "../src/modules/housekeeping/housekeeping.service.js";
 import { InventoryService } from "../src/modules/inventory/inventory.service.js";
+import { BookingConfirmationService } from "../src/modules/notification/booking-confirmation.service.js";
+import type { MailQueue } from "../src/modules/notification/mail-queue.service.js";
+import type {
+  MailerService,
+  OutgoingEmail,
+} from "../src/modules/notification/mailer.service.js";
 import { PaymentService } from "../src/modules/payment/payment.service.js";
 import type {
   CallbackVerification,
@@ -898,6 +906,11 @@ describe("the stay a callback pays for", () => {
     // confirmed stay still carrying a TTL is a date the sweep can act on, and
     // what it would do with it is cancel a sold room.
     expect(stay.holdExpiresAt).toBeNull();
+
+    // And nothing was written to. `aHold` names no contact, which is what a
+    // walk-in and a desk booking are, and a confirmation composed for one of
+    // those would be a message with nowhere to go.
+    expect(queuedConfirmations).toHaveLength(0);
   });
 
   it("keeps the money and the confirmation in one commit", async () => {
@@ -1199,6 +1212,21 @@ class GatewayUnderTest implements PaymentGateway {
   }
 }
 
+/** Signs the confirmation's two links. Any value will do — nothing in this file
+ *  follows one — but it has to be a value, because the key is derived at
+ *  construction. */
+const CONFIRMATION_SECRET = "a-secret-at-least-thirty-two-characters-long";
+
+/** Every confirmation the transition handed over. Empty is the expectation:
+ *  none of these stays names anybody to write to. */
+const queuedConfirmations: OutgoingEmail[] = [];
+
+const confirmationsQueued = {
+  enqueue: async (email: OutgoingEmail) => {
+    queuedConfirmations.push(email);
+  },
+} as unknown as MailQueue;
+
 /**
  * The real booking service, wired the way `booking.module.ts` wires it.
  *
@@ -1233,7 +1261,24 @@ function realBookings(): BookingService {
       BOOKING_HOLD_TTL_MINUTES: 60,
       BOOKING_EARLY_CHECK_IN_ENABLED: false,
       BOOKING_DIRTY_ROOM_CHECK_IN_ENABLED: false,
+      // Read only where a confirmation is composed: it is the origin the two
+      // links in that message point at.
+      WEB_ORIGIN: "https://mariva.test",
+      BETTER_AUTH_SECRET: CONFIRMATION_SECRET,
     } as Env,
+    new BookingTokenService({
+      BETTER_AUTH_SECRET: CONFIRMATION_SECRET,
+      NODE_ENV: "test",
+    } as Env),
+    // Real, over a queue that records rather than delivers. The stays this file
+    // pays for carry no contact address, so nothing should reach it — a message
+    // arriving here would mean the confirmation had stopped asking whether there
+    // was anybody to send one to.
+    new BookingConfirmationService(
+      undefined as unknown as MailerService,
+      confirmationsQueued,
+      undefined as unknown as PinoLogger,
+    ),
   );
 }
 

@@ -54,8 +54,12 @@ import {
 import { JobScheduler } from "../src/jobs/job-scheduler.service.js";
 import { JobsModule } from "../src/jobs/jobs.module.js";
 import { SWEEP_JOBS, type SweepJob } from "../src/jobs/sweep-job.js";
+import { BookingTokenService } from "../src/modules/auth/booking-token/booking-token.service.js";
 import { BusinessDateService } from "../src/modules/booking/business-date.service.js";
 import { StaffUserService } from "../src/modules/identity/staff-user.service.js";
+import { MailQueue } from "../src/modules/notification/mail-queue.service.js";
+import { MailerService } from "../src/modules/notification/mailer.service.js";
+import { OpsAlertService } from "../src/modules/notification/ops-alert.service.js";
 
 const BUSINESS_DATE = parseDate("2027-06-10");
 
@@ -242,6 +246,15 @@ async function schedulerOver(
       app.get(BusinessDateService),
       runnerLogger,
     ),
+    // Its own, not the container's: a scheduler built here starts and stops a
+    // second queue, and handing it the application's mail queue would leave
+    // that one detached the moment this scheduler shuts down.
+    new MailQueue(
+      app.get(MailerService),
+      app.get(OpsAlertService),
+      app.get(BookingTokenService),
+      await app.resolve(PinoLogger),
+    ),
     schedulerLogger,
   );
 }
@@ -300,7 +313,9 @@ describe("the scheduler", () => {
 
     // Anywhere else it is on, because the cost of it being off is a hold that
     // never expires and nothing that reports it.
-    expect(parseEnv({ ...secrets }).JOBS_SCHEDULER_ENABLED).toBe(true);
+    expect(
+      parseEnv({ ...secrets, NODE_ENV: "development" }).JOBS_SCHEDULER_ENABLED,
+    ).toBe(true);
 
     // And it is still a switch: a test that wants the workers says so.
     expect(
