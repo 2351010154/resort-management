@@ -575,6 +575,57 @@ export const shortenedStaySchema = z.object({
 });
 
 /**
+ * A link out of a confirmation email, as the page that received it presents it.
+ *
+ * The whole credential travels in the body and never in the path or the query.
+ * A URL is written to the access log, kept in the browser's history and sent on
+ * in a `Referer`; a body is none of those. The page reads the link off its own
+ * address and posts it here once.
+ *
+ * **The address it reads it off carries it in the fragment**, which is the other
+ * half of the same rule rather than an exception to it: `booking.service.ts`
+ * mints `…/bookings/<reference>#stay=…`, and a fragment is the one part of a URL
+ * the browser never puts in a request — so no server between the mailbox and the
+ * page, the web tier's own access log included, ever sees it. The page strips it
+ * from the address as soon as it has been read.
+ *
+ * The bound is what `booking-token.service.ts` will look at before it spends a
+ * connection: comfortably above the ~150 bytes it mints, and far below what a
+ * header used as a buffer carries.
+ */
+export const bookingLinkInput = z.object({
+  link: z.string().min(1).max(512),
+});
+
+/**
+ * The same link, plus the password the guest may or may not want.
+ *
+ * **Optional, and it stays optional.** The mail proved the address, so the
+ * account can exist without a password at all — and a guest who never sets one
+ * still owns the stay. The recovery path is a reset to the address that has
+ * already been verified, which creates the credential the sign-up never wrote.
+ *
+ * No length is stated here on purpose. The floor and the ceiling are the guest
+ * realm's, configured in `guest-auth.factory.ts`, and a second copy of them in
+ * this file would be a policy that could disagree with the one sign-up enforces.
+ */
+export const accountFromLinkInput = bookingLinkInput.extend({
+  password: z.string().max(256).optional(),
+});
+
+/**
+ * The stay a redeemed link opens, named both ways it can be.
+ *
+ * Not the booking. Redeeming a stay link hands the browser the credential and
+ * nothing else has happened yet — the page navigates to the stay it names and
+ * reads it under the ordinary `read-own` route, where the ownership check lives.
+ */
+export const redeemedLinkSchema = z.object({
+  bookingId: z.uuid(),
+  reference: z.string(),
+});
+
+/**
  * §4's three check-in rejections, typed onto the error a client catches.
  *
  * `CONFLICT` and not a code of its own, because the state pair is legal — §2
@@ -815,5 +866,51 @@ export const booking = {
     // stay the desk called off.
     .route({ method: "POST", path: "/bookings/mine/{reference}/cancellation" })
     .input(ownBookingInput)
+    .output(bookingSchema),
+
+  // ── The confirmation email's two links, and the account they lead to ───────
+
+  redeemStayLink: oc
+    // The mailed half of the credential the hold issued — one booking, read and
+    // cancel, and never a login. A guest who cleared their cookies, changed
+    // device or closed the tab on a shared machine has this and needs nothing
+    // else, which is why the cookie's own life can stay bounded.
+    //
+    // `POST` because it spends something. The link is good once: a mailbox is
+    // copied, forwarded and left open, so following it consumes the row that
+    // says it has not been followed yet. A `GET` would invite a prefetching mail
+    // client to spend it before the guest ever pressed anything.
+    .route({ method: "POST", path: "/bookings/stay-links/redemption" })
+    .input(bookingLinkInput)
+    .output(redeemedLinkSchema),
+
+  createAccountFromLink: oc
+    // The other link in the same envelope, and the only place the funnel
+    // branches on whether an address is registered. It is mailed only to an
+    // address that has none, so the account it creates arrives with the address
+    // already verified — the message went there, and following it from there is
+    // the proof a second verification mail would ask for twice.
+    //
+    // The address is read off the booking and is never sent. A caller who could
+    // name the address would be naming which account this creates, which is the
+    // whole of what the link is for.
+    .route({
+      method: "POST",
+      path: "/bookings/account-links/redemption",
+      successStatus: 201,
+    })
+    .input(accountFromLinkInput)
+    .output(redeemedLinkSchema),
+
+  attachToAccount: oc
+    // The registered guest's path, which needs no mail at all: the session
+    // proves the account and the booking cookie proves the stay, and both
+    // present on one request is the trigger. Nothing about which stay is in the
+    // body beyond the id the credential must already name.
+    //
+    // A sub-resource of the booking, singular, because a stay has one owner —
+    // and the service refuses to move one that is already set.
+    .route({ method: "POST", path: "/bookings/{bookingId}/attachment" })
+    .input(z.object(bookingIdFields))
     .output(bookingSchema),
 };
