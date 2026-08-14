@@ -265,6 +265,8 @@ describe("the booking-scoped credential, against every row", () => {
   const OPENS = new Set([
     "booking.read-own",
     "booking.cancel-own",
+    "booking.contact-own",
+    "booking.presence-own",
     "payment.open-attempt",
   ]);
 

@@ -187,6 +187,36 @@ export const booking = pgTable(
     // that is load-bearing instead: the value dies with the hold it bounds, so a
     // caller cannot be charged for a room they gave back.
     heldBy: text("held_by"),
+    // When the funnel last said the guest was still standing on this hold.
+    //
+    // The expiry above is the longest a hold may last; this is what decides when
+    // it actually ends. `hold-expiry-sweep.ts` releases a hold at the earlier of
+    // `hold_expires_at` and this plus `BOOKING_HOLD_GRACE_SECONDS`, so a guest
+    // who closes the tab costs the property a few minutes of a room instead of a
+    // full TTL. Set when the hold is taken, because a hold is created by a guest
+    // who is by definition present at that moment.
+    //
+    // **Only ever able to shorten a hold.** A tab left open pinging forever must
+    // not pin a room past its TTL — that is the abuse the caps exist for — so the
+    // sweep takes the *earlier* of the two instants and this column can never
+    // push one out.
+    //
+    // **Cooperative, and never an authorisation decision.** It is written by an
+    // unauthenticated funnel saying it is still there, and anybody automating
+    // this door simply will not say it. Nothing about the caps is relaxed on the
+    // strength of it, and nothing here is a reason to relax them.
+    //
+    // Unlike `held_by` there is no constraint tying it to the state, and the
+    // difference is what the two columns cost when they outlive their hold. A
+    // stale caller key charges somebody for a room they gave back; a stale
+    // instant is read by nothing at all — the sweep's predicate is over `HELD`
+    // rows — so tying it down would buy tidiness at the price of a presence route
+    // that either needs a second statement or has to answer "no such stay" to a
+    // guest whose stay it is.
+    lastSeenAt: timestamp("last_seen_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
 
     // ── How the stay ended, and on whose authority ───────────────────────────
     // The moment the cancellation arrived. §4's free window turns on an instant
@@ -246,6 +276,16 @@ export const booking = pgTable(
     // against.
     index("booking_held_by_idx")
       .on(table.heldBy)
+      .where(sql`${table.state} = 'HELD'`),
+    // The second half of what the TTL sweep asks: holds whose guest stopped
+    // saying they were there. The sweep's predicate is a disjunction — either
+    // clock may be the one that ran out — and a disjunction is only ever as
+    // cheap as its worst branch, so the presence branch gets an index of its own
+    // rather than turning a per-minute job into a scan of every booking the
+    // property has ever taken. Partial on the state for the reason the caller
+    // key's index above is: no other state is a row this is read on.
+    index("booking_last_seen_at_idx")
+      .on(table.lastSeenAt)
       .where(sql`${table.state} = 'HELD'`),
     // A stay of no nights is not a booking. `room_assignment` refuses the same
     // row for the same reason — an empty range holds nothing and collides with
