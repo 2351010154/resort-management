@@ -38,6 +38,7 @@
 
 import { parseDate } from "@internationalized/date";
 import {
+  PROPERTY_TIME_ZONE,
   type BookingState,
   type CancellationReason,
   type Party,
@@ -60,7 +61,11 @@ import { folio } from "../../database/schema/folio.js";
 import { registration } from "../../database/schema/guest.js";
 import { roomAssignment, roomType } from "../../database/schema/inventory.js";
 import { payment } from "../../database/schema/payment.js";
+import { afterCommit } from "../../database/transaction-runner.js";
+import { BookingTokenService } from "../auth/booking-token/booking-token.service.js";
+import { accountForAddress } from "../auth/guest/registered-address.js";
 import { GuestService, type NewGuest } from "../guest/guest.service.js";
+import { BookingConfirmationService } from "../notification/booking-confirmation.service.js";
 import { HousekeepingService } from "../housekeeping/housekeeping.service.js";
 import { InventoryService } from "../inventory/inventory.service.js";
 import { AssignmentService, type HeldRoom } from "./assignment.service.js";
@@ -365,6 +370,11 @@ export class BookingService {
     private readonly housekeeping: HousekeepingService,
     @Inject(FOLIO_PORT) private readonly folio: FolioPort,
     @Inject(ENV) private readonly env: Env,
+    // The two the confirmation mail needs, and they arrive last so that adding
+    // them moved no existing argument. One mints the pair of links the message
+    // carries; the other composes the message and hands it to the queue.
+    private readonly bookingTokens: BookingTokenService,
+    private readonly confirmations: BookingConfirmationService,
   ) {}
 
   /**
@@ -457,6 +467,17 @@ export class BookingService {
    * legal. Getting that wrong cancels a room out from under a guest who has
    * just paid for it.
    *
+   * **And never a stay whose anonymous credential has been given up.** The
+   * cookie above is verified by arithmetic and reads no row, so it goes on
+   * naming a stay long after the guest surrendered it — and a stay is
+   * surrendered by being attached to an account, which `attachToAccount` does
+   * without waiting for it to leave `HELD`. Without this conjunct, a guest who
+   * claimed their stay in a lobby browser and walked away leaves a cookie that
+   * releases their room for the next person on that address, whose digest
+   * matches because the digest is of the address. `scopedTo` carries the same
+   * column for the same reason, and it costs the same here: another conjunct on
+   * a `where` that was already going to read this row.
+   *
    * **And never a hold with money in flight.** The state above answers for money
    * that has *arrived*; it says nothing about money on its way. A guest sent to
    * the gateway is looking at a QR code in a banking app while their tab still
@@ -496,6 +517,7 @@ export class BookingService {
           eq(booking.id, replaces),
           eq(booking.state, "HELD"),
           eq(booking.heldBy, heldBy),
+          isNull(booking.anonAccessRevokedAt),
         ),
       )
       .limit(1)
@@ -793,6 +815,21 @@ export class BookingService {
    *
    * The nights were consumed when the hold was taken. Reserving them again here
    * would sell the stay twice to the guest who was already holding it.
+   *
+   * **The confirmation email is sent from here, because this is where the
+   * transition happens.** A stay reaches `CONFIRMED` from a hold by two routes —
+   * a gateway callback through {@link confirmPaidHold}, and a receptionist
+   * confirming a transfer the property received off-line — and the guest is owed
+   * the same message either way: it carries the only credential that re-opens
+   * their stay in a browser that has lost its cookie. Announcing from one of the
+   * two callers instead would leave the other silent, which is exactly what it
+   * did.
+   *
+   * **Exactly once, because the transition is once.** The row is locked by the
+   * read above and a stay already `CONFIRMED` returns before the update, so a
+   * repeated call — a redelivered callback, a receptionist pressing twice —
+   * changes nothing and says nothing. `confirmPaidHold` inherits that rather
+   * than re-deriving it.
    */
   async confirm(exec: DbExecutor, bookingId: string): Promise<Booking> {
     const current = await this.forUpdate(exec, bookingId);
@@ -821,6 +858,8 @@ export class BookingService {
       })
       .where(eq(booking.id, bookingId))
       .returning();
+
+    await this.announce(exec, confirmed!);
 
     return this.asBooking({
       booking: confirmed!,
@@ -855,6 +894,12 @@ export class BookingService {
    * booking is locked before its state is read and the answer cannot change
    * underneath — two callbacks delivered together find the row in the order
    * they take its lock, and the second sees `CONFIRMED` and does nothing.
+   *
+   * **The confirmation email is not sent from here**, and that is deliberate:
+   * {@link confirm} sends it, because that is where `HELD → CONFIRMED` actually
+   * happens. This path inherits the message rather than owning it, so the desk's
+   * own confirmation of a transfer is announced by the same code and a second
+   * callback still says nothing.
    */
   async confirmPaidHold(exec: DbExecutor, bookingId: string): Promise<void> {
     const current = await this.forUpdate(exec, bookingId);
@@ -864,6 +909,112 @@ export class BookingService {
     }
 
     await this.confirm(exec, bookingId);
+  }
+
+  /**
+   * Telling the guest their stay is paid for — the one message an anonymous
+   * booking ever receives.
+   *
+   * **Nothing here can cost the guest their booking.** The message is handed to
+   * the queue and never sent from this call: `booking-confirmation.service.ts`
+   * argues it, and the shape of the argument is the harshest of the two callers
+   * — a payment gateway's callback, inside the transaction that took the money,
+   * which the desk's own confirmation then rides for free. A round trip
+   * to the mail vendor here is a callback the gateway may time out and
+   * redeliver, and a refusal here would roll back a stay that has been paid for.
+   * `enqueue` waits for neither and rejects for nothing.
+   *
+   * **The two links are minted in the confirming transaction and the message is
+   * handed over after it commits.** The links are rows, and rows written here
+   * exist exactly when the confirmation does — a transaction that rolls back
+   * after this point takes the links with it. The queue is not in that
+   * transaction: pg-boss writes on its own connection and commits on its own, so
+   * a message enqueued from here would survive a rollback and advertise two
+   * credentials that no longer exist. The caller's transaction posts a folio line
+   * after this returns and that posting can refuse, which is not a rare shape —
+   * it is the ordinary one. `afterCommit` is what makes "the guest was told"
+   * follow from "the stay was confirmed" rather than merely accompany it.
+   *
+   * **No address, no message.** `contact_email` and `contact_name` are written
+   * as a pair by the funnel's review screen and are null together on every stay
+   * the desk took — a walk-in is somebody at the counter, and there is nowhere
+   * to write. Narrowed rather than asserted: an assertion would turn the
+   * ordinary desk booking into a 500 on the payment callback.
+   */
+  private async announce(exec: DbExecutor, row: BookingRow): Promise<void> {
+    const to = row.contactEmail;
+    const guestName = row.contactName;
+
+    if (to === null || guestName === null) {
+      return;
+    }
+
+    const stayLink = await this.bookingTokens.mintStayLink(exec, {
+      bookingId: row.id,
+      // Property-local midnight of the departure date, which is the instant the
+      // cookie issued at the hold was measured from — `booking.controller.ts`
+      // performs the same crossing, so the mailed copy and the browser's copy
+      // of one credential die together.
+      checkOut: parseDate(row.checkOutDate).toDate(PROPERTY_TIME_ZONE),
+    });
+
+    // The one branch in the whole flow, and the only place it is safe. The two
+    // bodies differ, and the difference is delivered to the address being asked
+    // about and to nobody else; the same branch on a page would be an
+    // enumeration oracle, because a hold is unauthenticated and anyone can take
+    // one naming somebody else's address. `booking-confirmation-email.ts` and
+    // `registered-address.ts` both carry the argument.
+    const registered = await accountForAddress(exec, to);
+
+    const createAccountUrl = registered
+      ? undefined
+      : this.accountUrl(
+          row.reference,
+          await this.bookingTokens.mintAccountLink(exec, { bookingId: row.id }),
+        );
+
+    const mail = {
+      to,
+      guestName,
+      reference: row.reference,
+      stayUrl: this.stayUrl(row.reference, stayLink),
+      createAccountUrl,
+    };
+
+    // Composed now, from rows read inside the transaction, and handed over only
+    // once those rows are durable.
+    await afterCommit(exec, () => this.confirmations.enqueue(mail));
+  }
+
+  /**
+   * Where a mailed link points — the public site, and never this API.
+   *
+   * The guest lands on a page rather than on a redirect this service composed,
+   * because what happens next differs: one link hands the browser a credential
+   * and shows the stay, the other asks whether the guest would like a password.
+   * Both pages post the link back to the routes `contract/booking.ts` declares.
+   *
+   * **The credential rides in the fragment, and that is the whole reason for the
+   * `#`.** A query string is part of the request line, so every server between
+   * the guest and the page writes it down — the web tier's own access log first,
+   * and whatever proxy, prefetcher or corporate mail scanner opened the message
+   * before the guest did. A fragment is never transmitted: the browser keeps it,
+   * and the page reads it off its own address. What it opens is a stay for seven
+   * days past checkout, so the difference is not academic.
+   *
+   * It is still in the address bar and in the history entry, which is why
+   * `use-presented-link.ts` takes it back off the moment it has been read.
+   */
+  private stayUrl(reference: string, link: string): string {
+    return `${this.env.WEB_ORIGIN}/bookings/${encodeURIComponent(
+      reference,
+    )}#stay=${encodeURIComponent(link)}`;
+  }
+
+  private accountUrl(reference: string, link: string): string {
+    return `${this.env.WEB_ORIGIN}/bookings/${encodeURIComponent(
+      reference,
+    )}/account#invitation=${encodeURIComponent(link)}`;
   }
 
   /**
@@ -1539,6 +1690,132 @@ export class BookingService {
   }
 
   /**
+   * Giving a stay an owner, and giving up its anonymous credential in the same
+   * breath.
+   *
+   * **The order is the whole method.** `user_id` is written first and the
+   * revocation second, because
+   * `booking_revokes_anonymous_access_only_with_an_account` refuses the reverse
+   * — a stay with its anonymous access given up and nobody able to sign in to it
+   * is a guest locked out of a room they paid for, and the constraint states
+   * that rather than trusting this file to remember it. Written the other way
+   * round the database raises `23514` and the transaction rolls back, which is
+   * the safe failure and still a failure.
+   *
+   * **One transaction, because they are one act.** The caller's executor, like
+   * every other write here: an attach that committed without its revocation
+   * would leave a loose cookie opening a stay that now has an owner, and a
+   * revocation that committed without its attach cannot exist at all.
+   *
+   * **A stay that already has an owner is never reassigned.** The row is read
+   * `for update` and the account compared before anything is written, so the
+   * answer cannot change underneath. The same account attaching twice is the
+   * attach that already happened — it writes nothing, and still revokes, because
+   * the stay may have been filed under that account at the hold and never had
+   * its cookie given up. A *different* account is refused: a booking has one
+   * owner, and moving it would take a stay out of somebody's history.
+   */
+  async attachToAccount(
+    exec: DbExecutor,
+    attachment: { readonly bookingId: string; readonly userId: string },
+  ): Promise<Booking> {
+    const current = await this.forUpdate(exec, attachment.bookingId);
+    const owner = current.booking.userId;
+
+    if (owner !== null && owner !== attachment.userId) {
+      throw new ORPCError("CONFLICT", {
+        message: "This stay already belongs to an account",
+      });
+    }
+
+    if (owner === null) {
+      await exec
+        .update(booking)
+        .set({ userId: attachment.userId, updatedAt: sql`now()` })
+        .where(
+          and(
+            eq(booking.id, attachment.bookingId),
+            // Redundant under the lock above and kept anyway: it is the clause
+            // that makes "never reassigned" true of the statement itself rather
+            // than of the comparison that precedes it.
+            isNull(booking.userId),
+          ),
+        );
+    }
+
+    await this.revokeAnonymousAccess(exec, attachment.bookingId);
+
+    return await this.ownHold(exec, {
+      bookingId: attachment.bookingId,
+      owner: { kind: "account", userId: attachment.userId },
+    });
+  }
+
+  /**
+   * Who the confirmation for a stay was addressed to, or `null` when nobody was
+   * named.
+   *
+   * The address the attach flow creates an account under, read off the booking
+   * rather than taken from the caller — which is what makes "the account is for
+   * the address the mail went to" a fact rather than a check somebody has to
+   * remember to make.
+   */
+  async contactOn(
+    exec: DbExecutor,
+    bookingId: string,
+  ): Promise<BookingContact | null> {
+    const [row] = await exec
+      .select({ email: booking.contactEmail, name: booking.contactName })
+      .from(booking)
+      .where(eq(booking.id, bookingId))
+      .limit(1);
+
+    if (!row || row.email === null || row.name === null) {
+      return null;
+    }
+
+    return { email: row.email, name: row.name };
+  }
+
+  /**
+   * Giving up the anonymous credential for one stay, permanently.
+   *
+   * The act attach performs, and the reason `booking-token.service.ts` stopped
+   * describing revocation as a gap. A stay attached to an account is reachable
+   * through that account; the cookie copy of it — left in a lobby browser, sat
+   * in a mail thread, synced to a device the guest has sold — is a second key to
+   * a door that now has an owner, and this is what stops it turning.
+   *
+   * **Idempotent by the `where` and not by a check beforehand.** The second call
+   * matches no row and writes nothing, so a retried request and a job that ran
+   * twice are both the revocation that already happened. Keeping the first
+   * instant matters: it is when access was surrendered, and a call that
+   * overwrote it would move the fact each time anybody asked again. That is also
+   * why `updated_at` is left where the first call put it — nothing changed.
+   *
+   * **Takes the caller's executor, like every other write here.** Attach sets
+   * `user_id` and this runs beside it, in the caller's transaction, so a stay
+   * cannot end up with its anonymous access revoked and no account behind it —
+   * `booking_revokes_anonymous_access_only_with_an_account` refuses that row
+   * outright, which is why the account is written first.
+   *
+   * Nothing is thrown for a stay that does not exist, and nothing is returned to
+   * distinguish the cases. Every one of them leaves the same thing true: no
+   * anonymous credential opens that booking after this call.
+   */
+  async revokeAnonymousAccess(
+    exec: DbExecutor,
+    bookingId: string,
+  ): Promise<void> {
+    await exec
+      .update(booking)
+      .set({ anonAccessRevokedAt: sql`now()`, updatedAt: sql`now()` })
+      .where(
+        and(eq(booking.id, bookingId), isNull(booking.anonAccessRevokedAt)),
+      );
+  }
+
+  /**
    * One stay of this account's, read the way its guest addresses it —
    * `FR-GST-01`, narrowed from the history above to the single booking.
    *
@@ -2093,9 +2370,26 @@ export class BookingService {
  * is: it can select one row and that row is the one the credential was minted
  * for. Either way the scope is in the query rather than in a comparison
  * afterwards, which is what makes it unforgettable.
+ *
+ * **The anonymous branch carries one more column, and this is the only place it
+ * is read.** `booking-token.service.ts` verifies its credential by arithmetic
+ * and reads no row, which is what keeps it cheap on a cookie sent with every
+ * request under `/bookings` — and leaves it unable to say whether that
+ * credential has since been surrendered. `anon_access_revoked_at` is that
+ * instant, and testing it here costs nothing at all: it is another conjunct on
+ * a `where` that was already going to fetch this row, so a revoked stay comes
+ * back as no row rather than as a second query's answer. `access.guard.ts` still
+ * takes no round trip, which was the point.
+ *
+ * A revoked stay is then indistinguishable from one that does not exist, which
+ * is the same refusal a stranger's booking gets and is right for the same
+ * reason. The account branch is untouched — revocation kills the loose copy of
+ * an anonymous credential and says nothing about who owns the booking, so a
+ * guest who has just attached this stay reads it through their session exactly
+ * as before.
  */
 function scopedTo(owner: BookingOwner) {
   return owner.kind === "account"
     ? eq(booking.userId, owner.userId)
-    : eq(booking.id, owner.bookingId);
+    : and(eq(booking.id, owner.bookingId), isNull(booking.anonAccessRevokedAt));
 }
