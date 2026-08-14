@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { Module } from "@nestjs/common";
-import { LoggerModule } from "nestjs-pino";
+import { APP_FILTER } from "@nestjs/core";
+import { ORPCModule } from "@orpc/nest";
+import { LoggerModule, PinoLogger } from "nestjs-pino";
+import { UnknownErrorFilter } from "./common/observability/unknown-error.filter.js";
+import { unknownErrorInterceptor } from "./common/observability/unknown-error.js";
 import { ConfigModule } from "./config/config.module.js";
 import { ENV, type Env } from "./config/env.js";
 import { DatabaseModule } from "./database/database.module.js";
@@ -87,6 +91,20 @@ const CORRELATION_HEADER = "x-request-id";
       }),
     }),
 
+    // Immediately after the logger, because the one thing it configures is a
+    // line written through it. `@Implement` works without this module — its
+    // config injection is optional — so what registering it adds is the
+    // interceptor slot, and the only interceptor in it makes an unknown throw
+    // visible on the server. `common/observability/unknown-error.ts` explains
+    // why that hook has to be oRPC's rather than a Nest exception filter, and
+    // why the response the caller receives is unchanged either way.
+    ORPCModule.forRootAsync({
+      inject: [PinoLogger],
+      useFactory: (logger: PinoLogger) => ({
+        interceptors: [unknownErrorInterceptor(logger)],
+      }),
+    }),
+
     DatabaseModule,
     HealthModule,
 
@@ -149,5 +167,11 @@ const CORRELATION_HEADER = "x-request-id";
     // governed by the guard `AuthModule` installs, like every other route here.
     JobsModule,
   ],
+
+  // The one provider on the registry, and it registers nothing of its own: the
+  // filter logs and then delegates to the behaviour Nest already had. It covers
+  // the throws that never reach an oRPC handler — a guard, a pipe, a webhook
+  // route — while the interceptor above covers the ones inside it.
+  providers: [{ provide: APP_FILTER, useClass: UnknownErrorFilter }],
 })
 export class AppModule {}
