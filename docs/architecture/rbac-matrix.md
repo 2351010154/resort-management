@@ -66,9 +66,20 @@ token on a guest route is 403. Not 401 — the token is valid, the realm is wron
 
 - **Deny by default.** A route with no `@RequiresCapability()` is unreachable,
   not public. The one escape hatch is `@Unguarded("<reason>")`, which takes a
-  written reason and is used by exactly two kinds of route: the ones that issue
-  a session (staff sign-in, refresh, sign-out, and everything Better Auth
-  mounts) and the liveness probe, which has no subject.
+  written reason, and every route carrying it is one where there is no session
+  for a capability to be about yet:
+  - the routes that *issue* one — staff sign-in, refresh and sign-out, and
+    everything Better Auth mounts;
+  - the liveness probe, which has no subject at all;
+  - the payment gateway's IPN and return url, where the gateway holds no session
+    of this property's and its signature stands in for one;
+  - the two that redeem a link out of a confirmation email, where the signed
+    single-use link is itself the credential — one re-issues the booking cookie,
+    the other creates the account the mail offered.
+
+  The shape is the same in all four: a signature or a secret arrives where a
+  session cannot, and the route acquires authority rather than exercising it.
+  Nothing else may carry it.
 - **👁 is enforced, not documentation.** A row is wider than a route — "Rate
   plans, rate calendar, promotions" is one row a receptionist may look at and a
   manager may change — so a route declares which of the two it is:
@@ -107,7 +118,7 @@ Legend: ✅ full · 👁 read-only · ⚠ conditional, see notes · — denied
 | Name the contact on own hold | ⚠ | — | — | — | — | — | Own hold only, while `HELD`; session or booking token. The pair the review screen collects — `booking-state-machine.md` §2 |
 | Keep own hold alive | ⚠ | — | — | — | — | — | Own hold only; session or booking token. The funnel saying the guest is still there, so a hold dies at the earlier of its TTL and a grace after the last sighting. Cooperative and never a defence — it can only shorten a hold, and no cap was relaxed for it: `booking-state-machine.md` §3 |
 | Cancel own booking | ⚠ | — | — | — | — | — | Own, penalty per policy; session or booking token |
-| Own profile, loyalty, VIP tier | ⚠ | 👁 | — | — | 👁 | 👁 | |
+| Own profile, loyalty, VIP tier | ⚠ | 👁 | — | — | 👁 | 👁 | Also governs adding a stay to the account that is reading it (`POST /bookings/{bookingId}/attachment`). Session **and** booking token: the row is not one a booking token opens, so the guard requires the session and the handler requires the cookie to name the stay in the path |
 | Upload own ID scan | ⚠ | — | — | — | — | — | |
 | Post-stay feedback | ⚠ | — | — | — | 👁 | 👁 | Tied to a `CHECKED_OUT` booking |
 

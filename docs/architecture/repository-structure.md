@@ -76,10 +76,12 @@ through typed schema objects so drift fails the build.
 src/
   main.ts, app.module.ts
   common/          The capability guard, the audit interceptor, exception filters, pipes
+    observability/ Logging an unknown throw without changing what the caller is told
   config/          Env parsing and validation, one schema, fails fast at boot
   database/
     schema/        One file per domain, re-exported from index.ts
     migrations/    SQL. Constraints, extensions, and indexes live here
+    migration-check.ts  Boot refuses a database behind migrations/meta/_journal.json
   health/          Liveness. Operational, so not under modules/
   modules/<domain>/
   jobs/            Scheduled work: the runner, the scheduler, the sweep contract
@@ -198,10 +200,16 @@ before later steps couple them to expiring holds and asynchronous payment.
       confirming/         /booking/<hold>/confirming    gateway return
   bookings/
     [reference]/          /bookings/<reference>         confirmation and stay detail
+      account/            /bookings/<reference>/account attach the stay to an account
   account/
     page.tsx              /account                      profile, VIP tier, loyalty
     stays/                /account/stays                stay history
 ```
+
+`/bookings/<reference>/account` is not a sixth funnel step and is not counted
+below. It is reached only from the confirmation email, after the money, by a
+guest who has already finished booking — and nothing in the funnel depends on
+anyone opening it.
 
 **Six logical steps use five URL patterns.** Search and room-type selection
 share `/booking` because both are stateless views of URL search parameters.
