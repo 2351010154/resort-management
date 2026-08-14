@@ -12,7 +12,18 @@
 const config = {
   // globals.css defines the tokens themselves, so the palette literals there
   // are the one place raw hex is the correct answer rather than an escape.
-  ignoreFiles: ["app/globals.css", ".next/**", "node_modules/**"],
+  //
+  // The rest are generated: `.next/**` is the build, `coverage/**` is vitest's
+  // HTML report, and both contain vendored stylesheets nobody in this repo
+  // wrote or can fix. Linting them turns `pnpm lint` into dozens of failures in
+  // files that reappear the next time anything is built or measured, which is
+  // how a lint gate stops being read.
+  ignoreFiles: [
+    "app/globals.css",
+    ".next/**",
+    "coverage/**",
+    "node_modules/**",
+  ],
 
   rules: {
     // The palette is eight named tokens plus --night. A hex in a module is
