@@ -1,6 +1,6 @@
 import { Global, Inject, Module, type OnApplicationShutdown } from "@nestjs/common";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
-import { InjectPinoLogger, type PinoLogger } from "nestjs-pino";
+import { InjectPinoLogger, PinoLogger } from "nestjs-pino";
 // `pg` is CommonJS, and this package is ESM. The default import is the whole
 // module object; destructuring `Pool` off a named import is what breaks under
 // `nodenext` — README §"This package is ESM".
@@ -69,8 +69,15 @@ const CONNECTION_TIMEOUT_MS = 5_000;
     },
     {
       provide: TransactionRunner,
-      inject: [DRIZZLE],
-      useFactory: (db: Database) => new TransactionRunner(db),
+      // The shared logger rather than one bound to a context with
+      // `@InjectPinoLogger`: that decorator names a parameter Nest resolves,
+      // and this provider is built from a factory, whose arguments the
+      // decorator never reaches. The context is passed on the one line this
+      // writes instead — `setContext` here would rename the instance the
+      // framework's own logger is holding.
+      inject: [DRIZZLE, PinoLogger],
+      useFactory: (db: Database, logger: PinoLogger) =>
+        new TransactionRunner(db, logger),
     },
   ],
   exports: [PG_POOL, DRIZZLE, TransactionRunner],

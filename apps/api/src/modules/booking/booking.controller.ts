@@ -60,6 +60,7 @@ import {
   CurrentPrincipal,
   RequiresCapability,
   SessionOnly,
+  Unguarded,
 } from "../../common/auth/access.decorators.js";
 import { JsonRequestGuard } from "../../common/auth/json-request.guard.js";
 import type { Principal } from "../../common/auth/principal.js";
@@ -634,6 +635,53 @@ export class BookingController {
   }
 
   /**
+   * The confirmation email's stay link, followed — the credential the hold
+   * issued, handed to whichever browser opened the message.
+   *
+   * The other delivery path for one credential, not a second credential:
+   * `booking-token.service.ts` mints the link under the same key and re-issues
+   * the same cookie, so what the guest ends up holding is exactly what the
+   * funnel gave them — one booking, read and cancel, and never a login.
+   *
+   * **Unguarded because the link is what proves the stay.** There is nothing for
+   * a capability to be about yet: the caller arrives holding no cookie, which is
+   * the situation the link exists for. What stands in for it is the signature,
+   * the row that says the link has not been followed, and the deadline that row
+   * carries — and a link that fails any of the three is the same refusal as one
+   * that names a stay that does not exist.
+   *
+   * `JsonRequestGuard` for the reason {@link cancelOwn} carries it: this sets a
+   * cookie, and a cross-site `<form>` could otherwise plant one naming somebody
+   * else's booking in a guest's browser.
+   */
+  @UseGuards(JsonRequestGuard)
+  @Unguarded("the link out of a confirmation email is itself the credential")
+  @Implement(contract.booking.redeemStayLink)
+  redeemStayLink(@Res({ passthrough: true }) response: Response) {
+    return implement(contract.booking.redeemStayLink).handler(
+      async ({ input }) => {
+        const stay = await this.transactions.run((exec) =>
+          this.bookingTokens.redeemStayLink(exec, input.link),
+        );
+
+        if (!stay) {
+          throw new ORPCError("UNAUTHORIZED", {
+            message:
+              "This link has already been used or has expired. Ask for a new one from your booking.",
+          });
+        }
+
+        // The cookie dies when the link would have, and the instant is the
+        // link row's rather than one recomputed from the stay — which is what
+        // stops a re-issue extending anything.
+        this.bookingTokens.issue(response, stay);
+
+        return { bookingId: stay.bookingId, reference: stay.reference };
+      },
+    );
+  }
+
+  /**
    * The transition both cancellation routes make.
    *
    * Shared because it is one transition — §3 gives `HELD → CANCELLED` and
@@ -808,7 +856,7 @@ function asCreateInput(input: CreateBookingBody): CreateBookingInput {
  * rather than a day, so it takes the full timestamp and not the nine characters
  * a stay boundary takes.
  */
-function onWire(booking: Booking) {
+export function onWire(booking: Booking) {
   return {
     ...booking,
     checkIn: booking.checkIn.toString(),

@@ -45,6 +45,18 @@
 // If that decision is ever revisited, pg-boss exports `getConstructionPlans()`,
 // which emits exactly the DDL it would otherwise run.
 //
+// ## Outbound mail rides on the same queue
+//
+// A sweep is not the only thing that must not happen inside a request.
+// `mail-queue.service.ts` argues why a verification email is delivered from a
+// worker rather than awaited by the sign-up that composed it; what belongs
+// here is that it gets the *same* pg-boss, handed over once this file has
+// started one. A second instance would mean a second supervisor maintaining
+// the same tables, and a second lifetime to get right against the pool both
+// borrow. `MailQueue` is told when the queue arrives and when it is taken
+// away, and delivers messages from this process in between — so a build with
+// no scheduler still sends mail, without the retry a queue would have given it.
+//
 // ## One sweep failing leaves the others alone
 //
 // Each sweep gets its own queue and its own worker, so a throw inside one is a
@@ -69,6 +81,7 @@ import type pg from "pg";
 import { type Db, PgBoss } from "pg-boss";
 import { ENV, type Env } from "../config/env.js";
 import { PG_POOL } from "../database/database.module.js";
+import { MailQueue } from "../modules/notification/mail-queue.service.js";
 import { JobRunner } from "./job-runner.service.js";
 import type { SweepJob } from "./sweep-job.js";
 
@@ -114,6 +127,7 @@ export class JobScheduler
     @Inject(ENV) private readonly env: Env,
     @Inject(PG_POOL) private readonly pool: pg.Pool,
     private readonly runner: JobRunner,
+    private readonly mail: MailQueue,
     // Contextualised here rather than declared with `@InjectPinoLogger` —
     // `job-runner.service.ts` says which evaluation order that decorator
     // depends on and why this module cannot assume it.
@@ -167,6 +181,19 @@ export class JobScheduler
     await boss.start();
     this.boss = boss;
 
+    try {
+      await this.mail.attach(boss);
+    } catch (error) {
+      // Caught for the same reason a sweep's registration is: the sweeps must
+      // still run. Mail is not lost by this — `MailQueue` goes on delivering
+      // from this process — so the cost is the retry, and that is worth a log
+      // line rather than a boot that fails.
+      this.logger.error(
+        { err: error },
+        "outbound mail has no worker — it will be delivered from this process, without retries",
+      );
+    }
+
     for (const job of this.runner.all) {
       try {
         await this.register(boss, job);
@@ -187,6 +214,11 @@ export class JobScheduler
     if (!boss) return;
 
     this.boss = null;
+
+    // Before the queue is stopped rather than after: a message put on a queue
+    // whose workers are draining would sit there until the next process polls
+    // it, and `MailQueue` delivers it here instead.
+    this.mail.detach();
 
     try {
       // `close: false` is already pg-boss's behaviour for a borrowed database,

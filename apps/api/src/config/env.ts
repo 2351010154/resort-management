@@ -27,9 +27,18 @@ const calendarDateSchema = z
 // Defaults exist only where a wrong value is harmless. DATABASE_URL has none:
 // a default there would point production at somebody's laptop.
 export const envSchema = z.object({
-  NODE_ENV: z
-    .enum(["development", "test", "production"])
-    .default("development"),
+  // Stated, never assumed. Every production refusal in this file is written as
+  // "unless NODE_ENV is production", so an unset value would not merely default
+  // to something harmless — it would switch each of those checks off. A deploy
+  // that forgot it would boot happily with no mailer, no OAuth client, no VAT
+  // rates it chose, and no trusted address header, and would say nothing about
+  // any of them. Better Auth reads the same variable out of `process.env` for
+  // itself and reaches the same conclusion, resolving every caller in the world
+  // to `127.0.0.1` and pooling them into one rate-limit bucket.
+  //
+  // So it has no default. The one environment where a mistake here is cheap is
+  // the one that can afford to write it down.
+  NODE_ENV: z.enum(["development", "test", "production"]),
 
   PORT: z.coerce.number().int().min(1).max(65_535).default(3001),
 
@@ -57,6 +66,32 @@ export const envSchema = z.object({
   // check has already refused a boot that never named it, the same shape the
   // VAT rate figures use for the same reason.
   ADMIN_ORIGIN: z.url().optional(),
+
+  // Which request header carries the caller's own address, where something in
+  // front of this process is trusted to have written it.
+  //
+  // Better Auth resolves the address its rate limiter keys on from headers
+  // alone: it is handed a Web `Request` and never sees the socket, so `trust
+  // proxy` and `request.ip` — which is what `caller-key.ts` keys the hold limit
+  // on — do not reach it. Left to itself it reads `x-forwarded-for`, and a
+  // single-token value there is trusted exactly as written. A caller who sends
+  // their own therefore buys a fresh quota per value, which is a
+  // credential-stuffing limit switched off by anyone who has read the library.
+  //
+  // Named here rather than written into the realm because the answer belongs to
+  // whatever sits in front. On Fly it is `fly-client-ip`, set by the edge and
+  // not forgeable by a client; behind a different edge it is a different name,
+  // and that should be a variable rather than a deploy.
+  //
+  // Unset is development and CI, where nothing is in front and the library's own
+  // default is the honest answer — no proxy wrote anything, so no header
+  // deserves more trust than another and every caller shares one bucket anyway.
+  // Production is refused without it below, because production is the only place
+  // the header carries weight.
+  TRUSTED_CLIENT_IP_HEADER: z
+    .string()
+    .regex(/^[a-zA-Z0-9-]+$/, "must be a header name, such as fly-client-ip")
+    .optional(),
 
   // Better Auth signs guest session cookies with this. Thirty-two characters is
   // the library's own floor; below it the signature is not worth computing.
@@ -350,6 +385,20 @@ export const envSchema = z.object({
       path: ["ADMIN_ORIGIN"],
       message:
         "is required in production — the admin console cannot reach the API without its own origin on the CORS allow-list",
+    },
+  )
+  // Without it the guest realm's limiter keys on whatever the caller wrote in
+  // `x-forwarded-for`, so every attempt can hand itself a fresh quota and the
+  // five-a-minute floor under `/sign-in/email` stops existing. Refused only in
+  // production, because it is the only environment with an edge whose header
+  // means anything.
+  .refine(
+    (env) =>
+      env.NODE_ENV !== "production" || Boolean(env.TRUSTED_CLIENT_IP_HEADER),
+    {
+      path: ["TRUSTED_CLIENT_IP_HEADER"],
+      message:
+        "is required in production — otherwise the guest realm's rate limiter trusts an address the caller writes, and a limit anyone can reset is not one",
     },
   )
   // The same shape as the Google pair above, for the same reason and with a

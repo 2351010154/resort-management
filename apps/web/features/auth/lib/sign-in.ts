@@ -105,8 +105,17 @@ export async function signInWithEmail(credentials: {
  * The guest returns to the API's `/api/auth/callback/google`, which sets the
  * session cookie and redirects to one of the two URLs below. Both are on this
  * origin and both are absolute, for the reason `origin()` gives.
+ *
+ * `after` is where a guest who came here to claim a stay has to land: the
+ * session arrives with them and the booking cookie was never lost, but the id
+ * saying *which* stay is meant lives in the address they left from, so it has to
+ * survive the round trip. A path on this origin, like the default — anything
+ * else is refused by `trustedOrigins`. The error destination takes no such
+ * parameter, because Better Auth appends its own `?error=` to that one.
  */
-export async function signInWithGoogle(): Promise<SignInResult> {
+export async function signInWithGoogle(
+  after: string = AFTER_SIGN_IN,
+): Promise<SignInResult> {
   let response: Response;
 
   try {
@@ -116,7 +125,7 @@ export async function signInWithGoogle(): Promise<SignInResult> {
       credentials: "include",
       body: JSON.stringify({
         provider: "google",
-        callbackURL: `${origin()}${AFTER_SIGN_IN}`,
+        callbackURL: `${origin()}${after}`,
         // Better Auth appends `?error=<code>`; the login screen reads it back
         // through `googleErrorMessage`.
         errorCallbackURL: `${origin()}/login`,

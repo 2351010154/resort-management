@@ -5,6 +5,7 @@ import { FolioService } from "../folio/folio.service.js";
 import { GuestModule } from "../guest/guest.module.js";
 import { HousekeepingModule } from "../housekeeping/housekeeping.module.js";
 import { InventoryModule } from "../inventory/inventory.module.js";
+import { NotificationModule } from "../notification/notification.module.js";
 import { SystemConfigModule } from "../system-config/system-config.module.js";
 import { AssignmentController } from "./assignment.controller.js";
 import { AssignmentService } from "./assignment.service.js";
@@ -85,11 +86,19 @@ import { StayQuoteService } from "./stay-quote.service.js";
 // housekeeping board for what a room is, the guest table for who a person is —
 // and changes nothing, which is why it needs neither a port nor an export.
 //
-// `BookingTokenModule` is imported for one call: the hold issues the credential
-// that makes the funnel's next four screens reachable for a guest with no
-// account. The whole of `AuthModule` is not imported for it — that module owns
-// two realms, their controllers and the global guard, and this controller needs
-// none of them.
+// `BookingTokenModule` is imported for two calls now: the hold issues the
+// credential that makes the funnel's next four screens reachable for a guest
+// with no account, and the confirmation mints the mailed copies of it. The whole
+// of `AuthModule` is not imported for either — that module owns two realms,
+// their controllers and the global guard, and neither the controller nor the
+// service needs any of them.
+//
+// `NotificationModule` is imported for one call, and one message: the
+// confirmation a guest receives when their hold is paid for.
+// `booking-confirmation.service.ts` composes it and hands it to the queue, and
+// the reason the booking module reaches a notification rather than the other way
+// round is that only the transition knows it happened — `confirmPaidHold` holds
+// the lock that makes "confirmed exactly once" true.
 @Module({
   imports: [
     BookingTokenModule,
@@ -97,6 +106,7 @@ import { StayQuoteService } from "./stay-quote.service.js";
     GuestModule,
     HousekeepingModule,
     InventoryModule,
+    NotificationModule,
     SystemConfigModule,
   ],
   controllers: [BookingController, AssignmentController, SearchController],
