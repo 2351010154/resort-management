@@ -5,9 +5,12 @@ import "reflect-metadata";
 import { NestFactory } from "@nestjs/core";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import { Logger } from "nestjs-pino";
+import type pg from "pg";
 import { AppModule } from "./app.module.js";
 import { ENV, type Env, parseEnv } from "./config/env.js";
 import { loadDotenv } from "./config/load-dotenv.js";
+import { PG_POOL } from "./database/database.module.js";
+import { assertMigrationsApplied } from "./database/migration-check.js";
 
 // The adapter is named rather than left to the default: Nest 11's
 // platform-express pins Express 5, and P0-PAY's gateway webhooks need real REST
@@ -59,6 +62,15 @@ async function bootstrap(): Promise<void> {
     // guest quoting an id from a failed booking is worth the header.
     exposedHeaders: ["x-request-id"],
   });
+
+  // Before the port opens and before `app.listen` runs the bootstrap hooks, so
+  // a drifted database is a process that never accepted a request rather than
+  // one that seeded `system_config` and started the sweep scheduler against a
+  // schema it does not match. The pool the application will use anyway, rather
+  // than a second connection: it already carries the timeouts
+  // `database.module.ts` chose, and a check that opened its own would be a
+  // second place the connection string is interpreted.
+  await assertMigrationsApplied(app.get<pg.Pool>(PG_POOL));
 
   await app.listen(env.PORT);
 }
