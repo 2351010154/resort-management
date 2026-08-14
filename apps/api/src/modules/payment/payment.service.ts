@@ -135,7 +135,7 @@ import { randomUUID } from "node:crypto";
 import type { VndAmount } from "@mariva/shared";
 import { Inject, Injectable } from "@nestjs/common";
 import { ORPCError } from "@orpc/nest";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import type { DbExecutor } from "../../database/database.module.js";
 import { booking } from "../../database/schema/booking.js";
 import { folio } from "../../database/schema/folio.js";
@@ -177,6 +177,20 @@ const GATEWAY_METHOD = "VNPAY";
  */
 const NO_STAY_OF_YOURS =
   "No booking of yours has that id, so there is nothing here for you to pay for";
+
+/**
+ * The one thing a booking-scoped caller is ever told when their credential does
+ * not open the stay they named.
+ *
+ * Said in one place because it answers two different facts on purpose — a
+ * credential minted for another booking, and one that has since been given up —
+ * and a reply that separated them would tell whoever holds a stale cookie that
+ * the stay is real and that something changed about it. `mayCollectFor` and
+ * `collectsTheWholeStay` are the two that raise it, at the two points the branch
+ * can learn either fact.
+ */
+const NOT_THE_BOOKING_THIS_LINK_OPENS =
+  "This link opens only the booking it was issued for";
 
 /** A uuid with its hyphens taken out. */
 const UUID_HEX_LENGTH = 32;
@@ -482,10 +496,15 @@ export class PaymentService {
     // this is the method that decides whether a payment page may be opened
     // against a stay — a caller reaching the service by any other route gets the
     // same answer as one arriving through the controller.
+    //
+    // Which stay it names is all this comparison can settle. Whether that
+    // credential still opens it is a fact about a row, and it is settled by the
+    // query below rather than by a lookup of its own — see
+    // {@link collectsTheWholeStay}.
     if (request.provenBookingId !== undefined) {
       if (request.provenBookingId !== request.bookingId) {
         throw new ORPCError("FORBIDDEN", {
-          message: "This link opens only the booking it was issued for",
+          message: NOT_THE_BOOKING_THIS_LINK_OPENS,
         });
       }
 
@@ -535,23 +554,59 @@ export class PaymentService {
    * and a desk collects deposits, part payments and balances against one stay;
    * that is a different operation performed by somebody the property has already
    * trusted with the till, and scoping it would refuse the ordinary case.
+   *
+   * **The booking-token branch reads one column more, and this is the only place
+   * on the payment path that can.** `auth/booking-token/booking-token.service.ts`
+   * admits its credential by arithmetic over a signature and reads no row, which
+   * is what keeps it cheap on a cookie sent with every request — and leaves it
+   * unable to say whether that credential has since been surrendered.
+   * `anon_access_revoked_at` is that instant, and testing it here costs nothing:
+   * it is another conjunct on a `where` that was already going to fetch this
+   * stay's quoted total, so a revoked stay comes back as no row rather than as a
+   * second query's answer and `access.guard.ts` still takes no round trip.
+   *
+   * Written out rather than borrowed from `BookingService`, which carries the
+   * same conjunct on the same column for the read path. The predicate there is
+   * private to that file and the service exposes no query this one could ride,
+   * so reuse would mean a second statement against a row already being selected
+   * — which is the cost the column was arranged to avoid. The column itself is
+   * what keeps the two honest: either of them reading it wrong shows up as a
+   * stay still reachable after its cookie was given up.
+   *
+   * **The account branch is untouched by it**, and that is the half most easily
+   * lost. Revocation kills the loose anonymous copy and says nothing about who
+   * owns the booking, so the guest who has just attached this stay pays for it
+   * through their session exactly as before.
    */
   private async collectsTheWholeStay(
     exec: DbExecutor,
     request: GatewayPaymentRequest,
   ): Promise<void> {
+    const byCredential = request.provenBookingId !== undefined;
+
     const [stay] = await exec
       .select({ quoted: booking.quotedStayTotalGross })
       .from(booking)
-      .where(eq(booking.id, request.bookingId))
+      .where(
+        and(
+          eq(booking.id, request.bookingId),
+          byCredential ? isNull(booking.anonAccessRevokedAt) : undefined,
+        ),
+      )
       .limit(1);
 
     // Unreachable from the account branch, which has just proved the row by
-    // matching it, and reachable from the proven branch only if the stay a
-    // credential names has gone. The same sentence either way, for the reason
-    // the branch above gives it.
+    // matching it, and reachable from the proven branch on two facts: the stay a
+    // credential names has gone, or the credential no longer opens it. One
+    // refusal for both, and it is the one a credential naming somebody else's
+    // stay already gets — a revoked cookie told anything different would learn
+    // that its booking is real and that something about it changed.
     if (!stay) {
-      throw new ORPCError("NOT_FOUND", { message: NO_STAY_OF_YOURS });
+      throw byCredential
+        ? new ORPCError("FORBIDDEN", {
+            message: NOT_THE_BOOKING_THIS_LINK_OPENS,
+          })
+        : new ORPCError("NOT_FOUND", { message: NO_STAY_OF_YOURS });
     }
 
     if (request.amount !== stay.quoted) {
