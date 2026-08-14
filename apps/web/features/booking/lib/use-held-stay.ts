@@ -18,10 +18,18 @@
 // The poll exists for one screen. `confirming/` waits for the gateway's callback
 // to land, which arrives at the API rather than at the browser, so the only way
 // the page learns of it is by asking again.
+//
+// **Reading a hold is also what keeps it.** A held room used to stay off the
+// shelf for its whole TTL whether or not anybody was still on the page, so this
+// hook is where the funnel says otherwise — `use-hold-presence.ts` owns the
+// saying, and it lives behind this one so that "the funnel is open on a live
+// hold" is a fact about reading a stay rather than three screens each
+// remembering to announce themselves.
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { apiMessage } from "@/lib/api";
-import { type HeldStay, readStay } from "./stay-funnel";
+import { type HeldStay, isSettled, readStay } from "./stay-funnel";
+import { useHoldPresence } from "./use-hold-presence";
 
 /** How often `confirming/` asks again while it waits for the callback. */
 const POLL_INTERVAL_MS = 2_000;
@@ -138,6 +146,14 @@ export function useHeldStay(
       }
     };
   }, [bookingId, attempt]);
+
+  // Every screen that reads a hold also keeps it alive, and it happens here so
+  // that no screen has to remember to — `use-hold-presence.ts` argues why that is
+  // the whole rule rather than a habit three components share. It runs only while
+  // there is a hold to keep: until the first read answers there is nothing to say
+  // anything about, and once the stay is paid for or released there is no
+  // deadline left for presence to bring forward.
+  useHoldPresence(bookingId, stay !== undefined && !isSettled(stay));
 
   return { stay, loading, refusal, gaveUp, reread };
 }

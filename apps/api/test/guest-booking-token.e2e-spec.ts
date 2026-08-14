@@ -893,15 +893,20 @@ describe("the room a guest moves off", () => {
 
 describe("the funnel saying the guest is still there", () => {
   it("records a sighting against the stay the credential names", async () => {
-    // Nothing but the url and the cookie, which is the whole case: the funnel
-    // pings from a browser nobody is signed in on, and the route is under
-    // `/bookings` precisely so the credential is attached to it at all.
+    // Nothing but the url, the cookie and `leaving` — which is the whole case:
+    // the funnel pings from a browser nobody is signed in on, and the route is
+    // under `/bookings` precisely so the credential is attached to it at all.
+    //
+    // `leaving` is sent rather than left out, and the heartbeats below say it
+    // too, because that is what the browser puts on the wire: the id is in the
+    // path, so a ping that omitted the flag would be a request with no body and
+    // therefore no content type — the one shape `JsonRequestGuard` refuses.
     const stay = await aStay();
     const taken = await lastSeenOn(stay.id);
 
     const response = await stay.browser
       .post(presencePath(stay.id))
-      .send({})
+      .send({ leaving: false })
       .expect(200);
 
     expect(response.body).toEqual({ bookingId: stay.id });
@@ -934,7 +939,10 @@ describe("the funnel saying the guest is still there", () => {
     expect(secondsAgo).toBeLessThan(120);
 
     // And a guest who was only reloading takes it straight back.
-    await stay.browser.post(presencePath(stay.id)).send({}).expect(200);
+    await stay.browser
+      .post(presencePath(stay.id))
+      .send({ leaving: false })
+      .expect(200);
 
     expect((await lastSeenOn(stay.id))!.getTime()).toBeGreaterThan(
       seen!.getTime(),
@@ -950,7 +958,10 @@ describe("the funnel saying the guest is still there", () => {
     const granted = await expiryOn(stay.id);
 
     for (let ping = 0; ping < 3; ping += 1) {
-      await stay.browser.post(presencePath(stay.id)).send({}).expect(200);
+      await stay.browser
+        .post(presencePath(stay.id))
+        .send({ leaving: false })
+        .expect(200);
     }
 
     expect((await expiryOn(stay.id))!.getTime()).toBe(granted!.getTime());
@@ -965,7 +976,10 @@ describe("the funnel saying the guest is still there", () => {
     const theirs = await aStay();
     const before = await lastSeenOn(theirs.id);
 
-    await mine.browser.post(presencePath(theirs.id)).send({}).expect(403);
+    await mine.browser
+      .post(presencePath(theirs.id))
+      .send({ leaving: false })
+      .expect(403);
     await mine.browser
       .post(presencePath(theirs.id))
       .send({ leaving: true })
@@ -993,7 +1007,10 @@ describe("the funnel saying the guest is still there", () => {
 
     const untouched = await lastSeenOn(neighbour.body.id);
 
-    await mine.post(presencePath(held.body.id)).send({}).expect(200);
+    await mine
+      .post(presencePath(held.body.id))
+      .send({ leaving: false })
+      .expect(200);
     await mine
       .post(presencePath(held.body.id))
       .send({ leaving: true })
@@ -1026,6 +1043,14 @@ describe("the funnel saying the guest is still there", () => {
         .send("")
         .expect(401);
     }
+
+    // And a request with no body at all, which carries no content type either
+    // and is refused by the same guard. It is here because it is the shape this
+    // route was reached in for real: `leaving` was defaulted, every other field
+    // of the input is in the path, and the funnel's heartbeat therefore went up
+    // with nothing in it and was refused every twenty seconds. The flag is
+    // required now, and this is the answer that made it required.
+    await stay.browser.post(presencePath(stay.id)).expect(401);
 
     expect((await lastSeenOn(stay.id))!.getTime()).toBe(before!.getTime());
   });

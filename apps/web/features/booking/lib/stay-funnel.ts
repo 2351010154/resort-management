@@ -8,12 +8,12 @@
 // rather than from whatever the tab was carrying, which is what makes refresh
 // and the browser's back button work on steps that can expire.
 //
-// **The contact pair goes up just after the hold**, on its own door. The API's
-// funnel door takes the room and the nights and asks nobody who they are — a
-// hold that expires unpaid is inventory coming back, and the property has
-// nothing to send anybody about it — so the pair is written against the stay
-// that exists. A stay taken on the web is still one the property has to be able
-// to write to; what changed is which request carries it. It is an address and a
+// **The contact pair goes up after the hold, not with it.** It used to travel
+// with the hold, which meant the room step asked a guest for their name and
+// address in order to reserve twenty minutes of a room they had not yet seen a
+// total for. What has to have somebody to write to is a stay that gets
+// confirmed, so the pair is collected on the review screen and written through
+// `saveContact` — one call, one press before the money. It is an address and a
 // name and nothing else; the phone is checked against a document at check-in.
 //
 // **The amount is never sent up.** `createHold` takes the room, the nights, the
@@ -30,7 +30,7 @@
 // to decide what is *true*.
 
 import type { RatePlanCode, RoomTypeCode, StayDate } from "@mariva/shared";
-import { api } from "@/lib/api";
+import { api, API_URL, apiMessage } from "@/lib/api";
 
 /**
  * A stay as the API answers it — the shape every screen after the hold reads.
@@ -61,10 +61,11 @@ export function stayTotal(stay: HeldStay): bigint {
 /**
  * Who the confirmation goes to, and what to call them.
  *
- * Named against the hold rather than beside the request that takes it —
- * `contract/booking.ts` moved the ask off the funnel's creating door, so what
- * carries the pair is {@link holdStay}'s second call. A walk-in the desk takes
- * has nobody to write to and is asked for neither.
+ * Collected after the hold rather than at it — `contract/booking.ts` argues the
+ * move at `createHold` and `setOwnHoldContact`. The short of it: a hold that
+ * expires unpaid is inventory coming back and the property has nothing to send
+ * anybody about it, so the obligation belongs one press before the money rather
+ * than one press before the room is reserved.
  *
  * No phone. It is checked against a document at check-in, where the desk already
  * asks for it, and a number typed into a funnel is neither verified nor needed
@@ -77,6 +78,19 @@ export interface StayContact {
 
 /** Nothing entered yet — the value a screen starts a fresh funnel from. */
 export const NO_CONTACT: StayContact = { email: "", name: "" };
+
+/**
+ * The pair already on the stay, as a form's starting value.
+ *
+ * The API answers both as nullable, because a stay the desk took has neither and
+ * a hold has neither until the review screen writes them. A screen wants two
+ * strings either way, so the nulls become the empty fields they mean rather than
+ * `value={null}` and a React warning about an input changing from uncontrolled
+ * to controlled halfway down the funnel.
+ */
+export function stayContact(stay: HeldStay): StayContact {
+  return { email: stay.contactEmail ?? "", name: stay.contactName ?? "" };
+}
 
 /**
  * Whether the pair is answered well enough to send.
@@ -102,7 +116,6 @@ export interface StayRequest {
   readonly plan: RatePlanCode;
   readonly adults: number;
   readonly childAges: readonly number[];
-  readonly contact: StayContact;
 }
 
 /**
@@ -112,20 +125,9 @@ export interface StayRequest {
  * cannot both reach a payment page for the last room. What comes back carries
  * the id the next three screens are addressed by and the expiry they count
  * down to.
- *
- * **Two calls, because the hold's door no longer takes a contact.** The API asks
- * for the room first and for who is taking it second — `contract/booking.ts`
- * argues the move — so the pair goes up against the stay that now exists rather
- * than beside the request that creates it. The second call is what the screens
- * read back, since it answers the same stay with the pair written on it.
- *
- * The order is the safe one: a hold that is refused never names anybody, and a
- * contact that fails to save leaves a hold the guest still owns and the funnel
- * can ask again on. Nothing here reserves a room in the guest's name before the
- * property has agreed to hold it.
  */
 export async function holdStay(request: StayRequest): Promise<HeldStay> {
-  const held = await api.booking.createHold({
+  return await api.booking.createHold({
     roomType: request.roomType,
     // The nine characters the contract's codec decodes back into a
     // `CalendarDate` on the other side. A `Date` here would be an instant, and
@@ -136,13 +138,102 @@ export async function holdStay(request: StayRequest): Promise<HeldStay> {
     adults: request.adults,
     childAges: [...request.childAges],
   });
+}
 
+/**
+ * The two sentences the funnel writes itself, for the failures that carry none.
+ *
+ * The API's own refusals are preferred over both — `booking.service.ts` writes
+ * them for the person who will read them, and only that side knows how long a
+ * hold lasts or which night was short. These are for what never reached a
+ * handler: a network that was not there, an API that is not up, a refusal whose
+ * body arrived empty.
+ *
+ * Copy per `design-foundations.md` §6 — plain, blameless, no apology theatre.
+ * Neither of them quotes a number, and that is deliberate: the hold TTL and the
+ * limiter's window are the property's configuration, and a figure hard-coded
+ * into this app would be a hotel fact invented in the browser.
+ */
+const HOLD_MESSAGES = {
+  waiting:
+    "Rooms cannot be held from here at the moment. Nothing has been charged — try again in a few minutes.",
+  failed:
+    "The room could not be held just now. Nothing has been charged — try again in a moment.",
+} as const;
+
+/**
+ * Why the room was not held, in the one line the room step has to say it in.
+ *
+ * **The distinction is a wait against a fault, and it is read off the status.**
+ * The same pattern the sign-in screens keep: 429 on this door is the property
+ * saying "not yet" — three of them, and every one of them is a caller who asked
+ * more often, or held more rooms, or took more of a night than an address
+ * without an account may. None of that is broken and none of it is the guest's
+ * doing, so the funnel must not answer it with "try again in a moment", which is
+ * both wrong about the wait and shaped like an outage.
+ *
+ * What it does instead is hand the refusal through whole. Those sentences name
+ * the wait in minutes and, where signing in is a real escape, they say so — and
+ * the only side that can say either is the one holding the configuration. A
+ * message invented here would be a second, vaguer opinion about the property's
+ * own rules.
+ *
+ * Everything else keeps the funnel's own fallback, because a 500, a CORS pair
+ * that does not agree and a dead network are faults rather than answers, and
+ * "nothing has been charged" is the fact a guest wants first.
+ */
+export function holdRefusal(error: unknown): string {
+  return apiMessage(
+    error,
+    isRefusedForNow(error) ? HOLD_MESSAGES.waiting : HOLD_MESSAGES.failed,
+  );
+}
+
+/**
+ * Whether the API answered "not yet" rather than failing.
+ *
+ * Read off the status the transport carries and never off the sentence, for the
+ * reason `sign-in.ts` gives at the same test: the status is the API's configured
+ * behaviour stated once, and re-deriving it by matching words in a body is a
+ * second thing that can be wrong — and it would break the first time a refusal
+ * was reworded, which is exactly what has just happened to all three of them.
+ *
+ * Duck-typed rather than instance-checked. oRPC's error class is the transport's
+ * and `packages/api-client` is deliberately the only place this app depends on
+ * it; what crosses into here is an object carrying the status the API answered
+ * with, and a shape check is what reads it without pulling the package in.
+ */
+function isRefusedForNow(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "status" in error &&
+    (error as { status?: unknown }).status === 429
+  );
+}
+
+/**
+ * Names who the confirmation goes to, against a hold the guest already has.
+ *
+ * Called by the review screen immediately before the payment attempt is opened,
+ * and by nothing else. Two round trips rather than one because they are two
+ * different writes to two different resources — the stay's contact and a payment
+ * attempt against it — and folding the pair into `openAttempt` would put a
+ * guest's address in the body of the call that reaches the gateway.
+ *
+ * Answers with the stay, so the screen that called it keeps reading the API
+ * rather than the value it just typed.
+ */
+export async function saveContact(
+  stay: HeldStay,
+  contact: StayContact,
+): Promise<HeldStay> {
   return await api.booking.setOwnHoldContact({
-    bookingId: held.id,
+    bookingId: stay.id,
     // Trimmed here rather than at the input, so the field a guest is typing in
     // never has characters removed under the cursor.
-    contactEmail: request.contact.email.trim(),
-    contactName: request.contact.name.trim(),
+    contactEmail: contact.email.trim(),
+    contactName: contact.name.trim(),
   });
 }
 
@@ -157,6 +248,75 @@ export async function holdStay(request: StayRequest): Promise<HeldStay> {
  */
 export async function readStay(bookingId: string): Promise<HeldStay> {
   return await api.booking.readOwnHold({ bookingId });
+}
+
+/**
+ * Says the guest is still standing on this hold.
+ *
+ * **What it is for.** A hold used to cost the property its whole TTL whether the
+ * guest was reading the total or had closed the tab eight minutes ago. The API
+ * releases a hold at the earlier of its TTL and a grace after the last of these,
+ * so a funnel that keeps saying it is open keeps its room and one nobody is
+ * looking at gives it back in a couple of minutes.
+ *
+ * **It cannot buy the guest longer than the property gave them.** The deadline
+ * the API takes is the *earlier* of the two, so a tab left open overnight holds
+ * its room for one TTL exactly as an abandoned one does. Nothing this sends is
+ * an argument the funnel can make for more time.
+ *
+ * A failure is not a caller's problem and is deliberately not reported to one:
+ * see {@link use-hold-presence}. The grace is generous against the interval
+ * precisely so that a few of these going missing costs nobody a room.
+ */
+export async function markPresence(bookingId: string): Promise<void> {
+  // `leaving` is sent rather than left to a default, and the contract requires
+  // it for that reason: with the id in the path it is the only thing left to put
+  // in a body, and a request with no body carries no `content-type` — which is
+  // the one shape `json-request.guard.ts` refuses. Saying it is what makes this
+  // a JSON request at all.
+  await api.booking.markHoldPresence({ bookingId, leaving: false });
+}
+
+/**
+ * Says the guest has gone, on the way out of the page.
+ *
+ * **`sendBeacon` and not `fetch`, because the page is leaving.** A request
+ * started in a `pagehide` handler is abandoned with the document unless the
+ * browser has been told to keep it; the beacon is that instruction, and it sends
+ * the booking cookie with it — which this needs, because a release keyed on
+ * nothing but an id in a url would let any page drop a hold it could name.
+ *
+ * **A `Blob` typed `application/json`, deliberately.** The route refuses the
+ * three content types a cross-site `<form>` can post, so a beacon that took the
+ * default type would be refused on arrival — and the type is also what forces
+ * this into a preflight the API's origin allowlist answers, which is the whole
+ * of why the route can be trusted to a cookie the browser attaches by itself.
+ *
+ * **It is an optimisation and never the mechanism.** Unload events do not fire
+ * on a crash, a force-quit, a phone killing a backgrounded tab or a network that
+ * has already gone, which are exactly the departures this feature exists for —
+ * and a preflight started as a document is torn down is one the browser may not
+ * finish. So this only shortens what the guest's silence would have achieved
+ * anyway: the ping stops, the grace runs out, and the sweep takes the hold.
+ *
+ * **It marks a departure; it does not release anything.** The API backdates the
+ * last sighting and its sweep does the rest, so the rules about when a room may
+ * be given back — never one with money in flight, always through the transition
+ * that puts the nights back — are stated in one place instead of once per caller.
+ * The room comes back within a sweep's cadence rather than instantly, which is
+ * the trade.
+ */
+export function markDeparture(bookingId: string): void {
+  if (typeof navigator?.sendBeacon !== "function") {
+    return;
+  }
+
+  navigator.sendBeacon(
+    `${API_URL}/bookings/holds/${encodeURIComponent(bookingId)}/presence`,
+    new Blob([JSON.stringify({ leaving: true })], {
+      type: "application/json",
+    }),
+  );
 }
 
 /**

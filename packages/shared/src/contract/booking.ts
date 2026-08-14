@@ -391,9 +391,19 @@ export const ownHoldInput = z.object({
  */
 export const holdPresenceInput = z.object({
   bookingId: z.uuid(),
-  // Defaulted, so an ordinary heartbeat sends the path and nothing else. The
-  // browser that has something to add is the one that is leaving.
-  leaving: z.boolean().default(false),
+  // **Required, and it used to be defaulted.** Every other field of this input
+  // is in the path, so a defaulted `leaving` left the ordinary heartbeat with
+  // nothing to put in a body — and a request with no body carries no
+  // `content-type`, which `json-request.guard.ts` refuses because that is the
+  // shape a cross-site form post has. The heartbeat 401'd every twenty seconds,
+  // presence was never recorded, and holds fell due a grace after they were
+  // taken with their guest still reading the page.
+  //
+  // Making it required is what keeps the two ends honest: the body cannot
+  // vanish on the wire while both sides still typecheck, and a caller that
+  // forgets the field fails to compile rather than at a guard. It is a boolean
+  // either way — *still here* is `false` and the tab closing is `true`.
+  leaving: z.boolean(),
 });
 
 /**
