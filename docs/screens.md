@@ -79,14 +79,23 @@ redirect from being mistaken for the payment result.
 |---|---|---|
 | Search | `/booking` | Choose stay dates and confirm the stay |
 | Room choice | `/booking?…&step=rooms` | Compare available room types and choose one |
-| Details | `/booking/<hold>/details` | Provide occupants, rate plan and stay options |
-| Payment | `/booking/<hold>/payment` | Choose and initiate payment |
+| Details | `/booking/<hold>/details` | Review the stay as the property priced it, give a name and an address, and choose how to pay |
+| Payment | `/booking/<hold>/payment` | Initiate payment — reached by a bookmark or a browser back, not by the funnel |
 | Gateway return | `/booking/<hold>/confirming` | Wait for the authoritative payment notification |
 | Confirmation and stay detail | `/bookings/<reference>` | View the resulting booking, return to it later, and act on the stay — cancel, provide the identity document, leave feedback — as its state allows |
 
 The hold identifier appears only after inventory has been reserved. Confirmation
 and later stay detail share one URL because they are the same guest-owned
 resource, shown at different moments.
+
+Details is where the guest is first asked anything about themselves. The steps
+before it are about rooms and nights, and the hold's door requires no name — a
+hold that expires unpaid is inventory coming back, and the property has nothing
+to send anybody about it. So the name and the email address are collected on the
+review screen, beside the total and one press from the gateway, and that press
+writes them and leaves for the provider in the same action. Payment keeps its own
+URL because the guest still has to be able to come back to one — a browser back
+out of the gateway, or a bookmark — but the funnel no longer walks through it.
 
 ### Account
 

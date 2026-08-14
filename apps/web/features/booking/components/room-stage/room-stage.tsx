@@ -83,19 +83,18 @@ import {
   roundVndForDisplay,
 } from "@mariva/shared";
 import { m, useReducedMotion } from "motion/react";
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties } from "react";
 import { useRef } from "react";
 import {
   roomSwapMotion,
   stillMotion,
 } from "@/features/booking/lib/booking-motion";
 import { planName, planTerm } from "@/features/booking/lib/rate-plans";
-import { aspectMark } from "@/features/booking/lib/room-icons";
+import { markedRoomFacts } from "@/features/booking/lib/room-facts";
 import {
   ROOM_AMENITIES,
   type RoomType,
 } from "@/features/booking/lib/room-types";
-import type { StayContact } from "@/features/booking/lib/stay-funnel";
 import { Money } from "../money";
 import styles from "./room-stage.module.css";
 
@@ -106,8 +105,6 @@ export function RoomStage({
   nights,
   note,
   holding,
-  contact,
-  onContactChange,
   onContinue,
 }: {
   readonly type: RoomType;
@@ -135,17 +132,6 @@ export function RoomStage({
    * has; a caller with no request to make renders the button as it always was.
    */
   readonly holding?: boolean;
-  /**
-   * Who the confirmation goes to — the one thing this plate asks of the guest.
-   *
-   * It sits with `Continue` rather than on a step of its own, because it is the
-   * price of that press: the API's funnel door requires an address and a name,
-   * and a screen that took the hold first and asked afterwards would be holding
-   * a room against nobody. Two fields, no phone, and nothing that looks like an
-   * account — the guest is buying a stay, not registering.
-   */
-  readonly contact: StayContact;
-  readonly onContactChange: (contact: StayContact) => void;
   readonly onContinue: () => void;
 }) {
   const reduced = useReducedMotion();
@@ -160,51 +146,10 @@ export function RoomStage({
    */
   const factsPane = useRef<HTMLDivElement>(null);
 
-  // The four facts, in the order a guest asks them: how many of us, how big,
-  // what do we sleep in, what do we look at.
-  //
-  // **Value first, then the word for it.** The value is what is being read —
-  // "2 GUESTS", "28 m²" — and the term under it says which question that answers.
-  // Printed the other way round, the eye runs down a column of labels and has to
-  // land on each one before reaching anything it wanted.
-  //
-  // **All four are always drawn.** The old strip dropped the outlook for the two
-  // types the traced icon set has no picture of, which left the Superior — the
-  // first room every guest lands on — showing two marks in a plate sized for
-  // four. `aspectMark` returns a neutral window glyph in that case and the word
-  // beside it carries the fact; `room-icons.ts` is where that trade is argued.
-  //
-  // The extra bed is not one of them, and it no longer costs anything either —
-  // `property-and-tariff.md` §1 makes the bed that closes a type's occupancy gap
-  // free, because the advertised maximum is a promise and the bed is how the
-  // property keeps it. It stays off the grid for the reason it always was: it is
-  // true of one type of the five, and a fact that appears and disappears across
-  // them is a grid that changes shape under a guest walking the list. It is
-  // stated as a line under the four instead, where a condition can sit in a
-  // sentence.
-  const facts: readonly Fact[] = [
-    {
-      icon: "guests",
-      value:
-        type.maxOccupancy === 1 ? "1 guest" : `${type.maxOccupancy} guests`,
-      term: "Maximum",
-    },
-    {
-      icon: "size",
-      value: `${type.squareMetres} m²`,
-      term: "Room size",
-    },
-    {
-      icon: "bed",
-      value: type.bedding,
-      term: "The bed",
-    },
-    {
-      icon: aspectMark(type.aspect),
-      value: type.aspect,
-      term: "View",
-    },
-  ];
+  // The four facts, and the review screen prints the same four from the same
+  // list — `room-facts.ts` is where the order and the wording are argued, and
+  // where the extra bed is argued out of them.
+  const facts = markedRoomFacts(type);
 
   return (
     // **The plate fades itself, and it has to be this element that does it.**
@@ -295,10 +240,13 @@ export function RoomStage({
                     different unit. So the value is separated from the term by
                     weight and colour instead, which is the same read without
                     rewriting an SI symbol. */}
-                <div className={styles.factLines}>
-                  <dd className={styles.factValue}>{fact.value}</dd>
-                  <dt className={styles.factTerm}>{fact.term}</dt>
-                </div>
+                {/* `dd` and `dt` sit directly in the one wrapping `div`. A
+                    `dl` may group each pair in a single `div` and no deeper, so
+                    the stacked column these two read as is made by grid
+                    placement in the stylesheet rather than by a second element
+                    — which is the nesting `dlitem` was failing on. */}
+                <dd className={styles.factValue}>{fact.value}</dd>
+                <dt className={styles.factTerm}>{fact.term}</dt>
               </div>
             ))}
           </dl>
@@ -351,43 +299,12 @@ export function RoomStage({
           <span className={styles.included}>VAT and service included.</span>
         </p>
 
+        {/* Nothing is asked of the guest here any more, and that is the whole
+            of what this plate now does: state the total, and offer the one press
+            that takes the room. The name and the address moved to the review
+            screen — `stay-funnel.ts` says why — so a guest still comparing rooms
+            is not being asked who they are. */}
         <div className={styles.act}>
-          {/* Labelled rather than placeheld. A placeholder is the label until
-              the field has anything in it, and then it is gone — which is
-              exactly when a guest checking what they typed needs it. */}
-          <div className={styles.contact}>
-            <label className={styles.field}>
-              <span className={`${styles.fieldTerm} caps-label`}>Name</span>
-              <input
-                autoComplete="name"
-                className={styles.input}
-                disabled={holding}
-                onChange={(event) =>
-                  onContactChange({ ...contact, name: event.target.value })
-                }
-                type="text"
-                value={contact.name}
-              />
-            </label>
-            <label className={styles.field}>
-              <span className={`${styles.fieldTerm} caps-label`}>Email</span>
-              <input
-                autoComplete="email"
-                className={styles.input}
-                disabled={holding}
-                // `inputMode` and not `type="email"`, so the browser's own
-                // bubble does not pre-empt the line under the button that this
-                // screen answers every other refusal on.
-                inputMode="email"
-                onChange={(event) =>
-                  onContactChange({ ...contact, email: event.target.value })
-                }
-                type="text"
-                value={contact.email}
-              />
-            </label>
-          </div>
-
           <button
             className={styles.continue}
             data-stage-continue
@@ -405,33 +322,3 @@ export function RoomStage({
     </m.div>
   );
 }
-
-/**
- * One fact: which glyph marks it, what it is called, and what it says.
- *
- * **The icon is a slug, not a path.** The list builds
- * `/images/booking/icons/<slug>.svg` from it, so the set a fact can be marked
- * with is a directory rather than a string anyone may write.
- *
- * The glyph is painted as **a CSS mask over `currentColor`, not an `<img>`** —
- * `funnel-nav.module.css` paints the wordmark this way and the reason carries:
- * it is drawn in the type colour it inherits, so it is correct on the first
- * frame, correct if the ground ever changes, and needs no loading state. An
- * `<img>` would be a fixed grey rectangle that happens to look right on ivory
- * today.
- *
- * Most files are traced from line-art PNGs by `trace-room-icons.mjs`, which also
- * records that they are **interim third-party icons** standing in until the
- * property has a drawn set of its own — the same footing the room photographs
- * are on. `guests` and `view` are hand-drawn in the same weight, because the
- * traced set has neither and the facts grid needs both to be four wide on every
- * type.
- */
-type Fact = {
-  /** Basename under `public/images/booking/icons/`, without the extension. */
-  readonly icon: string;
-  /** What is being read — printed first, in caps. */
-  readonly value: ReactNode;
-  /** Which question the value answers — printed under it, quietly. */
-  readonly term: string;
-};

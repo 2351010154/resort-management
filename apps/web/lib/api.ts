@@ -32,8 +32,15 @@ import { type ApiClient, createApiClient } from "@mariva/api-client";
  * has copied no `.env` at all still gets the API this repository's own dev
  * script starts. Read at module scope because `NEXT_PUBLIC_` values are
  * substituted at build time — there is nothing to re-read per call.
+ *
+ * Exported for the one call this app makes without the client below it: the
+ * beacon a closing tab sends to give its hold back, which has to be dispatched
+ * by `navigator.sendBeacon` rather than by `fetch` to survive the page going
+ * away. `stay-funnel.ts` is that call, and it is the only reason an address the
+ * client already holds is also a value.
  */
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+export const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
 export const api: ApiClient = createApiClient({ url: API_URL });
 
