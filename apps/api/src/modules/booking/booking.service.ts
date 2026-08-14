@@ -940,6 +940,16 @@ export class BookingService {
    * the desk took — a walk-in is somebody at the counter, and there is nowhere
    * to write. Narrowed rather than asserted: an assertion would turn the
    * ordinary desk booking into a 500 on the payment callback.
+   *
+   * **A stay somebody has already claimed is mailed no link at all.** Attaching
+   * a booking to an account gives up its anonymous credential, and
+   * `booking_revokes_anonymous_access_only_with_an_account` is what makes this
+   * column being set mean the stay has an owner. Both links would be wrong for
+   * it, and wrong in different ways: `liveLink` refuses a re-issue on that same
+   * column, so the mail would advertise a credential nobody can spend, and an
+   * account link would offer to create the account the stay already has. What
+   * is left is the page itself, which its owner reaches by signing in — which
+   * is the way in the guest already took to claim it.
    */
   private async announce(exec: DbExecutor, row: BookingRow): Promise<void> {
     const to = row.contactEmail;
@@ -949,14 +959,21 @@ export class BookingService {
       return;
     }
 
-    const stayLink = await this.bookingTokens.mintStayLink(exec, {
-      bookingId: row.id,
-      // Property-local midnight of the departure date, which is the instant the
-      // cookie issued at the hold was measured from — `booking.controller.ts`
-      // performs the same crossing, so the mailed copy and the browser's copy
-      // of one credential die together.
-      checkOut: parseDate(row.checkOutDate).toDate(PROPERTY_TIME_ZONE),
-    });
+    const claimed = row.anonAccessRevokedAt !== null;
+
+    const stayUrl = claimed
+      ? this.bookingUrl(row.reference)
+      : this.stayUrl(
+          row.reference,
+          await this.bookingTokens.mintStayLink(exec, {
+            bookingId: row.id,
+            // Property-local midnight of the departure date, which is the
+            // instant the cookie issued at the hold was measured from —
+            // `booking.controller.ts` performs the same crossing, so the mailed
+            // copy and the browser's copy of one credential die together.
+            checkOut: parseDate(row.checkOutDate).toDate(PROPERTY_TIME_ZONE),
+          }),
+        );
 
     // The one branch in the whole flow, and the only place it is safe. The two
     // bodies differ, and the difference is delivered to the address being asked
@@ -964,7 +981,10 @@ export class BookingService {
     // enumeration oracle, because a hold is unauthenticated and anyone can take
     // one naming somebody else's address. `booking-confirmation-email.ts` and
     // `registered-address.ts` both carry the argument.
-    const registered = await accountForAddress(exec, to);
+    //
+    // Asked only of a stay nobody has claimed. A claimed one has an account
+    // already, whatever this address would answer.
+    const registered = claimed || (await accountForAddress(exec, to));
 
     const createAccountUrl = registered
       ? undefined
@@ -977,7 +997,7 @@ export class BookingService {
       to,
       guestName,
       reference: row.reference,
-      stayUrl: this.stayUrl(row.reference, stayLink),
+      stayUrl,
       createAccountUrl,
     };
 
@@ -1006,15 +1026,22 @@ export class BookingService {
    * `use-presented-link.ts` takes it back off the moment it has been read.
    */
   private stayUrl(reference: string, link: string): string {
-    return `${this.env.WEB_ORIGIN}/bookings/${encodeURIComponent(
-      reference,
-    )}#stay=${encodeURIComponent(link)}`;
+    return `${this.bookingUrl(reference)}#stay=${encodeURIComponent(link)}`;
   }
 
   private accountUrl(reference: string, link: string): string {
-    return `${this.env.WEB_ORIGIN}/bookings/${encodeURIComponent(
-      reference,
-    )}/account#invitation=${encodeURIComponent(link)}`;
+    return `${this.bookingUrl(reference)}/account#invitation=${encodeURIComponent(
+      link,
+    )}`;
+  }
+
+  /**
+   * The stay's own page, carrying nothing — where a booking that already has an
+   * owner is pointed, because the way into it is the account rather than a
+   * credential in a message.
+   */
+  private bookingUrl(reference: string): string {
+    return `${this.env.WEB_ORIGIN}/bookings/${encodeURIComponent(reference)}`;
   }
 
   /**
