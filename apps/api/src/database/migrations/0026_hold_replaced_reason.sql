@@ -1,0 +1,1 @@
+ALTER TYPE "public"."cancellation_reason" ADD VALUE 'HOLD_REPLACED';

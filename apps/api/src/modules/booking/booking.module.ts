@@ -17,6 +17,11 @@ import {
   HoldRateLimitGuard,
 } from "./hold-rate-limit.guard.js";
 import { FOLIO_PORT } from "./ports/folio.port.js";
+import {
+  DEFAULT_PRESENCE_RATE_LIMIT,
+  PRESENCE_RATE_LIMIT_POLICY,
+  PresenceRateLimitGuard,
+} from "./presence-rate-limit.guard.js";
 import { SearchController } from "./search.controller.js";
 import { SearchService } from "./search.service.js";
 import { StayQuoteService } from "./stay-quote.service.js";
@@ -107,6 +112,12 @@ import { StayQuoteService } from "./stay-quote.service.js";
     // so a suite can state a small limit instead of taking thirty rooms off the
     // shelf to prove the refusal.
     { provide: HOLD_RATE_LIMIT_POLICY, useValue: DEFAULT_HOLD_RATE_LIMIT },
+    // The presence ping's own limiter and its own figure. Two policies rather
+    // than one, because the two doors count different acts: a room taken off the
+    // shelf, and a page saying it is still open. Sharing the hold's allowance
+    // would have one funnel's heartbeats spend the requests it needs to book.
+    PresenceRateLimitGuard,
+    { provide: PRESENCE_RATE_LIMIT_POLICY, useValue: DEFAULT_PRESENCE_RATE_LIMIT },
   ],
   exports: [AssignmentService, BookingService, BusinessDateService],
 })

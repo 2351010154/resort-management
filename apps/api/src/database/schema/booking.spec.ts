@@ -54,7 +54,7 @@ describe("the lifecycle vocabulary", () => {
     expect(bookingStateSchema.safeParse(invented).success).toBe(false);
   });
 
-  it("carries the six cancellation reasons as a column, not as states", () => {
+  it("carries every cancellation reason as a column, not as states", () => {
     expect(cancellationReasonEnum.enumValues).toEqual([...CANCELLATION_REASONS]);
     expect(cancellationReasonSchema.options).toEqual([...CANCELLATION_REASONS]);
   });

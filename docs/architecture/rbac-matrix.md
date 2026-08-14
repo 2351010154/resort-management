@@ -23,11 +23,12 @@ Two things the implementation had to settle that this document did not say:
   housekeeper, whose column says `—`. The role columns on those rows describe
   what a screen should offer, not a wall; enforcing them would refuse a member of
   staff a page any stranger can load.
-- **Three of the guest's rows accept a credential that is not a session.** A
-  guest books without an account, so *Read own booking*, *Cancel own booking* and
-  *Open a gateway payment attempt* are reachable by a Better Auth session **or**
-  by the booking-scoped token issued when the hold was taken. The three are the
-  funnel end to end — hold the room, pay for it, change your mind — and a token
+- **Four of the guest's rows accept a credential that is not a session.** A
+  guest books without an account, so *Read own booking*, *Name the contact on own
+  hold*, *Cancel own booking* and *Open a gateway payment attempt* are reachable
+  by a Better Auth session **or** by the booking-scoped token issued when the
+  hold was taken. The four are the funnel end to end — hold the room, say where
+  to write about it, pay for it, change your mind — and a token
   admitted to two of them would only move the sign-up wall one screen later. It
   opens exactly one stay and satisfies no other row; §1's "no token opens both
   realms" is unaffected, because it is not a staff credential and it is not a
@@ -103,6 +104,8 @@ Legend: ✅ full · 👁 read-only · ⚠ conditional, see notes · — denied
 | Availability + rate search | ✅ | ✅ | — | 👁 | ✅ | ✅ | Public, unauthenticated |
 | Create own booking | ✅ | ✅ | — | — | ✅ | ✅ | Public, unauthenticated; staff create on behalf; a hold is rate-limited, capped at three live per caller, and capped as a share of each night while the caller has no account — `booking-state-machine.md` §3 |
 | Read own booking / stay history | ⚠ | — | — | — | — | — | Own records only; session or booking token |
+| Name the contact on own hold | ⚠ | — | — | — | — | — | Own hold only, while `HELD`; session or booking token. The pair the review screen collects — `booking-state-machine.md` §2 |
+| Keep own hold alive | ⚠ | — | — | — | — | — | Own hold only; session or booking token. The funnel saying the guest is still there, so a hold dies at the earlier of its TTL and a grace after the last sighting. Cooperative and never a defence — it can only shorten a hold, and no cap was relaxed for it: `booking-state-machine.md` §3 |
 | Cancel own booking | ⚠ | — | — | — | — | — | Own, penalty per policy; session or booking token |
 | Own profile, loyalty, VIP tier | ⚠ | 👁 | — | — | 👁 | 👁 | |
 | Upload own ID scan | ⚠ | — | — | — | — | — | |

@@ -34,16 +34,23 @@ export type BookingState = z.infer<typeof bookingStateSchema>;
  * Why a booking ended without a stay — `booking-state-machine.md` §1.
  *
  * The audit record of why the stay ended, and not an input to what it costs.
- * `HOLD_EXPIRED` is written by the TTL sweep and the other five by whoever
- * cancelled. `property-and-tariff.md` §4's grid prices the *event* against the
- * rate plan and reads no reason at all, which is what lets these six stay a
- * column rather than six states: adding one changes what the record says and
- * changes no price.
+ * Two of them are written by the system itself — `HOLD_EXPIRED` by the TTL sweep
+ * and `HOLD_REPLACED` by the funnel — and the other five by whoever cancelled.
+ * `property-and-tariff.md` §4's grid prices the *event* against the rate plan and
+ * reads no reason at all, which is what lets these stay a column rather than
+ * seven states: adding one changes what the record says and changes no price.
  *
  * Waiving a cell is the other half of that, and it is an authority rather than a
  * reason — `MANAGER` and above, recorded on the booking by whoever granted it.
  * So a guest request may be waived and a property error may be charged, and
  * neither is decided by the code in this list.
+ *
+ * `HOLD_REPLACED` is the guest who changed their mind about a room type, and it
+ * is deliberately not `GUEST_REQUEST`. They cancelled nothing: they moved, and
+ * the funnel releases the room they moved off in the same transaction it takes
+ * the new one — `booking.service.ts`'s `createHold`. Filed as a guest
+ * cancellation it would make the property's cancellation rate a function of how
+ * many room types people compare before booking.
  */
 export const CANCELLATION_REASONS = [
   "HOLD_EXPIRED",
@@ -52,6 +59,7 @@ export const CANCELLATION_REASONS = [
   "PAYMENT_FAILED",
   "OVERBOOK_WALK",
   "FORCE_MAJEURE",
+  "HOLD_REPLACED",
 ] as const;
 
 export const cancellationReasonSchema = z.enum(CANCELLATION_REASONS);
