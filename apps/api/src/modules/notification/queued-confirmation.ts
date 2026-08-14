@@ -204,8 +204,13 @@ function keylessIn(value: unknown): KeylessLink | null {
  * this key and appended to this prefix, is the very address the guest would
  * have been sent. Anything less and the queue would be holding a message that
  * delivers a link nobody can follow.
+ *
+ * Exported for `queued-account-link.ts`, which reduces a different message with
+ * the same credential in it. Two copies of this would be two answers to the one
+ * question this file exists to answer — what a job row may contain — and the
+ * second copy is the one that would be written without the round trip.
  */
-function keyless(url: string, links: LinkCredentials): KeylessLink {
+export function keyless(url: string, links: LinkCredentials): KeylessLink {
   const fragment = url.indexOf("#");
   const separator = fragment === -1 ? -1 : url.indexOf("=", fragment);
 
@@ -237,6 +242,6 @@ function keyless(url: string, links: LinkCredentials): KeylessLink {
 }
 
 /** The address with its signature back on it. */
-function addressed(link: KeylessLink, links: LinkCredentials): string {
+export function addressed(link: KeylessLink, links: LinkCredentials): string {
   return link.url + encodeURIComponent(links.signLink(link.linkId));
 }

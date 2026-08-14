@@ -56,6 +56,10 @@
 // file is handed the token service: the key stays in the process, and the job
 // row holds an id that was already in `booking_link`.
 //
+// For the account link the desk resends: the facts again, and for the same
+// reason with one more behind it — `queued-account-link.ts` sets it out. The
+// two reductions share `keyless`, so what a job row may hold is one decision.
+//
 // No credential ever goes in a payload, either way. The vendor's API key is
 // read from the environment by `MailerService`, in the process that delivers.
 
@@ -72,11 +76,18 @@ import { BookingTokenService } from "../auth/booking-token/booking-token.service
 import { MailerService, type OutgoingEmail } from "./mailer.service.js";
 import { OpsAlertService } from "./ops-alert.service.js";
 import {
+  composeQueuedAccountLink,
+  describeQueuedAccountLink,
+  queuedAccountLink,
+  readQueuedAccountLink,
+} from "./queued-account-link.js";
+import {
   composeQueuedConfirmation,
   describeQueuedConfirmation,
   queuedConfirmation,
   readQueuedConfirmation,
 } from "./queued-confirmation.js";
+import type { AccountLinkEmailParams } from "./templates/account-link-email.js";
 import type { BookingConfirmationEmailParams } from "./templates/booking-confirmation-email.js";
 
 /** The pg-boss queue outbound mail waits on. Renaming it orphans whatever is
@@ -230,6 +241,41 @@ export class MailQueue implements BeforeApplicationShutdown {
     email: OutgoingEmail,
     confirmation?: BookingConfirmationEmailParams,
   ): Promise<void> {
+    await this.hand(
+      email,
+      confirmation ? () => queuedConfirmation(confirmation, this.links) : null,
+    );
+  }
+
+  /**
+   * The same handover for the account link the desk resends. Never rejects.
+   *
+   * A method of its own rather than a second optional parameter, because what
+   * differs is not the message but how it is reduced — and the two reductions
+   * are two files with two payload markers, which is what lets the worker tell
+   * a job row apart from a job row of the other kind. `queued-account-link.ts`
+   * argues why this message may no more sit whole in a job row than a
+   * confirmation may.
+   */
+  async enqueueAccountLink(
+    email: OutgoingEmail,
+    link: AccountLinkEmailParams,
+  ): Promise<void> {
+    await this.hand(email, () => queuedAccountLink(link, this.links));
+  }
+
+  /**
+   * Hands one message over, reduced to facts when it carries a credential.
+   *
+   * The shared half of the two methods above, and the reason `reduce` is a
+   * function rather than a value: the reduction happens inside the `try`, so a
+   * message whose links stopped being reducible ends up delivered from this
+   * process rather than stored whole. That is exactly what the catch does.
+   */
+  private async hand(
+    email: OutgoingEmail,
+    reduce: (() => object) | null,
+  ): Promise<void> {
     const boss = this.boss;
 
     if (!boss) {
@@ -239,15 +285,7 @@ export class MailQueue implements BeforeApplicationShutdown {
     }
 
     try {
-      // Reduced inside the try: a confirmation whose links stopped being
-      // reducible must end up delivered from this process rather than stored
-      // whole, and that is exactly what the catch below does.
-      await boss.send(
-        MAIL_QUEUE,
-        confirmation
-          ? { ...queuedConfirmation(confirmation, this.links) }
-          : { ...email },
-      );
+      await boss.send(MAIL_QUEUE, reduce ? { ...reduce() } : { ...email });
     } catch (error) {
       this.logger.error(
         { err: error, to: email.to, subject: email.subject },
@@ -342,15 +380,21 @@ export class MailQueue implements BeforeApplicationShutdown {
   /**
    * The message a job row stands for — read, or composed from its facts.
    *
-   * The two shapes are told apart by the marker `queued-confirmation.ts` puts
-   * on one of them, and a payload carrying neither shape is a refusal rather
-   * than half a message.
+   * The three shapes are told apart by the markers `queued-confirmation.ts` and
+   * `queued-account-link.ts` put on two of them, and a payload carrying none of
+   * the three is a refusal rather than half a message.
    */
   private messageIn(data: unknown): OutgoingEmail {
     const confirmation = readQueuedConfirmation(data);
 
-    return confirmation
-      ? composeQueuedConfirmation(confirmation, this.links)
+    if (confirmation) {
+      return composeQueuedConfirmation(confirmation, this.links);
+    }
+
+    const accountLink = readQueuedAccountLink(data);
+
+    return accountLink
+      ? composeQueuedAccountLink(accountLink, this.links)
       : readOutgoingEmail(data);
   }
 
@@ -368,9 +412,15 @@ export class MailQueue implements BeforeApplicationShutdown {
       if (confirmation) {
         return describeQueuedConfirmation(confirmation);
       }
+
+      const accountLink = readQueuedAccountLink(data);
+
+      if (accountLink) {
+        return describeQueuedAccountLink(accountLink);
+      }
     } catch {
-      // A confirmation that says what it is and then does not parse. Its `to`
-      // is still worth reporting, and the fields below are where it is.
+      // A payload that says what it is and then does not parse. Its `to` is
+      // still worth reporting, and the fields below are where it is.
     }
 
     const fields = data as Partial<Record<keyof OutgoingEmail, unknown>> | null;
