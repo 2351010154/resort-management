@@ -8,8 +8,17 @@
 // would pan the whole frame every time a guest reaches for a password manager
 // or tabs out to the browser chrome, which reads as the screen flinching. Focus
 // landing on a field is a decision; focus leaving one is not.
+//
+// **It is also where an anonymous stay gains an owner.** A guest whose address
+// already had an account is invited by their confirmation email to sign in
+// rather than to make a second one, and signing in here while the browser still
+// holds that booking's cookie is the whole of the attach: the session proves the
+// account, the cookie proves the stay, and `guest-attach.controller.ts` refuses
+// unless the credential names the booking the address says. Which booking is
+// meant travels in the address as an id — never a credential, and worth nothing
+// without the cookie beside it.
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import {
   AFTER_SIGN_IN,
@@ -17,6 +26,10 @@ import {
   signInWithEmail,
   signInWithGoogle,
 } from "@/features/auth/lib/sign-in";
+import {
+  ATTACH_ON_ARRIVAL_PARAM,
+  attachStay,
+} from "@/features/booking/lib/booking-links";
 import styles from "./login-screen.module.css";
 
 /** Which field the strip is framed on. */
@@ -34,8 +47,16 @@ export function LoginScreen({
   /** The `?error=…` Better Auth redirects here with when a Google sign-in did
    *  not complete. Read on the server and handed down — see the page. */
   googleError = null,
+  /** The stay to claim once this guest has signed in, if they came from one. */
+  claiming = null,
+  /** The same stay, on a browser that has just come back from Google already
+   *  carrying its session — so the attach is owed now rather than after a
+   *  press. */
+  claimingNow = null,
 }: {
   readonly googleError?: string | null;
+  readonly claiming?: string | null;
+  readonly claimingNow?: string | null;
 }) {
   const router = useRouter();
   const [pane, setPane] = useState<Pane>("email");
@@ -44,6 +65,65 @@ export function LoginScreen({
     googleError ? googleErrorMessage(googleError) : null,
   );
   const [pending, setPending] = useState(false);
+
+  // The stay a guest was sent back here to claim. Nothing is decided from the id
+  // itself — the API attaches only the booking the cookie on the request already
+  // proves — so a crafted one is a refusal and never somebody else's stay.
+  useEffect(() => {
+    if (claimingNow === null) {
+      return;
+    }
+
+    let live = true;
+
+    setPending(true);
+
+    void attachStay(claimingNow).then((outcome) => {
+      if (!live) return;
+
+      if (outcome.ok) {
+        router.replace(
+          `/bookings/${encodeURIComponent(outcome.stay.reference)}`,
+        );
+        // Left pending: the navigation is in flight.
+        return;
+      }
+
+      setError(outcome.message);
+      setPending(false);
+    });
+
+    return () => {
+      live = false;
+    };
+  }, [claimingNow, router]);
+
+  /**
+   * Where a signed-in guest goes, and what they take with them.
+   *
+   * The attach is made from here rather than left to the stay page, because this
+   * is the moment both credentials are on one request — and its failure is worth
+   * saying out loud: a booking cookie that expired while the guest was signing in
+   * leaves the stay unclaimed, and the API's sentence names the way back to it.
+   */
+  async function land(): Promise<void> {
+    if (claiming === null) {
+      router.push(AFTER_SIGN_IN);
+
+      return;
+    }
+
+    const outcome = await attachStay(claiming);
+
+    if (outcome.ok) {
+      router.push(`/bookings/${encodeURIComponent(outcome.stay.reference)}`);
+
+      return;
+    }
+
+    setError(outcome.message);
+    setPending(false);
+  }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -59,9 +139,9 @@ export function LoginScreen({
     });
 
     if (result.ok) {
-      router.push(AFTER_SIGN_IN);
-      // Left pending: the navigation is in flight and the button should not
-      // offer itself again in the meantime.
+      await land();
+      // Left pending unless `land` said otherwise: the navigation is in flight
+      // and the button should not offer itself again in the meantime.
       return;
     }
 
@@ -75,7 +155,14 @@ export function LoginScreen({
     setPending(true);
     setError(null);
 
-    const result = await signInWithGoogle();
+    const result = await signInWithGoogle(
+      // The stay has to survive the round trip, so the return address carries
+      // it — and it comes back to this screen rather than to the booking,
+      // because the attach is still owed and only this screen knows it.
+      claiming === null
+        ? undefined
+        : `/login?${ATTACH_ON_ARRIVAL_PARAM}=${encodeURIComponent(claiming)}`,
+    );
 
     if (result.ok) {
       // The browser is on its way to Google. Left pending for the same reason
@@ -120,7 +207,16 @@ export function LoginScreen({
         <section className={styles.pane}>
           <div className={styles.paneBody}>
             <h1 className={`${styles.title} font-display`}>Welcome back</h1>
-            <p className={styles.subtitle}>Log in to access your account.</p>
+            {/* The same sentence for every guest who came from a stay, and it
+                says nothing about them: what is in the address is a booking
+                they were already reading. Whether their address has an account
+                is settled in the confirmation email and nowhere a page can be
+                asked. */}
+            <p className={styles.subtitle}>
+              {claiming === null && claimingNow === null
+                ? "Log in to access your account."
+                : "Log in and this stay is kept with your account."}
+            </p>
 
             {/* Native validation left on. An empty submit would otherwise reach
                 the API and come back as "that email and password do not
