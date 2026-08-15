@@ -124,7 +124,7 @@ export const envSchema = z.object({
 
   MAIL_FROM: z.string().min(1).default("Mariva <no-reply@mariva.local>"),
 
-  // Where `FR-PAY-05` pages when the night's reconciliation finds money the two
+  // Where `FR-PAY-05` pages when the hourly reconciliation finds money the two
   // reports disagree about. One URL and no vendor: PagerDuty's Events API,
   // Slack, ntfy and every on-call tool worth having accept a POST, so which one
   // rings a phone at 03:00 is the property's decision and its routing rules —
@@ -472,7 +472,7 @@ export const envSchema = z.object({
     {
       path: ["OPS_ALERT_WEBHOOK_URL"],
       message:
-        "is required in production once VNPAY_TMN_CODE is set — gateway money moves nightly and a discrepancy nobody is paged about is one nobody finds",
+        "is required in production once VNPAY_TMN_CODE is set — gateway money moves daily and a discrepancy nobody is paged about is one nobody finds",
     },
   )
   // The money figures, each refused separately so the message names the one
