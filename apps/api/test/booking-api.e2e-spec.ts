@@ -302,6 +302,16 @@ const ROUTES: readonly {
     path: (id) => `/bookings/${id}/early-departure`,
     capability: "booking.early-checkout",
   },
+  {
+    // The desk's resend. Not a transition and not a change to the stay — it
+    // mails the account link to the address on the booking — but it is governed
+    // by a row like everything else, and this is where that is asserted for
+    // every role at once.
+    name: "resendAccountLink",
+    method: "post",
+    path: (id) => `/bookings/${id}/account-links`,
+    capability: "booking.resend-account-link",
+  },
   // The guest's own. Every staff role is denied both rows, so what these lines
   // assert is the cross-realm direction `rbac-matrix.md` §4 calls
   // non-negotiable: a staff token on a guest route is refused, and refused by

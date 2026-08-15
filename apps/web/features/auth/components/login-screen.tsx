@@ -28,6 +28,7 @@ import {
 } from "@/features/auth/lib/sign-in";
 import {
   ATTACH_ON_ARRIVAL_PARAM,
+  ATTACHING_BOOKING_PARAM,
   attachStay,
 } from "@/features/booking/lib/booking-links";
 import styles from "./login-screen.module.css";
@@ -313,12 +314,53 @@ export function LoginScreen({
               ))}
             </ul>
 
-            <p className={styles.footnote}>
-              New here?{" "}
-              <a className={styles.footnoteLink} href="/signup">
-                Create an account
-              </a>
-            </p>
+            {/* The footnote names both ways on when a stay is being claimed,
+                because a guest with no account has two and they fail in
+                different places.
+
+                `/signup` carries the booking now — `signup/page.tsx` takes the
+                same parameter this page does and returns the verified guest to
+                this screen's attach-on-arrival address, so the stay is claimed
+                rather than left behind. It works because the browser reading
+                this is the browser holding the booking's cookie, which is the
+                half of the attach a mailbox cannot supply. Lose that cookie and
+                the whole path goes with it.
+
+                The confirmation email's other link is the one that survives
+                that: it needs no cookie and no device, because the message
+                itself is the proof of the address. It is named and not linked,
+                and that is not an oversight — it is signed, minted per stay and
+                exists only in the mailbox it went to, which is exactly what
+                makes it proof. A page that could link to it is a page that
+                could mint it.
+
+                Neither sentence says anything about the reader. Whether an
+                address already has an account is settled in the mail and must
+                never be inferable from a page, because a hold is
+                unauthenticated and anyone can make one naming somebody else's
+                address. Every viewer reads the same words here. */}
+            {claiming === null && claimingNow === null ? (
+              <p className={styles.footnote}>
+                New here?{" "}
+                <a className={styles.footnoteLink} href="/signup">
+                  Create an account
+                </a>
+              </p>
+            ) : (
+              <p className={styles.footnote}>
+                New here?{" "}
+                <a
+                  className={styles.footnoteLink}
+                  href={`/signup?${ATTACHING_BOOKING_PARAM}=${encodeURIComponent(
+                    claiming ?? claimingNow ?? "",
+                  )}`}
+                >
+                  Create an account
+                </a>{" "}
+                and this stay comes with you. Your confirmation email carries a
+                link that does the same, from any device.
+              </p>
+            )}
           </div>
         </section>
 

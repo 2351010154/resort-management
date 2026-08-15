@@ -82,6 +82,11 @@ import { validateFolioSettled } from "./guards/check-out.guard.js";
 // spelled. The two 429s on this door quote two different configured figures and
 // have to say them the same way — see {@link minutesInWords}.
 import { minutesInWords } from "./hold-rate-limit.guard.js";
+import {
+  accountLinkUrl,
+  bookingPageUrl,
+  stayLinkUrl,
+} from "./mailed-link-urls.js";
 import { FOLIO_PORT, type FolioPort } from "./ports/folio.port.js";
 import { applyTransition, LEGAL_TRANSITIONS } from "./state-machine.js";
 import { retryOnCollision } from "./reference-generator.js";
@@ -1007,41 +1012,23 @@ export class BookingService {
   }
 
   /**
-   * Where a mailed link points — the public site, and never this API.
+   * Where a mailed link points, delegated to `mailed-link-urls.ts`.
    *
-   * The guest lands on a page rather than on a redirect this service composed,
-   * because what happens next differs: one link hands the browser a credential
-   * and shows the stay, the other asks whether the guest would like a password.
-   * Both pages post the link back to the routes `contract/booking.ts` declares.
-   *
-   * **The credential rides in the fragment, and that is the whole reason for the
-   * `#`.** A query string is part of the request line, so every server between
-   * the guest and the page writes it down — the web tier's own access log first,
-   * and whatever proxy, prefetcher or corporate mail scanner opened the message
-   * before the guest did. A fragment is never transmitted: the browser keeps it,
-   * and the page reads it off its own address. What it opens is a stay for seven
-   * days past checkout, so the difference is not academic.
-   *
-   * It is still in the address bar and in the history entry, which is why
-   * `use-presented-link.ts` takes it back off the moment it has been read.
+   * The shape of the three addresses and the argument for the fragment live
+   * there rather than here, because the desk composes the account link too —
+   * `account-link-resend.service.ts` — and two senders reading two copies of one
+   * route is how a page moves and a mail keeps pointing at where it was.
    */
   private stayUrl(reference: string, link: string): string {
-    return `${this.bookingUrl(reference)}#stay=${encodeURIComponent(link)}`;
+    return stayLinkUrl(this.env.WEB_ORIGIN, reference, link);
   }
 
   private accountUrl(reference: string, link: string): string {
-    return `${this.bookingUrl(reference)}/account#invitation=${encodeURIComponent(
-      link,
-    )}`;
+    return accountLinkUrl(this.env.WEB_ORIGIN, reference, link);
   }
 
-  /**
-   * The stay's own page, carrying nothing — where a booking that already has an
-   * owner is pointed, because the way into it is the account rather than a
-   * credential in a message.
-   */
   private bookingUrl(reference: string): string {
-    return `${this.env.WEB_ORIGIN}/bookings/${encodeURIComponent(reference)}`;
+    return bookingPageUrl(this.env.WEB_ORIGIN, reference);
   }
 
   /**

@@ -189,6 +189,25 @@ async function accountsFor(address: string) {
 }
 
 /**
+ * The email-and-password credentials filed under an account.
+ *
+ * One question asked one way, because three cases ask it and they only mean the
+ * same thing if they read the same rows: a password that was written, a password
+ * that was declined, and a password a link had no business writing at all.
+ */
+async function credentialsOn(userId: string) {
+  return await db
+    .select({ id: guestAccount.id, password: guestAccount.password })
+    .from(guestAccount)
+    .where(
+      and(
+        eq(guestAccount.userId, userId),
+        eq(guestAccount.providerId, "credential"),
+      ),
+    );
+}
+
+/**
  * Whether another connection can take the link row's lock this instant.
  *
  * The observable form of "no transaction of ours is open". A flow that had
@@ -386,15 +405,7 @@ describe("the account a mailed link creates", () => {
     await attach.accountFromLink({ link: invited.link });
 
     const created = await accountFor(invited.address);
-    const credentials = await db
-      .select({ id: guestAccount.id })
-      .from(guestAccount)
-      .where(
-        and(
-          eq(guestAccount.userId, created!.id),
-          eq(guestAccount.providerId, "credential"),
-        ),
-      );
+    const credentials = await credentialsOn(created!.id);
 
     // The stay is theirs regardless. Recovery is a reset to the address that
     // has just been verified, which creates the credential this never wrote.
@@ -407,15 +418,7 @@ describe("the account a mailed link creates", () => {
     await attach.accountFromLink({ link: invited.link, password: PASSWORD });
 
     const created = await accountFor(invited.address);
-    const [credential] = await db
-      .select({ password: guestAccount.password })
-      .from(guestAccount)
-      .where(
-        and(
-          eq(guestAccount.userId, created!.id),
-          eq(guestAccount.providerId, "credential"),
-        ),
-      );
+    const [credential] = await credentialsOn(created!.id);
 
     expect(credential).toBeDefined();
     // Hashed by the library's own hasher, which is what `/sign-in/email` reads.
@@ -439,7 +442,23 @@ describe("the account a mailed link creates", () => {
       })
       .returning({ id: guestUser.id });
 
-    const attached = await attach.accountFromLink({ link: invited.link });
+    // A password travels with the redemption, and it is the point of the case
+    // rather than decoration: this is the one branch where a link meets an
+    // account it did not create, and a mailed link must not be able to set a
+    // password on such an account. Anyone can mint a link for an address by
+    // holding anonymously in its name, so a link that could write a credential
+    // is a link that takes over the account behind that address. The branch is
+    // also reachable in ordinary use — an attach that fails after Better Auth
+    // has committed the account restores the link, so a live link legitimately
+    // arrives at an account that already exists and may already have a password
+    // of its owner's choosing. It is asserted here, in the case that already
+    // walks this branch, so that the day someone hoists the credential write
+    // above the early return, or adds a "link a credential if the account has
+    // none" convenience, one failing case names exactly what was lost.
+    const attached = await attach.accountFromLink({
+      link: invited.link,
+      password: PASSWORD,
+    });
 
     expect(attached.stay.bookingId).toBe(invited.bookingId);
 
@@ -449,6 +468,14 @@ describe("the account a mailed link creates", () => {
       .where(eq(booking.id, invited.bookingId));
 
     expect(stay!.userId).toBe(existing!.id);
+
+    expect(
+      await credentialsOn(existing!.id),
+      "A mailed link wrote a password onto an account it did not create. The " +
+        "link proves a booking and the mailbox it was sent to; it does not " +
+        "prove the account already registered under that address, and a " +
+        "credential written from it is that account taken over.",
+    ).toHaveLength(0);
 
     expect(
       attached.sessionCookies,

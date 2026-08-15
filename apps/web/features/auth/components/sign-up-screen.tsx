@@ -11,9 +11,17 @@ import {
   MIN_PASSWORD_LENGTH,
   signUpWithEmail,
 } from "@/features/auth/lib/guest-auth";
+import { ATTACHING_BOOKING_PARAM } from "@/features/booking/lib/booking-links";
 import { AuthShell, authStyles as styles } from "./auth-shell";
 
-export function SignUpScreen() {
+export function SignUpScreen({
+  /** The stay this account is being made to keep, if the guest came from one.
+   *  It decides nothing on this screen — it only has to survive as far as the
+   *  return address the confirmation email is built with. */
+  claiming = null,
+}: {
+  readonly claiming?: string | null;
+}) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -35,13 +43,27 @@ export function SignUpScreen() {
       name: String(fields.get("name") ?? "").trim(),
       email,
       password: String(fields.get("password") ?? ""),
+      claiming,
     });
 
     if (result.ok) {
       // The address travels to the next screen so its resend button has
       // something to resend to. It is not a secret — the guest just typed it —
       // and carrying it in the URL is what lets that screen survive a reload.
-      router.push(`/verify-email?email=${encodeURIComponent(email)}`);
+      //
+      // The stay travels for the same reason. The link already in the post
+      // carries its own return address, so this is not what gets the guest to
+      // the attach — it is what the *second* link needs, because a guest who
+      // presses "send it again" is asking for a message built from scratch and
+      // one built without the stay would confirm the address and leave the
+      // booking behind.
+      router.push(
+        `/verify-email?email=${encodeURIComponent(email)}${
+          claiming === null
+            ? ""
+            : `&${ATTACHING_BOOKING_PARAM}=${encodeURIComponent(claiming)}`
+        }`,
+      );
 
       // Left pending: the navigation is in flight and the button should not
       // offer itself again in the meantime.

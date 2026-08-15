@@ -138,6 +138,7 @@ Legend: ✅ full · 👁 read-only · ⚠ conditional, see notes · — denied
 | Mark `NO_SHOW` manually | — | — | — | — | ✅ | ✅ | Night audit does it automatically |
 | Reinstate `NO_SHOW` → `CHECKED_IN` | — | — | — | — | ✅ | ✅ | Late arrival; needs inventory |
 | Search rooms / guests / bookings | — | ✅ | ⚠ | 👁 | ✅ | ✅ | HK: rooms only |
+| Send a booking's account link again | — | ✅ | — | — | ✅ | ✅ | Mails the link that creates the account for a stay, to the address on the booking and to no address the caller may name. The only way back in for a guest who has lost both their confirmation email and their booking cookie; identity is checked out-of-band by the member of staff, and the send is audited against them. Denied to `ACCOUNTANT`, who reads bookings and does not talk to arriving guests |
 
 ### Housekeeping and room state
 

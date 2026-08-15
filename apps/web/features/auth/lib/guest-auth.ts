@@ -12,6 +12,8 @@
 // the paths are its `basePath` plus its own endpoint names, and neither half is
 // ours to rename.
 
+import { ATTACH_ON_ARRIVAL_PARAM } from "@/features/booking/lib/booking-links";
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 
 export type AuthResult =
@@ -50,6 +52,35 @@ export function origin(): string {
 }
 
 /**
+ * Where the API sends a guest once the emailed link has proved their address.
+ *
+ * Two destinations, because two guests arrive here. One came to make an account
+ * and is owed the sentence saying it is done. The other came from a stay they
+ * booked without one — and for them the confirmation is not the end of anything,
+ * because the booking is still filed under nobody and this is the only moment
+ * both halves of the attach exist at once: `autoSignInAfterVerification` has
+ * just issued the session, and the browser that started the sign-up is the
+ * browser holding the booking's cookie. So they are returned to the log-in
+ * screen's attach-on-arrival address instead, which is the same place Google's
+ * round trip already lands a signed-in guest with a stay to claim, and the
+ * attach is made there rather than a second time here.
+ *
+ * The id is a booking id and never a credential — the API attaches only the
+ * stay the cookie on the request has already proved — so it is safe in an
+ * address in the way the mailed links are not. Encoded because it is composed
+ * from a query parameter this app did not mint and must not let out of its own.
+ *
+ * Both are absolute and on this origin, for the reason {@link origin} gives.
+ */
+function afterVerification(claiming: string | null): string {
+  return claiming === null
+    ? `${origin()}/verify-email?confirmed=1`
+    : `${origin()}/login?${ATTACH_ON_ARRIVAL_PARAM}=${encodeURIComponent(
+        claiming,
+      )}`;
+}
+
+/**
  * Creates an account and starts the confirmation.
  *
  * The API sends the verification email itself; there is nothing to do here but
@@ -68,20 +99,35 @@ export async function signUpWithEmail(details: {
   readonly name: string;
   readonly email: string;
   readonly password: string;
+  /** The stay this account is being made to keep, if the guest came from one.
+   *  It travels no further than the return address above — it is not part of
+   *  the account, so it is kept out of what is sent. */
+  readonly claiming?: string | null;
 }): Promise<AuthResult> {
+  const { claiming = null, ...credentials } = details;
+
   return post("/api/auth/sign-up/email", {
-    ...details,
-    callbackURL: `${origin()}/verify-email?confirmed=1`,
+    ...credentials,
+    callbackURL: afterVerification(claiming),
   });
 }
 
-/** Sends the confirmation email again, for the guest who lost the first one. */
+/**
+ * Sends the confirmation email again, for the guest who lost the first one.
+ *
+ * It takes the stay for the same reason the sign-up does, and here it matters
+ * most: losing the first message is precisely how a guest with an unclaimed
+ * booking ends up on this screen, and a replacement link that returned them
+ * anywhere but the attach would confirm the address and quietly leave the stay
+ * behind — the failure the first message was already at risk of.
+ */
 export async function resendVerificationEmail(
   email: string,
+  claiming: string | null = null,
 ): Promise<AuthResult> {
   return post("/api/auth/send-verification-email", {
     email,
-    callbackURL: `${origin()}/verify-email?confirmed=1`,
+    callbackURL: afterVerification(claiming),
   });
 }
 
