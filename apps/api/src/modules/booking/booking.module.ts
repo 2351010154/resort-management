@@ -7,6 +7,13 @@ import { HousekeepingModule } from "../housekeeping/housekeeping.module.js";
 import { InventoryModule } from "../inventory/inventory.module.js";
 import { NotificationModule } from "../notification/notification.module.js";
 import { SystemConfigModule } from "../system-config/system-config.module.js";
+import {
+  ACCOUNT_LINK_RESEND_RATE_LIMIT_POLICY,
+  AccountLinkResendRateLimitGuard,
+  DEFAULT_ACCOUNT_LINK_RESEND_RATE_LIMIT,
+} from "./account-link-resend-rate-limit.guard.js";
+import { AccountLinkResendService } from "./account-link-resend.service.js";
+import { AccountLinkController } from "./account-link.controller.js";
 import { AssignmentController } from "./assignment.controller.js";
 import { AssignmentService } from "./assignment.service.js";
 import { BookingController } from "./booking.controller.js";
@@ -93,8 +100,16 @@ import { StayQuoteService } from "./stay-quote.service.js";
 // their controllers and the global guard, and neither the controller nor the
 // service needs any of them.
 //
-// `NotificationModule` is imported for one call, and one message: the
-// confirmation a guest receives when their hold is paid for.
+// `AccountLinkController` is the third controller and the third kind of act:
+// neither a transition nor a change to what the stay is made of, but the desk
+// causing a guest to be mailed the link that turns their stay into an account.
+// It sits here because everything it needs is already in this module — the token
+// service that mints the link, the notification module that carries the message,
+// and the address on the booking row — and because a stay is what it is about.
+//
+// `NotificationModule` is imported for two calls now, and two messages: the
+// confirmation a guest receives when their hold is paid for, and the account
+// link the desk sends again when a guest has lost it.
 // `booking-confirmation.service.ts` composes it and hands it to the queue, and
 // the reason the booking module reaches a notification rather than the other way
 // round is that only the transition knows it happened — `confirmPaidHold` holds
@@ -109,8 +124,14 @@ import { StayQuoteService } from "./stay-quote.service.js";
     NotificationModule,
     SystemConfigModule,
   ],
-  controllers: [BookingController, AssignmentController, SearchController],
+  controllers: [
+    BookingController,
+    AssignmentController,
+    AccountLinkController,
+    SearchController,
+  ],
   providers: [
+    AccountLinkResendService,
     AssignmentService,
     BookingService,
     BusinessDateService,
@@ -128,6 +149,14 @@ import { StayQuoteService } from "./stay-quote.service.js";
     // would have one funnel's heartbeats spend the requests it needs to book.
     PresenceRateLimitGuard,
     { provide: PRESENCE_RATE_LIMIT_POLICY, useValue: DEFAULT_PRESENCE_RATE_LIMIT },
+    // The desk's own door has a third, and a looser figure than either of the
+    // funnel's: the act behind it is attributed to a member of staff, and what
+    // it bounds is outbound mail rather than inventory.
+    AccountLinkResendRateLimitGuard,
+    {
+      provide: ACCOUNT_LINK_RESEND_RATE_LIMIT_POLICY,
+      useValue: DEFAULT_ACCOUNT_LINK_RESEND_RATE_LIMIT,
+    },
   ],
   exports: [AssignmentService, BookingService, BusinessDateService],
 })

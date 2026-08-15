@@ -626,6 +626,25 @@ export const redeemedLinkSchema = z.object({
 });
 
 /**
+ * What the desk is told after an account link has been sent again.
+ *
+ * The address, and it is an answer rather than an echo: the caller never sent
+ * one. A receptionist on the telephone has to be able to say where the message
+ * went — "it is on its way to a…@gmail.com, look for it now" — and reading it
+ * back off the booking is the only way that sentence is about the address the
+ * mail was actually addressed to rather than the one the guest just recited.
+ *
+ * No link, no token and no expiry. Everything spendable is in the mailbox, which
+ * is the whole point of a flow whose identity check is a human at a counter: a
+ * response carrying the credential would let anyone the desk answers the phone
+ * to acquire a stay by talking a receptionist into reading it out.
+ */
+export const resentAccountLinkSchema = z.object({
+  to: z.email(),
+  reference: z.string(),
+});
+
+/**
  * §4's three check-in rejections, typed onto the error a client catches.
  *
  * `CONFLICT` and not a code of its own, because the state pair is legal — §2
@@ -913,4 +932,36 @@ export const booking = {
     .route({ method: "POST", path: "/bookings/{bookingId}/attachment" })
     .input(z.object(bookingIdFields))
     .output(bookingSchema),
+
+  resendAccountLink: oc
+    // The desk's answer to a guest who has lost both the confirmation email and
+    // the browser that held the stay. Every self-serve way back in is gone by
+    // then — `booking.service.ts`'s `scopedTo` opens a stay to an anonymous
+    // caller by the booking id in the cookie and by nothing else, and a
+    // reference alone deliberately opens nothing — so what is left is somebody
+    // at the property identifying the guest and pressing this.
+    //
+    // **By `bookingId`, like every other route the desk reaches.** The comment
+    // at the top of this file draws that line: a uuid is what the desk holds and
+    // a reference is what a guest was given, and the two are kept at different
+    // paths so a guest's key and the desk's cannot arrive at one pattern and be
+    // told apart by their shape. The desk has the stay open in front of it here,
+    // which is exactly the circumstance in which it has the id.
+    //
+    // **The address is not in the input and must never be.** It is read off the
+    // booking, the way `guest-attach.service.ts` reads it: a caller who could
+    // name where the link goes could hand any stay to any mailbox, and a member
+    // of staff persuaded by a plausible telephone call is precisely the attack
+    // the out-of-band identity check is supposed to be. Changing where a stay's
+    // post goes is a different act with its own authority.
+    //
+    // A sub-resource, plural, and a `POST`: each call mints a new link. That is
+    // the difference between this and the redemption above, which spends one.
+    .route({
+      method: "POST",
+      path: "/bookings/{bookingId}/account-links",
+      successStatus: 201,
+    })
+    .input(z.object(bookingIdFields))
+    .output(resentAccountLinkSchema),
 };

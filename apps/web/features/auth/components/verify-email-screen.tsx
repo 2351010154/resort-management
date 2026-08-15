@@ -20,9 +20,15 @@ import { AuthShell, authStyles as styles } from "./auth-shell";
 export function VerifyEmailScreen({
   email,
   confirmed,
+  /** The stay the guest is making this account to keep, if they came from one.
+   *  Only the resend needs it: the message already in the post carries its own
+   *  return address, and a replacement minted without the stay would confirm
+   *  the address and leave the booking unclaimed. */
+  claiming = null,
 }: {
   readonly email: string | null;
   readonly confirmed: boolean;
+  readonly claiming?: string | null;
 }) {
   const [outcome, setOutcome] = useState<AuthResult | null>(null);
   const [pending, setPending] = useState(false);
@@ -50,7 +56,7 @@ export function VerifyEmailScreen({
 
     setPending(true);
     setOutcome(null);
-    setOutcome(await resendVerificationEmail(email));
+    setOutcome(await resendVerificationEmail(email, claiming));
     setPending(false);
   }
 

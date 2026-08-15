@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { BookingTokenModule } from "../auth/booking-token/booking-token.module.js";
+import { AccountLinkMailService } from "./account-link-mail.service.js";
 import { BookingConfirmationService } from "./booking-confirmation.service.js";
 import { MailQueue } from "./mail-queue.service.js";
 import { MailerService } from "./mailer.service.js";
@@ -30,6 +31,13 @@ import { OpsAlertService } from "./ops-alert.service.js";
 // the auth module has to reach it, and must not import the sweep scheduler to
 // send an email. `JobScheduler` lends it the queue once one is running.
 //
+// `AccountLinkMailService` is the same kind of name for the desk's one message:
+// the account link, resent because a guest asked the property for it. Separate
+// from the confirmation rather than a second method on it, because the two carry
+// different things — a receipt with a stay credential in it, and a single link
+// that creates an account — and a caller that could reach for either would
+// eventually reach for the wrong one.
+//
 // `BookingTokenModule` is imported for one thing `MailQueue` does with it: sign
 // a booking link's row id back into the address it belongs in, at the moment of
 // delivery. That is why a confirmation can sit on the queue without its
@@ -43,12 +51,14 @@ import { OpsAlertService } from "./ops-alert.service.js";
     MailQueue,
     OpsAlertService,
     BookingConfirmationService,
+    AccountLinkMailService,
   ],
   exports: [
     MailerService,
     MailQueue,
     OpsAlertService,
     BookingConfirmationService,
+    AccountLinkMailService,
   ],
 })
 export class NotificationModule {}

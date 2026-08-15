@@ -318,6 +318,31 @@ export const CAPABILITIES = [
     }),
     note: "HK: rooms only",
   },
+  {
+    // The desk's answer to a guest who has lost both the confirmation email and
+    // the browser that held their stay. Its own row rather than a use of
+    // "Create / modify booking", because what it authorises is not an edit: no
+    // column of the booking changes, and what happens instead is that a message
+    // carrying a credential leaves the property for a guest's address. A row
+    // that already means "change the dates" would carry that quietly.
+    //
+    // `RECEPTIONIST` and above, and the grant follows the conversation: this is
+    // pressed while somebody is at the counter or on the telephone, which is the
+    // front desk's work. `ACCOUNTANT` reads bookings and does not have that
+    // conversation, so the row is denied there rather than granted `read` —
+    // there is nothing here to read.
+    //
+    // Full and not conditional. The guard can see the whole decision: any stay,
+    // no ownership to check, and the address the mail goes to is read off the
+    // booking rather than named by the caller.
+    key: "booking.resend-account-link",
+    section: "Bookings and front desk",
+    row: "Send a booking's account link again",
+    unauthenticated: false,
+    guest: "denied",
+    staff: staff({ RECEPTIONIST: "full", MANAGER: "full", ADMIN: "full" }),
+    note: "Mails the account link to the address on the booking, never to one the caller names; identity is checked out-of-band and the send is audited",
+  },
 
   // ── Housekeeping and room state ──────────────────────────────────────────
   {
