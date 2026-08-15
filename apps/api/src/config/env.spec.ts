@@ -279,6 +279,40 @@ describe("the header the guest realm's rate limiter believes", () => {
   });
 });
 
+describe("the window a payment attempt buys a hold", () => {
+  it("has a length a slow gateway fits inside, without being configured", () => {
+    // The figure the extension in `payment.service.ts` reads. Unset it, and a
+    // guest who reaches the payment page late in the TTL has the sweep cancel
+    // their stay while the bank app is still open — so a default is not a
+    // convenience here, it is the shipped behaviour of the payment path.
+    expect(parseEnv({ ...DEVELOPMENT_BASE }).BOOKING_PAYMENT_WINDOW_MINUTES).toBe(
+      15,
+    );
+  });
+
+  it("still prefers a figure the property wrote down", () => {
+    // The trade is the property's: longer for guests reporting they timed out
+    // mid-payment, shorter when rooms sit behind checkouts nobody finished.
+    expect(
+      parseEnv({ ...DEVELOPMENT_BASE, BOOKING_PAYMENT_WINDOW_MINUTES: "25" })
+        .BOOKING_PAYMENT_WINDOW_MINUTES,
+    ).toBe(25);
+  });
+
+  it("refuses a window that is not one", () => {
+    // Zero is the extension silently not working, and anything past an hour is
+    // a room off the shelf for the afternoon on the strength of one unfinished
+    // checkout. Both are configuration nobody meant to write.
+    expect(() =>
+      parseEnv({ ...DEVELOPMENT_BASE, BOOKING_PAYMENT_WINDOW_MINUTES: "0" }),
+    ).toThrow(EnvValidationError);
+
+    expect(() =>
+      parseEnv({ ...DEVELOPMENT_BASE, BOOKING_PAYMENT_WINDOW_MINUTES: "61" }),
+    ).toThrow(EnvValidationError);
+  });
+});
+
 describe("the reduced-VAT window", () => {
   it("refuses one that closes before it opens", () => {
     expect(() =>
