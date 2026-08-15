@@ -661,7 +661,11 @@ export class BookingService {
    * how long that lasts. The wait is real and it is bounded — the count above is
    * of *live* holds, so the allowance comes back as each one's `hold_expires_at`
    * passes and not when the sweep gets to the row, which puts the whole of it
-   * within one TTL. Signing in is not offered, because it is not an escape from
+   * within one TTL — or within a TTL and a payment window on a hold whose guest
+   * has been sent to a gateway, since {@link extendHoldForPayment} is what moves
+   * that deadline. The sentence quotes the TTL because that is the wait a caller
+   * who is not paying for anything faces, and it is the figure the funnel's other
+   * refusals already name. Signing in is not offered, because it is not an escape from
    * this one: the cap counts a caller's rows whether or not an account is behind
    * them, and only `assertAnonymousShareIsFree` lets an account through.
    */

@@ -205,8 +205,9 @@ anything. Counted as a guest cancellation it would make the property's
 cancellation rate a function of how many room types its guests compare.
 
 **A hold ends at the earlier of two clocks, and the second one is the guest.**
-The TTL is a ceiling: it says how long a room may be held at the very most. What
-it cannot say is whether anybody is still there — so a guest who closed the tab
+The TTL is the ceiling a hold is taken under: it says how long a room may be held
+on the strength of somebody picking it. What it cannot say is whether anybody is
+still there — so a guest who closed the tab
 thirty seconds into a ten-minute hold cost the property the other nine and a
 half, and on a night at the anonymous share cap that is the room the next guest
 is turned away from. The funnel now says every twenty seconds that it is still
@@ -222,11 +223,11 @@ still decides, so there is one release path rather than one per caller.
 **Three rules hold it in place, and none of them is optional.**
 
 - **Presence may only ever shorten a hold, never extend it.** It is a `min` and
-  not a `max`. A tab left open with a ping running holds its room for exactly one
-  TTL, the same as a tab nobody is watching — otherwise a browser saying "still
-  here" forever would pin a room indefinitely, which is precisely the abuse the
-  three bounds above exist to prevent. Nothing on the presence route writes
-  `hold_expires_at`.
+  not a `max`. A tab left open with a ping running holds its room for the TTL and
+  not a second longer, the same as a tab nobody is watching — otherwise a browser
+  saying "still here" forever would pin a room indefinitely, which is precisely
+  the abuse the three bounds above exist to prevent. Nothing on the presence route
+  writes `hold_expires_at`; the payment window below is the one thing that does.
 - **Presence never releases a hold with a `PENDING` payment attempt.** A guest
   paying by QR code is in a banking app with the funnel tab backgrounded or
   closed, which is the likeliest moment for presence to be absent and the worst
@@ -235,11 +236,12 @@ still decides, so there is one release path rather than one per caller.
   `PENDING`, and it runs out its TTL like any other. "In flight" has one
   definition, shared with the room a guest moves off.
   The TTL branch is deliberately **not** guarded the same way. A hold whose TTL
-  has passed is cancelled whether or not an attempt is open, exactly as before:
-  a callback that lands after the room has gone is answered by `confirmPaidHold`
-  and by `FR-PAY-05`'s nightly reconciliation, and guarding it here would be a
-  room held indefinitely by an attempt nobody ever finishes — a decision about
-  inventory the property has not taken.
+  has passed is cancelled whether or not an attempt is open: a callback that lands
+  after the room has gone is answered by `confirmPaidHold` and by `FR-PAY-05`'s
+  nightly reconciliation, and a sweep that skipped every stay with an open attempt
+  would hold a room for as long as one sat unfinished. What keeps a paying guest
+  their room is the deadline itself moving — the payment window below, which the
+  sweep then reads like any other expiry rather than being exempted from.
 - **Presence is cooperative and is never a defence.** The door is public, so
   anybody automating the funnel simply never says it and keeps their rooms for
   the full TTL exactly as they do today. Nothing was relaxed in exchange:
@@ -247,6 +249,29 @@ still decides, so there is one release path rather than one per caller.
   hold are all unchanged, and "abandoned holds release themselves now" is not an
   argument for widening any of them. It does the work only for the callers who
   choose to send it, which is every real guest and no attacker.
+
+**Opening a payment attempt moves the deadline out, and it is the only thing that
+does.** The TTL starts when a room is picked and paying is the last thing that
+happens under it, so a guest who reaches checkout near the end of it is sent to a
+bank app with less time than the round trip takes — and the sweep cancels the stay
+mid-payment, after which the money lands on a room that is back on sale. So
+`payment.service.ts` asks `BookingService.extendHoldForPayment` to push
+`hold_expires_at` out to `BOOKING_PAYMENT_WINDOW_MINUTES` from now, in the same
+transaction that writes the attempt. Fifteen minutes by default, bounded 1–60, and
+longer than the TTL on purpose: the TTL is time spent choosing a room and this is
+time spent paying. It is `greatest(hold_expires_at, now() + window)` scoped `where
+state = 'HELD'`, so it can only ever lengthen a hold, and a stay that is no longer
+held — a balance collected from a guest in the building, a hold the sweep already
+took — is a silent no-op rather than a `booking_hold_expiry_exactly_when_held`
+violation aborting the attempt. Both doors extend, because a gateway is no faster
+for a receptionist.
+
+What it costs is a hold that can outlive one TTL: a checkout nobody finishes holds
+the room for the window from the moment it was opened, and a caller who keeps
+opening attempts keeps renewing it. That is bounded by `CONCURRENT_HOLDS_PER_CALLER`
+and the anonymous share rather than by a ceiling on the extension itself — a hard
+ceiling is scope the property has not taken, and the window is configuration for
+that reason.
 
 The route is a guest row of its own (`booking.presence-own`), opened by the same
 booking-scoped credential as the read, the contact and the cancellation, scoped
