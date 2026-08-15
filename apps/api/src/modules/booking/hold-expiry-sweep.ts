@@ -86,9 +86,18 @@ const EVERY_MINUTE = "* * * * *";
  *
  * The presence clock may only ever bring the moment forward. Nothing in it can
  * move `hold_expires_at`, so a browser pinging forever holds a room for one TTL
- * and not a second longer — which is the guarantee the caps in
- * `booking.service.ts` rest on, and the reason the predicate below is an `or` of
+ * and not a second longer — which is the reason the predicate below is an `or` of
  * two deadlines rather than a deadline this sweep recomputes.
+ *
+ * One thing does move that column, and it is not on this path: opening a payment
+ * attempt pushes it out to `BOOKING_PAYMENT_WINDOW_MINUTES` from then, so a guest
+ * sent to a gateway near the end of their TTL is not cancelled mid-payment —
+ * `BookingService.extendHoldForPayment`. Nothing here reads that differently; it
+ * is the same deadline, further away. What it means for the caps in
+ * `booking.service.ts` is that a hold may outlive one TTL by that window, and by
+ * another one each time an attempt is opened against it. They still bound how many
+ * rooms a caller may hold at once, which is what they were written to bound; what
+ * they no longer bound on their own is for how long.
  *
  * **It is a courtesy and not a defence**, and nothing was relaxed in exchange for
  * it. A caller who wants to keep rooms off the shelf simply never says they are
