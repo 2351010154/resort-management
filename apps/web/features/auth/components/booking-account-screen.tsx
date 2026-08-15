@@ -29,8 +29,8 @@ import {
   ACCOUNT_LINK_PARAM,
   type AttachedStay,
   createAccountFrom,
-} from "@/features/booking/lib/booking-links";
-import { usePresentedLink } from "@/features/booking/lib/use-presented-link";
+} from "@/lib/booking-links";
+import { usePresentedLink } from "@/lib/use-presented-link";
 import { MIN_PASSWORD_LENGTH } from "@/features/auth/lib/guest-auth";
 import { AuthShell, authStyles as styles } from "./auth-shell";
 

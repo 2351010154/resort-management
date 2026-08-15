@@ -30,7 +30,7 @@ import {
   ATTACH_ON_ARRIVAL_PARAM,
   ATTACHING_BOOKING_PARAM,
   attachStay,
-} from "@/features/booking/lib/booking-links";
+} from "@/lib/booking-links";
 import styles from "./login-screen.module.css";
 
 /** Which field the strip is framed on. */
