@@ -57,7 +57,7 @@ const SEED_FROM = parseDate("2027-06-01");
 const UNIQUE_VIOLATION = "23505";
 const CHECK_VIOLATION = "23514";
 const FOREIGN_KEY_VIOLATION = "23503";
-const APPEND_ONLY_VIOLATION = "MV002";
+const APPEND_ONLY_VIOLATION = "MV004";
 
 /**
  * Better Auth's own shape for an id: 32 base-62 characters, not a UUID.
