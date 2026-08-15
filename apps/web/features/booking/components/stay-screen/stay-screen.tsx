@@ -46,8 +46,8 @@ import {
   openStay,
   STAY_LINK_PARAM,
   type StayArrival,
-} from "@/features/booking/lib/booking-links";
-import { usePresentedLink } from "@/features/booking/lib/use-presented-link";
+} from "@/lib/booking-links";
+import { usePresentedLink } from "@/lib/use-presented-link";
 import type { HeldStay } from "@/features/booking/lib/stay-funnel";
 
 export function StayScreen({ reference }: { readonly reference: string }) {
