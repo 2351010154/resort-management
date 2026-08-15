@@ -26,52 +26,59 @@ verification, requesting a password reset and completing that reset. The
 current route evidence is the `(booking)` route group under
 [`apps/web/app`](../apps/web/app/).
 
-Identity is not only an interruption the funnel raises: a guest can seek out
-sign-in at any time from a menu at the top right of the guest surfaces, which
-is how a returning guest reaches their account and stays without touching the
-funnel.
+Identity is never an interruption the funnel raises: a guest seeks out sign-in
+themselves, at any time, from a menu at the top right of the guest surfaces,
+which is how a returning guest reaches their account and stays without touching
+the funnel.
 
-A deliberate sign-in never navigates: the guest returns to the page they were
-on, everywhere. On the marketing arrival this means the page does not change
-at all — the guest's name simply replaces the log-in message — and a guest who
-wanted their stays opens the now-signed-in menu. Password reset is the one
-identity flow that ends somewhere fixed: the guest arrives from an email link
-with no prior context, so completing the reset signs them in automatically —
-they proved email ownership and set the password seconds ago — and lands them
-in the account area.
+Two intents about where identity leaves the guest, and both are waiting on the
+same thing. A deliberate sign-in should never navigate: the guest returns to the
+page they were on, everywhere — on the marketing arrival that means the page does
+not change at all, the guest's name simply replacing the log-in message, and a
+guest who wanted their stays opens the now-signed-in menu. Password reset is the
+one identity flow that ends somewhere fixed, because the guest arrives from an
+email link with no prior context; completing it should sign them in
+automatically — they proved email ownership and set the password seconds ago —
+and land them in the account area. Neither is built, and neither can be until the
+account area is: with no authenticated surface to return to, sign-in lands
+everyone on the arrival and a completed reset ends on the log-in screen.
 
-Identity gates the booking funnel at the hold boundary. There is no separate
-search screen: everyone arrives through `/booking` and finds their room from
-there. An anonymous guest can search and compare rooms freely, but identity is
-required before a hold is created, so the sign-in wall appears when the guest
-continues from room choice toward details. A guest without an account can
-register from that same wall — the purpose is convenience, so the funnel never
-hands the guest off to a separate journey. Completing sign-in moves the guest
-forward to the next screen, not back: details is a single flow from the booking
-workflow, and the guest just continues building up the booking till the end.
+Identity does not gate the booking funnel, and its absence there is a decision
+rather than a gap. There is no separate search screen: everyone arrives through
+`/booking` and finds their room from there, and the hold's door asks for nothing
+at all — taking a hold is the application's first unauthenticated write
+([`architecture/rbac-matrix.md`](architecture/rbac-matrix.md) §3, "Create own
+booking"). A sign-in wall there would stand in front of the only thing a stranger
+came to the site to do, and an account demanded before a room is held buys that
+guest nothing. So the guest is first asked for anything at details, where a name
+and an address are needed because that is where the confirmation goes, and the
+account is offered afterwards, once the stay it would keep exists and is paid
+for: from a link in the confirmation email, on `/bookings/<reference>/account`.
 Guests are able to come back to earlier steps but are never forced to.
 
-Email verification never blocks the booking funnel. A guest who registers at
-the sign-in wall continues to details with an unverified address: the hold TTL
-releases inventory on expiry, so sending the guest to their inbox mid-booking
-risks losing the room they chose. The typo risk is handled on screen instead —
-the address is shown prominently at details and on confirmation, and the
-confirmation screen gives the guest their reference regardless of email.
-Verification is nudged after booking and required only for account-area
-actions, where no hold is ticking.
+Email verification therefore never blocks the booking funnel — there is no
+address in it to have proved. The typo risk is handled on screen instead: the
+address is shown prominently at details and on confirmation, and the confirmation
+screen gives the guest their reference regardless of email. What verification does
+gate is sign-in itself. An account opened with a password cannot sign in until its
+address is confirmed, because a booking confirmation sent to an address nobody
+owns is a guest arriving to no reservation, so the address is proven before an
+account can hold one.
 
 Google sign-in behaves identically to email sign-in everywhere identity
-appears — same wall, same menu, same return rules. Its one difference is that
-a Google identity arrives with an email Google has already verified, so those
-guests never see the verification nudge.
+appears — same menu, same return rules. Its one difference is that a Google
+identity arrives with an email Google has already verified, so those guests are
+never held at that gate.
 
 ### Booking journey
 
-The intended journey has **six steps across five URL patterns**. Search and room
-choice share `/booking`, told apart by a search param rather than by a path
-segment because both are views of the same stateless query — see
+The intended journey has **five walked steps across five URL patterns**, and the
+two numbers agree because two locations are unusual in opposite directions.
+Search and room choice share `/booking`, told apart by a search param rather than
+by a path segment because both are views of the same stateless query — see
 [`architecture/repository-structure.md`](architecture/repository-structure.md)
-§`(booking)`. The remaining steps each have their own location. Keeping the
+§`(booking)`. The payment page holds a pattern of its own that the funnel never
+walks through. The remaining steps each have their own location. Keeping the
 asynchronous gateway return separate from confirmation prevents a browser
 redirect from being mistaken for the payment result.
 
@@ -87,6 +94,11 @@ redirect from being mistaken for the payment result.
 The hold identifier appears only after inventory has been reserved. Confirmation
 and later stay detail share one URL because they are the same guest-owned
 resource, shown at different moments.
+
+One guest surface sits outside the journey rather than in it.
+`/bookings/<reference>/account` is where the confirmation email's second link
+lands: it offers the guest an account that keeps this stay, which is the offer
+the funnel deliberately did not make before taking their money.
 
 Details is where the guest is first asked anything about themselves. The steps
 before it are about rooms and nights, and the hold's door requires no name — a
@@ -255,13 +267,17 @@ view pre-filtered to that record, and the standalone screen with actor, action
 and date filters remains for sweeps. Whoever opens an audit log arrives with a
 question about a thing, so the thing carries the door.
 
-Settings separates staff access from property configuration, and within
-configuration it separates the legally dated from the merely current. Tax
-values — the VAT rate, its applicability window, the VAT-base rule — are
-edited as dated entries with an effective-from and visible history, so a rate
-change scheduled for the first posts correctly from the first without anyone
-editing at midnight. Credentials and the business-date rollover stay simple
-current-value fields; the audit log owns their history.
+Settings separates staff access from property configuration. Tax values — the
+standard and the reduced VAT rate, the window that divides them, the VAT-base
+rule — are one mutable row an `ADMIN` edits and every posting reads
+([`architecture/property-and-tariff.md`](architecture/property-and-tariff.md)
+§8), because the alternative is a rate that takes a deploy to change and an
+invoice a third party has already issued in law. The dates belong to the reduced
+rate and are two fields of that same row, not a history of it: what is asked for
+is configuration editable without a deploy, not a dated ledger of every rate the
+property has charged. The business-date rollover is another field of the row;
+gateway credentials stay in the environment rather than in it. The audit log owns
+the history of all of them.
 
 Reports is a short menu of named reports — revenue, room status, occupancy,
 ADR and RevPAR — each a page with a range picker, a chart and an Excel
