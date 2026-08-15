@@ -38,7 +38,7 @@ the inconsistency rather than rewriting either source to conceal it.
 | Roles, capabilities and permission rationale | [`architecture/rbac-matrix.md`](architecture/rbac-matrix.md) |
 | Booking states and transition rules | [`architecture/booking-state-machine.md`](architecture/booking-state-machine.md) |
 | Technology choices and rejected alternatives | [`architecture/tech-stack.md`](architecture/tech-stack.md) |
-| Hosting, database, storage, backup, payment and e-invoice decisions | [`architecture/infrastructure.md`](architecture/infrastructure.md) |
+| Hosting, database, storage, backup, payment, e-invoice and outbound-mail decisions | [`architecture/infrastructure.md`](architecture/infrastructure.md) |
 | Screen intent and navigation | [`screens.md`](screens.md) |
 | Current delivery fields and blockers | [GitHub issues](https://github.com/2351010154/resort-management/issues) |
 

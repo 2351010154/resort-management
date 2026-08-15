@@ -39,6 +39,37 @@ timer, so production compute never suspends — budget an always-on instance
 rather than planning on the free tier. Staging runs with pg-boss workers
 disabled, so it genuinely suspends.
 
+## Outbound mail
+
+Resend is the vendor above; where a message is composed and where it leaves from
+are the decisions.
+
+- **It rides the same pg-boss instance the sweeps do.**
+  [`apps/api/src/jobs/job-scheduler.service.ts`](../../apps/api/src/jobs/job-scheduler.service.ts)
+  starts one queue and hands it to `MailQueue`, rather than a second supervisor
+  maintaining the same tables against the same borrowed pool. A process without
+  the scheduler — a test run, or any deploy not running the sweeps — still sends,
+  from the process itself and without the retry a queue would have given it.
+- **The queue is also what stops sign-up becoming a timing oracle.** A sign-up
+  that awaited the vendor would answer more slowly for a free address than for
+  one already registered, a difference readable from a single request; so neither
+  branch delivers, and the no-queue fallback is started rather than awaited for
+  the same reason.
+  [`mail-queue.service.ts`](../../apps/api/src/modules/notification/mail-queue.service.ts)
+  argues both.
+- **A booking confirmation is queued as facts, never as a composed body.** Its
+  links carry signatures that exist nowhere else at rest, so a message sitting in
+  the job table would be the only copy of a live stay credential in the database.
+  What travels is the landing address with its credential cut off and the
+  `booking_link` row id already stored there; the worker signs it back on as it
+  delivers (`queued-confirmation.ts`).
+- **Nothing leaves before the rows it advertises are durable.** Work registered
+  through `afterCommit` on `TransactionRunner`
+  ([`apps/api/src/database/transaction-runner.ts`](../../apps/api/src/database/transaction-runner.ts))
+  is held until that transaction commits and is discarded unrun if it rolls back
+  — a confirmation, a page or a gateway call cannot outlive the booking it
+  describes.
+
 ## Backup and retention
 
 - **Neon PITR is not a backup.** It lives inside Neon; an account or billing
@@ -84,6 +115,12 @@ One internal `PaymentGateway` port — `createPayment` / `verifyCallback` /
   for a guest paying online — and a paid stay left `HELD` is one the TTL sweep
   cancels minutes later. Only a hold moves; see
   [`booking-state-machine.md`](booking-state-machine.md) §3.
+- **The room is held while the payer is at the gateway.** Opening an attempt
+  pushes the hold's deadline out to the payment window in the attempt's own
+  transaction, and presence-only expiry leaves a hold with a `PENDING` attempt
+  alone. Both belong to
+  [`booking-state-machine.md`](booking-state-machine.md) §3, which owns the
+  window, its bounds and what it costs.
 - **The payer's browser lands on the funnel, not on a confirmation.** The return
   route sends it to `/booking/<hold>/confirming` under `WEB_ORIGIN`, carrying a
   caption and the attempt's reference. The redirect and the IPN are independent
@@ -97,7 +134,7 @@ One internal `PaymentGateway` port — `createPayment` / `verifyCallback` /
   and a terminal pointed at it is the other way.
 - **There is no daily report to fetch.** VNPay answers about one transaction at
   a time (`queryDr`); a day's totals live in a settlement file drawn from the
-  merchant portal by hand. So the nightly reconciliation reconstructs the
+  merchant portal by hand. So reconciliation reconstructs the
   gateway's side by asking about every attempt the property opened — which works
   because the property mints every reference and writes a row before the payer
   is sent anywhere. A bulk feed, if one is ever granted, replaces that assembly
@@ -106,8 +143,11 @@ One internal `PaymentGateway` port — `createPayment` / `verifyCallback` /
   flight is money the gateway holds and this property does not, so reconciling
   the current day would file it as missing and page somebody about a payment
   that lands seconds later. `payment_reconciliation_run` records which days have
-  been looked at; the sweep takes the closed ones it has no row for, up to a week
-  back, and never today.
+  been looked at; the sweep runs hourly and takes the closed ones it has no row
+  for, up to a week back, and never today. Hourly rather than a daily cron a few
+  minutes past the rollover, because that hour is configuration: whichever tick
+  first finds yesterday closed does the work, and the other twenty-three find the
+  run row already written and do nothing.
 - **A discrepancy pages an endpoint, not a vendor.** `OPS_ALERT_WEBHOOK_URL`
   takes a POST of JSON — PagerDuty behind a transform, a Slack incoming webhook,
   ntfy, whatever the property's on-call tooling exposes — so escalation policy
@@ -115,6 +155,14 @@ One internal `PaymentGateway` port — `createPayment` / `verifyCallback` /
   instead of sent; it is required at boot once a terminal is configured under
   `NODE_ENV=production`. Delivery never fails a reconciliation: the discrepancy
   rows are the durable record and an alerter that threw would roll them back.
+- **Reconciliation is not the only thing that pages**, and routing written from
+  this document has to expect the other. `payment-discrepancy` is the sweep's,
+  hours or a day after the money moved. `payment-on-cancelled-stay` comes off the
+  IPN path and is minutes old: money landed for a stay already `CANCELLED`, so
+  nobody will supply the room and the amount has to be handed back by hand at the
+  gateway. `payment.service.ts` posts the payment, leaves the cancellation
+  standing and dispatches that page *after* the commit, so every page is about
+  money that is durably on an account.
 - **MoMo is conditional** (P3.5), gated on measured VNPay-only abandonment. It
   costs a second signature scheme, IPN shape, refund API and reconciliation job.
   Its IPN must be answered within 15 seconds — the handler ACKs and the work
@@ -144,9 +192,23 @@ from the written ruling before implementation or procurement:
   vendors, different SKU and different API (`M0-03`).
 - **The checkout screen is the máy tính tiền.** Issuance happens when the folio
   closes, not in the night audit.
-- Not synchronously inside the HTTP request: folio close enqueues an idempotent
-  pg-boss job keyed on the folio id. A provider timeout must never roll back a
-  completed checkout.
+- Not synchronously inside the HTTP request, and not on a queue beside it
+  either: a folio standing at `CLOSED` with no `invoice_reference` *is* the
+  pending work, written by the transaction that agreed the account, and a
+  five-minute sweep drains that predicate.
+  [`apps/api/src/modules/folio/e-invoice.job.ts`](../../apps/api/src/modules/folio/e-invoice.job.ts)
+  records why a pg-boss enqueue was refused instead: the send goes over the pool
+  rather than the closing transaction, so a close could commit with no job behind
+  it, and the queue is off under `NODE_ENV=test`, where the one-invoice-per-folio
+  claim most needs proving. `migrations/0016` carries the partial index the sweep
+  reads and the trigger that refuses a second reference. A provider timeout rolls
+  the sweep back and never a completed checkout — issuance was never in the
+  checkout's transaction to begin with.
+- **Until a provider is bound, every reference reads `LOCAL-`.**
+  `LocalEInvoiceService` is what the port resolves to in every environment, and it
+  writes its reference into `folio.invoice_reference` like any other issuer. The
+  prefix is the whole point: a reader who finds one on a folio after a real
+  provider is live knows at a glance that no invoice was ever filed against it.
 - **The invoice number is the provider's**, stored alongside the folio id and
   treated as the legal reference on every report.
 - *Hóa đơn điều chỉnh / thay thế* (adjustment / replacement invoices) map onto
