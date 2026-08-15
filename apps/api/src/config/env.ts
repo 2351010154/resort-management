@@ -310,6 +310,50 @@ export const envSchema = z.object({
     .max(3_600)
     .default(120),
 
+  // How long a hold has left once its guest has been sent to the gateway.
+  //
+  // The two figures above are the only ways a hold dies; this is the only thing
+  // that moves either of them, and it exists because the TTL starts running when
+  // a room is picked and the payment is the last thing that happens under it. A
+  // guest who reaches the payment page at minute eight of ten has two minutes to
+  // leave the browser, authenticate in a banking app, approve, and be brought
+  // back — and `hold-expiry-sweep.ts` cancels the stay in the middle of that,
+  // releasing a room the gateway is at that moment collecting for. So
+  // `payment.service.ts` asks `BookingService` to push the expiry out to this
+  // long from now when an attempt opens, and never to pull one in that already
+  // runs longer.
+  //
+  // **Fifteen minutes, which is a bank app rather than a card form.** The slow
+  // path is a payer switching to another application, waiting for a one-time
+  // code, and coming back to a tab the phone may have discarded; the fast one is
+  // over in thirty seconds and does not need the figure at all. It is deliberately
+  // longer than the ten-minute TTL, because the TTL is time spent choosing and
+  // this is time spent paying — a window shorter than the hold it extends would
+  // be a payment step racing a clock that started before the guest reached it.
+  //
+  // What it costs is the same thing the TTL costs, over a shorter list of
+  // callers: a payer who opens checkout and walks away holds the room this long
+  // from the moment they did, whatever was left of the TTL. That is the trade,
+  // and it is the property's — raise it for guests reporting they timed out
+  // mid-payment, lower it when rooms sit behind checkouts nobody finished. What
+  // bounds the abuse of it is not this number but the per-caller hold caps in
+  // `booking.service.ts`, which are unchanged: an attempt is a row somebody has
+  // to open, and it is opened against a stay that caller already proved is
+  // theirs.
+  //
+  // The floor is one minute, matching the TTL's, and for the same reason: a
+  // window of zero would be the extension silently not working. The ceiling is an
+  // hour, because past that this is not a payment window — it is a room off the
+  // shelf for the afternoon on the strength of one checkout nobody finished, and
+  // a property that wants that should be raising the TTL where the whole funnel
+  // can see it.
+  BOOKING_PAYMENT_WINDOW_MINUTES: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(60)
+    .default(15),
+
   // The two guard relaxations `booking-state-machine.md` §7 leaves to the owner.
   // Both default to the blocked reading §7 assumes, and both are here rather
   // than hardcoded because §7 records them as open: a property that decides the

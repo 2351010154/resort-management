@@ -364,6 +364,25 @@ export interface HoldPresence extends OwnHold {
   readonly leaving: boolean;
 }
 
+/**
+ * The stay money landed on, as {@link BookingService.confirmPaidHold} found it.
+ *
+ * The reference rather than the id, because the one thing read off this is a
+ * sentence somebody has to act on: the reference is what the desk searches by
+ * and what the guest quotes, and a uuid would send a responder to a console to
+ * turn it into one.
+ *
+ * Nothing constructs this outside that method. It is a report and not a request
+ * — which is why it carries no amount and no gateway id: those belong to the
+ * payment, and the payment is the caller.
+ */
+export interface PaidStay {
+  readonly reference: string;
+
+  /** The state the money arrived at, before any transition it caused. */
+  readonly state: BookingState;
+}
+
 @Injectable()
 export class BookingService {
   constructor(
@@ -905,15 +924,98 @@ export class BookingService {
    * happens. This path inherits the message rather than owning it, so the desk's
    * own confirmation of a transfer is announced by the same code and a second
    * callback still says nothing.
+   *
+   * **It reports the state the money landed on, and decides nothing about
+   * it.** A no-op that returned nothing was a no-op nobody could see: the
+   * caller posted the payment, this said nothing, and a stay the property had
+   * already cancelled kept the money in silence until `FR-PAY-05`'s nightly
+   * comparison found it. Which of these states is worth waking somebody for is
+   * a question about money rather than about the state machine, so it is
+   * answered where the money is — `payment.service.ts` — and what is returned
+   * here is the fact, not the judgement.
+   *
+   * The state is the one that was *found*, before any transition this made, so
+   * a hold that was confirmed reports `HELD`. It is read off the row this
+   * method already locked, which is what makes it the state the payment
+   * actually landed on rather than one a second read might have seen change.
    */
-  async confirmPaidHold(exec: DbExecutor, bookingId: string): Promise<void> {
+  async confirmPaidHold(
+    exec: DbExecutor,
+    bookingId: string,
+  ): Promise<PaidStay> {
     const current = await this.forUpdate(exec, bookingId);
+    const found = {
+      reference: current.booking.reference,
+      state: current.booking.state,
+    };
 
     if (current.booking.state !== "HELD") {
-      return;
+      return found;
     }
 
     await this.confirm(exec, bookingId);
+
+    return found;
+  }
+
+  /**
+   * Gives a hold long enough left to survive the gateway round trip about to
+   * start — `BOOKING_PAYMENT_WINDOW_MINUTES`.
+   *
+   * **The second writer to `hold_expires_at`, and the only one that moves it
+   * forward.** {@link createHold} sets it, {@link confirm} and {@link cancel}
+   * clear it, and until this existed nothing in the tree extended it. What that
+   * cost is the whole of the payment race: the TTL is a clock that starts when a
+   * room is picked, paying is the last thing that happens under it, and a guest
+   * who opens checkout near the end of it has `hold-expiry-sweep.ts` cancel the
+   * stay mid-flight. The callback then finds a booking that is no longer `HELD`,
+   * {@link confirmPaidHold} correctly declines to resurrect it, and the property
+   * is holding money for a room it has put back on sale.
+   *
+   * **`state = 'HELD'` is in the `where` clause, which is what makes the write
+   * safe.** `booking_hold_expiry_exactly_when_held` refuses an expiry on any
+   * other row, and this is called from inside the transaction that opens a
+   * payment attempt — a constraint violation would abort that transaction and
+   * take the attempt down with it, on the one path where a payer has already
+   * been sent to a gateway. So a stay that is no longer being held is a no-op
+   * here rather than a refusal: nothing matches, nothing is written, and the
+   * attempt goes in beside a booking whose state this method has no opinion
+   * about. Money reaches a stay at more than one moment — a balance on a
+   * `CHECKED_IN` guest, a payment landing on a hold the sweep already took — and
+   * only one of those has a hold to extend.
+   *
+   * One conditional `UPDATE` rather than a read and a write, for the reason
+   * `payment.service.ts` gives about resolving an attempt: under `read
+   * committed` Postgres re-evaluates the predicate after it takes the row's
+   * lock, so a `confirm` or a `cancel` that committed while this statement
+   * waited leaves it matching nothing. A version that had read the state first
+   * would write an expiry onto the row those had just cleared.
+   *
+   * **`greatest`, so this can only ever lengthen a hold.** A stay whose expiry
+   * already runs past the window keeps it — a desk hold with a long TTL, or a
+   * second attempt opened a minute after the first — and the extension is
+   * therefore not a way to *shorten* anybody's hold by pressing pay.
+   *
+   * Postgres' clock and not this process's, unlike {@link holdExpiry}. This
+   * deadline has to beat the `now()` the sweep compares it against, and a node
+   * whose clock had drifted behind would otherwise hand out a window shorter
+   * than the one configured — the same argument `last_seen_at` carries at
+   * {@link createHold}, where the two ends of one comparison are kept on one
+   * clock.
+   */
+  async extendHoldForPayment(
+    exec: DbExecutor,
+    bookingId: string,
+  ): Promise<void> {
+    const window = sql`${`${this.env.BOOKING_PAYMENT_WINDOW_MINUTES} minutes`}::interval`;
+
+    await exec
+      .update(booking)
+      .set({
+        holdExpiresAt: sql`greatest(${booking.holdExpiresAt}, now() + ${window})`,
+        updatedAt: new Date(),
+      })
+      .where(and(eq(booking.id, bookingId), eq(booking.state, "HELD")));
   }
 
   /**

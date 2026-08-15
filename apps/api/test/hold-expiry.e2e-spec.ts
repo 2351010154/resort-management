@@ -34,6 +34,15 @@
 //   decision about inventory the property has not taken, and a suite that did not
 //   pin it would let it be changed by accident.
 //
+// **What keeps a paying guest's room, then, is the TTL itself moving.** Opening
+// a payment attempt extends `hold_expires_at` to cover the round trip, which is
+// the one thing in the tree that pushes that deadline out — so the claim this
+// file has to hold is the two behaviours meeting: an attempt opened through the
+// real service, and the sweep run straight afterwards taking nothing. It is
+// asserted through `PaymentService` rather than by writing the column, because a
+// case that moved the deadline itself would prove only that the sweep can read a
+// date this file chose.
+//
 // Both clocks are moved with a direct `update` on the row. The alternative is a
 // suite that waits out a real TTL, and the floor on `BOOKING_HOLD_TTL_MINUTES` is
 // one minute — the columns are what the sweep reads, so writing one is the same
@@ -65,6 +74,7 @@ import { payment } from "../src/database/schema/payment.js";
 import * as schema from "../src/database/schema/index.js";
 import { roomType, typeInventory } from "../src/database/schema/inventory.js";
 import { seedDatabase } from "../src/database/seed/seed.js";
+import { TransactionRunner } from "../src/database/transaction-runner.js";
 import { JobRunner } from "../src/jobs/job-runner.service.js";
 import { JobsModule } from "../src/jobs/jobs.module.js";
 import { AssignmentService } from "../src/modules/booking/assignment.service.js";
@@ -77,9 +87,17 @@ import { BusinessDateService } from "../src/modules/booking/business-date.servic
 import { HoldExpirySweep } from "../src/modules/booking/hold-expiry-sweep.js";
 import { FolioStubService } from "../src/modules/booking/ports/folio-stub.service.js";
 import { StayQuoteService } from "../src/modules/booking/stay-quote.service.js";
+import { FolioService } from "../src/modules/folio/folio.service.js";
 import { GuestService } from "../src/modules/guest/guest.service.js";
 import { HousekeepingService } from "../src/modules/housekeeping/housekeeping.service.js";
 import { InventoryService } from "../src/modules/inventory/inventory.service.js";
+import type { OpsAlertService } from "../src/modules/notification/ops-alert.service.js";
+import { PaymentService } from "../src/modules/payment/payment.service.js";
+import type {
+  CreatePaymentInput,
+  CreatePaymentResult,
+  PaymentGateway,
+} from "../src/modules/payment/ports/payment-gateway.port.js";
 import { noConfirmations, noStayLinks } from "./no-announcement.js";
 
 const SEED_FROM = parseDate("2027-06-01");
@@ -100,6 +118,16 @@ const HOLD_TTL_MINUTES = 15;
  * have been released by the TTL, which is what makes the two claims separable.
  */
 const HOLD_GRACE_SECONDS = 120;
+
+/**
+ * How long opening a payment attempt buys the hold it is opened against.
+ *
+ * Comfortably past the TTL above, which is what makes the extension visible: a
+ * hold written past due and then paid for has a deadline that could only have
+ * come from the attempt.
+ */
+const PAYMENT_WINDOW_MINUTES = 20;
+
 /**
  * The property's day, stopped at the first night the seed prices.
  *
@@ -122,6 +150,7 @@ let pool: pg.Pool;
 let db: ReturnType<typeof drizzle<typeof schema>>;
 let bookings: BookingService;
 let sweep: HoldExpirySweep;
+let payments: PaymentService;
 
 beforeAll(async () => {
   const connectionString = process.env.DATABASE_URL;
@@ -161,13 +190,41 @@ beforeAll(async () => {
   );
 
   sweep = new HoldExpirySweep(bookings, environment());
+
+  // The real service, because the claim is what *opening an attempt* does to a
+  // hold: a case that wrote the attempt's row, or the deadline, itself would
+  // prove only that this file can write a date the sweep reads. The gateway is
+  // the one thing stood in for, at the boundary `FR-PAY-01` draws — nothing here
+  // sends a payer anywhere, and `vnpay.adapter.spec.ts` is where that port is
+  // earned. The ledger and the transaction are the real ones, since the
+  // extension has to be in the same commit as the attempt.
+  payments = new PaymentService(
+    new GatewayThatOpensAnything(),
+    new FolioService(db, new SystemConfigService()),
+    new BusinessDateService(new SystemConfigService()),
+    bookings,
+    new TransactionRunner(db),
+    // Never reached: a page is raised only when money lands on a stay the
+    // property cannot honour, and nothing here resolves a callback at all —
+    // every case stops at the attempt and the deadline it bought. A stub that
+    // says so by name rather than a cast that says nothing.
+    {
+      page: () => {
+        throw new Error(
+          "OpsAlertService.page was reached from a suite that resolves no " +
+            "callback, so no money has landed anywhere to page about",
+        );
+      },
+    } as unknown as OpsAlertService,
+  );
 });
 
-/** The two figures this suite turns on, in the shape both readers take them. */
+/** The three figures this suite turns on, in the shape every reader takes them. */
 function environment(): Env {
   return {
     BOOKING_HOLD_TTL_MINUTES: HOLD_TTL_MINUTES,
     BOOKING_HOLD_GRACE_SECONDS: HOLD_GRACE_SECONDS,
+    BOOKING_PAYMENT_WINDOW_MINUTES: PAYMENT_WINDOW_MINUTES,
   } as Env;
 }
 
@@ -366,6 +423,28 @@ describe("a hold with money already on its way", () => {
     expect(await runSweep()).toEqual([held.id]);
   });
 
+  it("is given more of it by the attempt that was just opened", async () => {
+    // The two behaviours meeting, and the failure they exist to prevent: the
+    // guest pressed pay near the end of the TTL, VNPay took longer than what was
+    // left, and the sweep cancelled a room the gateway was at that moment
+    // collecting for — after which the callback finds a stay that is no longer
+    // `HELD`, posts the money and confirms nothing.
+    //
+    // The deadline is written past due before the attempt opens rather than
+    // waited out, for the reason the header gives: the column *is* what the sweep
+    // reads, so moving it is the same event as the clock reaching it. What the
+    // case then turns on is that the row is still `HELD` when the payer arrives,
+    // which is every moment between the TTL passing and the sweep's next tick.
+    const held = await createHold(stay("DELUXE", CHECK_IN, CHECK_OUT));
+
+    await expire(held.id);
+    await payFor(held);
+
+    expect(await runSweep()).toEqual([]);
+    expect(await stateOf(held.id)).toBe("HELD");
+    expect(await soldOn("DELUXE", NIGHTS)).toEqual([1, 1, 1]);
+  });
+
   it("is still cancelled when it is the TTL that ran out", async () => {
     // Deliberately unchanged, and pinned so it is not tidied up in passing. A
     // hold whose TTL has passed is cancelled whether or not an attempt is open:
@@ -502,6 +581,27 @@ async function payingFor(
   });
 }
 
+/**
+ * The guest opening checkout on their own hold, through the real service.
+ *
+ * The funnel's own door: the credential is the booking the hold minted rather
+ * than an account, and the amount is the stay's frozen total, which is the only
+ * figure that door accepts. Everything the extension needs is on the far side of
+ * those two checks, so a case that skipped them would be opening an attempt no
+ * guest could.
+ */
+async function payFor(held: Booking): Promise<void> {
+  await payments.createPaymentRequest({
+    bookingId: held.id,
+    amount: held.stayTotalGross,
+    description: "The stay, paid in full before arrival",
+    returnUrl: "https://mariva.test/stay/payment/return",
+    payerIpAddress: "203.0.113.44",
+    guestAccountId: null,
+    provenBookingId: held.id,
+  });
+}
+
 /** The request shape, from the two strings a date is written as. */
 function stay(
   code: RoomTypeCode,
@@ -525,6 +625,34 @@ async function stateOf(bookingId: string): Promise<string | undefined> {
     .where(eq(booking.id, bookingId));
 
   return row?.state;
+}
+
+/**
+ * The port, agreeing to open whatever it is handed.
+ *
+ * Nothing in this file follows the address it hands back — the subject is what
+ * the property wrote down before the payer was sent anywhere. The three methods
+ * below it throw rather than answering, so a case that wandered onto the
+ * callback path fails loudly instead of being quietly agreed with.
+ */
+class GatewayThatOpensAnything implements PaymentGateway {
+  async createPayment(input: CreatePaymentInput): Promise<CreatePaymentResult> {
+    return await Promise.resolve({
+      paymentUrl: `https://sandbox.vnpayment.vn/paymentv2/vpcpay.html?vnp_TxnRef=${input.reference}`,
+    });
+  }
+
+  async verifyCallback(): Promise<never> {
+    throw new Error("no case here acts on a callback");
+  }
+
+  async refund(): Promise<never> {
+    throw new Error("no case here refunds");
+  }
+
+  async queryTransaction(): Promise<never> {
+    throw new Error("no case here queries the gateway");
+  }
 }
 
 /** What the property has sold on each of those nights. */

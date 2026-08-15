@@ -63,6 +63,7 @@ import type { GuestService } from "../guest/guest.service.js";
 import type { HousekeepingService } from "../housekeeping/housekeeping.service.js";
 import type { InventoryService } from "../inventory/inventory.service.js";
 import type { BookingConfirmationService } from "../notification/booking-confirmation.service.js";
+import type { OpsAlertService } from "../notification/ops-alert.service.js";
 import { SystemConfigService } from "../system-config/system-config.service.js";
 import type { GatewayPaymentRequest } from "./payment.service.js";
 import { PaymentService } from "./payment.service.js";
@@ -152,7 +153,11 @@ beforeAll(async () => {
     undefined as unknown as GuestService,
     undefined as unknown as HousekeepingService,
     undefined as unknown as FolioPort,
-    undefined as unknown as Env,
+    // A value rather than nothing, because opening an attempt now asks this
+    // service to extend the hold it is opened against and that figure is how
+    // far. Every stay below is `CONFIRMED`, so the write matches no row and the
+    // number never reaches one — it is read before the statement either way.
+    { BOOKING_PAYMENT_WINDOW_MINUTES: 15 } as Env,
     // Neither is reached here: the confirmation email is minted and queued only
     // by the transition a paid hold makes, which nothing in this file drives.
     undefined as unknown as BookingTokenService,
@@ -167,6 +172,17 @@ beforeAll(async () => {
     undefined as unknown as BusinessDateService,
     bookings,
     new TransactionRunner(db),
+    // Never reached either: a page is raised only when money lands on a stay
+    // the property cannot honour, and nothing here resolves a callback at all.
+    // A stub that says so by name rather than a cast that says nothing.
+    {
+      page: () => {
+        throw new Error(
+          "OpsAlertService.page was reached from a suite that resolves no " +
+            "callback, so no money has landed anywhere to page about",
+        );
+      },
+    } as unknown as OpsAlertService,
   );
 });
 
