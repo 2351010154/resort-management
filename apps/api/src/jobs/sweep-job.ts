@@ -12,7 +12,7 @@
 // a transaction of its own would commit half of what the runner has not finished
 // deciding about.
 //
-// **It takes a business date and never reads a clock.** `FR-BOOK-04` says the
+// **It takes a business date and never reads a clock.** `FR-BOOK-03` says the
 // no-show is driven by the business date and "never by a wall clock", and a
 // sweep that called `new Date()` could not be re-run over a night that failed —
 // not by a test, and not by the manager re-running it the next morning. Work

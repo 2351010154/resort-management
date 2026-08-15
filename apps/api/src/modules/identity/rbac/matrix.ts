@@ -752,7 +752,7 @@ export const CAPABILITIES = [
   {
     key: "system.config",
     section: "System",
-    row: "System config (tax rates, retention N, business date, gateway credentials)",
+    row: "System config (tax rates, business date, gateway credentials)",
     unauthenticated: false,
     guest: "denied",
     staff: staff({ MANAGER: "read", ADMIN: "full" }),
