@@ -23,18 +23,19 @@ Two things the implementation had to settle that this document did not say:
   housekeeper, whose column says `—`. The role columns on those rows describe
   what a screen should offer, not a wall; enforcing them would refuse a member of
   staff a page any stranger can load.
-- **Four of the guest's rows accept a credential that is not a session.** A
+- **Five of the guest's rows accept a credential that is not a session.** A
   guest books without an account, so *Read own booking*, *Name the contact on own
-  hold*, *Cancel own booking* and *Open a gateway payment attempt* are reachable
-  by a Better Auth session **or** by the booking-scoped token issued when the
-  hold was taken. The four are the funnel end to end — hold the room, say where
-  to write about it, pay for it, change your mind — and a token
-  admitted to two of them would only move the sign-up wall one screen later. It
-  opens exactly one stay and satisfies no other row; §1's "no token opens both
-  realms" is unaffected, because it is not a staff credential and it is not a
-  login. `common/auth/access.guard.ts` resolves it, and the ⚠ on all three rows
-  still means the handler owes the ownership check — paid against the account on
-  a session and against the booking the token names otherwise.
+  hold*, *Keep own hold alive*, *Cancel own booking* and *Open a gateway payment
+  attempt* are reachable by a Better Auth session **or** by the booking-scoped
+  token issued when the hold was taken. The five are the funnel end to end —
+  hold the room, say where to write about it, keep it alive while you're away,
+  pay for it, change your mind — and a token admitted to two of them would only
+  move the sign-up wall one screen later. It opens exactly one stay and
+  satisfies no other row; §1's "no token opens both realms" is unaffected,
+  because it is not a staff credential and it is not a login.
+  `common/auth/access.guard.ts` resolves it, and the ⚠ on all five rows still
+  means the handler owes the ownership check — paid against the account on a
+  session and against the booking the token names otherwise.
   A request carrying a session **and** a booking token is the session's: it is
   the wider claim, it names an account the ownership query can be scoped by, and
   a credential able to override it would let a signed-in guest act as somebody
