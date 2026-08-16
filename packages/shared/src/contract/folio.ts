@@ -2,13 +2,16 @@
 // lines, the corrections filed against them, and the moment the desk agrees the
 // whole of it.
 //
-// Eight routes over seven rows of the RBAC matrix, and no route here that the
+// Nine routes over seven rows of the RBAC matrix, and no route here that the
 // matrix does not already govern: `folio.read`, `folio.post-charge`,
 // `folio.post-payment`, `folio.reverse-posting`, `folio.close-invoice`,
-// `folio.refund-policy` and `folio.refund-override`. Eight over seven because
-// posting a room charge and posting a catalog item are two shapes under one
-// authority — `matrix.ts` spells that row "Post charge (room, service,
-// minibar)", so both were always this key's. The invoice adjustment
+// `folio.refund-policy` and `folio.refund-override`. Nine over seven because
+// two of those rows carry two shapes each. Posting a room charge and posting a
+// catalog item are one authority — `matrix.ts` spells that row "Post charge
+// (room, service, minibar)", so both were always this key's — and reading one
+// stay's account and listing the property's accounts are one authority too:
+// "Read folio" is the row, and a list discloses less about each account than
+// the single read already discloses about one. The invoice adjustment
 // exists in the matrix too and is deliberately not here — it has service work of
 // its own, and a route declared before that work exists is a promise the client
 // would be held to.
@@ -46,14 +49,24 @@
 // unreturnable branch of a union is exactly the promise `index.ts` says nobody
 // can keep. {@link folioSummarySchema} is a member in its own right so that the
 // guest read, when it has a folio it can prove is theirs, reuses this figure
-// rather than restating it.
+// rather than restating it — and so that {@link listedFolioSchema} carries the
+// same three figures rather than a fourth spelling of the balance.
+//
+// **The collection is the desk's and can never be a guest's.** The grant that
+// realm holds is `conditional` and the word conditioning it is "own"; a list is
+// addressed by a filter rather than by a stay, so there is no folio named in the
+// request for an ownership check to be about, and the widest honest reading of
+// "own, settled view" over `GET /folios` is one account the caller could have
+// asked for by id anyway. That is not what this route is — it answers which
+// accounts across the property are still short — so the realm is refused on the
+// shape of the question rather than on the grant, and the handler says so.
 
 import { oc } from "@orpc/contract";
 import { z } from "zod";
 import { vndAmountInputSchema, vndAmountSchema } from "../money.js";
 import { chargeBasisSchema } from "../policy-charge.js";
 import { serviceCodeSchema } from "../service-catalog.js";
-import { isoStayDateSchema } from "../stay-date.js";
+import { isoStayDateSchema, stayDateSchema } from "../stay-date.js";
 
 const bookingIdFields = { bookingId: z.uuid() };
 
@@ -177,6 +190,115 @@ export const folioPostingReceiptSchema = z.object({
 });
 
 export const readFolioInput = z.object({ ...bookingIdFields });
+
+/**
+ * The most accounts one page of the collection will answer with.
+ *
+ * A page and not a cap, which is the difference between this route and
+ * `search.ts`'s. A search is run to find one stay and a result that overruns is
+ * a search that wants narrowing; this is a worklist, and "every account still
+ * short" is a set the desk has to get to the end of. So the ceiling bounds the
+ * response and `offset` reaches what it left behind, rather than the tail being
+ * dropped and the caller told to ask a different question.
+ *
+ * Two hundred because the balance behind each row is an aggregate over the
+ * ledger, so a page is real work rather than a slice of a table — and because a
+ * screen that renders more rows than this in one paint is an export wearing a
+ * table's clothes.
+ */
+export const LONGEST_FOLIO_PAGE = 200;
+
+/** The page a caller gets for not naming one. Enough to fill a screen. */
+export const FOLIO_PAGE_SIZE = 50;
+
+/**
+ * Which accounts to list — the three dimensions the desk actually sorts by.
+ *
+ * **`balance` is an enum and not a boolean**, and that is about how a query
+ * string is read rather than about taste: `?outstandingOnly=false` arrives as
+ * the string "false", which every ordinary coercion turns into `true`, and the
+ * failure mode of that mistake is a settled property reported as though every
+ * account on it were short. Two named members have no such reading.
+ * `OUTSTANDING` is `outstanding <> 0` and not `> 0` — an over-paid stay is an
+ * account that does not balance and is exactly what a desk chasing money at the
+ * end of a day needs to see.
+ *
+ * **The date range is the trading days the account was active on**, which is the
+ * only business date a folio has: `schema/folio.ts` gives the account an opening
+ * instant and a closing one and gives the *lines* the business date, because a
+ * trading day is what §2's rollover decides and an instant is not. So an account
+ * is in the window when a line of it is, and the summary that comes back is
+ * still the whole account's — a balance computed from a window would be a
+ * fraction of what the guest owes, printed under the word outstanding.
+ *
+ * Both ends inclusive and each optional on its own, like
+ * `listReconciliationRunsInput`: these name the first and last day of interest,
+ * where a stay's own [checkIn, checkOut) does not.
+ */
+export const listFoliosInput = z
+  .object({
+    state: folioStateSchema.optional(),
+    balance: z.enum(["ANY", "OUTSTANDING"]).default("ANY"),
+    from: stayDateSchema.optional(),
+    to: stayDateSchema.optional(),
+    limit: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(LONGEST_FOLIO_PAGE)
+      .default(FOLIO_PAGE_SIZE),
+    // Rows to skip, not a page number. The order is total and stable — newest
+    // account first, the id breaking a tie — so a caller stepping by `limit`
+    // sees each account once, and a caller jumping straight to a row deep in
+    // the list does not have to know how the pages were cut.
+    offset: z.coerce.number().int().min(0).default(0),
+  })
+  .refine(
+    (query) => !query.from || !query.to || query.from.compare(query.to) <= 0,
+    { message: "to must not fall before from", path: ["to"] },
+  );
+
+/**
+ * One account as the collection answers it: what it is, and what it comes to.
+ *
+ * The lines are deliberately absent. A page of two hundred accounts carrying
+ * every posting on each would be the whole ledger returned to draw a table, and
+ * the account's own route is one link away — the id and the stay are both here,
+ * which is the whole of what a row needs to be clickable.
+ *
+ * {@link folioSummarySchema} itself rather than a figure of its own, so the
+ * balance a list shows and the balance the account shows are the same three
+ * numbers derived the same way. There is no stored total behind either: the
+ * summary is computed from the postings on every read, and `schema/folio.ts`
+ * refuses to hold the column that would let the two disagree.
+ */
+export const listedFolioSchema = z.object({
+  id: z.uuid(),
+  bookingId: z.uuid(),
+  state: folioStateSchema,
+  openedAt: z.iso.datetime(),
+  /** Null while the account is still taking lines. */
+  closedAt: z.iso.datetime().nullable(),
+  summary: folioSummarySchema,
+});
+
+/**
+ * A page of accounts, and how many the filters matched.
+ *
+ * `total` is counted under the same predicate the page was cut from, on every
+ * read, and it is what lets a count card ask "how many accounts are still
+ * short" without pulling rows it will not render — `limit=1` and read the
+ * figure. It is also what a pager needs: `hasMore` would answer the next button
+ * and nothing else, where this answers the next button, the last page, and the
+ * number the desk is actually being asked about.
+ *
+ * Counted rather than stored, for the reason every figure on this route is:
+ * a total frozen anywhere is a second place for it to live.
+ */
+export const folioPageSchema = z.object({
+  folios: z.array(listedFolioSchema),
+  total: z.number().int().min(0),
+});
 
 /**
  * A charge as the guest agreed to it — one gross figure, never three.
@@ -356,6 +478,25 @@ export const folio = {
     .route({ method: "GET", path: "/bookings/{bookingId}/folio" })
     .input(readFolioInput)
     .output(folioSchema),
+
+  list: oc
+    // A collection of its own at the root rather than under a stay, because
+    // that is what it is about: the accounts the property has open, across
+    // bookings. `/bookings/{bookingId}/folio` stays the address of one account
+    // and is untouched — the two answer different questions and neither is a
+    // variant of the other.
+    //
+    // The same `folio.read` row as the route above it. Two shapes under one
+    // authority is not the collapse `rbac-matrix.md` §2 forbids: a row of this
+    // list is strictly less than what the single read already hands the same
+    // caller, so there is nothing reachable here that the key did not already
+    // open. What §2 forbids is one route whose authority turns on its body.
+    //
+    // GET, with the filters in the query string, so a desk chasing unsettled
+    // accounts at the end of a shift has a link rather than a procedure.
+    .route({ method: "GET", path: "/folios" })
+    .input(listFoliosInput)
+    .output(folioPageSchema),
 
   postCharge: oc
     // POST to a collection, because that is what a posting is: the ledger is
