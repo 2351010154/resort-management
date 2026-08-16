@@ -1,32 +1,30 @@
-// Turning a range, a party and a plan into the two numbers on a card.
+// What the funnel makes of an offer once the API has priced it: the nights a
+// range sells, the nights of the window by date, whether a party fits a type,
+// and how the five types are split across the room list.
 //
-// Every rule here is `docs/architecture/property-and-tariff.md`: §3 for the plan
-// arithmetic, §5 for gross display and for rounding being presentation-only.
-// §3's child bands are applied here but no longer written here — see below.
-// Nothing in this file rounds. The one function that does is
+// **No price is computed here any more, and the absence is the whole point.**
+// This file used to hold §3's plan arithmetic — the percentage, the breakfast
+// line, the extra-person band — because the funnel was quoting against a
+// stand-in tariff while the read procedures did not exist. They do:
+// `availability.ts` asks for the offers and `@mariva/shared`'s `stayTotalGross`
+// is the one place the arithmetic lives, applied by the API against rows a
+// manager edits and by the same function at the moment of sale. A second copy in
+// the browser is a card and an invoice free to disagree.
+//
+// Nothing in this file rounds either. The one function that does is
 // `roundVndForDisplay` in `@mariva/shared`, called by the components that render
 // — because a total is the rounded sum of the nights and never the sum of the
 // rounded nights, and the only way to keep that true is to have no rounding
 // anywhere upstream of the text.
-//
-// All arithmetic is `bigint`. Percentages are therefore applied as an integer
-// numerator over an integer denominator rather than a float multiply: `× 9n / 10n`
-// truncates deterministically, where `× 0.9` would not typecheck at all — which
-// is the whole reason `money.ts` chose the type.
 
 import {
-  breakfastHeads,
-  extraPersonPerNight,
   type NightRate,
   nightCount,
   type Party,
   partySize,
-  type RatePlanCode,
-  type RoomTypeCode,
   type RoomTypeOffer,
   type StayDate,
   type StayRange,
-  type VndAmount,
 } from "@mariva/shared";
 import { ROOM_TYPES, type RoomType } from "./room-types";
 
@@ -39,47 +37,6 @@ import { ROOM_TYPES, type RoomType } from "./room-types";
 // on asking `stay-quote` for its party the way it always has.
 export type { Child, Party } from "@mariva/shared";
 export { partySize };
-
-/**
- * The ⚑ prices this screen quotes against while it runs on a fixture.
- *
- * The property stores both of them — the extra person in `property_tariff`,
- * breakfast on `rate_plan` — and the quote endpoint applies both. This interface
- * is what the fixture supplies until the funnel reads that endpoint, at which
- * point it goes with the fixture.
- *
- * There is no third figure. §1 charges nothing for the bed a party's occupancy
- * requires, and §6's priced extra bed is posted at the desk for one a guest asked
- * for — so nothing this file quotes has a bed in it.
- */
-export interface TariffRates {
-  readonly extraPersonPerNight: VndAmount;
-  readonly breakfastPerPersonPerNight: VndAmount;
-}
-
-/**
- * Gross for one night, for one type, under one plan.
- *
- * `NONREF` discounts the room only — a 10% cut that also cut the breakfast or
- * the extra person would be discounting somebody else's cost line, and §3's
- * "`STANDARD` − 10%" is about the rate.
- */
-function nightGross(
-  roomGross: VndAmount,
-  party: Party,
-  plan: RatePlanCode,
-  rates: TariffRates,
-): VndAmount {
-  const room = plan === "NONREF" ? (roomGross * 9n) / 10n : roomGross;
-  const breakfast =
-    plan === "BB"
-      ? rates.breakfastPerPersonPerNight * BigInt(breakfastHeads(party))
-      : 0n;
-
-  return (
-    room + breakfast + extraPersonPerNight(party, rates.extraPersonPerNight)
-  );
-}
 
 /** Nights the range sells — the departure date is not one of them. */
 export function stayNights(range: StayRange): number {
@@ -104,64 +61,6 @@ export type NightIndex = ReadonlyMap<string, NightRate>;
 
 export function indexNights(nights: readonly NightRate[]): NightIndex {
   return new Map(nights.map((night) => [night.date.toString(), night]));
-}
-
-/**
- * Whether a type can be sold for the whole range.
- *
- * The calendar's `isSoldOut` is property-wide — no room of any type free. A type
- * can be individually sold out on a night the property still has rooms for, so
- * this reads the per-type availability the offer carries and falls back to the
- * property-wide flag, which is the conservative direction: never offer a night
- * the property has already said is gone.
- */
-function isRangeSellable(range: StayRange, nights: NightIndex): boolean {
-  return nightsInRange(range).every((date) => {
-    const night = nights.get(date.toString());
-    return night !== undefined && !night.isSoldOut;
-  });
-}
-
-export interface QuoteInput {
-  readonly range: StayRange;
-  readonly party: Party;
-  readonly plan: RatePlanCode;
-  readonly rates: TariffRates;
-  /** Per-type gross room rate for each night of the range. */
-  readonly roomRates: ReadonlyMap<RoomTypeCode, ReadonlyMap<string, VndAmount>>;
-  readonly nights: NightIndex;
-  /** Types with no room free on at least one night of the range. */
-  readonly soldOutTypes: ReadonlySet<RoomTypeCode>;
-}
-
-/**
- * One offer per type, in `ROOM_TYPES` order, priced for the range.
- *
- * `perNightGross` is the average and is labelled as a per-night figure on the
- * card; `stayTotalGross` is the authoritative sum. They are computed from the
- * same un-rounded night amounts, so the card's two lines agree once each is
- * rounded for display — which is the invariant the whole file exists for.
- */
-export function quoteStay(input: QuoteInput): RoomTypeOffer[] {
-  const nights = nightsInRange(input.range);
-  const sellable = isRangeSellable(input.range, input.nights);
-
-  return ROOM_TYPES.map((type) => {
-    const perType = input.roomRates.get(type.code);
-    const total = nights.reduce<VndAmount>((sum, date) => {
-      const roomGross = perType?.get(date.toString()) ?? 0n;
-      return sum + nightGross(roomGross, input.party, input.plan, input.rates);
-    }, 0n);
-
-    return {
-      code: type.code,
-      // Integer division: the average is display-only and the total is what
-      // settles, so a truncated đồng here cannot reach the folio.
-      perNightGross: nights.length > 0 ? total / BigInt(nights.length) : 0n,
-      stayTotalGross: total,
-      isAvailable: sellable && !input.soldOutTypes.has(type.code),
-    };
-  });
 }
 
 /**
