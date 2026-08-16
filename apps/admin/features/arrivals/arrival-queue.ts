@@ -1,0 +1,365 @@
+/* The arrivals queue, and the shape of the check-in that is worked out of it.
+ *
+ * Pure, and separate from the hooks and the markup beside it, for the reason
+ * `features/dashboard/day-counts.ts` gives: everything below is a decision the
+ * API does not make for the console — which of today's confirmed stays belong
+ * in the queue, which rooms a guest may actually be walked into, how many steps
+ * the sequence has for this particular arrival, and where focus goes when a row
+ * leaves. Those are the parts that can be wrong in a way nobody notices until a
+ * receptionist is standing in front of a guest.
+ *
+ * Three rules hold throughout, and `arrival-queue.spec.ts` holds this file to
+ * them:
+ *
+ * 1. **The day is the property's, not the browser's.** Nothing here reads a
+ *    clock. The business date arrives on the housekeeping board, resolved by
+ *    the API against `system_config.business_date_rollover_hour`, and the queue
+ *    is cut against that string. A console computing its own 04:00 would work a
+ *    queue for a day the desk is not on.
+ * 2. **A list nobody could compute is not an empty list.** `todaysArrivals`
+ *    answers `null` rather than `[]` when the search came back narrowed to a
+ *    scope with no stays in it, because "nobody is arriving" is a real and
+ *    reassuring sentence and printing it over a refusal is the console lying
+ *    about the property.
+ * 3. **A capped answer says it was capped.** `search.operational` returns at
+ *    most {@link SEARCH_RESULT_LIMIT} stays, so a queue cut from it can be
+ *    short, and the screen has to say so rather than let a receptionist believe
+ *    they have reached the end of the morning.
+ */
+
+import type { ApiClient } from "@mariva/api-client";
+import {
+  CHECK_IN_REFUSALS,
+  type CheckInRefusal,
+  SEARCH_RESULT_LIMIT,
+} from "@mariva/shared";
+
+import type { BoardRoom } from "@/features/housekeeping";
+
+/* The shapes, read off the client rather than restated — `day-counts.ts` and
+ * `board-queries.ts` both make the same argument: `@mariva/shared` types the
+ * client from the contract's own schemas, so a field renamed there breaks this
+ * file in the pull request that renamed it, where a hand-written interface
+ * would compile until it was wrong. */
+export type SearchResults = Awaited<
+  ReturnType<ApiClient["search"]["operational"]>
+>;
+type FullResults = Extract<SearchResults, { scope: "everything" }>;
+
+/** One stay in the queue, as the search answers it. */
+export type Arrival = FullResults["bookings"][number];
+
+/** A person the property has met before, as the search answers them. */
+export type GuestHit = FullResults["guests"][number];
+
+/** The stay's account, as `folio.read` answers it. */
+export type Folio = Awaited<ReturnType<ApiClient["folio"]["read"]>>;
+
+/** The queue, and whether the answer it was cut from had been cut short. */
+export interface ArrivalQueue {
+  readonly arrivals: Arrival[];
+  /**
+   * True when the search hit its own ceiling, so there are arrivals this queue
+   * does not contain. Measured against what came back rather than against what
+   * survived the filter: the cap is applied by the API before this file sees
+   * anything.
+   */
+  readonly truncated: boolean;
+}
+
+/**
+ * Today's confirmed arrivals, in the order the desk works them.
+ *
+ * The state is filtered again here even though `arrivalCriteria` already asks
+ * for `CONFIRMED` only. That is not belt-and-braces about the API: the same
+ * cached answer is shared with the dashboard's count and is re-read from the
+ * cache while a refetch is in flight, and a stay a colleague checked in ten
+ * seconds ago must not be offered to a second receptionist as still waiting.
+ *
+ * The date filter is what separates an arrival from an occupant. The window the
+ * search is run over is the whole business day and the API matches a stay to it
+ * by overlap, so a confirmed stay that arrived on Tuesday and was never checked
+ * in is still in the answer on Wednesday — that is a no-show for the night
+ * audit, not somebody at the counter.
+ *
+ * Ordered by reference rather than left in the API's order, because the queue
+ * is walked with the arrow keys and re-rendered on every refetch: an order that
+ * depends on how the rows came back is an order that can move under the
+ * operator between two presses.
+ */
+export function todaysArrivals(
+  results: SearchResults,
+  businessDate: string,
+): ArrivalQueue | null {
+  if (results.scope !== "everything") {
+    return null;
+  }
+
+  const arrivals = results.bookings
+    .filter(
+      (stay) => stay.state === "CONFIRMED" && stay.checkIn === businessDate,
+    )
+    .sort((left, right) => left.reference.localeCompare(right.reference));
+
+  return {
+    arrivals,
+    truncated: results.bookings.length >= SEARCH_RESULT_LIMIT,
+  };
+}
+
+/**
+ * The row focus should land on once this one has been checked in.
+ *
+ * The next arrival, so a desk working ten guests at two o'clock presses Enter,
+ * finishes, and is already on the following stay. The one *before* it when the
+ * finished row was last, because the alternative is focus landing nowhere at
+ * the end of a queue — and null only when the queue is now empty, which is the
+ * one case where there is honestly nothing to move to.
+ *
+ * Computed against the queue as it stood before the check-in, because that is
+ * the only list that still contains the row being left.
+ */
+export function arrivalAfter(
+  arrivals: readonly Arrival[],
+  bookingId: string,
+): string | null {
+  const at = arrivals.findIndex((stay) => stay.id === bookingId);
+
+  if (at === -1) {
+    return arrivals[0]?.id ?? null;
+  }
+
+  return arrivals[at + 1]?.id ?? arrivals[at - 1]?.id ?? null;
+}
+
+/**
+ * The rooms this stay may actually be walked into, narrowed by what was typed.
+ *
+ * Three conditions, and each is a refusal the desk would otherwise meet at the
+ * check-in call instead of at the control that caused it:
+ *
+ * - **The type the stay was sold.** A booking is sold as a room type and the
+ *   nights are counted against that type's inventory, so putting the guest in
+ *   another one is an upgrade — `PUT /bookings/{id}/room-type`, its own
+ *   operation — and not something an assignment control may do quietly.
+ * - **Ready.** `isReady` is the API's own answer to `booking-state-machine.md`
+ *   §4's room-ready guard, so this reads the flag rather than deciding for
+ *   itself that `INSPECTED` counts. Out-of-order rooms fall out here too, which
+ *   is right: they are not ready.
+ * - **Not occupied.** A clean room with somebody still in it is a room the
+ *   morning's departure has not left yet.
+ *
+ * The typed fragment matches anywhere in the number, the way the search matches
+ * a room fragment — a desk typing `20` is looking for 201 through 210.
+ */
+export function assignableRooms(
+  rooms: readonly BoardRoom[],
+  roomType: string,
+  typed: string,
+): BoardRoom[] {
+  const fragment = typed.trim().toLowerCase();
+
+  return rooms
+    .filter(
+      (room) =>
+        room.roomType === roomType &&
+        room.isReady &&
+        !room.isOccupied &&
+        (fragment === "" || room.roomNumber.toLowerCase().includes(fragment)),
+    )
+    .sort((left, right) =>
+      left.roomNumber.localeCompare(right.roomNumber, undefined, {
+        numeric: true,
+      }),
+    );
+}
+
+/**
+ * What the guest owes on arrival, or nothing.
+ *
+ * The deposit the sequence offers is the account's own outstanding balance and
+ * never a figure this file invents: a stay booked through the funnel is paid in
+ * full before it is ever confirmed, and one the desk took by telephone is not.
+ * `outstanding` is derived by the API from the postings on every read, so this
+ * is a reading of the ledger rather than a second opinion about it.
+ *
+ * A negative balance is an over-paid stay and is not a deposit due. Money going
+ * back to a guest is a refund, which is two other routes and two other
+ * capabilities.
+ */
+export function depositDue(folio: Folio): bigint {
+  const { outstanding } = folio.summary;
+
+  return outstanding > 0n ? outstanding : 0n;
+}
+
+/** The steps a check-in can have, in the order they are worked. */
+export const CHECK_IN_STEPS = [
+  "guest",
+  "identity",
+  "room",
+  "deposit",
+  "review",
+] as const;
+
+export type CheckInStep = (typeof CHECK_IN_STEPS)[number];
+
+/** What decides how many steps this particular arrival has. */
+export interface SequenceFacts {
+  /**
+   * True when the desk picked somebody the property already has a record for.
+   * Their particulars were taken the last time they stayed, and asking for the
+   * document again would create a second record for one person — the CCCD is
+   * unique, so the API refuses that rather than storing it, and the refusal
+   * lands in the middle of a check-in.
+   */
+  readonly knownGuest: boolean;
+  /** True when the account is short — see {@link depositDue}. */
+  readonly depositDue: boolean;
+}
+
+/**
+ * The steps this arrival actually has.
+ *
+ * A sequence with a fixed five steps would make the desk press Enter through
+ * two that have nothing on them, which at ten guests is twenty presses spent on
+ * nothing. The guest step and the room step are always there: somebody has to
+ * be named on the residence record, and the check-in route refuses a stay with
+ * no room.
+ */
+export function sequenceSteps(facts: SequenceFacts): CheckInStep[] {
+  return CHECK_IN_STEPS.filter(
+    (step) =>
+      (step !== "identity" || !facts.knownGuest) &&
+      (step !== "deposit" || facts.depositDue),
+  );
+}
+
+/** The step after this one, or null at the end of the sequence. */
+export function stepAfter(
+  steps: readonly CheckInStep[],
+  step: CheckInStep,
+): CheckInStep | null {
+  return steps[steps.indexOf(step) + 1] ?? null;
+}
+
+/**
+ * The refusal code behind a rejected check-in, or null.
+ *
+ * Read structurally off `data.code` and checked against the contract's own
+ * list, because that is what `contract/booking.ts` declares and what
+ * `booking-refusal.ts` exists for: the desk has a different action behind each
+ * one, and matching on the message would tie this screen to the wording. An
+ * error carrying no code — an illegal transition, a network that was not there
+ * — answers null and is left to the central toast.
+ */
+export function checkInRefusal(error: unknown): CheckInRefusal | null {
+  if (typeof error !== "object" || error === null) {
+    return null;
+  }
+
+  const data = (error as { data?: unknown }).data;
+
+  if (typeof data !== "object" || data === null) {
+    return null;
+  }
+
+  const code = (data as { code?: unknown }).code;
+
+  return CHECK_IN_REFUSALS.includes(code as CheckInRefusal)
+    ? (code as CheckInRefusal)
+    : null;
+}
+
+/**
+ * Where the sequence goes when the API refuses the check-in.
+ *
+ * The three room refusals send the operator back to the assignment control,
+ * which is where the fix is: call housekeeping and pick the room again, or pick
+ * a different one. The two window refusals have no fix inside this sequence —
+ * an early arrival needs a manager and a late one is a stay the night audit has
+ * already written off — so the operator stays on the review step, where the
+ * sentence is.
+ */
+export function refusalStep(code: CheckInRefusal): CheckInStep {
+  return code === "ARRIVAL_WINDOW_EARLY" || code === "ARRIVAL_WINDOW_LATE"
+    ? "review"
+    : "room";
+}
+
+/** What the desk is told, per refusal, in words that name the next act. */
+export function refusalSentence(code: CheckInRefusal): string {
+  switch (code) {
+    case "ARRIVAL_WINDOW_EARLY":
+      return "The stay does not start today. A manager can reinstate or move it; the queue cannot.";
+    case "ARRIVAL_WINDOW_LATE":
+      return "The night audit has already written this stay off. A manager reinstates a late arrival.";
+    case "ROOM_NOT_ASSIGNED":
+      return "The stay holds no room. Assign one and check in again.";
+    case "ROOM_NOT_READY":
+      return "That room is not clean yet. Ask housekeeping to release it, or pick another.";
+    case "ROOM_OUT_OF_ORDER":
+      return "That room is out of order. The guest needs a different one.";
+  }
+}
+
+/**
+ * A whole number of đồng typed by an operator, or null.
+ *
+ * `bigint`, because that is what the ledger is counted in and what the contract
+ * takes — `money.ts` chose it precisely so an amount cannot be added to a night
+ * or a percentage by accident.
+ *
+ * Spaces and full stops are dropped and a comma is not, which is the vi-VN
+ * grouping mark and the vi-VN decimal mark respectively: a receptionist reading
+ * "1.500.000 ₫" off the screen types the stops they can see, while a comma in a
+ * đồng figure is somebody typing a minor unit the currency does not have — and
+ * silently reading it as a grouping mark would post a hundredfold of what was
+ * meant.
+ *
+ * Zero and less are refused. A deposit is money handed over, which is the same
+ * refusal `postPaymentInput` states, applied where the operator can still fix
+ * it rather than as a `400` after the press.
+ */
+export function parseAmount(typed: string): bigint | null {
+  const digits = typed.replaceAll(/[\s.]/g, "");
+
+  if (!/^\d+$/.test(digits)) {
+    return null;
+  }
+
+  const amount = BigInt(digits);
+
+  return amount > 0n ? amount : null;
+}
+
+/**
+ * A date of birth as the contract takes it, or null when it is not one.
+ *
+ * `YYYY-MM-DD` and nothing more liberal, which is `lib/date-parser.ts`'s own
+ * instruction rather than a shortcut: every two-digit year that parser accepts
+ * resolves to this century because every date it was written for is a stay
+ * date, and the same rule turns a guest born in 1985 into one born in 2085.
+ *
+ * The day is checked against the calendar and not only against the pattern.
+ * "1990-02-30" matches the shape and `Date.UTC` rolls it into 2 March without
+ * complaint, so a typo would be filed on the residence record as a real and
+ * different birthday.
+ */
+export function parseBirthDate(typed: string): string | null {
+  const trimmed = typed.trim();
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return null;
+  }
+
+  const [year, month, day] = trimmed.split("-").map(Number);
+  const walked = new Date(Date.UTC(year, month - 1, day));
+
+  const real =
+    walked.getUTCFullYear() === year &&
+    walked.getUTCMonth() === month - 1 &&
+    walked.getUTCDate() === day;
+
+  return real ? trimmed : null;
+}
