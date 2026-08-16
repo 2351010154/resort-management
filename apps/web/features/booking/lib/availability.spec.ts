@@ -1,10 +1,10 @@
-// The boundary this module exists to hold: months in, one window of nights out,
-// with money and dates in the form the screen reasons in rather than the form
-// the wire spells them in.
+// The boundary this module exists to hold: a window in, one window of nights
+// out, with money and dates in the form the screen reasons in rather than the
+// form the wire spells them in.
 //
-// The client is stubbed because what is under test is the fan-out, the decoding
-// and the trim — not oRPC. What the stub answers is shaped exactly as the
-// transport answers: an ISO date, and đồng as decimal text, which is what
+// The client is stubbed because what is under test is the question asked and the
+// decoding of the answer — not oRPC. What the stub answers is shaped exactly as
+// the transport answers: an ISO date, and đồng as decimal text, which is what
 // `money.ts` says a `bigint` becomes in JSON.
 
 import { parseDate } from "@internationalized/date";
@@ -19,9 +19,9 @@ vi.mock("@/lib/api", () => ({
 
 const { readNightRates, readStayOffers } = await import("./availability");
 
-/** A month of nights as the API answers it, from the first of the month. */
-function monthOf(year: number, month: number, days: number) {
-  const first = parseDate(`${year}-${String(month).padStart(2, "0")}-01`);
+/** A window of nights as the API answers it, from `from` for `days` nights. */
+function windowOf(from: string, days: number) {
+  const first = parseDate(from);
 
   return {
     plan: "STANDARD",
@@ -41,41 +41,34 @@ beforeEach(() => {
 });
 
 describe("reading the priced window", () => {
-  it("asks for every month the window touches, and no others", async () => {
-    calendar.mockImplementation(async (query: { month: number }) =>
-      monthOf(2026, query.month, 31),
-    );
+  // One request for the whole horizon. The month form made a year of nights
+  // thirteen calls on the first paint of a public page, and this is the
+  // assertion that keeps it one.
+  it("asks for the window once, half-open, as text", async () => {
+    calendar.mockImplementation(async () => windowOf("2026-08-30", 34));
 
     await readNightRates(parseDate("2026-08-30"), 34, "STANDARD");
 
     expect(calendar.mock.calls.map(([query]) => query)).toEqual([
-      { year: 2026, month: 8, plan: "STANDARD" },
-      { year: 2026, month: 9, plan: "STANDARD" },
-      { year: 2026, month: 10, plan: "STANDARD" },
+      { from: "2026-08-30", to: "2026-10-03", plan: "STANDARD" },
     ]);
   });
 
-  it("crosses the year boundary rather than counting past twelve", async () => {
-    calendar.mockImplementation(
-      async (query: { year: number; month: number }) =>
-        monthOf(query.year, query.month, 28),
-    );
+  it("crosses the year boundary in the same one call", async () => {
+    calendar.mockImplementation(async () => windowOf("2026-12-20", 20));
 
     await readNightRates(parseDate("2026-12-20"), 20, "NONREF");
 
     expect(calendar.mock.calls.map(([query]) => query)).toEqual([
-      { year: 2026, month: 12, plan: "NONREF" },
-      { year: 2027, month: 1, plan: "NONREF" },
+      { from: "2026-12-20", to: "2027-01-09", plan: "NONREF" },
     ]);
   });
 
-  // The months are whole, so the first and last of them overhang the window at
-  // both ends. A night the guest cannot book must not be counted as one they can
-  // — the foot says "n of the next m nights are free" off exactly this list.
-  it("trims the months back to the window", async () => {
-    calendar.mockImplementation(async (query: { month: number }) =>
-      monthOf(2026, query.month, 31),
-    );
+  // The answer is exactly the nights that were asked for, so nothing is trimmed
+  // here — the foot says "n of the next m nights are free" off this list, and a
+  // night the guest cannot book must never appear in it.
+  it("hands back the window the route answered with", async () => {
+    calendar.mockImplementation(async () => windowOf("2026-08-30", 4));
 
     const nights = await readNightRates(parseDate("2026-08-30"), 4, "STANDARD");
 
@@ -139,14 +132,11 @@ describe("reading the priced window", () => {
     expect(night.lowestGross).toBeNull();
   });
 
-  // Half a calendar is worse than none: the missing month refuses every press
+  // Half a calendar is worse than none: the missing nights refuse every press
   // with "not yet priced", which a guest cannot tell from a property that is
-  // full. So one month failing fails the read, and the screen says so.
-  it("refuses the whole window when one month fails", async () => {
-    calendar.mockImplementation(async (query: { month: number }) => {
-      if (query.month === 9) throw new Error("no");
-      return monthOf(2026, query.month, 31);
-    });
+  // full. The read fails whole, and the screen says so.
+  it("refuses the whole window when the read fails", async () => {
+    calendar.mockRejectedValue(new Error("no"));
 
     await expect(
       readNightRates(parseDate("2026-08-30"), 34, "STANDARD"),
