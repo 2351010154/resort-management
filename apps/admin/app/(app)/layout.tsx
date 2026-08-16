@@ -3,25 +3,27 @@
 // them are mounted: the session guard, the persistent navigation, the global
 // hotkey listener, and the command palette.
 //
-// The palette is here now. It is mounted once and holds no commands of its own
-// — a screen declares what it offers with `useCommands`, and the provider
-// around it collects those declarations — so ⌘K means the same thing on every
-// screen while what it can do is decided by the screen the operator is on.
-// Until the shell registers its navigation and the first screens register their
-// actions, the palette opens onto an empty list, which is the honest state
-// rather than a placeholder.
+// The palette is mounted once and holds no commands of its own — a screen
+// declares what it offers with `useCommands`, and the provider around it
+// collects those declarations — so ⌘K means the same thing on every screen
+// while what it can do is decided by the screen the operator is on. Its
+// `Go to` group is the shell's navigation and its `Actions` group holds the
+// shell's one command, which is signing out; everything else in it arrives with
+// a screen.
 //
-// The session guard is here now too, and it is what makes this group the
+// The session guard is here too, and it is what makes this group the
 // authenticated realm rather than a folder named after one: nothing under it
 // renders until the browser has spent the refresh cookie and got a session
 // back, and an operator without one is sent to login carrying the destination
 // they were interrupted on.
 //
-// The navigation is still absent, and deliberately: it has an owner further
-// along in the console's build-out, and a placeholder navigation invented here
-// would be a second opinion about the screen inventory that the real one has to
-// undo. Until then the palette's `Go to` group stays empty and `Actions` holds
-// the shell's one command, which is signing out.
+// The navigation is here as a rail down the left, filtered by the session's
+// role, and as the `g` sequence and the palette rows that reach the same
+// places. It names fifteen families and **none of their routes exist yet** —
+// `features/shell/nav-inventory.ts` says why at length, and it is the same
+// reason `lib/auth/landing-route.ts` gives for the landings: the map is settled
+// and tested before the screens, and a placeholder behind each entry would be a
+// second opinion about an inventory that has an owner.
 //
 // What must not happen is screens arriving first. The keyboard layer is a
 // property of every screen at once — focus order, an escape route from any
@@ -32,6 +34,7 @@ import {
   CommandPalette,
   CommandRegistryProvider,
 } from "@/features/command-palette";
+import { AppNav, NavShortcuts } from "@/features/shell";
 import {
   SessionCommands,
   SessionGuard,
@@ -47,12 +50,24 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <StaffSessionProvider>
       <CommandRegistryProvider>
         <SessionGuard>
-          {children}
+          <div className="flex min-h-svh">
+            {/* Before the children in the markup, which is where a landmark
+             * belongs for anything reading the page in order. Its commands are
+             * not registered here — see `NavShortcuts` below — so the shell's
+             * registration order is unaffected by where the rail is drawn. */}
+            <AppNav />
+            {/* `min-w-0`, so a wide table inside a screen scrolls within the
+             * main region instead of stretching the flex row and pushing the
+             * rail off the left of the window. */}
+            <main className="min-w-0 flex-1">{children}</main>
+          </div>
           {/* After the children for the same reason the palette is: React
            * flushes a child's effects first, so a screen's commands register
-           * before the shell's and a screen may override `session.sign-out` by
-           * claiming its id. Inside the guard, so there is no sign-out command
-           * offered on a console nobody is signed in to. */}
+           * before the shell's and a screen may override `session.sign-out` or
+           * a `nav.*` row by claiming its id. Inside the guard, so there is no
+           * sign-out command and no navigation offered on a console nobody is
+           * signed in to. */}
+          <NavShortcuts />
           <SessionCommands />
         </SessionGuard>
         {/* After the children, not before: the palette portals its surface to the
