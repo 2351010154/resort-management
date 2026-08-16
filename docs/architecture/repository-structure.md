@@ -257,17 +257,32 @@ them.** `tech-stack.md` §Frontend defines the motion boundary, and
 [`design-foundations.md`](design-foundations.md) §5 records why the funnel could
 not stay CSS-only: CSS has no exit, so a bottom sheet could enter on the house
 curve and never leave on one. Bundle verification must prove that funnel chunks
-contain none of `three`, `gsap`, or `lenis`. Nothing measures that yet: today the
-boundary holds because all three are imported only under `(marketing)/`, which is
-a route-group convention and not a mechanical check.
+contain none of `three`, `gsap`, or `lenis`, and
+[`scripts/check-bundle-budget.ts`](../../apps/web/scripts/check-bundle-budget.ts)
+measures it on every build: the route group is still the convention, but a
+post-build step now reads the emitted chunks and fails the build rather than
+trusting where an import was written.
+
+It matches on markers the packages author about themselves rather than on module
+paths, because the production bundler leaves no paths to match — and not on the
+package names either, since guest copy about "a family of three" is not a
+dependency on `three`.
 
 **The funnel depends on three read contracts** —
-per-date lowest price for a month, per-date restriction flags, per-type
-availability for a range — owned by the `pricing` and `inventory` modules. Their
-schemas live in `packages/shared/src/rate-calendar.ts`. All three are answered by
-`GET /availability/calendar` and `GET /availability`, the two routes of the
-matrix's one unauthenticated row, and `/booking` reads them through
-`features/booking/lib/availability.ts`. The fixture that stood in for them while
+per-date lowest price for a window of nights, per-date restriction flags,
+per-type availability for a range — owned by the `pricing` and `inventory`
+modules. Their schemas live in `packages/shared/src/rate-calendar.ts`. All three
+are answered by `GET /availability/calendar` and `GET /availability`, the two
+routes of the matrix's one unauthenticated row, and `/booking` reads them
+through `features/booking/lib/availability.ts`.
+
+`GET /availability/calendar` takes the window itself — half-open `from`/`to`,
+per `packages/shared/src/contract/availability.ts` — rather than the `{year,
+month}` it once took, so the funnel's 365-night horizon is one request on first
+paint instead of thirteen. The window is bounded in the contract at
+`LONGEST_CALENDAR_WINDOW` nights and a longer one is rejected, because this is
+the route a caller holding no session can reach and an unbounded range there is
+an amplification lever. The fixture that stood in for them while
 they were unbuilt is gone, which is the rule those contracts were written under:
 a fixture may satisfy the schemas during UI work and must be deleted when the
 procedures land, and no component may know which transport supplies the data.

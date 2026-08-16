@@ -204,7 +204,7 @@ describe("closing a room", () => {
   it("shows up in availability as one fewer room", async () => {
     const response = await http()
       .get("/availability/calendar")
-      .query({ year: 2027, month: 6 })
+      .query({ from: "2027-06-01", to: "2027-07-01" })
       .expect(200);
 
     // The closure is invisible in the grid — eleven Superiors is still a

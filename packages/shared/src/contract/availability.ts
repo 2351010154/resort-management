@@ -4,7 +4,7 @@
 // single unauthenticated row in the matrix: the public funnel asks the same
 // question the front desk does, and answering it discloses only what the hotel
 // already prints on a booking page. Two routes rather than one because the
-// funnel asks twice, at different granularity — a month of nights before the
+// funnel asks twice, at different granularity — a window of nights before the
 // guest has picked dates, then one offer per type once they have. The shapes
 // they answer with are `rate-calendar.ts`'s, and the argument for keeping them
 // apart is made there.
@@ -20,7 +20,7 @@ import {
   stayOfferSchema,
   wireRateCalendarSchema,
 } from "../rate-calendar.js";
-import { stayDateSchema } from "../stay-date.js";
+import { nightCount, stayDateSchema } from "../stay-date.js";
 
 // A party larger than any room takes is not a search, it is a typo. The real
 // ceiling is per type and lives in `room_type.max_occupancy` — §1 — where a
@@ -103,12 +103,55 @@ export const stayOfferQuery = z
     },
   );
 
-/** A month of nights, for the grid the funnel opens on. */
-export const rateCalendarQuery = z.object({
-  year: z.coerce.number().int().min(2000).max(2100),
-  month: z.coerce.number().int().min(1).max(12),
-  plan: ratePlanCodeSchema.default("STANDARD"),
-});
+/**
+ * The longest window the calendar will answer, in nights.
+ *
+ * The funnel opens on a 365-night horizon, and a caller that squares that
+ * window off to whole months — the shape a month-paged grid wants — adds at
+ * most thirty leading and thirty trailing nights to it. 425 is that, and
+ * nothing beyond it is a booking horizon anybody has.
+ *
+ * A ceiling and not a courtesy. This is the one route a caller holding no
+ * session can reach, so an unbounded `from`/`to` would let a single GET ask for
+ * a century of nights and turn a public read into an amplification lever. It
+ * rejects rather than clamping: a grid silently given fewer nights than it
+ * asked for renders its tail as unpriced, which a guest cannot tell from a
+ * property that has not opened those dates.
+ */
+export const LONGEST_CALENDAR_WINDOW = 425;
+
+/**
+ * A window of nights, for the grid the funnel opens on.
+ *
+ * Half-open [from, to), which is the convention `stay-date.ts` fixes for every
+ * other range in the system: the last date is not a night answered for. That is
+ * what lets a caller page one window after another — or ask for a year in one
+ * request, which is what `/booking` does — without a night arriving twice.
+ *
+ * A range rather than the `{year, month}` this route used to take. The funnel
+ * needs a year of nights on first paint and was making thirteen calls to get
+ * one, and the admin rates grid is days-across rather than a month page, so the
+ * month was a shape neither caller actually held.
+ */
+export const rateCalendarQuery = z
+  .object({
+    from: stayDateSchema,
+    to: stayDateSchema,
+    plan: ratePlanCodeSchema.default("STANDARD"),
+  })
+  .refine((query) => query.from.compare(query.to) < 0, {
+    message: "to must fall after from",
+    path: ["to"],
+  })
+  .refine(
+    (query) =>
+      nightCount({ checkIn: query.from, checkOut: query.to }) <=
+      LONGEST_CALENDAR_WINDOW,
+    {
+      message: `a calendar window may not run longer than ${LONGEST_CALENDAR_WINDOW} nights`,
+      path: ["to"],
+    },
+  );
 
 export const availability = {
   search: oc

@@ -9,11 +9,18 @@
 
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
+import {
+  APIError,
+  createAuthMiddleware,
+  getSessionFromCtx,
+} from "better-auth/api";
+import { and, eq, isNotNull } from "drizzle-orm";
 import type { Env } from "../../../config/env.js";
 import type { Database } from "../../../database/database.module.js";
 import * as guestAuthSchema from "../../../database/schema/guest-auth.js";
 import type { MailQueue } from "../../notification/mail-queue.service.js";
 import {
+  confirmEmailChange,
   resetPassword,
   verifyEmail,
 } from "../../notification/templates/guest-auth-emails.js";
@@ -38,6 +45,70 @@ const MIN_PASSWORD_LENGTH = 12;
 // Better Auth's own ceiling is 128; naming it here is what stops a future edit
 // raising the floor past it and locking everybody out.
 const MAX_PASSWORD_LENGTH = 128;
+
+/**
+ * Whether a verification token is one that would move an account's address.
+ *
+ * Better Auth mints these itself and puts the errand in the payload:
+ * `requestType: "change-email-verification"` beside the address to move to. The
+ * payload is read here without checking the signature, and that is safe for
+ * exactly one reason — nothing is decided by it except which of two wordings
+ * goes in an email whose recipient the library has already chosen. The token's
+ * signature is verified by Better Auth when the link is followed, which is the
+ * only place it authorises anything.
+ */
+function movesTheAddress(token: string): boolean {
+  const payload = token.split(".")[1];
+
+  if (payload === undefined) {
+    return false;
+  }
+
+  try {
+    const claims: unknown = JSON.parse(
+      Buffer.from(payload, "base64url").toString("utf8"),
+    );
+
+    return (
+      typeof claims === "object" &&
+      claims !== null &&
+      (claims as { requestType?: unknown }).requestType ===
+        "change-email-verification"
+    );
+  } catch {
+    // A token this cannot read is a token from a flow this does not know
+    // about, and the sign-up wording is the one that suits an address being
+    // proved for the first time.
+    return false;
+  }
+}
+
+/**
+ * Whether an account has a password of its own.
+ *
+ * `providerId = 'credential'` is Better Auth's own name for the email/password
+ * row, and the hash has to be there as well as the row: an account that has
+ * been unlinked from its password keeps neither. The same pair is what
+ * `/change-password` looks for before it will verify anything.
+ */
+async function hasPasswordCredential(
+  db: Database,
+  userId: string,
+): Promise<boolean> {
+  const [row] = await db
+    .select({ id: guestAuthSchema.account.id })
+    .from(guestAuthSchema.account)
+    .where(
+      and(
+        eq(guestAuthSchema.account.userId, userId),
+        eq(guestAuthSchema.account.providerId, "credential"),
+        isNotNull(guestAuthSchema.account.password),
+      ),
+    )
+    .limit(1);
+
+  return row !== undefined;
+}
 
 export type GuestAuth = ReturnType<typeof createGuestAuth>;
 
@@ -98,6 +169,36 @@ export function createGuestAuth(deps: {
       revokeSessionsOnPasswordReset: true,
     },
 
+    // `FR-AUTH-04`'s email change, and only the half of it this library
+    // version has.
+    //
+    // Better Auth 1.6.25 offers two shapes here, and which one runs is decided
+    // by whether `sendChangeEmailConfirmation` is set. Set, the change is
+    // two-step: a confirmation to the address the guest already holds, and only
+    // once that is clicked does a verification go to the new one — two messages
+    // and two clicks. Unset, `/change-email` mints a token carrying
+    // `requestType: change-email-verification` and hands it to
+    // `emailVerification.sendVerificationEmail` with the user's address
+    // overridden to the new one: a single link, sent to the address being
+    // proved. That is the flow this realm wants, so the hook is deliberately
+    // absent and the message is composed in `sendVerificationEmail` below.
+    //
+    // There is no `sendChangeEmailVerification` option in this version — the
+    // one-step message has no hook of its own.
+    //
+    // What the route does not do is change anything before the link is used.
+    // The address on the row is untouched until `/verify-email` is reached with
+    // that token, so the old address stays the sign-in identifier for as long as
+    // the change is unproven; `guest-email-change.e2e-spec.ts` signs in with
+    // both addresses either side of the click rather than taking that on trust.
+    //
+    // `updateEmailWithoutVerification` is left off. It would let an account
+    // whose address is unverified move that address with no proof at all, and
+    // this realm refuses sign-in until an address is proved anyway.
+    user: {
+      changeEmail: { enabled: true },
+    },
+
     // Registered only when both halves of the credential are present. Better
     // Auth would otherwise publish /sign-in/social and send the guest to an
     // authorize URL Google rejects — a boot that looks healthy until somebody
@@ -143,10 +244,21 @@ export function createGuestAuth(deps: {
       autoSignInAfterVerification: true,
       expiresIn: HOUR_IN_SECONDS,
 
-      sendVerificationEmail: async ({ user, url }) => {
-        await mail.enqueue(
-          verifyEmail({ to: user.email, name: user.name, url }),
-        );
+      // One hook, two errands. Better Auth routes the change-email link through
+      // here as well as the sign-up one, and hands both the address the link
+      // proves — for a change that is already the new address, not the one the
+      // guest currently signs in with. Only the wording differs, and it has to:
+      // "confirm your email and your account is ready" sent to somebody whose
+      // account has worked for a year reads as a phishing attempt.
+      //
+      // Which errand this is comes off the token, because it is the only thing
+      // that carries it.
+      sendVerificationEmail: async ({ user, url, token }) => {
+        const message = movesTheAddress(token)
+          ? confirmEmailChange({ to: user.email, name: user.name, url })
+          : verifyEmail({ to: user.email, name: user.name, url });
+
+        await mail.enqueue(message);
       },
     },
 
@@ -201,6 +313,56 @@ export function createGuestAuth(deps: {
         // own the address.
         sameSite: "lax",
       },
+    },
+
+    // The two credential-management routes, made to behave the way the rest of
+    // this file already does. Both are Better Auth's own; neither is
+    // reimplemented here, and this is the smallest place to say what the
+    // library leaves to the caller.
+    hooks: {
+      before: createAuthMiddleware(async (ctx) => {
+        // A guest who only ever pressed Google has no password to prove and no
+        // address of their own — Google owns both. Better Auth already refuses
+        // them `/change-password`, because there is no credential row to verify
+        // `currentPassword` against; it does not refuse them `/change-email`,
+        // which would move the address out from under the account Google
+        // matches them on and leave the next sign-in creating a second guest.
+        //
+        // Refused here rather than by hiding the form. A page that omits a
+        // control is a page, and the request it omits can still be sent.
+        //
+        // Nothing about any other account is consulted, so this tells the
+        // caller only what their own session already told them.
+        if (ctx.path === "/change-email") {
+          const session = await getSessionFromCtx(ctx);
+
+          // No session is the endpoint's own answer to give — its middleware
+          // returns the 401, and answering here would be a second door.
+          if (session && !(await hasPasswordCredential(db, session.user.id))) {
+            throw new APIError("BAD_REQUEST", {
+              message:
+                "This account signs in with Google, so its email address is " +
+                "Google's to change.",
+              code: "CREDENTIAL_ACCOUNT_NOT_FOUND",
+            });
+          }
+
+          return;
+        }
+
+        // `revokeSessionsOnPasswordReset` above covers the guest who forgot
+        // their password. This is the same decision for the guest who
+        // remembered it: a password is changed to lock somebody out, and
+        // Better Auth leaves that to a `revokeOtherSessions` flag in the
+        // request body — which is to say, to whichever client sent it. The
+        // flag is set here so that every caller gets the behaviour and no
+        // caller can decline it.
+        if (ctx.path === "/change-password") {
+          return { context: { body: { revokeOtherSessions: true } } };
+        }
+
+        return;
+      }),
     },
 
     rateLimit: {

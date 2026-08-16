@@ -94,7 +94,18 @@ import {
 } from "@mariva/shared";
 import { Inject, Injectable } from "@nestjs/common";
 import { ORPCError } from "@orpc/nest";
-import { and, asc, eq, or, sql } from "drizzle-orm";
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  lte,
+  or,
+  type SQL,
+  sql,
+} from "drizzle-orm";
 import {
   type Database,
   type DbExecutor,
@@ -318,6 +329,53 @@ export interface ClosedFolio {
   readonly closedAt: Date;
 }
 
+/**
+ * Which accounts the desk is asking about, and how much of the answer it wants.
+ *
+ * `balance` narrows on a figure no column holds — the contract says why the
+ * dimension is two named members rather than a flag — and `from`/`to` name
+ * trading days, so they are matched against the *lines*: a folio has an opening
+ * instant and a closing one, and §2's rollover decides which day an instant
+ * belongs to. An account is in the window when a line of it is.
+ */
+export interface FolioListQuery {
+  readonly state?: (typeof folio.$inferSelect)["state"];
+  readonly balance: "ANY" | "OUTSTANDING";
+  readonly from?: StayDate;
+  readonly to?: StayDate;
+  readonly limit: number;
+  readonly offset: number;
+}
+
+/**
+ * One account as the list answers it — the account, and what it comes to.
+ *
+ * No lines. The summary is the whole reason a row is worth showing, and the
+ * postings behind it are one route away; a page of two hundred accounts
+ * carrying every posting on each would be the ledger returned to draw a table.
+ */
+export interface ListedFolio {
+  readonly id: string;
+  readonly bookingId: string;
+  readonly state: (typeof folio.$inferSelect)["state"];
+  readonly openedAt: Date;
+  readonly closedAt: Date | null;
+  readonly summary: FolioSummary;
+}
+
+/**
+ * A page of accounts, and how many the filters matched behind it.
+ *
+ * `total` is the figure a count card is actually asking for, and it is counted
+ * under the same predicate rather than inferred from the page: a page shorter
+ * than its limit says nothing when an offset was given, and a page exactly as
+ * long as its limit says nothing at all.
+ */
+export interface FolioPage {
+  readonly folios: readonly ListedFolio[];
+  readonly total: number;
+}
+
 /** One stay's account, whole. */
 export interface FolioAccount {
   readonly id: string;
@@ -434,6 +492,138 @@ export class FolioService implements FolioPort {
       );
 
     return { ...account, bookingId, summary: summarise(lines), lines };
+  }
+
+  /**
+   * The accounts the property has, narrowed and paged — the desk's worklist.
+   *
+   * **The balance is aggregated in the statement, and there is nowhere else it
+   * could come from.** `schema/folio.ts` holds no total and no running sum, so
+   * the only way to answer "which accounts are still short" is to add the lines
+   * up: `sum` over `folio_posting`, split by sign exactly the way
+   * {@link summarise} splits it in memory, so a row of this list and the same
+   * account read whole report the same three figures. The alternative — a
+   * balance column maintained on write — is the second place for a balance to
+   * live that this whole module is arranged against, and it would be wrong in
+   * the one way nobody notices: quietly, and only for the accounts that moved.
+   *
+   * The cost is honest and it is the price of that: the join reads every
+   * posting belonging to the folios the `where` admits. Filtered to `OPEN`
+   * accounts — which is what a desk chasing money asks — that is the ledger of
+   * the stays currently in house, not the property's history, because a closed
+   * folio's lines are never visited. Unfiltered it is proportional to the whole
+   * ledger, which is why the answer is paged rather than returned entire.
+   *
+   * **The narrowing on the balance is a `having` and not a `where`**, because
+   * the predicate is about the aggregate rather than about a row. The trading
+   * day is a `having` too, for a different reason: a `where` on the business
+   * date would drop the lines outside the window from the sum as well as from
+   * the test, and the figure printed under "outstanding" would be a fraction of
+   * what the guest owes. `filter` asks the window question of the same scan
+   * without narrowing what it adds up.
+   *
+   * **Two statements, and the count is not inferable from the first.** A page
+   * of fewer rows than its limit says nothing once an offset was given, and a
+   * full page says nothing ever. The caller holds both in one transaction — the
+   * controller opens it — so the page and the figure over it are one moment.
+   */
+  async list(exec: DbExecutor, query: FolioListQuery): Promise<FolioPage> {
+    // The one dimension that is a fact about the folio row itself, so the one
+    // that narrows before anything is added up.
+    const where = query.state ? eq(folio.state, query.state) : undefined;
+
+    const matched: SQL[] = [];
+
+    if (query.balance === "OUTSTANDING") {
+      // `<> 0` and not `> 0`: an over-paid stay is an account that does not
+      // balance, and the desk owes that guest money rather than the reverse.
+      // Written as the plain sum, which is `NFR-02`'s identity and therefore the
+      // same figure `outstanding` below comes to.
+      matched.push(sql`coalesce(sum(${folioPosting.amount}), 0) <> 0`);
+    }
+
+    const window: SQL[] = [];
+
+    if (query.from) {
+      window.push(gte(folioPosting.businessDate, query.from.toString()));
+    }
+
+    if (query.to) {
+      window.push(lte(folioPosting.businessDate, query.to.toString()));
+    }
+
+    if (window.length > 0) {
+      matched.push(
+        sql`count(${folioPosting.id}) filter (where ${and(...window)}) > 0`,
+      );
+    }
+
+    const having = matched.length > 0 ? and(...matched) : undefined;
+
+    const listed = await exec
+      .select({
+        id: folio.id,
+        bookingId: folio.bookingId,
+        state: folio.state,
+        openedAt: folio.createdAt,
+        closedAt: folio.closedAt,
+        // Two sums over one scan, split by sign rather than by posting type —
+        // {@link summarise} makes the argument: a reversal carries whichever
+        // sign undoes the line it names, so a split that read "payments" off
+        // the `PAYMENT` rows would report an undone room charge as money the
+        // guest handed over.
+        //
+        // Text on the way back, because Postgres widens `sum(bigint)` to
+        // `numeric` and the driver hands a numeric over as a string. Parsed to
+        // `bigint` below, which is the one route that cannot lose a đồng.
+        charged: sql<string>`coalesce(sum(case when ${folioPosting.amount} >= 0 then ${folioPosting.amount} else 0 end), 0)`,
+        credited: sql<string>`coalesce(sum(case when ${folioPosting.amount} < 0 then -${folioPosting.amount} else 0 end), 0)`,
+      })
+      .from(folio)
+      // Left, not inner: an account opened and not yet posted to is an ordinary
+      // row — the first charge failed, or the sweep has not run — and an inner
+      // join would answer as though it did not exist.
+      .leftJoin(folioPosting, eq(folioPosting.folioId, folio.id))
+      .where(where)
+      // The primary key, so every other `folio` column selected above is
+      // functionally dependent on it and Postgres needs none of them named
+      // here.
+      .groupBy(folio.id)
+      .having(having)
+      // Newest account first, the id breaking a tie, so the order is total. An
+      // offset over a partial order is a page that can show one account twice
+      // and another never.
+      .orderBy(desc(folio.createdAt), desc(folio.id))
+      .limit(query.limit)
+      .offset(query.offset);
+
+    const matching = exec
+      .select({ id: folio.id })
+      .from(folio)
+      .leftJoin(folioPosting, eq(folioPosting.folioId, folio.id))
+      .where(where)
+      .groupBy(folio.id)
+      .having(having)
+      .as("matching");
+
+    const [counted] = await exec.select({ total: count() }).from(matching);
+
+    return {
+      folios: listed.map((account) => {
+        const charged = BigInt(account.charged);
+        const credited = BigInt(account.credited);
+
+        return {
+          id: account.id,
+          bookingId: account.bookingId,
+          state: account.state,
+          openedAt: account.openedAt,
+          closedAt: account.closedAt,
+          summary: { charged, credited, outstanding: charged - credited },
+        };
+      }),
+      total: counted?.total ?? 0,
+    };
   }
 
   /**

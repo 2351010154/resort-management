@@ -169,10 +169,32 @@ One internal `PaymentGateway` port — `createPayment` / `verifyCallback` /
   happens in pg-boss.
 
 **The trigger** is the commit that switches VNPay from sandbox to production
-credentials. Its six-item checklist — paid tiers, monitoring, backups plus a
-restore drill, lifecycle verification, release tracking — is gate `G2` in
-[`../../plans/backlog.md`](../../plans/backlog.md) §0. Nothing merges past it
-with a box unticked.
+credentials — a deliberate change made by hand, not a date or a feeling, which
+is what makes a checklist attachable to it at all. That checklist is gate `G2`
+and it is these six items. Nothing merges past it with a box unticked:
+
+1. **Neon Free → Launch**, with the retention window confirmed and idle suspend
+   off. pg-boss already prevents the suspend (§Hosting); the paid tier is what
+   makes the history worth relying on.
+2. **Vercel Hobby → Pro.** Hobby is non-commercial and a booking site is
+   commercial use — the ⚠ in §Hosting is this row.
+3. **Monitoring live and reaching a phone**: the uptime probe on `/health` and
+   the heartbeat the night audit checks into, both alerting.
+4. **The weekly `pg_dump` → R2 job running, and one restore drill executed and
+   timed.** §Backup and retention argues why the drill and not the job is the
+   evidence.
+5. **The R2 lifecycle rule verified against a real object** — the 8-week expiry
+   on the encrypted dumps. R3 wrote this item against an identity-scan bucket;
+   that bucket does not exist, because `FR-GST-02` discards the picture, so the
+   dumps are the only objects a lifecycle rule governs here.
+6. **Release tracking wired to deploys** in Better Stack, so an error arriving
+   after the flip names the deploy that introduced it.
+
+The order of operations, the boot refusals that enforce a half-finished flip,
+and what to do afterwards are in
+[`../runbooks/g2-production-payment.md`](../runbooks/g2-production-payment.md).
+The checklist's original form and costing are in the frozen R3 advisory linked
+at the top of this file, §3.5.
 
 ## E-invoice
 

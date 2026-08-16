@@ -39,7 +39,12 @@ export default defineConfig({
   test: {
     globals: true,
     environment: "node",
-    include: ["src/**/*.spec.ts", "test/**/*.e2e-spec.ts"],
+    // `test/**/*.spec.ts` alongside the e2e pattern, for the checks that belong
+    // beside the suite but talk to no database — a structural assertion over
+    // the source tree is one. Without it such a file sits in `test/` and is
+    // never collected, which is the failure mode a structural guard can least
+    // afford: it looks installed and runs nowhere.
+    include: ["src/**/*.spec.ts", "test/**/*.spec.ts", "test/**/*.e2e-spec.ts"],
 
     // Argon2 is deliberately slow and the e2e suite signs in several times.
     testTimeout: 30_000,
