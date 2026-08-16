@@ -64,14 +64,28 @@ export function useRateCalendar(
   const [attempt, setAttempt] = useState(0);
 
   const reread = useCallback(() => {
-    setRefusal(undefined);
-    setLoading(true);
     setAttempt((count) => count + 1);
   }, []);
 
   // biome-ignore lint/correctness/useExhaustiveDependencies: `attempt` is not read in the body, and that is its job — it is what `reread` increments to run the effect again. `from` is listed as the date it names rather than as the object: a `CalendarDate` is rebuilt on any render that recomputes it, and depending on the identity would re-fetch a year of nights for a value that had not changed.
   useEffect(() => {
     let live = true;
+
+    // **Every run opens by declaring itself pending and withdrawing the last
+    // run's refusal**, and that is why the retry button has nothing of its own
+    // to reset — asking again is the same act as the plan changing, so both go
+    // through here. Left to the retry alone, a window that failed under one
+    // plan would keep its sentence and its Try again standing over the prices a
+    // later plan successfully answered with, and only pressing a button that
+    // fixes nothing would clear them.
+    //
+    // The nights already read are left standing rather than emptied: a guest
+    // switching plan mid-window is better served by the previous figures marked
+    // busy for the moment they are being replaced than by a grid that empties
+    // and refuses every press each time. A read that *fails* does empty it,
+    // below, because then there is nothing on its way to replace them.
+    setLoading(true);
+    setRefusal(undefined);
 
     async function ask(): Promise<void> {
       try {
