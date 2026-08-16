@@ -108,7 +108,98 @@ describe("the emails this realm sends", () => {
 
     expect(enqueue.mock.calls[0]![0].to).toBe(A_GUEST.email);
   });
+
+  // Better Auth 1.6.25 has no hook of its own for the one-step change-email
+  // message: `/change-email` mints a token that says what it is for and hands
+  // it to `sendVerificationEmail`, the same hook sign-up uses. So which of the
+  // two wordings a guest receives is decided from the token, and these are
+  // about that decision rather than about the templates, which
+  // `guest-auth-emails.spec.ts` covers.
+  //
+  // The tokens are built here rather than minted by the library, because the
+  // claim is "this payload produces that wording" and a real token would put a
+  // running Better Auth between the two.
+  it("sends the change-email wording for a token that moves an address", async () => {
+    const enqueue = vi.fn().mockResolvedValue(undefined);
+    const auth = authWith({ enqueue });
+
+    await auth.options.emailVerification.sendVerificationEmail({
+      // The address Better Auth hands over for a change is the new one, not
+      // the one the guest still signs in with.
+      user: { ...A_GUEST, email: "moved-to@example.test" },
+      url: A_LINK,
+      token: tokenClaiming({
+        email: A_GUEST.email,
+        updateTo: "moved-to@example.test",
+        requestType: "change-email-verification",
+      }),
+    });
+
+    const message = enqueue.mock.calls[0]![0];
+
+    expect(
+      message.subject,
+      "A guest moving their address was sent the sign-up wording. It tells " +
+        "somebody whose account has worked for a year that it is nearly ready, " +
+        "which reads as a phishing attempt and gets the real link ignored.",
+    ).toContain("new email");
+
+    expect(message.to).toBe("moved-to@example.test");
+  });
+
+  it("keeps the sign-up wording for an ordinary verification token", async () => {
+    const enqueue = vi.fn().mockResolvedValue(undefined);
+    const auth = authWith({ enqueue });
+
+    await auth.options.emailVerification.sendVerificationEmail({
+      user: A_GUEST,
+      url: A_LINK,
+      token: tokenClaiming({ email: A_GUEST.email }),
+    });
+
+    expect(enqueue.mock.calls[0]![0].subject).toBe("Confirm your email — Mariva");
+  });
+
+  it("keeps the sign-up wording for a token it cannot read at all", async () => {
+    // Nothing decides anything on this payload except the wording, so an
+    // unreadable one has to land somewhere rather than throw inside a send.
+    const enqueue = vi.fn().mockResolvedValue(undefined);
+    const auth = authWith({ enqueue });
+
+    await auth.options.emailVerification.sendVerificationEmail({
+      user: A_GUEST,
+      url: A_LINK,
+      token: "not.a.token",
+    });
+
+    expect(enqueue.mock.calls[0]![0].subject).toBe("Confirm your email — Mariva");
+  });
 });
+
+describe("the guest realm's email change", () => {
+  it("is enabled, and moves no address before the link is used", () => {
+    const auth = authWith({ enqueue: vi.fn() });
+
+    expect(auth.options.user.changeEmail.enabled).toBe(true);
+
+    // Nothing else is set, and the two absences are the flow. Without
+    // `sendChangeEmailConfirmation` this library version sends one link to the
+    // address being proved rather than two messages starting at the old one,
+    // and without `updateEmailWithoutVerification` an account whose address is
+    // unproven cannot move it with no proof at all.
+    expect(Object.keys(auth.options.user.changeEmail)).toEqual(["enabled"]);
+  });
+});
+
+/** A verification token's payload, in the shape Better Auth signs. Only the
+ *  payload segment is read, so the signature is left off. */
+function tokenClaiming(claims: Record<string, string>): string {
+  const payload = Buffer.from(JSON.stringify(claims), "utf8").toString(
+    "base64url",
+  );
+
+  return `eyJhbGciOiJIUzI1NiJ9.${payload}.`;
+}
 
 // Whose quota an attempt spends.
 //
