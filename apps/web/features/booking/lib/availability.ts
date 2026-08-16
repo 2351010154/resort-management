@@ -38,31 +38,6 @@ export function propertyToday(): CalendarDate {
   return today(PROPERTY_TIME_ZONE);
 }
 
-/**
- * The months a window of nights falls in, in order.
- *
- * The calendar route answers a month at a time — it is the grid the funnel
- * opens on, and a month is the page that grid turns. A year of nights is
- * therefore thirteen calls rather than one, and they are made together below.
- */
-function monthsAcross(
-  from: CalendarDate,
-  days: number,
-): { readonly year: number; readonly month: number }[] {
-  const last = from.add({ days: days - 1 });
-  const months: { year: number; month: number }[] = [];
-
-  for (
-    let cursor = from.set({ day: 1 });
-    cursor.compare(last) <= 0;
-    cursor = cursor.add({ months: 1 })
-  ) {
-    months.push({ year: cursor.year, month: cursor.month });
-  }
-
-  return months;
-}
-
 /** One night, as the wire spells it, in the form the screen reasons in. */
 function decodeNight(night: {
   date: string;
@@ -89,40 +64,30 @@ function decodeNight(night: {
  * the visible month would leave three features reading gaps and calling them
  * sold out.
  *
- * **One refusal for the whole window.** `Promise.all` rejects on the first month
- * that fails, which is the honest shape: a calendar missing an August nobody
- * asked about yet is a calendar that will refuse a press in August with "not yet
- * priced", and a guest cannot tell that from a property that is full. The screen
- * says the prices could not be read and offers to ask again.
- *
- * The months are whole, so the first and last of them overhang the window at
- * both ends. They are trimmed here rather than left to the grid: `minDate` keeps
- * a guest from pressing yesterday, but the foot's "n of the next m nights" would
- * be counting nights nobody can book.
+ * **One request, and so one refusal for the whole window.** The route takes the
+ * window itself — half-open [from, to), the convention every range in the
+ * system keeps — so the year the funnel opens on is one GET rather than the
+ * thirteen month calls this used to fan out on first paint. It is also the
+ * honest failure shape: a calendar missing an August nobody asked about yet is
+ * a calendar that will refuse a press in August with "not yet priced", and a
+ * guest cannot tell that from a property that is full. Nothing partial can be
+ * rendered as if complete, and no trim is needed either — the answer is exactly
+ * the nights that were asked for.
  */
 export async function readNightRates(
   from: CalendarDate,
   days: number,
   plan: RatePlanCode,
 ): Promise<NightRate[]> {
-  const last = from.add({ days: days - 1 });
+  const grid = await api.availability.calendar({
+    // Nine characters at the boundary, per `stay-date.ts` — the contract's
+    // codec decodes them back into a `CalendarDate` on the other side.
+    from: from.toString(),
+    to: from.add({ days }).toString(),
+    plan,
+  });
 
-  const grids = await Promise.all(
-    monthsAcross(from, days).map((month) =>
-      api.availability.calendar({
-        year: month.year,
-        month: month.month,
-        plan,
-      }),
-    ),
-  );
-
-  return grids
-    .flatMap((grid) => grid.nights)
-    .map(decodeNight)
-    .filter(
-      (night) => night.date.compare(from) >= 0 && night.date.compare(last) <= 0,
-    );
+  return grid.nights.map(decodeNight);
 }
 
 /**
