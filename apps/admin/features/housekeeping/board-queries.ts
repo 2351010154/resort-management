@@ -13,7 +13,12 @@
 
 import type { ApiClient } from "@mariva/api-client";
 import type { HousekeepingStatus } from "@mariva/shared";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  type SkipToken,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 
 import { orpc } from "@/lib/api-query";
 import type { ConsoleMeta } from "@/lib/query-client";
@@ -53,8 +58,14 @@ const READY_STATUSES: ReadonlySet<HousekeepingStatus> = new Set([
  * `businessDate` is left optional exactly as the contract leaves it: the 04:00
  * rollover is the API's rule, and a console computing its own answer would draw
  * a board against a different day than the desk is working.
+ *
+ * `skipToken` in place of a query is *do not ask at all*, for the caller whose
+ * screen only sometimes needs the board. The matrix denies `housekeeping.board`
+ * to `ACCOUNTANT`, so a screen they may open that fires this unconditionally
+ * spends its first request on a 403 and a toast; holding the query is how it
+ * asks only when the operator holds the row.
  */
-export function useHousekeepingBoard(query: BoardQuery = {}) {
+export function useHousekeepingBoard(query: BoardQuery | SkipToken = {}) {
   return useQuery(
     orpc.housekeeping.board.queryOptions({
       input: query,
