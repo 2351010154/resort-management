@@ -1,4 +1,4 @@
-// The two emails the guest realm sends. Plain functions of their arguments —
+// The emails the guest realm sends. Plain functions of their arguments —
 // no service, no DI, no template engine — so they can be read in full and
 // asserted against in a test without a running application.
 //
@@ -68,5 +68,34 @@ export function resetPassword(params: {
     subject: `Reset your password — ${PROPERTY}`,
     text: `${heading}\n\n${body}\n\n${params.url}\n`,
     html: layout(heading, body, "Choose a new password", params.url),
+  };
+}
+
+/**
+ * Sent to the address a guest wants to move to, not to the one they hold.
+ *
+ * The new address is the unproven half of the change — the old one is already
+ * confirmed and is still the sign-in identifier while this link is unused. So
+ * this message is the proof that the person asking can also read mail at the
+ * destination, and it goes there.
+ *
+ * It names neither the account's current address nor whether the destination
+ * already has an account of its own. A stranger who typed this address into
+ * somebody else's session would otherwise be told, by the copy in the inbox of
+ * the person they targeted, which account they had reached.
+ */
+export function confirmEmailChange(params: {
+  readonly to: string;
+  readonly name: string;
+  readonly url: string;
+}): OutgoingEmail {
+  const heading = `Confirm this address, ${params.name}`;
+  const body = `Someone asked to use this address for their ${PROPERTY} account. Confirm below and it becomes the address you sign in with. This link expires in an hour and works once. If this was not you, ignore this message — nothing changes until the link is used.`;
+
+  return {
+    to: params.to,
+    subject: `Confirm your new email address — ${PROPERTY}`,
+    text: `${heading}\n\n${body}\n\n${params.url}\n`,
+    html: layout(heading, body, "Confirm this address", params.url),
   };
 }

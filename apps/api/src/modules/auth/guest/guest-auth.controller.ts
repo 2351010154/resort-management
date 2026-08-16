@@ -6,7 +6,8 @@
 // absence the guard has to guess at from a path prefix.
 //
 // The whole guest realm's surface — sign-up, sign-in, sign-out, verify-email,
-// forget-password, reset-password, get-session — is served by this one handler.
+// forget-password, reset-password, change-email, change-password, get-session —
+// is served by this one handler.
 // Reimplementing any of it as a Nest route would create a second door into a
 // flow that has one.
 
@@ -30,7 +31,9 @@ export class GuestAuthController {
   // Express 5 requires the wildcard to be named — a bare `*` is a parse error,
   // not a match-all. The path is Better Auth's `basePath`; the two are the same
   // constant on purpose.
-  @Unguarded("Better Auth's own sign-up, sign-in, verification and reset routes")
+  @Unguarded(
+    "Better Auth's own sign-up, sign-in, verification, reset and credential-change routes",
+  )
   @All("api/auth/*path")
   async handle(
     @Req() request: Request,
