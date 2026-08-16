@@ -264,9 +264,13 @@ a route-group convention and not a mechanical check.
 **The funnel depends on three read contracts** —
 per-date lowest price for a month, per-date restriction flags, per-type
 availability for a range — owned by the `pricing` and `inventory` modules. Their
-schemas live in `packages/shared/src/rate-calendar.ts`. A fixture may satisfy
-those schemas during UI work, but it must be deleted when the procedures land;
-no component may know which transport supplies the data.
+schemas live in `packages/shared/src/rate-calendar.ts`. All three are answered by
+`GET /availability/calendar` and `GET /availability`, the two routes of the
+matrix's one unauthenticated row, and `/booking` reads them through
+`features/booking/lib/availability.ts`. The fixture that stood in for them while
+they were unbuilt is gone, which is the rule those contracts were written under:
+a fixture may satisfy the schemas during UI work and must be deleted when the
+procedures land, and no component may know which transport supplies the data.
 
 The browser reaches the API by `NEXT_PUBLIC_API_URL` — see
 [`apps/web/.env.example`](../../apps/web/.env.example). The guest session is an

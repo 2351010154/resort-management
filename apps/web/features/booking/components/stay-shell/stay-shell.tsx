@@ -52,11 +52,11 @@ export function StayShell({
 /**
  * The stay, written back to the guest before they are asked for anything.
  *
- * Every figure is the API's. The prices `/booking` renders come from a fixture
- * — `rate-calendar-fixture.ts`, which `repository-structure.md` says must go
- * when the read procedures land — and the total below is the one the property
- * actually priced and will actually collect. A guest who sees a different number
- * here than on the room list is seeing the authoritative one.
+ * Every figure is the API's, and so is every figure on the room list the guest
+ * arrived from — `/booking` reads `availability.search` now rather than quoting
+ * a stand-in tariff. The total below is nonetheless the authoritative one: it is
+ * the figure the property froze onto the hold, where the list's was a quote
+ * against inventory that had not been taken off the shelf yet.
  */
 function StaySummary({ stay }: { readonly stay: HeldStay }) {
   const nights = nightsBetween(stay.checkIn, stay.checkOut);
