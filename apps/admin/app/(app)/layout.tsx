@@ -41,6 +41,8 @@ import {
   StaffSessionProvider,
 } from "@/lib/auth";
 
+import { Providers } from "./providers";
+
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     // The provider is outside the registry rather than inside it because the
@@ -50,25 +52,32 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <StaffSessionProvider>
       <CommandRegistryProvider>
         <SessionGuard>
-          <div className="flex min-h-svh">
-            {/* Before the children in the markup, which is where a landmark
-             * belongs for anything reading the page in order. Its commands are
-             * not registered here — see `NavShortcuts` below — so the shell's
-             * registration order is unaffected by where the rail is drawn. */}
-            <AppNav />
-            {/* `min-w-0`, so a wide table inside a screen scrolls within the
-             * main region instead of stretching the flex row and pushing the
-             * rail off the left of the window. */}
-            <main className="min-w-0 flex-1">{children}</main>
-          </div>
-          {/* After the children for the same reason the palette is: React
-           * flushes a child's effects first, so a screen's commands register
-           * before the shell's and a screen may override `session.sign-out` or
-           * a `nav.*` row by claiming its id. Inside the guard, so there is no
-           * sign-out command and no navigation offered on a console nobody is
-           * signed in to. */}
-          <NavShortcuts />
-          <SessionCommands />
+          {/* Inside the guard, not above it, and that is where the cache's
+           * lifetime comes from: nothing under this renders until a session
+           * exists, and signing out unmounts it — so the answers one operator's
+           * screens accumulated are discarded rather than being served to
+           * whoever signs in next on the same machine. */}
+          <Providers>
+            <div className="flex min-h-svh">
+              {/* Before the children in the markup, which is where a landmark
+               * belongs for anything reading the page in order. Its commands are
+               * not registered here — see `NavShortcuts` below — so the shell's
+               * registration order is unaffected by where the rail is drawn. */}
+              <AppNav />
+              {/* `min-w-0`, so a wide table inside a screen scrolls within the
+               * main region instead of stretching the flex row and pushing the
+               * rail off the left of the window. */}
+              <main className="min-w-0 flex-1">{children}</main>
+            </div>
+            {/* After the children for the same reason the palette is: React
+             * flushes a child's effects first, so a screen's commands register
+             * before the shell's and a screen may override `session.sign-out` or
+             * a `nav.*` row by claiming its id. Inside the guard, so there is no
+             * sign-out command and no navigation offered on a console nobody is
+             * signed in to. */}
+            <NavShortcuts />
+            <SessionCommands />
+          </Providers>
         </SessionGuard>
         {/* After the children, not before: the palette portals its surface to the
          * document body when it opens, so its position here decides nothing
