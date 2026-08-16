@@ -5,11 +5,10 @@
 //
 // Every value is ⚑, and the four base rates are ⚑ twice over: §3 sets the plan
 // *structure* and leaves the room rates unset, so the figures below arrived
-// with `/booking`, which could not render a card without them. They are the
-// same numbers `apps/web/features/booking/lib/rate-calendar-fixture.ts` stubs,
-// deliberately: that fixture exists to be deleted once these endpoints answer,
-// and a screen that changed its prices the day it was wired to the real API
-// would look like a pricing bug rather than a wiring change.
+// with `/booking`, which could not render a card without them. They were first
+// written into a browser-side fixture and are now only here: `/booking` reads
+// `availability.calendar` and `availability.search`, so this table is the one
+// place a room rate is stated and the funnel prints whatever it says.
 
 import type {
   RatePlanCode,
