@@ -1,4 +1,4 @@
-// The nightly half of `FR-PAY-05`: fetching the gateway's side of a closed day,
+// The scheduled half of `FR-PAY-05`: fetching the gateway's side of a closed day,
 // handing it to the comparison, and waking somebody when the two disagree.
 //
 // `reconciliation.service.ts` is the comparison and deliberately neither of the

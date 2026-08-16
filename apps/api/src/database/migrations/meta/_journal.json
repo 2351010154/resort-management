@@ -204,6 +204,13 @@
       "when": 1786695093410,
       "tag": "0028_booking_link_and_anonymous_revocation",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1786772943059,
+      "tag": "0029_loyalty_ledger_refusal_code",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { BookingModule } from "../booking/booking.module.js";
 import { FolioModule } from "../folio/folio.module.js";
+import { NotificationModule } from "../notification/notification.module.js";
 import { PaymentController } from "./payment.controller.js";
 import { PaymentService } from "./payment.service.js";
 import { PAYMENT_GATEWAY } from "./ports/payment-gateway.port.js";
@@ -64,6 +65,15 @@ import { VnpayAdapter } from "./vnpay.adapter.js";
 // constructing a second one. It takes no gateway — the report is an argument —
 // so the binding above does not reach it and neither does anything VNPay said.
 //
+// `NotificationModule` is imported for `OpsAlertService`, the same import
+// `jobs.module.ts` makes for `ReconciliationJob` and for the same requirement.
+// `FR-PAY-05` compares the gateway's report against the ledger nightly and pages
+// about what it finds; a callback that lands on a stay the property has already
+// cancelled is the same discrepancy, known a day earlier by the one piece of
+// code that watches it happen. The mail half of that module is not reached from
+// here — a guest is told nothing about this, because there is nothing yet to
+// tell them that a person has not decided.
+//
 // `PAYMENT_GATEWAY` is exported too, and exporting a token is not the leak
 // `FR-PAY-01` forbids: what crosses is the port, and everything on the far side
 // is still written against `PaymentGateway` with no VNPay vocabulary in reach.
@@ -74,7 +84,7 @@ import { VnpayAdapter } from "./vnpay.adapter.js";
 // the same terminal, configured from the same variables, differing from this one
 // the first time either changed.
 @Module({
-  imports: [BookingModule, FolioModule],
+  imports: [BookingModule, FolioModule, NotificationModule],
   controllers: [PaymentController],
   providers: [
     { provide: PAYMENT_GATEWAY, useClass: VnpayAdapter },

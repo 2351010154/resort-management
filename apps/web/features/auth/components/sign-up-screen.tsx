@@ -11,7 +11,7 @@ import {
   MIN_PASSWORD_LENGTH,
   signUpWithEmail,
 } from "@/features/auth/lib/guest-auth";
-import { ATTACHING_BOOKING_PARAM } from "@/features/booking/lib/booking-links";
+import { ATTACHING_BOOKING_PARAM } from "@/lib/booking-links";
 import { AuthShell, authStyles as styles } from "./auth-shell";
 
 export function SignUpScreen({

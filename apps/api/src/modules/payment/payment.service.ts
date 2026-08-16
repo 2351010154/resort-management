@@ -121,6 +121,31 @@
 // disagreeing with this property, and posting it would put a number on a guest's
 // invoice that no attempt of theirs accounts for.
 //
+// **Money landing on a stay nobody can honour pages somebody, and posts
+// anyway.** `BookingService.confirmPaidHold` moves a hold and no-ops on every
+// other state, which is right — refusing there would roll back money the
+// gateway has already taken — but a no-op that said nothing left the worst of
+// those states silent: a stay the property cancelled while the payer was at the
+// gateway keeps the money, stays cancelled, and until this existed the only
+// thing that would ever surface the pair was `FR-PAY-05`'s nightly comparison.
+// Somebody refunds it by hand, and they cannot do that until they know.
+//
+// The page is registered through `afterCommit` and dispatched by
+// `TransactionRunner` once the commit returns. `OpsAlertService.page` is a
+// `fetch` with a five-second timeout, and a vendor round trip inside the
+// transaction would hold one of ten pooled connections for its length — the
+// failure `booking.service.ts` already argues for the confirmation mail. It is
+// also the whole of the ordering guarantee: a transaction that rolls back
+// throws its queue away unrun, so a posting the ledger refuses pages nobody,
+// and a page that goes out is a page about money that is durably on an account.
+//
+// A redelivery pages nothing of its own for a reason it does not have to
+// restate: the replay never reaches the transition. `take` finds the attempt
+// already recording this gateway transaction and raises `AlreadyResolved`
+// before `confirmPaidHold` is called, so there is no second landing to page
+// about — and the rollback that sentinel causes would have discarded one
+// anyway.
+//
 // So it refuses, loudly, and writes nothing at all. The attempt stays `PENDING`,
 // which is the honest state — it is exactly the "money claimed and not yet
 // confirmed" `schema/payment.ts` defines, and somebody now has to look. No new
@@ -141,10 +166,14 @@ import { booking } from "../../database/schema/booking.js";
 import { folio } from "../../database/schema/folio.js";
 import { payment, type PaymentRow } from "../../database/schema/payment.js";
 import { sqlStateOf } from "../../database/sql-state.js";
-import { TransactionRunner } from "../../database/transaction-runner.js";
-import { BookingService } from "../booking/booking.service.js";
+import {
+  afterCommit,
+  TransactionRunner,
+} from "../../database/transaction-runner.js";
+import { BookingService, type PaidStay } from "../booking/booking.service.js";
 import { BusinessDateService } from "../booking/business-date.service.js";
 import { FolioService } from "../folio/folio.service.js";
+import { OpsAlertService } from "../notification/ops-alert.service.js";
 import {
   type GatewayTransaction,
   PAYMENT_GATEWAY,
@@ -355,6 +384,13 @@ export class PaymentService {
     // and one comment explaining what it does about a null.
     private readonly bookings: BookingService,
     private readonly transactions: TransactionRunner,
+    // Last, so adding it moved no existing argument — `booking.service.ts`
+    // takes its two mail collaborators the same way and for the same reason.
+    // Asked for exactly one thing, and only after a commit: to wake somebody
+    // about money that has landed on a stay the property cannot honour. The
+    // header says why the call is post-commit and why this service, rather than
+    // the state machine, is what decides a state is worth waking a person for.
+    private readonly alerts: OpsAlertService,
   ) {}
 
   /**
@@ -369,6 +405,12 @@ export class PaymentService {
    * Both refusals below happen before either — a caller who named the wrong
    * kind of thing, or asked for the wrong kind of money, should not first cost
    * a payer a page to look at.
+   *
+   * **A stay still being held has its hold extended in the same transaction**,
+   * so the room survives the round trip the payer is about to make. It is the
+   * one thing here that writes outside the payment's own tables, and the comment
+   * at the call site argues why it belongs in that transaction, in that order,
+   * and on every door.
    *
    * **The third refusal is the scope `rbac-matrix.md` leaves to be finished
    * here.** The row is `⚠` for the guest realm, which `roles.ts` defines as a
@@ -426,6 +468,34 @@ export class PaymentService {
 
     await this.transactions.run(async (exec) => {
       await this.mayCollectFor(exec, request);
+
+      // The stay's own deadline, pushed out to cover the round trip that starts
+      // the moment this transaction commits — `BOOKING_PAYMENT_WINDOW_MINUTES`.
+      //
+      // In the transaction that writes the attempt, so the two are one fact: a
+      // room held for a payment nobody opened would be inventory given away for
+      // nothing, and an attempt opened against a hold that was not extended is
+      // the race this exists to close. `BookingService` owns the write because it
+      // owns the column and the check constraint over it; a stay that is not
+      // `HELD` is a no-op there rather than a violation, which is what keeps a
+      // desk collecting a balance from a `CHECKED_IN` guest out of this.
+      //
+      // **Before the folio, and that ordering is deliberate.** `ensureFolio`
+      // inserts a row whose foreign key takes a share lock on this booking, and
+      // upgrading that to the update's own lock afterwards is the shape that
+      // deadlocks against `hold-expiry-sweep.ts` — which takes the booking `for
+      // update` first and then reads the payments. Taking the stronger lock first
+      // leaves the sweep waiting rather than the two waiting on each other.
+      //
+      // **Every door, not just the guest's.** The window is sized for the payer's
+      // round trip and a gateway is no faster for a receptionist: the desk sends a
+      // payment link or turns a screen around, and a hold cancelled under that
+      // link loses the property the same room. Nothing about who pressed the
+      // button changes how long the bank takes. The desk's other collections are
+      // untouched anyway — a `CONFIRMED` or `CHECKED_IN` stay has no hold to
+      // extend — so the only case this widens is the desk taking money for a
+      // booking the funnel is still holding, which is the case that wants it.
+      await this.bookings.extendHoldForPayment(exec, request.bookingId);
 
       const folioId = await this.folios.ensureFolio(exec, request.bookingId);
 
@@ -676,7 +746,9 @@ export class PaymentService {
    * file took before writing — the note at the top argues why — and that answer
    * arrives as a thrown sentinel rather than a `return`, because the posting
    * below must not run and a rollback is the only thing that has to happen on
-   * the way out.
+   * the way out. It is also what keeps a gateway's retries from paging twice:
+   * the sentinel is raised before the stay is touched, so the second delivery
+   * has no landing to report.
    */
   private async record(
     transaction: Extract<GatewayTransaction, { status: "SUCCESS" }>,
@@ -698,8 +770,10 @@ export class PaymentService {
         // is the failure this exists to stop, arriving by a narrower door.
         //
         // Only a hold moves. `confirmPaidHold` says why every other state is a
-        // no-op and why a refusal here would roll back money already taken.
-        await this.bookings.confirmPaidHold(
+        // no-op and why a refusal here would roll back money already taken. It
+        // hands back the state the money landed on, which is the one thing a
+        // no-op could not say for itself.
+        const stay = await this.bookings.confirmPaidHold(
           exec,
           await this.stayOn(exec, folioId),
         );
@@ -721,6 +795,11 @@ export class PaymentService {
           // on no person's authority, and a placeholder account would make an
           // automated payment indistinguishable from one a receptionist took.
         });
+
+        // After the posting rather than beside the transition, so that the page
+        // claims what is true by the time it is sent: the money is on the
+        // account. Registered, not sent — see the method.
+        await this.pageIfNobodyCanHonour(exec, stay, transaction);
       });
     } catch (error) {
       if (error instanceof AlreadyResolved) {
@@ -731,6 +810,88 @@ export class PaymentService {
     }
 
     return "RECORDED";
+  }
+
+  /**
+   * Wakes somebody when the money has landed on a stay the property cannot
+   * honour — and changes nothing about either.
+   *
+   * **`CANCELLED` and nothing else, and the argument is what keeps this a
+   * pager.** `confirmPaidHold` no-ops on five states, but four of them are
+   * ordinary money and a page that cried about them would be muted inside a
+   * week:
+   *
+   * - `CONFIRMED` is a stay the desk already confirmed off-line, or a guest
+   *   paying a second time. `booking-state-machine.md` §1 gives it a balance.
+   * - `CHECKED_IN` is a balance collected from a guest in the building, which
+   *   §1 marks as the state where a balance is expected.
+   * - `CHECKED_OUT` is §4's "no approved deferred settlement" arriving: a stay
+   *   may leave with a bill still to be settled, and this is it being settled.
+   * - `NO_SHOW` is the one worth arguing. It is a stay that did not happen, but
+   *   §3 levies a no-show charge on it and §1 leaves the arrival night on the
+   *   folio, so the account has money genuinely owing against it; and §2 makes
+   *   `NO_SHOW → CHECKED_IN` legal, so the stay may yet be honoured by a guest
+   *   who landed at 02:00. A page saying nobody can honour this would be
+   *   telling a responder something that is not true.
+   *
+   * `CANCELLED` is none of that. §1 gives it no balance and §3 releases every
+   * night; §3's `→ CANCELLED` rows move money *out* — "penalty per policy,
+   * refund remainder" — because the property collects the whole stay before
+   * arrival, so money moving *in* is not a collection anybody arranged. The
+   * ordinary way it happens is the race `extendHoldForPayment` narrows but
+   * cannot close: the payer finished, and the sweep had already cancelled the
+   * hold. Nobody will supply the room, and the property is holding money it has
+   * to hand back.
+   *
+   * **Nothing here is a decision about the money.** The payment is posted, the
+   * cancellation stands, and no state moves — `FR-PAY-04`'s refund is a person's
+   * act on the gateway's own screen, which is what refunds are here. This only
+   * makes sure that person exists before tomorrow's reconciliation.
+   *
+   * **Registered for after the commit, never sent inside it.** `page` is a
+   * `fetch` with a timeout on it; a vendor round trip inside this transaction
+   * would hold one of ten pooled connections open for its length, which is the
+   * failure the confirmation mail already had once. It is also the ordering
+   * this needs: `TransactionRunner` throws the queue away on a rollback, so a
+   * posting the ledger refuses pages nobody, and every page that goes out is
+   * about money that is durably on an account.
+   */
+  private async pageIfNobodyCanHonour(
+    exec: DbExecutor,
+    stay: PaidStay,
+    transaction: Extract<GatewayTransaction, { status: "SUCCESS" }>,
+  ): Promise<void> {
+    if (stay.state !== "CANCELLED") {
+      return;
+    }
+
+    // Whether the page was delivered is not read. `ops-alert.service.ts` says
+    // what that boolean is for and what it is not: a send that failed has
+    // already been logged in full, and there is nothing this transaction could
+    // usefully do about it from the far side of its own commit.
+    await afterCommit(exec, async () => {
+      await this.alerts.page({
+        kind: "payment-on-cancelled-stay",
+        text:
+          `${transaction.amount} đồng has been taken for booking ` +
+          `${stay.reference}, which was already cancelled — the payment is on ` +
+          "the account and the stay stays cancelled, so it has to be refunded " +
+          "by hand at the gateway",
+        details: {
+          reference: stay.reference,
+          state: stay.state,
+          // đồng as a string: this is a `bigint` and a page is JSON, and
+          // `money.ts` refuses the loss `Number` would take — on the one field
+          // whose whole purpose is a figure somebody has to hand back.
+          amount: transaction.amount.toString(),
+          gatewayTransactionId: transaction.gatewayTransactionId,
+          // What the gateway's merchant screen is searched by, alongside the
+          // transaction id: the refund is made there, on the day the money
+          // moved rather than the day this arrived.
+          paidAt: transaction.paidAt.toISOString(),
+        },
+      });
+    });
   }
 
   /**

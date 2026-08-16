@@ -18,6 +18,6 @@ export default defineConfig({
     },
   },
   test: {
-    include: ["features/**/*.spec.ts"],
+    include: ["features/**/*.spec.ts", "lib/**/*.spec.ts"],
   },
 });

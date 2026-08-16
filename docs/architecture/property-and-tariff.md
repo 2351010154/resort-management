@@ -380,7 +380,7 @@ not a data edit.
 
 ## 8. Never a constant
 
-Four inputs are not the developer's and not this document's. They are
+Five inputs are not the developer's and not this document's. They are
 **system-configuration rows**, seeded from environment at boot, editable by
 `ADMIN` without a deploy — the row already exists in `rbac-matrix.md` §3 System.
 
@@ -390,6 +390,7 @@ Four inputs are not the developer's and not this document's. They are
 | Reduced VAT rate | Accountant — **statutory and time-limited** | ⚑ 8% | `D2`; [#30](https://github.com/2351010154/resort-management/issues/30) |
 | The period the reduced rate applies to | Accountant — **statutory and time-limited** | ⚑ 1 Jul 2025 → 31 Dec 2026 | `D2`; [#30](https://github.com/2351010154/resort-management/issues/30) |
 | Whether the VAT tax base includes service charge | Accountant — this changes every gross/net calculation | ⚑ yes | `D2`; [#30](https://github.com/2351010154/resort-management/issues/30) |
+| Service charge rate | Owner — a commercial rate, not statutory | ⚑ 5% | `D2` |
 
 **`const VAT_RATE = 0.08` anywhere in the tree is a defect,** and the expensive
 kind: it does not throw, it silently mis-invoices, and the invoices are legal

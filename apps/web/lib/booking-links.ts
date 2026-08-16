@@ -27,7 +27,17 @@
 // and only that side knows how long a link lives.
 
 import { api, apiMessage } from "@/lib/api";
-import type { HeldStay } from "./stay-funnel";
+
+/**
+ * A stay as the API answers it, inferred from the client rather than written
+ * out — the same move `stay-funnel.ts` makes for the funnel's own reads, and for
+ * the same reason: the contract in `@mariva/shared` types both ends, so a field
+ * that changes shape breaks the screens in the pull request that changed it.
+ *
+ * Inferred here rather than imported from the funnel because `lib/` is beneath
+ * `features/` and may not reach back up into one.
+ */
+type OwnBooking = Awaited<ReturnType<typeof api.booking.readOwn>>;
 
 /**
  * The fragment parameters the API mints its two links with.
@@ -154,7 +164,7 @@ export async function attachStay(bookingId: string): Promise<LinkOutcome> {
 
 /** What arriving at a stay came to — one of the two, never both. */
 export interface StayArrival {
-  readonly stay?: HeldStay;
+  readonly stay?: OwnBooking;
   readonly refusal?: string;
 }
 

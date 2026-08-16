@@ -73,7 +73,7 @@ flowchart TD
         web["apps/web — Next.js<br/>marketing arrival + /booking"]
     end
     subgraph staff[Staff]
-        admin["apps/admin — Next.js<br/>front desk + management<br/>reserved, not scaffolded"]
+        admin["apps/admin — Next.js<br/>front desk + management<br/>scaffolded, not built"]
     end
     contract["packages/shared<br/>zod contracts — the types both sides infer"]
     api["apps/api — NestJS + Drizzle<br/>every business rule, and the only writer"]
@@ -169,11 +169,12 @@ pnpm install
 
 ### Configure
 
-The web app needs one public variable; the API refuses to boot without a database URL and
-two distinct secrets.
+Each front end needs one public variable; the API refuses to boot without a database URL
+and two distinct secrets.
 
 ```bash
 cp apps/web/.env.example apps/web/.env.local
+cp apps/admin/.env.example apps/admin/.env.local
 cp apps/api/.env.example apps/api/.env
 ```
 
@@ -190,7 +191,10 @@ openssl rand -base64 32   # STAFF_JWT_SECRET
 > one leak forge both realms.
 >
 > `NEXT_PUBLIC_API_URL` and the API's `WEB_ORIGIN` are two halves of one CORS pair. A
-> mismatch fails sign-in as a CORS error rather than as a wrong password.
+> mismatch fails sign-in as a CORS error rather than as a wrong password. The allowlist
+> holds two origins and not one — `ADMIN_ORIGIN` is the console's half, required in
+> production, and a deploy that leaves it unset has every staff request rejected at the
+> preflight.
 
 Every variable the API reads is declared in `apps/api/src/config/env.ts` and parsed by zod
 before the container is built. A missing or malformed one prints its name and exits 1 — it
@@ -262,7 +266,9 @@ The API's own commands — migrations, the Nest watch loop, the first-admin scri
 | Visual baseline | Playwright | `apps/web/tests/visual-baseline/`, desktop and mobile. Local — the baseline is untracked, so capture it before you can compare against it |
 
 CI runs on every pull request and push to `main`: install with a frozen lockfile, then
-lint → typecheck → build, with in-flight runs superseded per branch.
+lint → typecheck → test → build, with in-flight runs superseded per branch. The test step
+runs against a Postgres 17 service container, so the constraints that hold the invariant
+are proved where a regression can fail the build.
 
 > [!WARNING]
 > The API's tests need a **second** database and their own `apps/api/.env.test`. They

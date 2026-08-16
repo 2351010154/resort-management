@@ -40,11 +40,11 @@ up, monitor and upgrade.
 
 | Concern | Choice | Why |
 |---|---|---|
-| Contract | `@orpc/contract` / `@orpc/nest` / `@orpc/zod` / `@orpc/client` / `@orpc/openapi` 1.14.10 | Contract-first; one definition yields server, client and OpenAPI |
+| Contract | `@orpc/contract` / `@orpc/nest` / `@orpc/zod` / `@orpc/client` / `@orpc/openapi-client` 1.14.10 | Contract-first; one definition yields server, client and OpenAPI |
 | Schema | zod 4.4.x + drizzle-zod 0.8.3 | `@orpc/zod` peers `>=3.25`, so zod v4 stays; tables generate schemas |
 | Dates | `@internationalized/date` 3.12.x | `CalendarDate` ≠ `ZonedDateTime` at the type level — the off-by-one-night bug becomes a compile error |
 | Money | `bigint` VND, no library | VND has no minor unit; `Intl.NumberFormat('vi-VN')` to display |
-| Design tokens | `packages/tokens` — `tokens.css` + TS mirror | One file defines Mariva; both apps import it |
+| Design tokens | `packages/tokens` — `tokens.css`, the package's only export | One file defines Mariva; both apps import it |
 
 ## Frontend
 
