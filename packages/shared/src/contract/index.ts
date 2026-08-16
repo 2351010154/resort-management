@@ -9,6 +9,7 @@
 
 import { availability } from "./availability.js";
 import { booking } from "./booking.js";
+import { businessDate } from "./business-date.js";
 import { folio } from "./folio.js";
 import { guest } from "./guest.js";
 import { health } from "./health.js";
@@ -35,6 +36,7 @@ export const contract = {
   jobs,
   search,
   systemConfig,
+  businessDate,
 };
 
 export type Contract = typeof contract;
@@ -59,6 +61,7 @@ export {
   roomTypeChangeSchema,
   shortenedStaySchema,
 } from "./booking.js";
+export { businessDateSchema } from "./business-date.js";
 export {
   closeFolioInput,
   FOLIO_PAGE_SIZE,
