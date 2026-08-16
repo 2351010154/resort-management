@@ -56,6 +56,15 @@ import styles from "./dates-stage.module.css";
  */
 const OPENING_LINE = "Choose the night you arrive.";
 
+/**
+ * The head's line while the property's prices are being read.
+ *
+ * Said rather than spun: the grid is already on the screen and already refusing
+ * every press, and a sentence naming the reason is what turns that from a broken
+ * calendar into one that is not ready yet.
+ */
+const LOADING_LINE = "Reading the property's prices for the year ahead…";
+
 export function DatesStage({
   range,
   party,
@@ -64,9 +73,12 @@ export function DatesStage({
   minDate,
   maxDate,
   panelOpen,
+  calendarLoading,
+  calendarRefusal,
   onRangeChange,
   onPartyChange,
   onContinue,
+  onCalendarRetry,
 }: {
   readonly range: StayRange | null;
   readonly party: Party;
@@ -76,11 +88,29 @@ export function DatesStage({
   /** The far end of the priced window. See `stay-calendar.tsx`. */
   readonly maxDate: CalendarDate;
   readonly panelOpen: boolean;
+  /** The window's prices are still on their way. */
+  readonly calendarLoading: boolean;
+  /** Why they never arrived, in the API's own words where it wrote them. */
+  readonly calendarRefusal: string | undefined;
   readonly onRangeChange: (range: StayRange | null) => void;
   readonly onPartyChange: (party: Party) => void;
   readonly onContinue: () => void;
+  readonly onCalendarRetry: () => void;
 }) {
   const [status, setStatus] = useState(OPENING_LINE);
+
+  // **The state of the read outranks the grid's own sentence.** The calendar
+  // composes the step's lede — "Choose the night you arrive", then why a press
+  // was refused — and every one of those sentences is about a grid that has
+  // prices in it. Until the window has been read there are none, so every cell
+  // refuses with "not yet priced" and the lede would be inviting the guest to
+  // press what nothing will accept. So while the read is out, and after it has
+  // failed, the line says what is actually happening.
+  //
+  // No fallback tariff stands behind this, deliberately: the property is the
+  // only thing that knows what a night costs, and a screen that drew a price it
+  // invented would be lying at exactly the moment it could not check.
+  const line = calendarRefusal ?? (calendarLoading ? LOADING_LINE : status);
 
   return (
     // The step's own two measures, declared here because all three bands read
@@ -102,8 +132,21 @@ export function DatesStage({
               never fires on hover — a hover-driven live region announces
               continuously and is worse than silence. */}
           <p className={styles.status} role="status">
-            {status}
+            {line}
           </p>
+
+          {/* The one thing a guest can do about a read that failed. Absent
+              otherwise, because a retry standing beside a working calendar is a
+              control offering to fix nothing. */}
+          {calendarRefusal ? (
+            <button
+              className={styles.retry}
+              onClick={onCalendarRetry}
+              type="button"
+            >
+              Try again
+            </button>
+          ) : null}
         </div>
       </BookingHero>
 
@@ -116,7 +159,10 @@ export function DatesStage({
             <RatePromise />
           </div>
 
-          <div className={styles.calendar}>
+          {/* `aria-busy` while the window is being read: the grid is mounted and
+              every cell in it is refusing, and this is what tells assistive
+              technology that the state is pending rather than final. */}
+          <div aria-busy={calendarLoading} className={styles.calendar}>
             <WhenView
               maxDate={maxDate}
               minDate={minDate}
