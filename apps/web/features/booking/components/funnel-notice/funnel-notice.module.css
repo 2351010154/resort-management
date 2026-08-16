@@ -1,0 +1,54 @@
+/* Waiting, and not getting an answer. The register is `no-availability.tsx`'s —
+ * plain, blameless, ruled off top and bottom so the plate does not read as
+ * empty while the sentence is the only thing in it.
+ */
+
+.notice {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) 0;
+  border-top: 1px solid rgb(var(--umber-rgb) / 0.15);
+  border-bottom: 1px solid rgb(var(--umber-rgb) / 0.15);
+}
+
+.headline {
+  font-family: var(--font-display), serif;
+  font-variant-numeric: lining-nums;
+  font-size: var(--text-display-sm);
+  font-weight: 300;
+  line-height: 1.15;
+}
+
+.detail {
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--stone-deep);
+}
+
+/* A secondary action, sized to the same tap floor as every other button on the
+   step. The primary one is still Choose, on a card, once there are prices. */
+.retry {
+  align-self: flex-start;
+  min-height: 3rem; /* 48px */
+  padding: 0 var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--umber);
+  border: 1px solid rgb(var(--umber-rgb) / 0.3);
+  white-space: nowrap;
+  transition:
+    color 0.4s var(--ease-ui),
+    background-color 0.4s var(--ease-ui),
+    border-color 0.4s var(--ease-ui);
+}
+
+.retry:hover {
+  color: var(--ivory);
+  background: var(--umber);
+  border-color: var(--umber);
+}
+
+.retry:focus-visible {
+  outline: 2px solid var(--dusk-amber);
+  outline-offset: 2px;
+}

@@ -73,6 +73,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { propertyToday } from "@/features/booking/lib/availability";
 import {
   plateMotion,
   stepMotion,
@@ -94,27 +95,22 @@ import {
   recallStay,
   rememberStay,
 } from "@/features/booking/lib/remembered-stay";
-import {
-  monthOfNights,
-  propertyToday,
-  roomRateTable,
-  soldOutTypes,
-  TARIFF_RATES,
-} from "@/features/booking/lib/rate-calendar-fixture";
 import { roomType } from "@/features/booking/lib/room-types";
 import { holdRefusal, holdStay } from "@/features/booking/lib/stay-funnel";
 import {
-  indexNights,
-  nightsInRange,
   type Party,
   partitionRoomTypes,
-  quoteStay,
   stayNights,
 } from "@/features/booking/lib/stay-quote";
+import {
+  useRateCalendar,
+  useStayOffers,
+} from "@/features/booking/lib/use-availability";
 import styles from "./booking-screen.module.css";
 import { ConciergeNote } from "./concierge-note/concierge-note";
 import { DatesStage } from "./dates-stage/dates-stage";
 import { FunnelNav } from "./funnel-nav/funnel-nav";
+import { FunnelNotice } from "./funnel-notice/funnel-notice";
 import { NoAvailability } from "./no-availability/no-availability";
 import { RoomGround } from "./room-ground/room-ground";
 import { RoomStage } from "./room-stage/room-stage";
@@ -228,28 +224,21 @@ export function BookingScreen() {
     [minDate],
   );
 
-  const nights = useMemo(
-    () =>
-      indexNights(monthOfNights(minDate, BOOKING_HORIZON_DAYS, search.plan)),
-    [minDate, search.plan],
-  );
+  // The window of nights, read from the property rather than derived here.
+  // Every cell price, every sold-out night and every restriction in the grid is
+  // `availability.calendar`'s answer for the plan in the URL — and when it does
+  // not answer, the grid draws no prices and the head says why.
+  const calendar = useRateCalendar(minDate, BOOKING_HORIZON_DAYS, search.plan);
+  const nights = calendar.nights;
 
   const stayLength = search.range ? stayNights(search.range) : 0;
 
-  const offers = useMemo(() => {
-    if (!search.range) return [];
-
-    const rangeNights = nightsInRange(search.range);
-    return quoteStay({
-      range: search.range,
-      party: search.party,
-      plan: search.plan,
-      rates: TARIFF_RATES,
-      roomRates: roomRateTable(rangeNights),
-      nights,
-      soldOutTypes: soldOutTypes(rangeNights),
-    });
-  }, [search.range, search.party, search.plan, nights]);
+  // And the five prices, once there are dates to price. The API applies §3's
+  // bands, the plan's percentage and the breakfast line against rows a manager
+  // edits, so the figure on the card is the figure the hold will be written at
+  // — which is the whole reason this is a call rather than arithmetic.
+  const priced = useStayOffers(search.range, search.party, search.plan);
+  const offers = priced.offers;
 
   // Every control goes through here, so there is one writer to the URL.
   //
@@ -523,9 +512,12 @@ export function BookingScreen() {
         variants={reduced ? stillMotion : stepMotion}
       >
         <DatesStage
+          calendarLoading={calendar.loading}
+          calendarRefusal={calendar.refusal}
           maxDate={maxDate}
           minDate={minDate}
           nights={nights}
+          onCalendarRetry={calendar.reread}
           onContinue={onContinue}
           onPartyChange={onPartyChange}
           onRangeChange={onRangeChange}
@@ -548,7 +540,29 @@ export function BookingScreen() {
   // the list rather than a banner over it (`rooms-view.tsx`). One `<h1>` either
   // way, which is the property that matters.
   let content: ReactNode;
-  if (offers.length > 0 && partition.takeable.length === 0) {
+  if (priced.refusal) {
+    // The prices did not come back. There is nothing to fall back on and that is
+    // deliberate — the property is the only thing that knows what these nights
+    // cost, so the step says so and offers to ask again rather than drawing five
+    // cards with no figures on them.
+    content = (
+      <FunnelNotice
+        detail={priced.refusal}
+        headline="These nights could not be priced."
+        onRetry={priced.reread}
+      />
+    );
+  } else if (priced.loading) {
+    // Between the press and the answer. Without this the list renders every type
+    // as sold out for as long as the call takes, which is a wrong answer rather
+    // than a slow one.
+    content = (
+      <FunnelNotice
+        detail="The property is quoting the dates you chose."
+        headline="Pricing your nights."
+      />
+    );
+  } else if (offers.length > 0 && partition.takeable.length === 0) {
     // Nothing the guest can take — sold out, too small, or some of each. The
     // view is replaced rather than shown as eight caps-labelled lines of what
     // they cannot have, which is a wall and not an answer.

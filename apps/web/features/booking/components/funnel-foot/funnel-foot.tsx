@@ -48,9 +48,18 @@ export function FunnelFoot({ nights }: { readonly nights: NightIndex }) {
         <summary className={styles.summary}>About these dates</summary>
 
         <div className={styles.body}>
-          <p>
-            {free} of the next {nights.size} nights are free.
-          </p>
+          {/* Said only once there is a window to say it about. The nights are
+              read from the property rather than held in the page, so before the
+              read lands this sentence would be "0 of the next 0 nights are
+              free" — a figure, and a wrong one, where the honest answer is that
+              the count is not known yet. */}
+          {nights.size > 0 ? (
+            <p>
+              {free} of the next {nights.size} nights are free.
+            </p>
+          ) : (
+            <p>The property&rsquo;s prices are still being read.</p>
+          )}
 
           {/* Trainline renders its keyboard hint as visible text rather than
               hiding it, and it is right to: a sighted keyboard user needs it as

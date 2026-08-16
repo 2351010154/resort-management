@@ -193,6 +193,7 @@ export function dispatchHotkey(
   event: ChordSource &
     Partial<Pick<KeyboardEvent, "repeat" | "isComposing" | "target">> & {
       preventDefault?: () => void;
+      stopPropagation?: () => void;
     },
 ): boolean {
   // A held key repeats. Commands fire once per press; a receptionist leaning on
@@ -249,7 +250,7 @@ export function dispatchHotkey(
     }
 
     if (chosen.stopPropagation) {
-      (event as Partial<KeyboardEvent>).stopPropagation?.();
+      event.stopPropagation?.();
     }
 
     chosen.handler(event as KeyboardEvent);

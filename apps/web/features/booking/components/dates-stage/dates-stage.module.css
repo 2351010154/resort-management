@@ -67,6 +67,35 @@
   min-height: 1.6em;
 }
 
+/* The way out of a calendar that could not be read. It stands on the
+   photograph beside the line explaining it, so it is drawn in ivory like the
+   head above it rather than in the plate's ink. */
+.retry {
+  align-self: flex-start;
+  margin-top: var(--space-2);
+  min-height: 3rem; /* 48px — the step's tap floor. */
+  padding: 0 var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--ivory);
+  border: 1px solid rgb(var(--ivory-rgb) / 0.5);
+  white-space: nowrap;
+  transition:
+    color 0.4s var(--ease-ui),
+    background-color 0.4s var(--ease-ui),
+    border-color 0.4s var(--ease-ui);
+}
+
+.retry:hover {
+  color: var(--umber);
+  background: var(--ivory);
+  border-color: var(--ivory);
+}
+
+.retry:focus-visible {
+  outline: 2px solid var(--dusk-amber);
+  outline-offset: 2px;
+}
+
 /* ---- The plate ----------------------------------------------------------- */
 
 /* The card, laid over the photograph's bottom edge.
