@@ -1,10 +1,11 @@
 // "What can I book, and for how much" — `FR-INV-03`.
 //
-// Two questions with one answer underneath. The funnel opens on a month of
+// Two questions with one answer underneath. The funnel opens on a window of
 // nights and asks for a number per night before the guest has chosen anything;
 // once it has both dates it asks for a number per type. Both read the same
 // three tables, and both are shaped by the same budget: `NFR-03` gives the
-// answer 300 ms at p95 over a twelve-month calendar.
+// answer 300 ms at p95 over a twelve-month calendar — which the window form
+// makes a single answer rather than twelve, and the budget is unchanged.
 //
 // That budget is the reason `type_inventory` is a stored counter rather than a
 // count derived from bookings. A derived count would have to visit every
@@ -54,7 +55,6 @@ import {
   stayTotalGross,
 } from "@mariva/shared";
 import { Inject, Injectable } from "@nestjs/common";
-import { type CalendarDate, parseDate } from "@internationalized/date";
 import { eq, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { type Database, DRIZZLE } from "../../database/database.module.js";
@@ -239,21 +239,29 @@ export class AvailabilityService {
   }
 
   /**
-   * A month of nights, each carrying the cheapest room still free.
+   * A window of nights, each carrying the cheapest room still free.
    *
    * Nights the property has not opened for sale are absent from
-   * `type_inventory` and would fall out of the aggregate entirely, so the month
-   * is generated here and the gaps filled as sold out. A grid that is thirty-one
-   * cells one month and twenty-two the next is a grid that has to explain
-   * itself.
+   * `type_inventory` and would fall out of the aggregate entirely, so the
+   * window is generated here and the gaps filled as sold out. A grid that is
+   * thirty-one cells one month and twenty-two the next is a grid that has to
+   * explain itself.
+   *
+   * A window and not a month, and still one statement: the range only widens
+   * the date predicate the month form already had. The funnel asks for a year
+   * on first paint, and answering that as twelve month queries — here or in the
+   * browser — would be the same fan-out moved somewhere quieter. The window is
+   * bounded by the contract (`LONGEST_CALENDAR_WINDOW`), so the scan this
+   * predicate can be asked for has a ceiling.
    */
   async calendar(query: {
-    year: number;
-    month: number;
+    from: StayDate;
+    to: StayDate;
     plan: RatePlanCode;
   }): Promise<RateCalendar> {
     const pricing = await this.planPricing(query.plan);
-    const first = new CalendarDateOfMonth(query.year, query.month);
+    const from = query.from.toString();
+    const to = query.to.toString();
 
     const { rows } = await this.db.execute<Row<NightAggregate>>(sql`
       select
@@ -274,7 +282,7 @@ export class AvailabilityService {
         on ${rc.roomTypeId} = ${ti.roomTypeId} and ${rc.stayDate} = ${ti.stayDate}
       left join ${stayRestriction} ${sr}
         on ${sr.roomTypeId} = ${ti.roomTypeId} and ${sr.stayDate} = ${ti.stayDate}
-      where ${ti.stayDate} >= ${first.firstDay} and ${ti.stayDate} <= ${first.lastDay}
+      where ${ti.stayDate} >= ${from} and ${ti.stayDate} < ${to}
       group by ${ti.stayDate}
     `);
 
@@ -282,7 +290,7 @@ export class AvailabilityService {
 
     return {
       plan: query.plan,
-      nights: first.dates().map((date) => {
+      nights: nightsAcross(query.from, query.to).map((date) => {
         const night = byDate.get(date.toString());
         const freeTypes = night ? Number(night.free_types) : 0;
         const isSoldOut = freeTypes === 0;
@@ -368,36 +376,14 @@ export class AvailabilityService {
 }
 
 /**
- * The dates of one calendar month.
+ * Every night a half-open window covers, in order.
  *
- * Built from `@internationalized/date` rather than `Date`, for the reason
- * `stay-date.ts` gives: a month boundary read through a `Date` is a UTC
- * midnight, and in UTC+7 that is the previous night.
+ * Counted in `CalendarDate` arithmetic rather than by stepping a `Date`, for
+ * the reason `stay-date.ts` gives: a day boundary read through a `Date` is a
+ * UTC midnight, and in UTC+7 that is the previous night.
  */
-class CalendarDateOfMonth {
-  private readonly start: CalendarDate;
+function nightsAcross(from: StayDate, to: StayDate): StayDate[] {
+  const nights = nightCount({ checkIn: from, checkOut: to });
 
-  constructor(year: number, month: number) {
-    this.start = parseDate(
-      `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-01`,
-    );
-  }
-
-  get firstDay(): string {
-    return this.start.toString();
-  }
-
-  get lastDay(): string {
-    return this.start
-      .add({ days: this.start.calendar.getDaysInMonth(this.start) - 1 })
-      .toString();
-  }
-
-  dates(): CalendarDate[] {
-    const days = this.start.calendar.getDaysInMonth(this.start);
-
-    return Array.from({ length: days }, (_, offset) =>
-      this.start.add({ days: offset }),
-    );
-  }
+  return Array.from({ length: nights }, (_, offset) => from.add({ days: offset }));
 }

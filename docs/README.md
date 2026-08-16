@@ -40,10 +40,19 @@ the inconsistency rather than rewriting either source to conceal it.
 | Technology choices and rejected alternatives | [`architecture/tech-stack.md`](architecture/tech-stack.md) |
 | Hosting, database, storage, backup, payment, e-invoice and outbound-mail decisions | [`architecture/infrastructure.md`](architecture/infrastructure.md) |
 | Screen intent and navigation | [`screens.md`](screens.md) |
+| Order of operations for a change made by hand against a live environment | [`runbooks/`](runbooks/) |
 | Current delivery fields and blockers | [GitHub issues](https://github.com/2351010154/resort-management/issues) |
 
 Architecture documents may describe an accepted target before code enforces it.
 Follow their evidence links to determine what is implemented.
+
+A runbook owns sequence, not decisions. It says what to do first, what to check
+before continuing and how to get back — while the reason each step exists stays
+with the durable owner above, cited rather than copied, so a decision cannot
+drift between the document that made it and the checklist that carries it out.
+[`runbooks/g2-production-payment.md`](runbooks/g2-production-payment.md) is the
+first: flipping VNPay to production credentials, whose gate lives in
+[`architecture/infrastructure.md`](architecture/infrastructure.md) §Payments.
 
 ## How decisions move
 

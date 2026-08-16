@@ -45,6 +45,10 @@ const WEDNESDAY = "2027-03-03";
 const FRIDAY = "2027-03-05";
 const SATURDAY = "2027-03-06";
 const SUNDAY = "2027-03-07";
+// The calendar takes the window itself, half-open, so the seeded March is
+// [MARCH, APRIL) rather than a year and a month number.
+const MARCH = "2027-03-01";
+const APRIL = "2027-04-01";
 
 const SUPERIOR = ROOM_TYPES.find((type) => type.code === "SUPERIOR")!;
 const PANORAMA = ROOM_TYPES.find((type) => type.code === "PANORAMA_SUITE")!;
@@ -609,21 +613,72 @@ describe("stay restrictions", () => {
 });
 
 describe("the rate calendar", () => {
-  it("returns one cell per day of the month", async () => {
+  it("returns one cell per night of the window, half-open", async () => {
     const response = await http()
       .get("/availability/calendar")
-      .query({ year: 2027, month: 3, plan: "STANDARD" })
+      .query({ from: MARCH, to: APRIL, plan: "STANDARD" })
       .expect(200);
 
     expect(response.body.nights).toHaveLength(31);
     expect(response.body.nights[0].date).toBe("2027-03-01");
+    // The last date is not a night answered for, which is the convention every
+    // range in the system keeps: two windows laid end to end share no cell.
     expect(response.body.nights.at(-1).date).toBe("2027-03-31");
+  });
+
+  it("answers a multi-month window in one request", async () => {
+    const response = await http()
+      .get("/availability/calendar")
+      .query({ from: MARCH, to: "2027-06-01" })
+      .expect(200);
+
+    // March, April and May — 31 + 30 + 31. The funnel used to ask for this as
+    // three calls, and a year as thirteen.
+    expect(response.body.nights).toHaveLength(92);
+    expect(response.body.nights[0].date).toBe("2027-03-01");
+    expect(response.body.nights.at(-1).date).toBe("2027-05-31");
+  });
+
+  it("runs a window across the turn of the year", async () => {
+    const response = await http()
+      .get("/availability/calendar")
+      .query({ from: "2027-12-20", to: "2028-01-10" })
+      .expect(200);
+
+    expect(response.body.nights).toHaveLength(21);
+    expect(response.body.nights[0].date).toBe("2027-12-20");
+    expect(response.body.nights.at(-1).date).toBe("2028-01-09");
+
+    // Both sides of the turn are inside the twelve months the seed opened, so
+    // every cell carries a price — a window is not quietly cut at December.
+    expect(
+      response.body.nights.every(
+        (night: { lowestGross: string | null }) => night.lowestGross !== null,
+      ),
+    ).toBe(true);
+  });
+
+  it("refuses a window longer than the ceiling", async () => {
+    // The route is the one a stranger can call, so the window is bounded in the
+    // contract rather than clamped by the handler. A clamp would answer fewer
+    // nights than were asked for and the tail would render as unpriced.
+    await http()
+      .get("/availability/calendar")
+      .query({ from: MARCH, to: "2029-03-01" })
+      .expect(400);
+  });
+
+  it("refuses a window that ends before it begins", async () => {
+    await http()
+      .get("/availability/calendar")
+      .query({ from: APRIL, to: MARCH })
+      .expect(400);
   });
 
   it("carries the cheapest type still free", async () => {
     const response = await http()
       .get("/availability/calendar")
-      .query({ year: 2027, month: 3 })
+      .query({ from: MARCH, to: APRIL })
       .expect(200);
 
     const tuesday = response.body.nights.find(
@@ -643,7 +698,7 @@ describe("the rate calendar", () => {
     try {
       const response = await http()
         .get("/availability/calendar")
-        .query({ year: 2027, month: 3 })
+        .query({ from: MARCH, to: APRIL })
         .expect(200);
 
       const tuesday = response.body.nights.find(
@@ -665,12 +720,12 @@ describe("the rate calendar", () => {
   it("re-prices the whole grid when the plan changes", async () => {
     const standard = await http()
       .get("/availability/calendar")
-      .query({ year: 2027, month: 3, plan: "STANDARD" })
+      .query({ from: MARCH, to: APRIL, plan: "STANDARD" })
       .expect(200);
 
     const nonref = await http()
       .get("/availability/calendar")
-      .query({ year: 2027, month: 3, plan: "NONREF" })
+      .query({ from: MARCH, to: APRIL, plan: "NONREF" })
       .expect(200);
 
     expect(BigInt(nonref.body.nights[1].lowestGross)).toBe(
@@ -689,7 +744,7 @@ describe("the rate calendar", () => {
 
     const response = await http()
       .get("/availability/calendar")
-      .query({ year: 2027, month: 3 })
+      .query({ from: MARCH, to: APRIL })
       .expect(200);
 
     const friday = response.body.nights.find(
@@ -716,7 +771,7 @@ describe("the rate calendar", () => {
 
     const response = await http()
       .get("/availability/calendar")
-      .query({ year: 2027, month: 3 })
+      .query({ from: MARCH, to: APRIL })
       .expect(200);
 
     const friday = response.body.nights.find(
@@ -736,13 +791,19 @@ describe("NFR-03 — the availability budget", () => {
     // measurement is a distribution and not a total.
     const samples: number[] = [];
 
-    for (let month = 1; month <= 12; month += 1) {
+    for (let month = 0; month < 12; month += 1) {
+      const from = SEED_FROM.add({ months: month });
+
       for (let repeat = 0; repeat < 5; repeat += 1) {
         const started = performance.now();
 
         await http()
           .get("/availability/calendar")
-          .query({ year: month >= 3 ? 2027 : 2028, month, plan: "BB" })
+          .query({
+            from: from.toString(),
+            to: from.add({ months: 1 }).toString(),
+            plan: "BB",
+          })
           .expect(200);
 
         samples.push(performance.now() - started);
@@ -754,6 +815,34 @@ describe("NFR-03 — the availability budget", () => {
     const p95 = samples[Math.floor(samples.length * 0.95)]!;
 
     expect(p95).toBeLessThan(300);
+  });
+
+  it("answers the funnel's whole year inside the same budget, in one request", async () => {
+    // The window the public funnel opens on. It is one statement over a wider
+    // date predicate rather than twelve, which is the whole reason the route
+    // takes a range — the fan-out it replaced spent the budget twelve times and
+    // opened twelve connections to do it.
+    const samples: number[] = [];
+
+    for (let repeat = 0; repeat < 5; repeat += 1) {
+      const started = performance.now();
+
+      const response = await http()
+        .get("/availability/calendar")
+        .query({
+          from: SEED_FROM.toString(),
+          to: SEED_FROM.add({ days: 365 }).toString(),
+          plan: "BB",
+        })
+        .expect(200);
+
+      expect(response.body.nights).toHaveLength(365);
+      samples.push(performance.now() - started);
+    }
+
+    samples.sort((left, right) => left - right);
+
+    expect(samples[Math.floor(samples.length * 0.95)]!).toBeLessThan(300);
   });
 
   it("answers a stay search inside 300 ms at p95", async () => {

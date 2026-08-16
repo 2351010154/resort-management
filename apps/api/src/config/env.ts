@@ -169,10 +169,16 @@ export const envSchema = z.object({
   VNPAY_SECRET_KEY: z.string().min(1).optional(),
 
   // Which VNPay the adapter talks to. Sandbox by default, because the wrong
-  // value is only safe in one direction: a production deploy still pointing at
-  // sandbox takes no money and is noticed on the first transaction, while a
-  // staging deploy pointing at production takes real money from whoever is
-  // testing it.
+  // value is only safe in one direction: a staging deploy pointing at production
+  // takes real money from whoever is testing it, while a deploy still pointing
+  // at sandbox takes none.
+  //
+  // "Noticed on the first transaction" was the whole of that argument until a
+  // production property had a terminal. It is not good enough there: the first
+  // transaction is a guest's, the gateway signs the sandbox reply, the funnel
+  // confirms a booking, and the property has sold a room for money that never
+  // moved. So the check below refuses that combination at boot, where the fix is
+  // a variable rather than a refund.
   VNPAY_SANDBOX: z.stringbool().default(true),
 
   // The hour the business date rolls over, in the property's own zone —
@@ -455,6 +461,29 @@ export const envSchema = z.object({
     {
       path: ["VNPAY_SECRET_KEY"],
       message: "and VNPAY_TMN_CODE are set together, or neither is set",
+    },
+  )
+  // A terminal that cannot take money, in the one environment where the money is
+  // a guest's. Sandbox signs and answers exactly as the live gateway does, so
+  // nothing downstream can tell them apart: the callback verifies, the payment
+  // posts, the folio settles and the booking confirms — against a transaction
+  // that never left VNPay's test bench. The property learns about it from its
+  // bank statement, days later, with the room already slept in.
+  //
+  // Conditional on the terminal for the same reason the pager check is: a
+  // production deploy with no gateway at all still boots, because the default
+  // above is sandbox and refusing it there would refuse every deploy that has
+  // not onboarded. Left non-production untouched deliberately — a sandbox
+  // terminal in development is how the funnel is exercised at all.
+  .refine(
+    (env) =>
+      env.NODE_ENV !== "production" ||
+      !env.VNPAY_TMN_CODE ||
+      env.VNPAY_SANDBOX === false,
+    {
+      path: ["VNPAY_SANDBOX"],
+      message:
+        "must be false in production once VNPAY_TMN_CODE is set — a sandbox terminal signs and answers exactly as the live one does, so a room is sold for money that never moved",
     },
   )
   // A production property taking card money has somewhere for the night's
