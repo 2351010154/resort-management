@@ -7,9 +7,12 @@
 // question about a string. Splitting the decision out is what makes it
 // testable, and the markers are the part most likely to need changing.
 //
-// Written in CommonJS, like its caller: `apps/web/package.json` declares no
-// `"type"`, so the check runs under Node's type stripping and `require` of this
-// module is a plain synchronous read with no second parse.
+// Written with ESM exports, unlike its caller, because it has two consumers and
+// only one of them can choose: `banned-animation-markers.spec.ts` is collected
+// by vitest and imports it. The budget check reaches the same module through
+// `require`, which Node resolves for an ES module synchronously — the file has
+// no top-level await and nothing to load asynchronously, so there is nothing
+// there for `require` to refuse.
 
 /**
  * What a banned package looks like once Turbopack has minified it.

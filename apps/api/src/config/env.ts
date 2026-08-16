@@ -483,7 +483,7 @@ export const envSchema = z.object({
     {
       path: ["VNPAY_SANDBOX"],
       message:
-        "VNPAY_SANDBOX must be false in production when VNPAY_TMN_CODE is set - a sandbox terminal cannot take real money",
+        "must be false in production once VNPAY_TMN_CODE is set — a sandbox terminal signs and answers exactly as the live one does, so a room is sold for money that never moved",
     },
   )
   // A production property taking card money has somewhere for the night's
