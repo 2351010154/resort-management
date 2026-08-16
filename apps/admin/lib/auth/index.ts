@@ -13,8 +13,8 @@
 export {
   DEFAULT_LANDING,
   LANDING_BY_ROLE,
-  landingRouteFor,
   LOGIN_ROUTE,
+  landingRouteFor,
   loginHref,
   RETURN_PARAM,
   safeReturnPath,
@@ -38,3 +38,4 @@ export {
   type StaffSessionState,
   type StaffSignInOutcome,
 } from "./staff-session-store";
+export { useEndSession } from "./use-end-session";

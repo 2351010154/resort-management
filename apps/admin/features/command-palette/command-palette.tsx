@@ -30,8 +30,9 @@ import { formatShortcut } from "./shortcut";
  * authenticated screen. It holds no commands of its own — the screen the
  * operator is on decides what the palette can do, through `useCommands` — which
  * is why an empty palette is a state this component has to render rather than a
- * bug it can assume away. Until the shell registers its navigation, empty is
- * the only state there is.
+ * bug it can assume away. The shell's navigation and sign-out are registered
+ * from the layout, so what is left of that state is a screen offering nothing
+ * of its own.
  */
 
 const OPEN_CHORD = "mod+k";
