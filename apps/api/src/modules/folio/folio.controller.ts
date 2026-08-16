@@ -1,11 +1,14 @@
-// The eight folio routes the RBAC matrix already governs — reading the account,
-// posting a charge, selling a catalog item, posting a payment, correcting a
-// line, handing money back the way §4's grid prices it, handing money back at a
-// manager's discretion, and agreeing the whole of it.
+// The nine folio routes the RBAC matrix already governs — reading the account,
+// listing the property's accounts, posting a charge, selling a catalog item,
+// posting a payment, correcting a line, handing money back the way §4's grid
+// prices it, handing money back at a manager's discretion, and agreeing the
+// whole of it.
 //
-// Eight routes over seven rows, and no route here names a key the matrix does
+// Nine routes over seven rows, and no route here names a key the matrix does
 // not have. The two postings share `folio.post-charge`, whose row reads "Post
-// charge (room, service, minibar)" and names both acts; what §2 forbids is one
+// charge (room, service, minibar)" and names both acts; the read and the list
+// share `folio.read`, and a row of the list is strictly less than what the
+// read already hands the same caller. What §2 forbids is one
 // route whose authority turns on its body, not two routes under an authority
 // that was always theirs. The invoice adjustment sits in the same section and is
 // deliberately
@@ -64,7 +67,7 @@ import type { DbExecutor } from "../../database/database.module.js";
 import { TransactionRunner } from "../../database/transaction-runner.js";
 import { BusinessDateService } from "../booking/business-date.service.js";
 import { CatalogService } from "../operations/catalog.service.js";
-import type { FolioAccount, FolioLine } from "./folio.service.js";
+import type { FolioAccount, FolioLine, ListedFolio } from "./folio.service.js";
 import { FolioService } from "./folio.service.js";
 
 @Controller()
@@ -101,6 +104,65 @@ export class FolioController {
           this.account(exec, input.bookingId),
         ),
       );
+    });
+  }
+
+  /**
+   * The accounts the property has, narrowed and paged — the desk's worklist.
+   *
+   * The same `folio.read` row as the route above, declared as a read for the
+   * same reason. A row of this list is strictly less than what the single read
+   * already hands the same caller, so nothing here is reachable that the key
+   * did not already open.
+   *
+   * **This one is the staff realm's and no grant makes it a guest's.** The read
+   * above resolves the `conditional` grant by refusing, because the set of
+   * folios a guest can prove are theirs is empty; here there is not even a
+   * folio named for such a check to be about. The request is a filter, so the
+   * only honest reading of "own, settled view" over a collection is a page of
+   * one account the caller could have asked for by id — which is not this
+   * route, and answering it as though it were would hand a stranger every
+   * balance in the building. So the grant is read first, the way
+   * `search.controller.ts` reads its own narrowing and for the same reason a
+   * decision that never arrived must refuse, and the realm is read after it:
+   * not as a copy of the matrix, but because the scope word the matrix delegates
+   * to this handler has nothing here to attach to.
+   *
+   * **Wrapped in a transaction like the read**, and for the same argument: the
+   * page and the count over it are two statements whose answers are printed
+   * side by side, and on two connections they would be two different moments —
+   * a table of nineteen rows under a heading that says twenty.
+   */
+  @RequiresCapability("folio.read", "read")
+  @Implement(contract.folio.list)
+  listFolios(
+    @Access() access: AccessDecision | undefined,
+    @CurrentPrincipal() principal: Principal | null,
+  ) {
+    return implement(contract.folio.list).handler(async ({ input }) => {
+      if (!ledgerOpenTo(access) || principal?.realm !== "staff") {
+        throw new ORPCError("FORBIDDEN", {
+          message:
+            "The property's accounts are the desk's — a guest may read only " +
+            "their own folio, which is asked for by the stay it belongs to",
+        });
+      }
+
+      const page = await this.transactions.run((exec) =>
+        this.folios.list(exec, {
+          state: input.state,
+          balance: input.balance,
+          from: input.from,
+          to: input.to,
+          limit: input.limit,
+          offset: input.offset,
+        }),
+      );
+
+      return {
+        folios: page.folios.map(listedOnWire),
+        total: page.total,
+      };
     });
   }
 
@@ -464,6 +526,19 @@ function onWire(account: FolioAccount) {
     closedAt: account.closedAt?.toISOString() ?? null,
     summary: account.summary,
     postings: account.lines.map(lineOnWire),
+  };
+}
+
+/** One listed account as the wire carries it — the instants into ISO-8601, and
+ *  the three figures untouched, since {@link onWire} hands over the same ones. */
+function listedOnWire(account: ListedFolio) {
+  return {
+    id: account.id,
+    bookingId: account.bookingId,
+    state: account.state,
+    openedAt: account.openedAt.toISOString(),
+    closedAt: account.closedAt?.toISOString() ?? null,
+    summary: account.summary,
   };
 }
 
