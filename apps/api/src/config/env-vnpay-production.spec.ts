@@ -59,7 +59,10 @@ describe("a production terminal pointed at the sandbox", () => {
         VNPAY_SANDBOX: "true",
       }),
     ).toThrow(
-      /VNPAY_SANDBOX must be false in production when VNPAY_TMN_CODE is set/,
+      // The path and the sentence together: `EnvValidationError` prints
+      // `path: message`, so this is the whole line a deploy reads, and it is
+      // the switch that is named rather than the terminal beside it.
+      /VNPAY_SANDBOX: must be false in production once VNPAY_TMN_CODE is set/,
     );
 
     expect(() =>

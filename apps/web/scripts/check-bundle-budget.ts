@@ -21,7 +21,10 @@ const fs = require("node:fs") as typeof import("node:fs");
 const path = require("node:path") as typeof import("node:path");
 
 // The markers and the pure decision they drive live next door so a spec can
-// exercise them without a build; see `banned-animation-markers.ts`.
+// exercise them without a build; see `banned-animation-markers.ts`. That module
+// carries ESM exports because vitest imports it, and `require` of an ES module
+// is synchronous on the Node this repository pins — it has no top-level await,
+// so there is nothing there to refuse.
 const { BANNED_PACKAGES, matchBannedPackages } =
   require("./banned-animation-markers.ts") as typeof import("./banned-animation-markers.ts");
 
