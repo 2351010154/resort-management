@@ -175,15 +175,19 @@ export interface CreateBookingInput {
    */
   readonly userId?: string | null;
   /**
-   * Where the confirmation goes and what to call the person it goes to, on the
-   * one door that collects it.
+   * Where the confirmation goes and what to call the person it goes to.
    *
-   * Absent on every stay the desk takes, which is `contract/booking.ts`'s split
-   * carried down here: a walk-in is somebody at the counter and there is
-   * nowhere to send anything. Unlike {@link CreateBookingInput.userId} this
-   * *is* a value the caller sends, and it is not authority — it is an address
-   * to write to, claimed by whoever booked, and nothing is granted by holding
-   * it. `schema/booking.ts` says why it is not a `registration` row.
+   * Absent on a walk-in, which is `contract/booking.ts`'s split carried down
+   * here: somebody at the counter has nowhere to send anything. Present on a
+   * telephone booking, which the desk's door is the only chance to record one
+   * for — that stay is `CONFIRMED` from birth and never reaches
+   * {@link BookingService.setHoldContact}. Absent on every hold, because the
+   * funnel names the pair a press before the money instead.
+   *
+   * Unlike {@link CreateBookingInput.userId} this *is* a value the caller
+   * sends, and it is not authority — it is an address to write to, claimed by
+   * whoever booked, and nothing is granted by holding it. `schema/booking.ts`
+   * says why it is not a `registration` row.
    */
   readonly contact?: BookingContact | null;
 }
@@ -251,8 +255,9 @@ export interface Booking {
    *
    * Null is the ordinary state of a fresh hold now, not an anomaly: the funnel
    * takes the room first and asks who is taking it on the review screen —
-   * {@link BookingService.setHoldContact}. It stays null forever on every stay
-   * the desk took, which is most of them.
+   * {@link BookingService.setHoldContact}. It stays null forever on a walk-in,
+   * which is most of what the desk takes, and is set at creation on the
+   * telephone booking that has nowhere else to record one.
    */
   readonly contactEmail: string | null;
   readonly contactName: string | null;
@@ -830,6 +835,12 @@ export class BookingService {
    * No account, ordinarily. A walk-in is somebody at the counter, and the stay
    * is stored with `user_id` null rather than with a placeholder account nobody
    * can sign in to.
+   *
+   * A contact when the desk was given one, and this is the only moment it can
+   * be. The stay is `CONFIRMED` the instant it exists, so it never becomes the
+   * hold {@link BookingService.setHoldContact} acts on — and a telephone
+   * booking with no address is a stay the property cannot write to about its
+   * own cancellation or its arrival.
    */
   async createConfirmed(
     exec: DbExecutor,
@@ -2353,10 +2364,13 @@ export class BookingService {
             // mistyped id fails the transition rather than writing a booking
             // nobody can be shown.
             userId: input.userId ?? null,
-            // Null at the desk's door and required at the funnel's — the split
-            // is which route was called, and `contract/booking.ts` argues why
-            // it is two inputs rather than one schema with a check inside a
-            // handler.
+            // Null unless a caller named somebody. The desk's door takes the
+            // pair optionally — a telephone booking has an address and a
+            // walk-in has none — and the funnel's takes it not at all, naming
+            // it on the review screen instead through
+            // {@link BookingService.setHoldContact}. Both halves or neither,
+            // held to that by `contract/booking.ts` before anything reaches
+            // here.
             contactEmail: input.contact?.email ?? null,
             contactName: input.contact?.name ?? null,
             roomTypeId: quote.roomTypeId,

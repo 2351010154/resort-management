@@ -379,6 +379,18 @@ could still rewrite it would let a booking's paper trail be edited after the fac
 A later correction is the desk's, through *Add or edit guest details*, where the
 change is recorded as the desk's act.
 
+**A stay taken at the desk names its contact at creation, because it has no hold
+to name one on.** `POST /bookings` produces a `CONFIRMED` booking directly, so it
+never passes the review screen above and the creating call is its only chance:
+without one a telephone booking would have no address for a cancellation or a
+pre-arrival message for the whole of its life. The pair is optional there and
+required nowhere on the wire — a walk-in is somebody at the counter who is handed
+their confirmation and may genuinely have no address, and nothing in the request
+distinguishes the two conversations, since a caller naming which one they are in
+could always name the other. The front-desk console is where the telephone path
+insists. What the contract does refuse on that door is half a pair: an address
+with no name at the top of it, or a name nothing can be sent to.
+
 **Handing a vacated room back.** A move and a checked-in upgrade both leave a
 slept-in room nobody is returning to, so both set it `DIRTY` — the same effect §3
 gives check-out, and for the same reason: the property is not judging how dirty

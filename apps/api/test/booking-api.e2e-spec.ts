@@ -100,14 +100,15 @@ const A_STAY = {
 } as const;
 
 /**
- * The same stay as a funnel states it — with somebody to send the confirmation
- * to.
+ * The same stay with a contact attached to it, which is what makes it the
+ * funnel's fixture rather than a second copy of the desk's.
  *
- * The pair is required at the hold's door and absent from the desk's, which is
- * `contract/booking.ts`'s split rather than this fixture's convenience: a
- * walk-in is standing at the counter and has nowhere to be written to. So the
- * two bodies are two constants, and a test posting the wrong one to either route
- * fails on the shape rather than on something further in.
+ * The pair is not a field of `createHoldInput` and is dropped on the way in —
+ * the funnel names it on the review screen, one press before the money, and
+ * `contract/booking.ts` argues why the hold must not ask before the guest has
+ * seen a total. So this constant carries the pair precisely so that the hold it
+ * takes can be asserted to have ignored it, and the desk's own door is where a
+ * contact sent at creation is kept.
  */
 const A_HELD_STAY = {
   ...A_STAY,
@@ -767,6 +768,85 @@ describe("a stay taken at the desk and walked to check-out", () => {
   });
 });
 
+/*
+ * The one door that records who to write to at creation.
+ *
+ * A stay taken at the desk is `CONFIRMED` from birth, so it never becomes the
+ * hold `setOwnHoldContact` acts on — the creating call is its only chance, and
+ * a telephone booking that missed it would be a stay the property could not
+ * write to about its own cancellation or its arrival. The funnel keeps the
+ * other arrangement, and the last case here is what holds it there.
+ */
+describe("the contact a booking taken at the desk carries", () => {
+  it("records the pair the desk was given, and answers with it", async () => {
+    const response = await as("RECEPTIONIST", "post", "/bookings", {
+      ...A_STAY,
+      checkIn: "2027-10-04",
+      checkOut: "2027-10-06",
+      contactEmail: "phone-booking@example.test",
+      contactName: "Nguyễn Thu Hà",
+    }).expect(201);
+
+    expect(response.body).toMatchObject({
+      state: "CONFIRMED",
+      contactEmail: "phone-booking@example.test",
+      contactName: "Nguyễn Thu Hà",
+    });
+
+    // On the row, and on the booking rather than on a registration —
+    // `schema/booking.ts` argues the difference. Nobody has checked in.
+    const [row] = await db
+      .select({
+        email: booking.contactEmail,
+        name: booking.contactName,
+      })
+      .from(booking)
+      .where(eq(booking.id, response.body.id));
+
+    expect(row).toEqual({
+      email: "phone-booking@example.test",
+      name: "Nguyễn Thu Hà",
+    });
+  });
+
+  it("leaves a walk-in with nobody to write to", async () => {
+    // The pair is optional on this door and genuinely absent here: somebody at
+    // the counter is handed their confirmation.
+    const response = await as("RECEPTIONIST", "post", "/bookings", {
+      ...A_STAY,
+      checkIn: "2027-10-07",
+      checkOut: "2027-10-09",
+    }).expect(201);
+
+    expect(response.body).toMatchObject({
+      contactEmail: null,
+      contactName: null,
+    });
+  });
+
+  it("refuses half a contact, because half of one is unusable", async () => {
+    // An address with no name at the top of it, and a name nothing can be sent
+    // to. Both are 400s from the schema, before any night is priced.
+    await as("RECEPTIONIST", "post", "/bookings", {
+      ...A_STAY,
+      checkIn: "2027-10-10",
+      checkOut: "2027-10-12",
+      contactEmail: "half@example.test",
+    }).expect(400);
+
+    await as("RECEPTIONIST", "post", "/bookings", {
+      ...A_STAY,
+      checkIn: "2027-10-10",
+      checkOut: "2027-10-12",
+      contactName: "Half A Contact",
+    }).expect(400);
+  });
+
+  // The funnel's own door is asserted where a hold is already being taken —
+  // "a hold from the public funnel" below. Taking a second one here would spend
+  // a slot of the rate the public route is capped at and refuse that one.
+});
+
 describe("a hold from the public funnel", () => {
   let holdId: string;
 
@@ -790,6 +870,13 @@ describe("a hold from the public funnel", () => {
       roomType: "PREMIER",
       adults: 2,
       childAges: [7],
+      // The funnel's door is unchanged by the desk's gaining a contact:
+      // `createHoldInput` states the stay and nothing else, so the pair
+      // `A_HELD_STAY` carries is not a field of this request and the hold is
+      // born with nobody named. The guest names one on the review screen, one
+      // press before the money — `PUT /bookings/holds/{id}/contact`.
+      contactEmail: null,
+      contactName: null,
     });
 
     // An instant and not a stay date: a TTL is a moment, and a hold taken at
