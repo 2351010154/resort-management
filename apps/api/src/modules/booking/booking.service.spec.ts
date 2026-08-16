@@ -27,6 +27,21 @@
 // methods reaches inventory, a rate quote or a folio, and passing a stand-in
 // would be imitating a ledger this file is not entitled to imitate. A case that
 // wandered into one fails loudly instead of quietly agreeing with a fake.
+//
+// ## The hold a payment attempt extends
+//
+// One more `where` clause, proved here for the same reason as the three above:
+// what `extendHoldForPayment` does is decided by the statement rather than by a
+// branch, and the half that matters most cannot be seen from a service at all.
+// `booking_hold_expiry_exactly_when_held` refuses an expiry on any row that is
+// not `HELD`, and this write happens inside the transaction that opens a payment
+// attempt — so a stay that is no longer held has to come back as nothing
+// written, not as a constraint violation taking the attempt with it. That is a
+// claim about Postgres' answer, and only Postgres can give it.
+//
+// The other two are the direction it may move a deadline in: out far enough to
+// cover a gateway round trip, and never in. `greatest` is what decides both, and
+// a test that read back a date this file had computed would agree with itself.
 
 import "reflect-metadata";
 
@@ -63,6 +78,21 @@ const CHECK_OUT = "2027-05-13";
  *  order the schema insists on, because revocation with nobody to sign in as
  *  would be a lock-out. */
 const AN_ACCOUNT = "3Xk2p9QwR7tL1sVn4cB8dF6hJ0mZyU5e";
+
+/** How long an attempt buys a hold, in this suite. Not the shipped default. */
+const WINDOW_MINUTES = 20;
+
+const MS_PER_MINUTE = 60_000;
+
+/**
+ * How far a deadline written by Postgres may sit from one computed here.
+ *
+ * The extension is `now()` on the database's clock and every assertion below
+ * measures from this process's, so the two are a round trip and whatever the two
+ * machines disagree about apart. A minute is far wider than either and far
+ * narrower than the figure under test.
+ */
+const CLOCK_SLACK_MS = MS_PER_MINUTE;
 
 let pool: pg.Pool;
 let db: Database;
@@ -139,6 +169,46 @@ async function aBooking(
   return row!;
 }
 
+/**
+ * A stay the funnel is still holding, with that many minutes left on it.
+ *
+ * Written straight into the row rather than taken through `createHold`, for the
+ * reason the header gives about this file's collaborators: a hold taken through
+ * the funnel would consume inventory that nothing here gives back, and what the
+ * cases below are about is one column and the constraint over it.
+ */
+async function aHold({
+  minutesLeft,
+}: {
+  minutesLeft: number;
+}): Promise<{ id: string; reference: string }> {
+  return await aBooking({
+    state: "HELD",
+    holdExpiresAt: new Date(Date.now() + minutesLeft * MS_PER_MINUTE),
+  });
+}
+
+/** When a stay stops being held, straight off the row. */
+async function expiryOf(id: string): Promise<Date | null> {
+  const [row] = await db
+    .select({ expiresAt: booking.holdExpiresAt })
+    .from(booking)
+    .where(eq(booking.id, id));
+
+  return row?.expiresAt ?? null;
+}
+
+/** How much of a hold is left, from now, in minutes. */
+async function minutesLeftOn(id: string): Promise<number> {
+  const expiresAt = await expiryOf(id);
+
+  if (!expiresAt) {
+    throw new Error("that stay is not holding anything");
+  }
+
+  return (expiresAt.getTime() - Date.now()) / MS_PER_MINUTE;
+}
+
 /** The refusal a caller sees, or a failure if the call succeeded. */
 async function refused(work: Promise<unknown>): Promise<ORPCError<string, unknown>> {
   try {
@@ -181,7 +251,11 @@ beforeAll(async () => {
     undefined as unknown as GuestService,
     undefined as unknown as HousekeepingService,
     undefined as unknown as FolioPort,
-    undefined as unknown as Env,
+    // The one figure any method here reads: how long an attempt buys the hold it
+    // is opened against. Deliberately not the shipped fifteen, so a case that
+    // passed against a default rather than against the value it was handed would
+    // fail.
+    { BOOKING_PAYMENT_WINDOW_MINUTES: WINDOW_MINUTES } as Env,
     // Neither is reached here: the confirmation email is minted and queued only
     // by the transition a paid hold makes, which nothing in this file drives.
     undefined as unknown as BookingTokenService,
@@ -332,6 +406,70 @@ describe("revoking anonymous access", () => {
     );
 
     expect(await revokedAtOf(bookingId)).toBeNull();
+  });
+});
+
+describe("the hold a payment attempt is opened against", () => {
+  it("is given the configured window, however little it had left", async () => {
+    // The race the whole extension exists for: the guest reached the payment
+    // page with a minute of the TTL to spare, and the bank app takes longer than
+    // that. Without this write the sweep cancels the stay mid-payment and the
+    // money lands on a room that is back on sale.
+    const held = await aHold({ minutesLeft: 1 });
+
+    await bookings.extendHoldForPayment(db, held.id);
+
+    expect(await minutesLeftOn(held.id)).toBeGreaterThan(
+      WINDOW_MINUTES - CLOCK_SLACK_MS / MS_PER_MINUTE,
+    );
+    expect(await minutesLeftOn(held.id)).toBeLessThan(
+      WINDOW_MINUTES + CLOCK_SLACK_MS / MS_PER_MINUTE,
+    );
+  });
+
+  it("keeps a longer deadline rather than pulling it in", async () => {
+    // `greatest`, and it is the direction that would otherwise be lost. A desk
+    // hold with hours on it, or a second attempt opened a minute after the
+    // first, must not have pressing pay *shorten* the room they are holding.
+    const held = await aHold({ minutesLeft: 120 });
+    const before = await expiryOf(held.id);
+
+    await bookings.extendHoldForPayment(db, held.id);
+
+    expect(await expiryOf(held.id)).toEqual(before);
+  });
+
+  it("leaves a stay that is no longer being held exactly as it is", async () => {
+    // The half only Postgres can answer. `booking_hold_expiry_exactly_when_held`
+    // refuses an expiry on any row that is not `HELD`, and this write runs inside
+    // the transaction that opens a payment attempt — so a balance collected from
+    // a guest already in the building, or a callback landing on a hold the sweep
+    // took, has to come back as nothing written rather than as a violation that
+    // takes the attempt down with it.
+    const confirmed = await aBooking();
+    const cancelled = await aBooking({
+      state: "CANCELLED",
+      cancellationReason: "GUEST_REQUEST",
+      cancelledAt: new Date(),
+    });
+
+    await bookings.extendHoldForPayment(db, confirmed.id);
+    await bookings.extendHoldForPayment(db, cancelled.id);
+
+    expect(await expiryOf(confirmed.id)).toBeNull();
+    expect(await expiryOf(cancelled.id)).toBeNull();
+  });
+
+  it("leaves a stay nobody named exactly as it was", async () => {
+    // No row matches and nothing is thrown, which is the same answer revocation
+    // gives above: the postcondition holds either way, since no stay of this
+    // property's went into a payment window it did not ask for.
+    await bookings.extendHoldForPayment(
+      db,
+      "11111111-1111-4111-8111-111111111111",
+    );
+
+    expect(await expiryOf(bookingId)).toBeNull();
   });
 });
 

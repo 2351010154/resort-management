@@ -134,6 +134,7 @@ answerable without reading a single business rule.
 | `audit` | The change log every state-changing action writes to |
 | `feedback` | Post-stay feedback tied to a completed booking |
 | `notification` | Transactional email and its templates |
+| `system-config` | The one mutable configuration row — tax rates, business-date rollover — and the `ADMIN` route that edits it |
 
 ## `apps/admin` — Next.js
 
@@ -167,7 +168,7 @@ features/
   auth/            The guest realm's door. Talks to Better Auth in apps/api
   booking/         The funnel. The stay calendar, the room list, the search band
 components/ui/     Primitives shared across route groups
-lib/               Domain-blind and genuinely shared. Currently two files
+lib/               Domain-blind and genuinely shared — what no single feature owns
 ```
 
 `features/auth/` owns the guest-auth screens and screen-specific orchestration.
@@ -256,8 +257,9 @@ them.** `tech-stack.md` §Frontend defines the motion boundary, and
 [`design-foundations.md`](design-foundations.md) §5 records why the funnel could
 not stay CSS-only: CSS has no exit, so a bottom sheet could enter on the house
 curve and never leave on one. Bundle verification must prove that funnel chunks
-contain none of `three`, `gsap`, or `lenis`; inspect the executable build check
-for current evidence.
+contain none of `three`, `gsap`, or `lenis`. Nothing measures that yet: today the
+boundary holds because all three are imported only under `(marketing)/`, which is
+a route-group convention and not a mechanical check.
 
 **The funnel depends on three read contracts** —
 per-date lowest price for a month, per-date restriction flags, per-type
@@ -275,16 +277,19 @@ CORS error rather than as a wrong password.
 The root layout carries the document shell, fonts, and tokens — nothing else. A
 provider mounted there sits in every route's tree, which is exactly how `three`
 ends up in the conversion path. **`/booking` must ship zero bytes of `three`,
-`gsap`, or `lenis`**; that is a CI budget, not a convention.
+`gsap`, or `lenis`**; the route groups are what keep it that way.
 
-`lib/` kept exactly what a booking screen would also reach for: `motion-tokens`
-(the one source for every ease, duration and stagger) and `use-in-view` (a
-generic IntersectionObserver hook). Everything else the arrival touched —
-the act store, image and video manifests, the Lenis provider, the monogram
-geometry, the spring solver, the WebGL probe — moved into
-`features/arrival/lib/`, because a single consumer does not make something
-shared. The `arrival-` prefixes came off in the move: inside `features/arrival/`
-they only stuttered.
+`lib/` keeps what more than one feature reaches for: `api` (the browser's single
+client), `motion-tokens` (the one source for every ease, duration and stagger),
+`use-in-view` (a generic IntersectionObserver hook), and the mailed-link pair
+`booking-links` and `use-presented-link` — the confirmation email leads to a
+booking screen and to a guest-auth screen, and both spend the same links, so they
+graduated out of `features/booking/` rather than being imported across features.
+Everything else the arrival touched — the act store, image and video manifests,
+the Lenis provider, the monogram geometry, the spring solver, the WebGL probe —
+moved into `features/arrival/lib/`, because a single consumer does not make
+something shared. The `arrival-` prefixes came off in the move: inside
+`features/arrival/` they only stuttered.
 
 Lint scope is executable configuration, not a prose inventory. The root
 `package.json` owns the lint command, `biome.jsonc` owns Biome's include and

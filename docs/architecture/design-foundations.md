@@ -52,16 +52,21 @@ had all typed the same number.
 
 | Token | Value | Role | Uses in CSS |
 |---|---|---|---|
-| `--ivory` | `#f4efe6` | Page ground on the light acts; type on the dark ones | 26 |
-| `--ivory-warm` | `#eee7de` | The wall. Acts 2 and 3 settle onto it so they read as one surface; `/booking`'s stay panel is a plate of it beside the ivory calendar | 5 |
-| `--sand` | `#cfc0ab` | Secondary type on dark grounds — captions, kickers, footer links | 10 |
-| `--stone` | `#8a7b6e` | Quietest type. Rail labels, column titles, placeholders, small print | 6 |
-| `--stone-deep` | `#645c51` | Body copy on light grounds; the corridor's lit tone panel | 4 |
-| `--umber` | `#3a332b` | Photographic ground — what a panel or card shows before its image decodes | 3 |
-| `--ink` | `#1c1915` | Primary type on light grounds; the corridor and threshold grounds | 8 |
-| `--dusk-amber` | `#b48b60` | The single accent. Two list titles, and the light behind act 5's pill | 3 |
-| `--ocean` | `#7fa2b7` | The funnel's selected-date wash; a 14% cool cast in act 4. See below | 9 |
-| `--night` | `#100e0c` | The dark the acts hand over on | 6 |
+| `--ivory` | `#f4efe6` | Page ground on the light acts; type on the dark ones | 66 |
+| `--ivory-warm` | `#eee7de` | The wall. Acts 2 and 3 settle onto it so they read as one surface | 16 |
+| `--sand` | `#cfc0ab` | Secondary type on dark grounds — captions, kickers, footer links | 21 |
+| `--stone` | `#8a7b6e` | Quietest type. Rail labels, column titles, placeholders, small print | 65 |
+| `--stone-deep` | `#645c51` | Body copy on light grounds; the corridor's lit tone panel | 52 |
+| `--umber` | `#3a332b` | Photographic ground — what a panel or card shows before its image decodes; also the hairline colour behind most funnel borders | 51 |
+| `--ink` | `#1c1915` | Primary type on light grounds; the corridor and threshold grounds | 93 |
+| `--dusk-amber` | `#b48b60` | The single accent. Started as two list titles and the light behind act 5's pill; now the funnel's primary-action colour too. See below | 50 |
+| `--ocean` | `#7fa2b7` | The funnel's selected-date wash. See below | 4 |
+| `--night` | `#100e0c` | The dark the acts hand over on | 8 |
+
+Counts are `var(--token)` occurrences across `apps/web` and `apps/admin`
+(excluding the `-rgb` companions, which are tracked separately below); they
+grow with every feature that lands and are worth a fresh grep rather than
+trusted as printed.
 
 ### Reading the roles
 
@@ -77,13 +82,14 @@ photographs (`.panel`, `.card` in act 4) so a frame whose image has not decoded
 is a warm dark rectangle rather than a hole. Act 4's quiet tone panel is the one
 place it is a surface in its own right.
 
-**`--dusk-amber` is the accent and it is nearly unspent.** Three uses on the
-whole page. That restraint is the point: the arrival has no buttons that need to
-shout, so the one warm colour marks the two list heads and — at the end, on the
-one control the ride has — the light around act 5's pill. The booking funnel has
-real primary actions, and this is the token for them — but the discipline
-transfers with the colour. One accent, used where the eye must go, and nowhere
-else.
+**`--dusk-amber` is the accent, and the arrival still spends it sparingly.**
+Three uses on the arrival alone: the two list heads and — at the end, on the
+one control the ride has — the light around act 5's pill. That restraint is
+the point: the arrival has no buttons that need to shout. The booking funnel
+has real primary actions and spends the same colour on all of them — buttons,
+focus rings, the odd border — which is most of §2's count now. The discipline
+still transfers: one accent per screen, used where the eye must go, and
+nowhere else.
 
 The pill is worth separating out, because it spends the accent as **light rather
 than as ink**: the type stays `--ink` and the fill stays `--ivory`, and what is
@@ -100,23 +106,19 @@ of the two is actually the primary action.
 
 **`--ocean` was reserved, and `/booking` is what it was reserved for.** It is the
 only cool token in the family, and this table said it had zero uses for as long as
-the arrival was the only surface — act 1's sea is sampled film stock, not this. Two
-things have since spent it, and they are spending it for different reasons.
-
-Act 4 uses it once, as a **cast rather than a signal**:
-`color-mix(in srgb, var(--ocean) 14%, transparent)` in the night half's wash. At 14%
-over `--night` it is not read as a colour at all, only as the cool edge of a dark
-frame, which is the one job the arrival ever found for it.
+the arrival was the only surface — act 1's sea is sampled film stock, not this.
 
 The funnel uses it as a **signal**, which is what this paragraph reserved it for:
 if the booking screens needed a second signal colour for "an informational state, a
 selected date", `--ocean` was the one already agreed on. The stay calendar needed
 exactly that, and took it: the nights of the stay are washed
-`rgb(var(--ocean-rgb) / 0.22)`, the
+`rgb(var(--ocean-rgb) / 0.18)`, the
 arrival and departure cells are solid `--ocean` with `--ink` type, and the chosen
-room's card carries the same wash at 0.1.
+room's card carries the same wash at 0.1. Act 4 once spent it too, as a 14% cool
+cast in the night half's wash — a cast rather than a signal — but that use is gone
+from the current stylesheet; `--ocean` is the funnel's alone now.
 
-That division is what keeps §2's discipline intact with two colours instead of one:
+That is what keeps §2's discipline intact with two colours instead of one:
 **`--ocean` is what the guest has chosen, `--dusk-amber` is what they can do next.**
 The `Choose` button is the only amber thing on the screen. A focus ring is amber
 too, following `/login`'s precedent — a ring is an affordance, not a second accent.
@@ -239,21 +241,23 @@ re-derive it.
 |---|---|---|
 | `--text-xs` | `0.75rem` | `.caps-label`, footer small print |
 | `--text-sm` | `0.875rem` | Footer links, notes, form input |
-| `--text-base` | `1rem` | **unused** |
+| `--text-base` | `1rem` | Booking funnel & auth body copy — `stay-calendar`, `login-screen`, `auth-shell`, and others |
 | `--text-lg` | `1.375rem` | Act 4's room list — title and entry name |
-| `--text-display-sm` | `clamp(1.75rem, 3.5vw, 2.75rem)` | Act 1's statement, act 4's tone lines |
-| `--text-display` | `clamp(2.5rem, 6vw, 4.5rem)` | **unused** |
-| `--text-display-lg` | `clamp(3.5rem, 9vw, 7.5rem)` | **unused** |
+| `--text-display-sm` | `clamp(2.25rem, 4.5vw, 3.5rem)` | Act 1's statement, act 4's tone lines |
+| `--text-display` | `clamp(3.25rem, 7.75vw, 5.75rem)` | Act 4's statement line; `/booking`'s dates-stage title (capped with `min()`) |
+| `--text-display-lg` | `clamp(4.5rem, 11.5vw, 9.5rem)` | Act 4's word-mark line (`.words`) |
 | `--tracking-caps` | `0.22em` | Via `.caps-label`; also act 4's list title |
 
-**Be honest about what this scale is.** Three of its seven steps are unused,
-and every large line on the page is a bespoke `clamp()` written next to the
-composition it belongs to — act 2's welcome line is
-`clamp(2rem, 4.1vw, 3.75rem)`, its chapter heads `clamp(1.75rem, 3.3vw, 3.05rem)`,
-act 4's panel headline `clamp(3rem, 7.5vw, 6.5rem)`, act 5's address
-`clamp(1.5rem, 2.6vw, 2.35rem)`. The stylesheets say why in each case, and the
-reasons are real: those sizes were measured against reference compositions, and
-the token steps do not hit them.
+**Be honest about what this scale is.** Every large line on the arrival is a
+bespoke `clamp()` written next to the composition it belongs to, not a scale
+step — act 2's welcome line sits between `--text-display-sm` and
+`--text-display` (`act-2-welcome.module.css:117`), its chapter heads land in
+that same band a touch smaller (`:334`), act 4's panel headline sits between
+`--text-display` and `--text-display-lg` (`act-4-stay.module.css:122`), and
+act 5's address sits below `--text-display-sm` (`act-5-invitation.module.css:79`).
+The stylesheets say why in each case, and the reasons are real: those sizes
+were measured against reference compositions, and the token steps do not hit
+them.
 
 So the working rule for the arrival is: **the scale governs UI text, and
 display type is set per composition.** That is defensible for six hand-built
@@ -262,10 +266,13 @@ acts photographed against comps.
 **It is not defensible for the booking funnel.** A funnel is a run of similar
 screens, and its text sizes should come from the scale — `--text-sm` for
 supporting text, `--text-base` for body, `--text-lg` for a field label group,
-`--text-display-sm` for a step heading. `--text-base` and `--text-display` are
-unused precisely because nothing on the arrival is an ordinary page. Use them.
-If a booking screen needs a size that is not on the scale, that is a signal to
-question the screen, not to write another `clamp()`.
+`--text-display-sm` for a step heading. `--text-base` and `--text-display` used
+to sit unused for exactly that reason; the funnel has since taken both up —
+`--text-base` for body copy across auth and booking screens, `--text-display`
+for the funnel's step headings (`dates-stage.module.css`) — which is the
+recommendation this section made, followed. If a booking screen needs a size
+that is not on the scale, that is a signal to question the screen, not to
+write another `clamp()`.
 
 ---
 
@@ -343,15 +350,27 @@ DUR_SCENE_SLOW = 2.4   // cinematic moves on large media
 DUR_UI         = 0.5   // micro-interactions
 STAGGER_CASCADE = 0.1  // menu / card cascades
 
-LENIS_LERP              = 0.06
-LENIS_WHEEL_MULTIPLIER  = 0.8
+LENIS_LERP              = 0.1
+LENIS_WHEEL_MULTIPLIER  = 1
 ```
+
+Both were tuned up from earlier, slower figures (`0.06`, `0.8`): the old lerp
+left a 280ms lag before a wheel notch read as answering the hand, and the old
+multiplier gave a notch only four fifths of the travel every other page gives
+it. Weight now comes entirely from the coast — how the page stops, not how far
+or how promptly it starts — which is where `motion-tokens.ts` argues it belongs.
 
 ### What CSS actually uses
 
-Across every stylesheet on the page, CSS transitions use **`--ease-ui` only**,
-at **0.4s, 0.45s or 0.5s** — 19 declarations, no exceptions. `--ease-scene` is
-never used from CSS; it belongs to GSAP, where scene-scale moves live.
+Across the page's stylesheets, CSS transitions overwhelmingly use
+**`--ease-ui`** at **0.4s, 0.45s or 0.5s**. The declared count keeps moving as
+the funnel grows, so it isn't tracked here — the rule below, plus stylelint's
+enforcement of it, is what stays true. A handful of declarations sit outside
+the duration window on purpose, paired alongside a compliant one on the same
+property list: a `0.16s` micro-transform, and a `0s linear` `visibility` swap
+that drops the element from the accessibility tree the instant it's invisible.
+`--ease-scene` is never used from CSS; it belongs to GSAP, where scene-scale
+moves live.
 
 That is the whole CSS motion vocabulary, and it is the part that transfers:
 
@@ -389,17 +408,25 @@ No scroll-driven anything. No pinning. No canvas. A funnel that animates like
 the arrival is a funnel that gets in the way of booking a room.
 
 **One property is on that list that is not a transform, and it is named rather
-than assumed.** `/booking`'s stage is two grid columns — the calendar and the stay
-panel — and the panel opening moves them from `100 / 0` to `70 / 30`. That is a
-width, and no amount of `transform` will do it: a scaled column scales its own
-type, and a translated one does not give the space back. So the funnel transitions
-**a registered `<percentage>` custom property**, once, on one element, and the
-grid resolves its tracks from it:
+than assumed.** The dates step's stage is a grid of up to three columns — a
+rail, the calendar, and the stay panel — and the panel opening has to give the
+panel real width while the calendar gives space back. That is a width, and no
+amount of `transform` will do it: a scaled column scales its own type, and a
+translated one does not give the space back. So the stage transitions **a
+registered `<length>` custom property**, once, on one element, and the grid
+resolves its tracks from it (`dates-stage.module.css`):
 
 ```css
-@property --booking-panel-share { syntax: "<percentage>"; inherits: false; initial-value: 0%; }
-.stage { grid-template-columns: minmax(0, 1fr) var(--booking-panel-share); }
+@property --dates-panel-share { syntax: "<length>"; inherits: false; initial-value: 0px; }
+.stage { grid-template-columns: minmax(0, 1fr) var(--dates-panel-share); }
 ```
+
+It is a length rather than the `<percentage>` this used to be, because the
+panel now shares the row with a rail: a share of the plate is a different
+number of pixels depending on whether the rail is in the row, and the
+calendar's own minimum width must never be the one that loses the argument. A
+length sidesteps that arithmetic — the open panel claims the pixels it needs
+directly (around `22rem`) and `minmax(0, 1fr)` gives the calendar the rest.
 
 Three things keep this inside the budget rather than widening it:
 
@@ -407,7 +434,9 @@ Three things keep this inside the budget rather than widening it:
   screen's filmstrip established — not a crossfade plus two position changes.
 - **A registered property is animated as a number, not as a track list.**
   Transitioning `grid-template-columns` directly works only where both lists match
-  track for track, and fails as a silent jump where they do not. This cannot.
+  track for track, and fails as a silent jump where they do not. A registered
+  `<length>` cannot fail that way — it is a number, the browser tweens numbers,
+  and the grid re-resolves each frame from the result.
 - **Nothing inside either column animates.** The panel's contents are set at their
   final measure and revealed by a clip (`min-width` on the panel's child,
   `overflow: hidden` on the column), because §"What the login screen settled" is
@@ -416,10 +445,11 @@ Three things keep this inside the budget rather than widening it:
   focus and its 44 px floor throughout — which is why the calendar reads its
   breakpoints from a container query on itself rather than from the window.
 
-The one number carries the second ground with it. The panel column is painted
-`--ivory-warm` and runs the full height of the page, so the same tween that gives
-the calendar's 30% back also wipes a warm plate in from the right edge — one
-property, two things read off it, and no cross-fade anywhere.
+The panel is a divided section of the same plate now, not a second ground
+painted over it — a hairline (`border-left`) separates it, and the one number
+carries that hairline and the panel's own padding with it, or `border-box`
+would leave a padded, ruled sliver sitting past the plate's own edge when the
+panel is meant to be gone.
 
 The reduced-motion path is the same composition with no travel: the panel is
 simply there. Both readings are complete, which is §9's rule and not a fallback.
@@ -784,139 +814,70 @@ one has covered it. `.chapterMark { height: 0 }` is the measurement anchor every
 ScrollTrigger in the act reads, because a sticky element's own rect reports
 where it is stuck rather than where it belongs.
 
-### Act 4 — the room cascade's coupled constants
+### Act 4 — the hand-off both movements hold
 
-`room-deck.tsx`, lines ~61–77.
+`experience-field.tsx` exports `FIELD_HANDOFF` and `corridor-track.tsx` imports
+it. The seam between the two movements is meant to read as one held screen: the
+corridor's statement panel is still standing when the field's stage pins over
+it, and an ivory sheet closes over that sentence on the field's own first
+fraction of scroll. Covering a sentence only works while the sentence is still,
+so the corridor keeps its own pin alive for exactly that fraction — its pin ends
+on the field's trigger, offset by `FIELD_HANDOFF`, rather than at its own
+bottom. Two movements each holding a private opinion of how long the hand-off
+takes is the failure this prevents, and it is a failure no single edit fixes.
 
-```ts
-const HALF   = 6;     // rooms in a half
-const POOL   = 12;    // card nodes in a half
-const SPAN   = 6;     // depth, in steps, from spawn to fully off-frame
-const GROWTH = 1.33;  // size growth per step of depth
-const FAN    = 0.05;  // offset per step of depth, in card widths, normal to the ray
-```
+The field's beat windows are quoted against the whole section and mapped through
+`rebase()` rather than each carrying the offset itself. Every beat keeps its
+proportion of the scroll that is actually free to draw, so moving the seam moves
+nothing else; the alternative is every window re-solved by hand and one of them
+silently starting under the sheet.
 
-A card's offset from the vanishing point and its size share one factor,
-`r = GROWTH^(depth - SPAN)`. That single factor is what makes the stack read as
-one perspective instead of a fan of separately scaled photographs, and it means
-the numbers are not independent:
+`CARDS_FROM`, `PAIR_STAGGER` and `CARD_SPAN` are read twice — by the layout that
+places the cards, and by `experienceScrollTarget()`, which the island menu and
+the turndown footer aim at one experience with. Change any of the three and the
+second reading goes out of true with no visible symptom until a link lands on
+scroll its card has already left. The order of `EXPERIENCES` is load-bearing the
+same way; `experiences.ts` names which call sites hold which index.
 
-- **`GROWTH^SPAN` is the spawn-to-exit size ratio.** At `1.33^6` that is about
-  5.5×. Change `GROWTH` and the far cards are either specks or already
-  legible at spawn; change `SPAN` and the same thing happens from the other
-  direction. Either edit requires re-solving the other against the frame
-  geometry in `NIGHT_FRAME` — whose `ex`/`ey` must keep the exit-end card
-  entirely off-frame, because that is what makes the recycle invisible.
-- **Legibility is spacing over footprint, and neither number alone.** A step of
-  depth moves a card `|d|·r·(1 - 1/GROWTH)` along the ray; its own shadow on
-  that ray is about `1.2·ew·vw·r`. The `r` cancels, so overlap is identical at
-  every depth and is set by `GROWTH` and `ew` jointly. At `1.24` with
-  `ew = 0.8` it was two thirds — no card ever wholly visible, focus slot
-  included. At `1.33` with `ew = 0.62` it is two fifths.
-- **`POOL` must stay a multiple of `HALF`.** A node's slot is `ordinal mod POOL`
-  and its room `ordinal mod HALF`; a multiple and a node keeps one room for the
-  life of the page, so no `src` ever changes under a visible card. The six nodes
-  past `SPAN` are parked at `opacity: 0` — the price of the guarantee, and worth
-  paying.
-- **Anything else offsetting a card must be a function of where it is, not of
-  which node is drawing it.** `FAN` carries each card off the ray, one direction
-  for every card, growing with `depth` and riding `r`: tight at the vanishing
-  point, spread toward the front, and continuous through the recycle by
-  construction. A three-lane weave keyed to `ordinal` did the same job for
-  overlap but read as a zigzag rather than as one diagonal, and it bought that
-  with a divisibility rule on `POOL` that this needs no part of.
-- **The normal `FAN` rides has to be turned to a fixed sense, not just taken.**
-  `mirrored()` reflects the frame, and `(-dy, dx)` — a quarter turn — is not
-  preserved by a reflection: it comes back as the opposite normal. Untamed it
-  carried day's cards below their ray and night's above theirs, putting the two
-  halves at different heights, so neither read as the other one flipped. Turning
-  it down-frame (`turn = dx < 0 ? -1 : 1`) makes the halves exact mirrors.
+### Act 4 — the wheels' radius is solved, not chosen
 
-`FOCUS_D = 3` is solved, not chosen: the deepest slot whose card is still whole
-in frame, since `vpx + (ex - vpx)·r` plus half a card width must clear the edge
-the cascade recedes toward. At the old `FOCUS_D = 5` the hero hung half off the
-screen.
+`experience-field.tsx`, the wheel block. `SWEEP` — half the arc a stream is
+drawn on — is the only number that says how much the rim bows, and the radius
+falls out of it, because a card has to be entirely off the frame at both ends of
+its crossing. That fixes the sideways travel a card gets, which is what `REACH`
+then has to keep clear of the sentence standing in the middle of the frame:
+these three are one solve, not three settings. The stylesheet draws the visible
+rim from `--arc-d` and the two centres the movement writes, so the drawn circle
+and the solved one cannot drift apart.
 
-`STEPS = 6.2` and `K0 = FOCUS_D` are solved against these in
-`roomScrollTarget()`, which the island menu uses to aim at a room rather than at
-the top of the act. Change the constants above and that solve is wrong too. It
-reads the ticker's accumulated `driftK` rather than solving idle travel from a
-start time, because the hover brake makes the rate vary — resting the pointer on
-a card slows the deck to `HOVER_DRIFT` of idle, and a closed form would silently
-go out of true.
+The narrow variants exist because the bow is a length rather than a share of the
+frame: the sweep that reads as a gentle curve across a laptop carries a card
+clean off a phone.
 
-### Act 4 — what makes the day/night wipe a crossing
+`TILT` takes a share of the rim's tangent, not all of it. The tangent at the
+ends of this sweep is 35°, and a photograph hung at 35° is a photograph of a
+crooked room; a share of it leans the card with the wheel where it enters and
+leaves and stands it level at the height it is read at.
 
-The halves once differed only in which six photographs loaded — same grade, same
-ground, a `clip-path` edge between two dark frames — so by the time you looked
-they had swapped and you never saw it happen. Three invariants carry it now:
-
-1. **Each half's light is a `filter` on `.card img` plus a wash on
-   `.cascade::before`.** The wash belongs inside the cascade so the wipe's clip
-   carries it with no second animation, and it is the layer that most tests the
-   transparency rule below — it paints over the open door and may only tint it.
-   Keep its deepening off the half's *vanishing* corner: there it lands on cards
-   that are already small, fading in and graded down, and buries them.
-2. **Nothing is drawn on the edge.** A soft band travelling with it was tried
-   and read as a blurred vertical smear across the frame. Once the two halves
-   carry their own light the hard clip boundary is legible by itself, and the
-   cut is what the movement wants — sharp, not feathered.
-3. **The registers are siblings of both cascades, above both.** Inside its own
-   half a list is clipped by the wipe — an edge through a column of type holds
-   sliced glyphs for the whole sweep — *and* sits under the other half's entire
-   subtree, so day's names went dark under night's cards long before night's
-   arrived. The ticker fades them instead, timed to the edge reaching each
-   column, and moves `aria-hidden` between them as it passes half.
-
-### Act 4 — hovering a card
-
-- **Every card sits under a scrim and the hovered one loses it** — `--dim`,
-  written by the ticker only when it moves. A scrim, not an animated `filter`: a
-  filter on a transformed element re-rasterises its layer on every frame the
-  scale changes, and the scale changes every frame here.
-- **The hovered card slides `PULL` card widths sideways, and nothing else
-  changes about where it stands in the deck.** Sideways, not along the ray's
-  normal: the ray falls ~60° below horizontal, so a normal pull is mostly
-  downward, and the focus slot has under half a card height of frame beneath
-  it. It sent the card off the bottom of the screen. Held to the horizontal the
-  card keeps its height, and a near card cropped by the frame edge is pulled
-  back into it.
-- **Depth alone owns `z-index`, hover included.** The normal pull left the card
-  clipped by the neighbour one step nearer — `GROWTH`× wider, overlapping by
-  more than that travel undid — so the hovered card was lifted above its whole
-  half to compensate. The sideways pull clears that neighbour outright, and the
-  lift then only did damage: it stood a far, small card in front of the near,
-  large ones, and the perspective the cascade is built on came apart under the
-  pointer. A card part-way out is still part-way covered, which is what coming
-  out from under something looks like.
-- **The hit test uses the card's resting box, not the pulled one.** A hover that
-  displaces its own target oscillates: the card slides out from under the
-  cursor, the hover drops, the card returns, and it cycles — visibly, because
-  the register, the scrim and the idle brake all ride on that flag. The pulled
-  box counts too, but only for the card already held, so following it with the
-  cursor keeps it instead of dropping it at the edge of the rest box.
-- **The register clears while a card is out.** Its opacity is the wipe's fade
-  times the pointer's, because a card pulls back against the way its half
-  recedes — straight into the column that half's names stand in. `LIST_TAU` is
-  shorter than `PULL_TAU` so the ground is free by the time the picture arrives
-  on it.
-- **The caption is a stage-level element parked under the card**, never inside
-  it: card copy is scaled by depth and legible only at the front, which is what
-  puts the names off to one side. It flips above the card when below will not
-  fit and clamps on x, or a card at an edge hangs it off the screen.
+The shatter is seeded (`SHATTER_SEED`) for one reason. Every frame of the act is
+a pure function of scroll position, so a reader who scrolls back up through the
+letters and down again must see the same letters go the same ways — and
+`Math.random` breaks that only for the reader who goes back, which is to say
+never during the pass that would catch it.
 
 ### Act 4 — pins that outlive their own sections
 
-Both the threshold stage and the rooms stage pin to `[data-act="5"]`'s top, not
-to their own bottoms. The open door is the ground movement III plays on, so
-every layer of the rooms movement must stay transparent — an opaque background
-on `.rooms` or `.roomsStage` paints straight over the footage, because that
-section sits after the threshold in the DOM.
+Both stages carry an explicit `z-index` — the corridor's 1, the field's 2.
+Pinning makes an element `fixed` with no stacking order of its own, and the
+field is a positioned section later in the document; without those two numbers
+the statement panel the sheet is meant to close over stands in front of it
+instead.
 
-Both pinned stages also carry an explicit `z-index` (1 and 2). Pinning makes an
-element `fixed` with no stacking order of its own, and act 5 is a positioned
-section later in the document; without those two numbers it climbs over the door
-and the deck as it rises.
+The corridor's pin also outlives its own scrub: the filmstrip finishes
+travelling at the section's bottom and the bright statement holds the frame
+after that. Released at `bottom bottom`, the stage would scroll away over the
+viewport the field rises through, and what the reader would find there is the
+corridor's dark ground with nothing on it.
 
 ### Act 1 — the stage's `z-index: 0`
 
@@ -972,32 +933,36 @@ frame never moves; the page just stops covering it. Replacing the clip with
 `overflow: hidden` breaks this — `overflow` would scroll the layer with the
 band.
 
-### The nav's tint has no bottom edge
+### The nav has no ground of its own
 
-`.bar::before` carries the scrolled nav's tint and blur. It overhangs the bar by
-`--scrim-feather` and is masked away across the overhang, because ending square
-drew one hard line the full width of the viewport — a rectangle laid over the
-footage rather than light falling on it, worst over Act 4, where the ground
-behind it moves. The mask fades the `backdrop-filter` along with the colour, so
-the blur cannot outlive the tint; the bar's own height is left fully opaque in
-the mask, so the links lose no contrast. The feather stays on in the island
-phase because that tint is matched to `.panel` exactly — it fades into an
-identical colour and there is nothing to see.
+`.bar::before` in `navigation.module.css` is a layer that paints in one of the
+bar's three phases and none of the others. The bar carried a frosted tint
+through the scrolled phase and it was taken out: a translucent plate is a
+rectangle laid over the page wherever the page behind it is not flat, and Act 2
+made that plain — a panel there darkens as the next climbs over it while the
+plate stayed lit across the top of it. Feathering the plate's lower edge treated
+the symptom. The type's colour is the only thing that adapts now.
+
+The island phase is the exception, because there the bar is the head of an open
+sheet rather than a plate over the page. Its tint is matched to `.panel` in
+`dynamic-island-menu.module.css` exactly; two different darks stacked read as a
+seam across the top of the panel.
 
 ### The reduced-motion paths are not decoration
 
 Every act branches on `prefers-reduced-motion`, and the static branch is a
 composition in its own right, not a frozen frame of the animated one. Act 4's
-three movements become captioned grids and a poster; act 2's panels stop
+two movements become a captioned grid and a screen at rest; act 2's panels stop
 stacking; act 5 collapses from `300vh` to one screen.
 
 Two rules learned the hard way:
 
-- **Nothing may advance on time alone.** Act 4's cascade drifts at
-  `DRIFT = 0.11` steps per second on a shared ticker, which no amount of holding
-  still stops. `act-4-stay.tsx` therefore *watches* the media query rather than
-  reading it once, so turning the preference on mid-page swaps the static grid
-  in.
+- **Nothing may advance on time alone.** Act 4 is two scrubs and no clock —
+  every frame of it is a function of where the scrollbar stands, so holding
+  still holds the act still. The one thing in the ride that does run on
+  `gsap.ticker` is act 1's depth field, and its reduced-motion path never joins
+  the ticker at all: `still` is checked before the tick is added rather than
+  inside it, so the static branch has no frame loop to leave running.
 - **Copy settles, it does not disappear.** Act 1's scroll cue is faded out by
   the scrubbed timeline a hundredth of the way into the push, because by then
   the reader has plainly done what it asked. Reduced motion has no such moment,

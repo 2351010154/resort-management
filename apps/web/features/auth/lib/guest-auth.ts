@@ -12,7 +12,7 @@
 // the paths are its `basePath` plus its own endpoint names, and neither half is
 // ours to rename.
 
-import { ATTACH_ON_ARRIVAL_PARAM } from "@/features/booking/lib/booking-links";
+import { ATTACH_ON_ARRIVAL_PARAM } from "@/lib/booking-links";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 

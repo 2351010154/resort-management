@@ -85,7 +85,7 @@ Written to shut down scope drift while the PRD's blank corners whisper.
 
 ## 4. Functional requirements
 
-Grouped by the fourteen API domain modules
+Grouped by the API domain modules
 ([`architecture/repository-structure.md`](architecture/repository-structure.md)
 §Domain modules), which are the product's feature map. `Lands` names the
 milestone per the legend in §10; status per story lives in the execution
@@ -106,7 +106,7 @@ authority named in [`README.md`](README.md) and wins.
 |---|---|---|---|
 | `FR-IDN-01` | Five staff roles plus the separate `GUEST` principal/realm are enforced by a fail-closed capability guard over the RBAC matrix; a route with no capability declaration is unreachable for everyone | Data-driven test iterates every matrix row asserting every allowed and every denied principal; anonymous → 401, wrong realm → 403 | M2 |
 | `FR-IDN-02` | Staff account management (`ADMIN` only), with a CLI bootstrap for the first admin | `GET/POST /identity/staff-accounts` behind the guard; `staff:create` CLI exists because the first `ADMIN` cannot come from an API requiring one | M2 |
-| `FR-IDN-03` | System configuration — the standard and reduced VAT rates and the window dividing them, whether the VAT base includes service charge, business-date rollover, gateway credentials — is data, editable by `ADMIN` without a deploy | No tax rate or tax-base rule compiled anywhere in the tree ([`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) §8). Cites `ASM-01` | M6/M8 |
+| `FR-IDN-03` | System configuration — the standard and reduced VAT rates and the window dividing them, whether the VAT base includes service charge, business-date rollover, gateway credentials — is data, editable by `ADMIN` without a deploy. It sits under identity because identity's guard and the `ADMIN` row decide who may change it; the configuration itself is owned by the `system-config` module | No tax rate or tax-base rule compiled anywhere in the tree ([`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) §8). Cites `ASM-01` | M6/M8 |
 
 ### 4.3 `guest` — profiles and personal data
 
@@ -143,10 +143,10 @@ authority named in [`README.md`](README.md) and wins.
 |---|---|---|---|
 | `FR-BOOK-01` | Booking lifecycle follows the six-state machine; illegal transitions → `409 IllegalTransition`; every transition idempotent | Transition-table tests generated from [`architecture/booking-state-machine.md`](architecture/booking-state-machine.md) §2 | M4 |
 | `FR-BOOK-02` | The public funnel starts at `HELD` with a TTL that releases inventory on expiry; the front desk creates `CONFIRMED` directly for walk-ins and phone bookings | TTL job cancels with reason `HOLD_EXPIRED`; only the funnel can create `HELD` | M4 |
-| `FR-BOOK-03` | Front-desk operations: check-in (room assigned and ready), check-out (folio settled), room move, extend, early departure, night-audit no-show, `NO_SHOW` → `CHECKED_IN` reinstate (`MANAGER`, fails if resold) | Guards per [`architecture/booking-state-machine.md`](architecture/booking-state-machine.md) §4–§5 | M4 |
+| `FR-BOOK-03` | Front-desk operations: check-in (room assigned and ready), check-out (folio settled), room move, extend, early departure, the no-show write-off a sweep makes on the property's own day, `NO_SHOW` → `CHECKED_IN` reinstate (`MANAGER`, fails if resold) | Guards per [`architecture/booking-state-machine.md`](architecture/booking-state-machine.md) §4–§5 | M4 |
 | `FR-BOOK-04` | Cancellation always carries a reason code; the refund is policy-computed from the cancellation grid; waiving any cell is `MANAGER`+ | [`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) §4 grid; `folio.refund-policy` and `folio.refund-override` are separate endpoints with separate roles | M4 |
 | `FR-BOOK-05` | Search by room number, type, status, date range, guest name/phone | Brief bullet 6, verbatim | M4 |
-| `FR-BOOK-06` | Guest funnel: six logical steps — search → room choice → details → payment → gateway return → confirmation — across five URL patterns because search and room choice share `/booking`; confirmation and stay detail are one route | Route map per [`architecture/repository-structure.md`](architecture/repository-structure.md) §`(booking)`; 0 bytes of `three`/`gsap`/`lenis` in the funnel bundle (NFR-05) | M7 |
+| `FR-BOOK-06` | Guest funnel: five walked steps — search → room choice → details → gateway return → confirmation — across five URL patterns, because search and room choice share `/booking` while payment keeps a URL the funnel does not walk through: details hands the guest to the gateway directly, and the payment page is there for a bookmark or a browser back out of it. Confirmation and stay detail are one route | Route map per [`architecture/repository-structure.md`](architecture/repository-structure.md) §`(booking)`; 0 bytes of `three`/`gsap`/`lenis` in the funnel bundle (NFR-05) | M7 |
 
 ### 4.7 `housekeeping` — room condition
 
@@ -162,7 +162,7 @@ authority named in [`README.md`](README.md) and wins.
 | `FR-FOL-01` | One folio per stay: an **append-only** posting ledger in integer VND — charges, payments, refunds, reversals. A mistake is corrected by a reversing entry, never an `UPDATE` or `DELETE` | Nightly: Σ postings = Σ payments + outstanding (NFR-02); no rounding inside any calculation | M6 |
 | `FR-FOL-02` | VAT and service charge post as separate lines; guest-facing prices display gross; rates and the rule for whether VAT applies to service charge are read from config at posting time, never compiled in | Cites `ASM-01`; structure per [`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) §5 | M6 |
 | `FR-FOL-03` | Service catalog items post to folios with their tax class; catalog grows as data, no migration | Eight seeded items per [`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) §6 | M6 |
-| `FR-FOL-04` | If written tax-agent advice confirms `ASM-03`, closing a folio enqueues an **idempotent e-invoice job keyed on folio id** for *hóa đơn điện tử khởi tạo từ máy tính tiền*, signed by an HSM certificate; the provider's number is the legal reference; *điều chỉnh/thay thế* map onto folio reversals; a provider timeout never rolls back a checkout. If applicability differs, the written ruling replaces this invoice subtype before implementation | The confirmed invoice workflow is covered end to end; no manual dongle step enters checkout. Cites `ASM-03`, `ASM-04` | M6 |
+| `FR-FOL-04` | If written tax-agent advice confirms `ASM-03`, closing a folio requests an e-invoice for *hóa đơn điện tử khởi tạo từ máy tính tiền*, signed by an HSM certificate. **The request is the folio's own state and not a queued job**: an account standing `CLOSED` with no invoice reference is the outstanding work, written by the transaction that closed it, and a sweep drains it — a queue send cannot join that transaction, so it would allow a close with no job behind it or a job outliving a close that rolled back. The provider's number is the legal reference; *điều chỉnh/thay thế* map onto folio reversals; a provider timeout never rolls back a checkout. If applicability differs, the written ruling replaces this invoice subtype before implementation | One invoice per folio however often the sweep runs; the confirmed invoice workflow is covered end to end; no manual dongle step enters checkout. Cites `ASM-03`, `ASM-04` | M6 |
 
 ### 4.9 `payment` — gateways
 

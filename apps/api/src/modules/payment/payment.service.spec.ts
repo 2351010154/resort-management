@@ -25,12 +25,15 @@
 import "reflect-metadata";
 
 import { ORPCError } from "@orpc/nest";
+import type { PinoLogger } from "nestjs-pino";
 import { describe, expect, it } from "vitest";
+import type { Env } from "../../config/env.js";
 import type { Database } from "../../database/database.module.js";
 import { TransactionRunner } from "../../database/transaction-runner.js";
 import type { BookingService } from "../booking/booking.service.js";
 import type { BusinessDateService } from "../booking/business-date.service.js";
 import type { FolioService } from "../folio/folio.service.js";
+import { OpsAlertService } from "../notification/ops-alert.service.js";
 import { PaymentService } from "./payment.service.js";
 import type {
   CallbackVerification,
@@ -138,6 +141,7 @@ function serviceTold(verification: CallbackVerification): PaymentService {
     // `guest-account-link.e2e-spec.ts` puts `isOwner` to the same.
     undefined as unknown as BookingService,
     new ClosedBoundary(),
+    new AlerterThatIsNeverPaged(),
   );
 }
 
@@ -178,6 +182,27 @@ class ClosedBoundary extends TransactionRunner {
   override async run<T>(): Promise<T> {
     throw new Error(
       "the service opened a transaction for a callback it had already settled",
+    );
+  }
+}
+
+/**
+ * An alerter that fails the case if anything pages it.
+ *
+ * A page is raised only when money has landed on a stay the property cannot
+ * honour, and none of the three cases here is money at all: two are refused
+ * before the database, and the third is an attempt the payer may still finish.
+ * Waking somebody about one of those would be the pager crying about ordinary
+ * traffic, which is how a pager stops being one.
+ */
+class AlerterThatIsNeverPaged extends OpsAlertService {
+  constructor() {
+    super(undefined as unknown as Env, undefined as unknown as PinoLogger);
+  }
+
+  override async page(): Promise<never> {
+    throw new Error(
+      "the service paged somebody about a callback that moved no money",
     );
   }
 }
