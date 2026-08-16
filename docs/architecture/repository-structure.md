@@ -257,9 +257,16 @@ them.** `tech-stack.md` §Frontend defines the motion boundary, and
 [`design-foundations.md`](design-foundations.md) §5 records why the funnel could
 not stay CSS-only: CSS has no exit, so a bottom sheet could enter on the house
 curve and never leave on one. Bundle verification must prove that funnel chunks
-contain none of `three`, `gsap`, or `lenis`. Nothing measures that yet: today the
-boundary holds because all three are imported only under `(marketing)/`, which is
-a route-group convention and not a mechanical check.
+contain none of `three`, `gsap`, or `lenis`, and
+[`scripts/check-bundle-budget.ts`](../../apps/web/scripts/check-bundle-budget.ts)
+measures it on every build: the route group is still the convention, but a
+post-build step now reads the emitted chunks and fails the build rather than
+trusting where an import was written.
+
+It matches on markers the packages author about themselves rather than on module
+paths, because the production bundler leaves no paths to match — and not on the
+package names either, since guest copy about "a family of three" is not a
+dependency on `three`.
 
 **The funnel depends on three read contracts** —
 per-date lowest price for a window of nights, per-date restriction flags,
