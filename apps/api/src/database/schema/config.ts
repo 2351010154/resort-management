@@ -52,7 +52,7 @@
 // belongs to somebody outside this repository: a VAT rate is the accountant's
 // and a service charge is the owner's, so a `.default()` on either would be this
 // tree answering a question it was never asked. §7 states the opposite about the
-// earn rate, the tier thresholds and the expiry rule — they "are ⚑ proposed
+// earn rate and the tier thresholds — they "are ⚑ proposed
 // here", "the developer's call until the owner tunes them", and only *tuning*
 // them is somebody else's. A default carrying the figure §7 proposes therefore
 // records a decision this repository actually made, and the property still edits
@@ -72,6 +72,16 @@
 // `schema/loyalty.ts` and `schema/guest.ts` both refuse a column for it. A
 // threshold is a property decision that holds until somebody changes it; a tier
 // is an answer that is only correct until the window moves under it.
+//
+// **Expiry is not here either, and it is not a figure at all.** §7 states it as
+// a rule with no alternative — "points earned in year `Y` expire 31 December of
+// `Y+1`" — and gives the reason in the same row: "a fixed calendar date needs no
+// rolling-inactivity job". A boolean carrying that rule would be a switch §7
+// never offers, and the off position would be a state nothing could honour,
+// because `loyalty_ledger.expires_at` is `NOT NULL` and no date exists to write
+// under it. The rule therefore lives where it is applied — the accrual computes
+// the date from the year it earned in — and the only thing stored is the date
+// each row actually carries.
 //
 // **The two tier discounts are deliberately not here.** §7 applies them "as a
 // promotions rate modifier (`FR-PRC-03`)", and `pricing.ts` already stores them
@@ -234,19 +244,6 @@ export const systemConfig = pgTable(
     tierGoldRevenueVnd: bigint("tier_gold_revenue_vnd", { mode: "bigint" })
       .notNull()
       .default(sql`40000000`),
-    // ⚑ §7, proposed: points earned in year `Y` expire on 31 December of `Y+1`.
-    // A rule and not a date, so it is a boolean — the date each accrual expires
-    // on is `loyalty_ledger.expires_at`, computed from the year it was earned in
-    // rather than stored here for every guest at once.
-    //
-    // False is the property withdrawing that rule, and it is not a rule of its
-    // own: `loyalty_ledger.expires_at` is `NOT NULL`, so nothing can accrue a
-    // point that never expires until the ledger has a way to say so. Whatever
-    // accrues reads this column and is where that refusal belongs, because it is
-    // the only code that knows what date it was about to write.
-    pointsExpireYearEnd: boolean("points_expire_year_end")
-      .notNull()
-      .default(true),
   },
   (table) => [
     check(

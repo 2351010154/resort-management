@@ -102,7 +102,6 @@ describe("the seeded configuration", () => {
       tierSilverRevenueVnd: 15_000_000n,
       tierGoldStays: 4,
       tierGoldRevenueVnd: 40_000_000n,
-      pointsExpireYearEnd: true,
     });
   });
 

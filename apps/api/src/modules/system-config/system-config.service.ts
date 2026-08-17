@@ -133,21 +133,17 @@ export interface TaxRules {
  * why one is a `number` and the other a `bigint`: `money.ts` keeps amounts on
  * `bigint` precisely so an amount cannot be added to a count by accident, and
  * an accrual divides revenue by the unit before it multiplies by the count.
+ *
+ * The expiry is not here, because it is not configured. §7 states it as a rule
+ * with no alternative — points earned in year `Y` expire on 31 December of
+ * `Y+1` — so the accrual computes the date from the year it earned in and
+ * nothing reads a figure for it. `schema/config.ts` records why the column that
+ * briefly existed for it was a switch nothing could honour.
  */
 export interface LoyaltyRules {
   readonly pointsPerUnit: number;
   /** The đồng of net room revenue one lot of {@link pointsPerUnit} costs. */
   readonly earnUnitVnd: bigint;
-  /**
-   * Whether points expire on 31 December of the year after they were earned.
-   *
-   * False is the property withdrawing that rule and not a second rule: nothing
-   * here says what date an accrual would carry instead, and
-   * `loyalty_ledger.expires_at` is `NOT NULL`. Whatever accrues is the only code
-   * that knows the date it was about to write, so it is where that has to be
-   * answered.
-   */
-  readonly pointsExpireAtYearEnd: boolean;
 }
 
 /**
@@ -195,7 +191,6 @@ export interface ConfigurationEdit {
   readonly tierSilverRevenueVnd?: bigint;
   readonly tierGoldStays?: number;
   readonly tierGoldRevenueVnd?: bigint;
-  readonly pointsExpireYearEnd?: boolean;
 }
 
 @Injectable()
@@ -276,8 +271,7 @@ export class SystemConfigService {
   }
 
   /**
-   * What a stay earns, as §7 states it — the rate in its two halves and the
-   * expiry rule.
+   * What a stay earns, as §7 states it — the rate, in its two halves.
    *
    * Read at the moment of the accrual and never held, for the reason
    * {@link taxRules} is: the earn rate defines what a point *is*, and §7 says so
@@ -297,7 +291,6 @@ export class SystemConfigService {
     return {
       pointsPerUnit: configured.loyaltyPointsPerUnit,
       earnUnitVnd: configured.loyaltyEarnUnitVnd,
-      pointsExpireAtYearEnd: configured.pointsExpireYearEnd,
     };
   }
 
@@ -527,9 +520,6 @@ function namedIn(edit: ConfigurationEdit): Partial<SystemConfigValues> {
     ...(edit.tierGoldRevenueVnd === undefined
       ? {}
       : { tierGoldRevenueVnd: edit.tierGoldRevenueVnd }),
-    ...(edit.pointsExpireYearEnd === undefined
-      ? {}
-      : { pointsExpireYearEnd: edit.pointsExpireYearEnd }),
   };
 }
 

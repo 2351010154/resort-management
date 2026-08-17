@@ -21,9 +21,9 @@
 //
 // **§7's loyalty figures ride the same resource, and for a different reason.**
 // The tax figures are here because nobody in this repository may answer them.
-// The earn rate, the tier thresholds and the expiry rule are here because §7
-// says the developer proposes them and the property tunes them — the same
-// storage, a different owner. Putting them on this resource rather than on one
+// The earn rate and the tier thresholds are here because §7 says the developer
+// proposes them and the property tunes them — the same storage, a different
+// owner. Putting them on this resource rather than on one
 // of their own follows the argument below about reading a configuration whole: a
 // screen shows what a stay costs and what it earns together, and `schema/
 // config.ts` keeps all of it in one row so that nothing can read half of one
@@ -192,16 +192,6 @@ export const systemConfigurationSchema = z.object({
   tierSilverRevenueVnd: vndAmountSchema,
   tierGoldStays: stayCount,
   tierGoldRevenueVnd: vndAmountSchema,
-  /**
-   * Whether points earned in a year expire on 31 December of the year after —
-   * §7's fixed calendar expiry, which is what saves the property a
-   * rolling-inactivity job.
-   *
-   * The date each accrual actually expires on is carried by the accrual, so
-   * turning this off changes what future accruals are given and never what an
-   * existing one holds.
-   */
-  pointsExpireYearEnd: z.boolean(),
 });
 
 /**
@@ -232,7 +222,6 @@ export const updateSystemConfigInput = z
     tierSilverRevenueVnd: positiveDongInput.optional(),
     tierGoldStays: stayCount.optional(),
     tierGoldRevenueVnd: positiveDongInput.optional(),
-    pointsExpireYearEnd: z.boolean().optional(),
   })
   .refine((edit) => Object.keys(edit).length > 0, {
     // An edit naming nothing is not a caller politely doing nothing — unknown

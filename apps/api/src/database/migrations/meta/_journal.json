@@ -218,6 +218,13 @@
       "when": 1786943479296,
       "tag": "0030_system_config_loyalty",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1786944878667,
+      "tag": "0031_loyalty_expiry_is_a_rule",
+      "breakpoints": true
     }
   ]
 }
