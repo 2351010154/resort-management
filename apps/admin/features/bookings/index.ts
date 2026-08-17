@@ -2,6 +2,7 @@ export {
   type BookingKind,
   type CreateBookingInput,
   type CreatedBooking,
+  checkInFollows,
   defaultStay,
   mayTakeBookings,
   type NewBookingAttempt,

@@ -13,6 +13,7 @@ import { KeyboardLayer, useHotkeys } from "@/lib/keyboard";
 import {
   type BookingKind,
   type CreatedBooking,
+  checkInFollows,
   defaultStay,
   type NewBookingFields,
   newBookingInput,
@@ -32,6 +33,17 @@ import { useCreateBooking } from "./bookings-queries";
  * only what happens after the press, which is why the kind is the first field
  * rather than two buttons at the bottom: the operator knows which conversation
  * they are in before they know the dates.
+ *
+ * ## The check-in follows a guest who is actually here
+ *
+ * The sequence is mounted on what came back, not on what was typed:
+ * `check-in.guard.ts` refuses a check-in before the arrival date, so a stay
+ * arriving later has no sequence that can finish and opening one would leave
+ * the desk pressing Escape out of a dead end. {@link checkInFollows} is that
+ * reading, and the date is pinned as well as read — the arriving field is the
+ * property's own day whenever the kind is a walk-in. A creation the sequence
+ * does not follow lands on the same confirmation the telephone path shows,
+ * which already says the stay is in arrivals on its date.
  *
  * ## The check-in is imported, not rebuilt
  *
@@ -137,7 +149,7 @@ function Form({ businessDate, rooms, onCancel, onDone }: NewBookingFormProps) {
     }
   }
 
-  if (taken !== null && fields.kind === "walk-in") {
+  if (taken !== null && checkInFollows(taken, fields.kind, businessDate)) {
     return (
       <div className="border-border border-t p-4">
         <p className="text-muted-foreground text-sm">
@@ -216,10 +228,21 @@ function Form({ businessDate, rooms, onCancel, onDone }: NewBookingFormProps) {
             change({ plan });
           }}
         />
+        {/* A walk-in is a guest standing at the counter, so its arrival is the
+            property's own day and is not a question the desk is asked: the
+            field shows that day and is read from rather than into. What is
+            shown is what `newBookingInput` sends for this kind, so the two
+            cannot disagree — and the operator cannot book next week down a
+            path whose whole point is the check-in that follows it. */}
         <Field
           label="Arriving"
-          value={fields.checkIn}
-          hint="15/3, 2026-03-15, today, +2d"
+          value={fields.kind === "walk-in" ? businessDate : fields.checkIn}
+          readOnly={fields.kind === "walk-in"}
+          hint={
+            fields.kind === "walk-in"
+              ? "A walk-in arrives today."
+              : "15/3, 2026-03-15, today, +2d"
+          }
           onChange={(checkIn) => {
             change({ checkIn });
           }}
@@ -386,12 +409,18 @@ function Field({
   value,
   onChange,
   inputMode,
+  readOnly = false,
   autoComplete = "off",
 }: {
   label: string;
   hint?: string;
   value: string;
   onChange(value: string): void;
+  /* A value the form decides and the operator reads. Read-only rather than
+   * disabled: a disabled field leaves the tab order, and the arriving date is
+   * something the desk looks at while working down the form — it is answered
+   * here, not withheld. The hint beside it says who answered it. */
+  readOnly?: boolean;
   /* The keyboard a phone offers, and nothing more. Deliberately not
    * `type="email"`: that hands validation to the browser, which refuses the
    * submit with a bubble of its own wording — and every other refusal on this
@@ -418,6 +447,7 @@ function Field({
         className="mt-1"
         value={value}
         inputMode={inputMode}
+        readOnly={readOnly}
         autoComplete={autoComplete}
         onChange={(event) => {
           onChange(event.target.value);

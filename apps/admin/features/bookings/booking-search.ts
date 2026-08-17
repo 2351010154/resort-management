@@ -307,6 +307,16 @@ export function defaultStay(businessDate: string): {
  * nights, so a figure sent from here would be a price the desk proposed. What
  * the calendar allows is the API's answer too: this form collects and submits.
  *
+ * **A walk-in arrives today, and the arrival field is not asked about.** A
+ * walk-in is a guest standing at the counter, so its first night is the
+ * property's own day by definition — `check-in.guard.ts` refuses the check-in
+ * that follows it on any other date, and a stay created for next week that the
+ * desk is then walked into a check-in for is a sequence the API cannot let
+ * finish. So the business date is what leaves here for that kind, whatever the
+ * form holds; the form pins the field to the same date, so the operator is
+ * never sent something other than what they read. A telephone booking is the
+ * one that takes a date, because it is the one where the guest is elsewhere.
+ *
  * **The contact is required of a telephone booking and optional for a walk-in,
  * and this file is the only place that distinction can be made.** The contract
  * takes the pair optionally on the desk's door and nothing on the wire says
@@ -322,7 +332,10 @@ export function newBookingInput(
   fields: NewBookingFields,
   businessDate: string,
 ): NewBookingAttempt {
-  const checkIn = parseLiberalDate(fields.checkIn, businessDate);
+  const checkIn =
+    fields.kind === "walk-in"
+      ? businessDate
+      : parseLiberalDate(fields.checkIn, businessDate);
   const checkOut = parseLiberalDate(fields.checkOut, businessDate);
 
   if (checkIn === null || checkOut === null) {
@@ -423,6 +436,30 @@ export function parseChildAges(typed: string): number[] | null {
   const ages = trimmed.split(/[\s,]+/).map(parseCount);
 
   return ages.every((age) => age !== null) ? ages : null;
+}
+
+/**
+ * Whether the check-in follows the creation here, at the counter.
+ *
+ * Two questions, and the second one is not a restatement of the first. The kind
+ * is what the operator said they were doing: a telephone booking stops at
+ * `CONFIRMED` and surfaces in arrivals on its date, and nobody is registered on
+ * it until they turn up. The date is what the property will actually allow —
+ * `check-in.guard.ts` refuses a check-in before the arrival date, so a stay
+ * arriving next week has no sequence that can complete, and opening one walks
+ * the desk into a dead end it can only press Escape out of.
+ *
+ * Asked of the booking that came back rather than of the form that was typed,
+ * because the answer that matters is about the stay the property now holds.
+ * A creation whose arrival is not today gets the confirmation the telephone
+ * path gets, which already says where the stay went.
+ */
+export function checkInFollows(
+  booking: CreatedBooking,
+  kind: BookingKind,
+  businessDate: string,
+): boolean {
+  return kind === "walk-in" && booking.checkIn === businessDate;
 }
 
 /**
