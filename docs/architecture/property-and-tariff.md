@@ -11,6 +11,12 @@ provisional in whole rather than in named rows. That is the difference from
 [`booking-state-machine.md`](booking-state-machine.md), where the surrounding
 design is settled and only listed rows are open.
 
+**§7's figures have stopped being revisable at no cost.** They are still the
+developer's proposal and still nobody else's answer, but the code now reads them
+and guests now hold points and tiers derived from them — so they are configuration
+rows to be *tuned*, not values to be reconsidered. §7 records where each one is
+stored.
+
 **§8 is the exception and it is not ⚑.** Three inputs are somebody else's
 answer, they are time-sensitive, and they are never fixed in this file or any
 other — they are configuration. Read §8 before writing a tax calculation.
@@ -356,27 +362,119 @@ sold it, which is `is_active` doing the job a delete could not.
 ## 7. Loyalty and tiers
 
 The structure is the PRD's (`FR-GST-04`, `FR-GST-05`): tier derived nightly,
-points accrual-only, no redemption engine. The values are ⚑ proposed here and
-live as system-configuration rows editable by `ADMIN` — like §8's inputs in
-storage, unlike them in ownership: these are the developer's call until the
-owner tunes them, and tuning one is a data edit, not a deploy.
+points accrual-only, no redemption engine. The values below were ⚑ proposed and
+are **now implemented as data**: every one of them is a row an `ADMIN` edits
+without a deploy — like §8's inputs in storage, unlike them in ownership. These
+were the developer's call until the owner tunes them, and tuning one is a data
+edit rather than a release.
 
-| Value | Proposed | Why this value |
-|---|---|---|
-| Earn rate | **1 point per 10,000 ₫ of net room revenue** | Net — the room charge before VAT and service charge, service items excluded — so a §8 tax answer cannot silently change what a stay earns |
-| Accrual moment | folio close | A cancelled or no-show booking never closes a folio, so it earns nothing and no clawback logic needs to exist |
-| Tier ladder | Member → Silver → Gold | Three levels; Vietnamese small-hotel practice is a flat percentage per tier, not point redemption |
-| Silver | 2 stays **or** 15,000,000 ₫ net room revenue, trailing 12 months | Reachable by a twice-a-year guest — a first milestone almost nobody reaches is a program nobody uses |
-| Gold | 4 stays **or** 40,000,000 ₫, trailing 12 months | |
-| Member discount | Silver 5% · Gold 10%, applied as a promotions rate modifier (`FR-PRC-03`) | Rides the existing pricing path; never a folio adjustment |
-| Fixed perks | Silver: late checkout to 14:00 when the room is unsold. Gold: that, plus upgrade at check-in when available and a welcome amenity | Only perks a 40-room house can honor on a full night — a printed perk that gets withheld costs more goodwill than no perk at all |
-| Expiry | points earned in year `Y` expire 31 December of `Y+1` | A fixed calendar date needs no rolling-inactivity job |
+Two different tables hold them, and which one holds what is the load-bearing
+part of this section.
 
-Tier is recomputed at business-date rollover from the trailing window and is
-never hand-set; a change writes an audit row (`FR-GST-04`). The earn rate is
-decided now, before any redemption exists, because it defines what a point
-*is*: reseeding balances after guests already hold them is a support incident,
-not a data edit.
+| Value | Running value | Stored as | Why this value |
+|---|---|---|---|
+| Earn rate | **1 point per 10,000 ₫ of net room revenue** | `system_config.loyalty_points_per_unit`, `.loyalty_earn_unit_vnd` | Net — the room charge before VAT and service charge, service items excluded — so a §8 tax answer cannot silently change what a stay earns |
+| Accrual moment | folio close | — behaviour, not a figure | A cancelled or no-show booking never closes a folio, so it earns nothing and no clawback logic needs to exist |
+| Tier ladder | Member → Silver → Gold | — the three the derivation can answer | Three levels; Vietnamese small-hotel practice is a flat percentage per tier, not point redemption |
+| Silver | 2 stays **or** 15,000,000 ₫ net room revenue, trailing 12 months | `system_config.tier_silver_stays`, `.tier_silver_revenue_vnd` | Reachable by a twice-a-year guest — a first milestone almost nobody reaches is a program nobody uses |
+| Gold | 4 stays **or** 40,000,000 ₫, trailing 12 months | `system_config.tier_gold_stays`, `.tier_gold_revenue_vnd` | |
+| Member discount | Silver 5% · Gold 10% | `promotion` rows `LOYALTY_SILVER` and `LOYALTY_GOLD`, each carrying `requires_loyalty_tier` | Rides the existing pricing path (`FR-PRC-03`); never a folio adjustment |
+| Expiry | points earned in year `Y` expire 31 December of `Y+1` | `loyalty_ledger.expires_at`, computed at the accrual | A fixed calendar date needs no rolling-inactivity job |
+| Fixed perks | **deferred — see below** | nothing | |
+
+**The discount is a `promotion` row and deliberately not a configuration
+column.** A copy in `system_config` would be a second authority for one figure,
+and the copy the pricing path did not read would be a number nobody could change
+the price with. Both rows are written once at boot, `on conflict do nothing`, so
+a property that retuned Gold to 12% keeps that across every later deploy.
+
+**How the discount reaches a guest.** The tier is derived at the moment of sale,
+the `promotion` row that tier is gated on is read beside the rate plan, and the
+discount it produced is **frozen onto the booking** — code, type and value —
+alongside the plan's percentage. §8 of
+[`booking-state-machine.md`](booking-state-machine.md) is why: a booking records
+what it was quoted and never re-derives it, so a guest who was sold a Gold rate
+keeps it if their tier later falls, and the night audit bills the figure they
+agreed to.
+
+Three consequences follow, and each is a rule rather than an accident:
+
+- **It moves the room rate and nothing else.** Breakfast and the extra-person
+  charge stand at full price — a tier discount reaching the meal would post a
+  folio line the menu does not price.
+- **The gate is a floor.** A Gold guest qualifies for a Silver-gated row too, and
+  gets whichever takes the most off. One promotion applies; tier discounts do not
+  stack.
+- **Only tier-gated promotions apply.** A `promotion` row open to everyone —
+  `requires_loyalty_tier` null — is a campaign, and the funnel cannot yet show
+  one. Applying it only at the point of sale would show a guest one price and
+  sell them another, so nothing applies it until the search path can price it.
+  The tier discount has no such problem: an anonymous search has no tier.
+
+The earn rate was decided before any redemption exists, because it defines what
+a point *is*: reseeding balances after guests already hold them is a support
+incident, not a data edit.
+
+### Current tier, and the record of a change
+
+These are two different facts and they live in two different places. Confusing
+them is the failure this subsection exists to prevent.
+
+| | What it is | Where it lives | Who reads it |
+|---|---|---|---|
+| **Current tier** | Derived on every read from the guest's own trailing 12 months against the thresholds above | **Nowhere.** No table carries a tier column | Whoever asks — the sale, and the sweep below |
+| **Tier history** | An observation that a recomputation found a guest on a different rung from the one it last recorded | `guest_tier_change` — one append-only row per change | Only the sweep that writes it |
+
+`FR-GST-04` makes the tier a **derived value, never hand-set**, and a stored one
+would be a second authority that goes stale the moment a stay ages out of the
+window — silently, because nothing recomputes it on the way past. So the tier is
+recomputed from booking and folio history every time it is asked.
+
+`guest_tier_change` is **not** that answer. It is the trail `FR-GST-04` asks for
+when it says "a tier change writes an audit row", and a change is only observable
+across two recomputations — which is what the hourly sweep performs. Reading its
+latest row as a guest's current tier is reading the wrong column of the wrong
+table, and it would be right often enough to survive review. No row for a guest
+means the guest was Member: Member is the absence of a match, so silence about an
+account says what a derivation would.
+
+It is its own table rather than an `audit_entry` row because that table addresses
+subjects by `uuid` (a guest account id is text), requires an actor (a rollover
+sweep has none), and records whole-row snapshots (a derived tier has no row).
+
+**Retention: these rows are permanent, and there is no purge.** Nothing expires
+them and nothing should. A guest's previous tier is recovered from this trail, so
+a purge makes the next sweep record a promotion that already happened — the
+history is corrupted where the tier is not, because the tier is derived. The
+rows are three enum-ish values and an instant, one per rung a guest ever crosses,
+so a 40-room property accumulates tens of them a year; there is no volume
+argument for a retention rule and no statutory one — `ASM-02`'s floor is about
+the registration record and is a *do-not-delete-before*, never a delete trigger.
+A delete is refused outright by the table's append-only trigger, so a future
+retention policy would have to disable that guard or truncate the table
+wholesale. Either is deliberate, which is the intent.
+
+### Fixed perks — deferred
+
+`FR-GST-04` names three non-monetary perks: late checkout to 14:00 when the room
+is unsold, upgrade at check-in when available, and a welcome amenity. **None of
+them is built, and none is scheduled inside the milestone that landed the tier
+ladder.** They are recorded here as deferred rather than left to look
+outstanding:
+
+- Nothing in the tree represents a perk entitlement. `LATE_CHECKOUT` exists only
+  as a priced §6 service item the desk posts; an upgrade is a manager-only rate
+  operation; a welcome amenity has no representation at all.
+- Each of the three is an operational judgement at a moment — is the room unsold,
+  is a better type free, has the amenity been placed — rather than a figure the
+  pricing path can apply. They need a desk screen to be honoured on, and the
+  console screens that would carry them are not built.
+- `FR-GST-04` lands across M7/M9. The derived tier, its trail and the member
+  discount are the parts the booking engine needs; the perks are desk workflow
+  and belong with the screens.
+
+The requirement is not satisfied until they exist. What is settled is only that
+they are not silently missing.
 
 ## 8. Never a constant
 
@@ -460,7 +558,9 @@ make: a reader cannot tell an unset value from an unbuilt one.
 | Service prices | mine, six of eight still ⚑ unset — data. Not a blocker: the posting path takes the desk's figure for an unpriced item, so pricing one is a row edit that changes who decides the amount | §6 |
 | Room sizes, bedding and aspects | mine, ⚑ proposed for `/booking` — data | §1 |
 | Extra-person and breakfast rates | mine, ⚑ proposed — now stored and editable, in `property_tariff` and `rate_plan` rather than in this file | §3, §6 |
-| Loyalty earn rate, tier thresholds, perks and expiry | mine, ⚑ proposed — config | §7 |
+| Loyalty earn rate, tier thresholds and the two member discounts | mine, ⚑ proposed — **now stored and editable**, in `system_config` and in the two `LOYALTY_*` `promotion` rows rather than in this file. Open only as figures to tune | §7 |
+| The three fixed tier perks | mine — **deferred, not open**: late checkout, upgrade when available and a welcome amenity are specified and unbuilt, and each needs a desk screen to be honoured on. §7 records why | §7 |
+| Expiry of loyalty points | settled — not a figure at all. §7 states one rule with no alternative, and the accrual computes each row's `expires_at` from the year it earned in | §7 |
 | Whether the Deluxe (2) and the Panorama Suite (4) are capped too low, now that the bed closing a gap is free | owner — a raised maximum is extra-person revenue with no bed charge against it, but a Deluxe holding three undercuts the Premier the mix positions for a family of three | §1; [#35](https://github.com/2351010154/resort-management/issues/35) |
 | Whether minimum-stay and closed-to-arrival are a **public** contract | mine — §3 lists them under admin **Rates** only, and the guest calendar's restricted-cell state depends on reading them from `/booking` | §3 |
 | Whether §8's seeded tax figures are right | accountant — the four are seeded from published statutory sources as at 2026-08-09 and run the property today; what is still owed is a written confirmation, not a value | `D2` |
