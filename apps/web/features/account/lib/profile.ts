@@ -13,7 +13,16 @@
 // `booking-links.ts`'s shape: each outcome is something the screen has a
 // sentence for, and the API's own sentence is preferred over anything invented
 // here — the handler that refused knows why, and this side does not.
+//
+// The two credential calls go through `better-auth-call.ts`, which is where the
+// skeleton every Better Auth caller shares now lives — the send, the network
+// failure, the 429 and the failure name read out of the body. What is left below
+// is the only part that is this screen's: which of those names has a sentence.
 
+import {
+  type AuthResult,
+  callBetterAuth,
+} from "@/features/auth/lib/better-auth-call";
 import { MIN_PASSWORD_LENGTH, origin } from "@/features/auth/lib/guest-auth";
 import { api, API_URL, apiMessage } from "@/lib/api";
 
@@ -36,17 +45,16 @@ export type ProfileOutcome =
   | { readonly ok: true; readonly profile: Profile }
   | { readonly ok: false; readonly message: string };
 
-export type CredentialOutcome =
-  | { readonly ok: true }
-  | { readonly ok: false; readonly message: string };
+/** The shape both credential calls answer — `better-auth-call.ts`'s, because
+ *  they are its calls and a second name for one type is how the two drift. */
+export type CredentialOutcome = AuthResult;
 
 // Copy per design-foundations §6 — plain and blameless, no apology theatre and
-// no exclamation marks.
+// no exclamation marks. The unreachable and throttled sentences are not here:
+// they belong to every Better Auth caller alike and live beside the call.
 const MESSAGES = {
   read: "Your details could not be read just now. Check your connection and try again.",
   save: "Your details could not be saved just now. Check your connection and try again.",
-  unreachable: "The connection did not hold. Try again.",
-  throttled: "Too many attempts. Try again in a minute.",
   signedOut: "Your session has ended. Log in again to make this change.",
   wrongPassword: "That is not the password on your account.",
   weakPassword: `Passwords need at least ${MIN_PASSWORD_LENGTH} characters.`,
@@ -176,68 +184,39 @@ export async function changeEmail(
 }
 
 /**
- * One credential call, and the four refusals worth telling apart.
+ * One credential call, and the four refusals this screen tells apart.
  *
- * Better Auth names its failures in the body, and the status alone cannot
- * separate them: a password that does not match, one that is too short and an
- * account that has no password at all all arrive as 400, and they are three
- * different things for the guest to do next.
+ * A signed-out session is read off the status; the other three are names in the
+ * body, because the status cannot separate them — a password that does not
+ * match, one that is too short and an account that has no password at all all
+ * arrive as 400, and they are three different things for the guest to do next.
+ *
+ * `refused` is the caller's own fallback, so a password that could not be
+ * changed and an address that could not be used say so rather than sharing one
+ * sentence about neither.
  */
 async function post(
   path: string,
   body: Record<string, unknown>,
   refused: string,
 ): Promise<CredentialOutcome> {
-  let response: Response;
+  return callBetterAuth(path, body, ({ status, code }) => {
+    if (status === 401) {
+      return MESSAGES.signedOut;
+    }
 
-  try {
-    response = await fetch(`${API_URL}${path}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify(body),
-    });
-  } catch {
-    return { ok: false, message: MESSAGES.unreachable };
-  }
+    if (code === "INVALID_PASSWORD") {
+      return MESSAGES.wrongPassword;
+    }
 
-  if (response.ok) {
-    return { ok: true };
-  }
+    if (code === "PASSWORD_TOO_SHORT") {
+      return MESSAGES.weakPassword;
+    }
 
-  if (response.status === 429) {
-    return { ok: false, message: MESSAGES.throttled };
-  }
+    if (code === "CREDENTIAL_ACCOUNT_NOT_FOUND") {
+      return MESSAGES.google;
+    }
 
-  if (response.status === 401) {
-    return { ok: false, message: MESSAGES.signedOut };
-  }
-
-  const code = await errorCode(response);
-
-  if (code === "INVALID_PASSWORD") {
-    return { ok: false, message: MESSAGES.wrongPassword };
-  }
-
-  if (code === "PASSWORD_TOO_SHORT") {
-    return { ok: false, message: MESSAGES.weakPassword };
-  }
-
-  if (code === "CREDENTIAL_ACCOUNT_NOT_FOUND") {
-    return { ok: false, message: MESSAGES.google };
-  }
-
-  return { ok: false, message: refused };
-}
-
-async function errorCode(response: Response): Promise<string | undefined> {
-  try {
-    const body = (await response.json()) as { code?: unknown };
-
-    return typeof body.code === "string" ? body.code : undefined;
-  } catch {
-    // A response that is not JSON is a response with nothing to add. The
-    // status has already been read.
-    return undefined;
-  }
+    return refused;
+  });
 }
