@@ -98,6 +98,7 @@ import type {
   CreatePaymentResult,
   PaymentGateway,
 } from "../src/modules/payment/ports/payment-gateway.port.js";
+import { noAccrual } from "./accrual.js";
 import { noConfirmations, noStayLinks } from "./no-announcement.js";
 
 const SEED_FROM = parseDate("2027-06-01");
@@ -200,7 +201,7 @@ beforeAll(async () => {
   // extension has to be in the same commit as the attempt.
   payments = new PaymentService(
     new GatewayThatOpensAnything(),
-    new FolioService(db, new SystemConfigService()),
+    new FolioService(db, new SystemConfigService(), noAccrual),
     new BusinessDateService(new SystemConfigService()),
     bookings,
     new TransactionRunner(db),

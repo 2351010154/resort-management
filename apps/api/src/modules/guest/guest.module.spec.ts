@@ -12,44 +12,72 @@
 // would prove nothing — Nest's testing `get` reaches into a module whether or
 // not it exports anything.
 //
-// The stand-in below is what the module's controller needs and what only a
+// The stand-ins below are what this module's providers need and what only a
 // booted application supplies: the global `DatabaseModule`'s transaction
-// runner. It is never called — compiling the graph is the whole assertion, and
-// what the routes do with a real transaction is
-// `test/guest-api.e2e-spec.ts`'s, against a real Postgres. Standing it in is
+// runner, the change log, the parsed environment, and the logger `nestjs-pino`
+// binds per class. None is ever called — compiling the graph is the whole
+// assertion, and what the routes do with a real transaction is
+// `test/guest-api.e2e-spec.ts`'s, against a real Postgres. Standing them in is
 // what keeps this spec free of one.
+//
+// The list grew when the module gained `LoyaltyService`, and that is the shape
+// of the claim rather than an accident of it: the accrual reads §7's earn rate
+// and pages when it fails after a close, so this module now depends on the
+// configuration reader and on the on-call endpoint, and a graph that could not
+// resolve either would be a boot failure in production.
 
 import "reflect-metadata";
 
 import { Global, Injectable, Module } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
+import { getLoggerToken } from "nestjs-pino";
 import { describe, expect, it } from "vitest";
+import { ENV } from "../../config/env.js";
 import { TransactionRunner } from "../../database/transaction-runner.js";
+import { AuditService } from "../audit/audit.service.js";
+import { OpsAlertService } from "../notification/ops-alert.service.js";
 import { GuestModule } from "./guest.module.js";
 import { GuestService } from "./guest.service.js";
+import { LoyaltyService } from "./loyalty.service.js";
+
+const AMBIENT = [
+  TransactionRunner,
+  ENV,
+  AuditService,
+  getLoggerToken(OpsAlertService.name),
+];
 
 @Global()
 @Module({
-  providers: [{ provide: TransactionRunner, useValue: {} }],
-  exports: [TransactionRunner],
+  providers: AMBIENT.map((provide) => ({ provide, useValue: {} })),
+  exports: AMBIENT,
 })
 class AmbientModule {}
 
 @Injectable()
 class GuestConsumer {
-  constructor(readonly guests: GuestService) {}
+  constructor(
+    readonly guests: GuestService,
+    readonly loyalty: LoyaltyService,
+  ) {}
 }
 
 @Module({ imports: [GuestModule], providers: [GuestConsumer] })
 class ConsumerModule {}
 
 describe("the guest module", () => {
-  it("gives the service to a module that imports it", async () => {
+  it("gives its two services to a module that imports it", async () => {
+    // Both exports, because both have an importer that would fail at boot
+    // without them: check-in injects the guest service, and `folio.module.ts`
+    // injects the accrual so that agreeing an account earns the stay its points.
     const moduleRef = await Test.createTestingModule({
       imports: [AmbientModule, ConsumerModule],
     }).compile();
 
-    expect(moduleRef.get(GuestConsumer).guests).toBeInstanceOf(GuestService);
+    const consumer = moduleRef.get(GuestConsumer);
+
+    expect(consumer.guests).toBeInstanceOf(GuestService);
+    expect(consumer.loyalty).toBeInstanceOf(LoyaltyService);
 
     await moduleRef.close();
   });
