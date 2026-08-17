@@ -7,6 +7,11 @@
 // uses: a fixture that moves with the wall clock cannot assert a price on a
 // named night.
 //
+// The flags may be written with or without a `--` in front of them. pnpm
+// forwards the separator into argv rather than consuming it, and
+// `common/cli/script-args.ts` takes it back out — that file says why the
+// alternative fix would have pinned the calendar to nothing, quietly.
+//
 // It refuses to run against `NODE_ENV=production`, and the refusal is not
 // politeness. The seed empties the property, the calendar and every stay
 // standing against them before it writes; a demo command that can do that to a
@@ -18,6 +23,7 @@ import { parseArgs } from "node:util";
 import { parseDate } from "@internationalized/date";
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "../../app.module.js";
+import { scriptArgs } from "../../common/cli/script-args.js";
 import { ENV, type Env } from "../../config/env.js";
 import { loadDotenv } from "../../config/load-dotenv.js";
 import { type Database, DRIZZLE } from "../database.module.js";
@@ -27,6 +33,7 @@ async function main(): Promise<void> {
   loadDotenv();
 
   const { values } = parseArgs({
+    args: scriptArgs(),
     options: {
       from: { type: "string" },
       bookings: { type: "string" },

@@ -10,8 +10,9 @@
 //   pnpm --filter @mariva/api staff:create \
 //     --email owner@mariva.vn --name "Trần Minh" --role ADMIN
 //
-// No `--` before the flags: pnpm forwards it to the script as an argument of
-// its own, and `parseArgs` takes no positionals.
+// The flags may be written with or without a `--` in front of them. pnpm
+// forwards the separator into argv rather than consuming it, and
+// `common/cli/script-args.ts` takes it back out.
 //
 // The password is read from stdin, never from an argument: an argument is in
 // the shell history, in `ps`, and in whatever shipped the terminal's scrollback
@@ -23,6 +24,7 @@ import { parseArgs } from "node:util";
 import { createInterface } from "node:readline/promises";
 import { NestFactory } from "@nestjs/core";
 import { AppModule } from "../../app.module.js";
+import { scriptArgs } from "../../common/cli/script-args.js";
 import { loadDotenv } from "../../config/load-dotenv.js";
 import { staffRoleSchema } from "./rbac/roles.js";
 import { StaffUserService } from "./staff-user.service.js";
@@ -33,6 +35,7 @@ async function main(): Promise<void> {
   loadDotenv();
 
   const { values } = parseArgs({
+    args: scriptArgs(),
     options: {
       email: { type: "string" },
       name: { type: "string" },
