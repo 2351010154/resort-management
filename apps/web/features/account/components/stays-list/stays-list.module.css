@@ -1,0 +1,175 @@
+/* `/account/stays` — two groups of cards, and nothing that acts on a stay.
+ *
+ * The card is a rule and a ground rather than a box with a shadow: the arrival
+ * draws its structure with hairlines and the funnel follows it, and a raised
+ * card here would be the first element in the guest realm that does not.
+ *
+ * Everything reads from @mariva/tokens — design-foundations.md §2. Motion is CSS
+ * only, on the permitted properties, at 0.4s on --ease-ui: §5.
+ */
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.groupTitle {
+  color: var(--stone-deep);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.item {
+  display: block;
+}
+
+/* The whole card is the link. A word inside it would be a target a guest has to
+   find on a phone, when what they are reaching for is the stay. */
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  color: inherit;
+  background: rgb(var(--ivory-warm-rgb) / 0.6);
+  border: 1px solid rgb(var(--umber-rgb) / 0.12);
+  transition:
+    background-color 0.4s var(--ease-ui),
+    border-color 0.4s var(--ease-ui);
+}
+
+.card:hover {
+  background: var(--ivory-warm);
+  border-color: rgb(var(--umber-rgb) / 0.3);
+}
+
+.card:focus-visible {
+  outline: 2px solid var(--dusk-amber);
+  outline-offset: 4px;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.room {
+  font-size: var(--text-lg);
+  font-weight: 400;
+  line-height: 1.2;
+}
+
+/* What the stay is, in one word. The tone is set from the state rather than
+   from the group, so a cancelled stay reads the same wherever it is filed. */
+.badge {
+  flex: 0 0 auto;
+  padding: 0.25rem var(--space-1);
+  font-family: var(--font-ui), sans-serif;
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  white-space: nowrap;
+  border: 1px solid currentcolor;
+}
+
+.badge[data-tone="ahead"] {
+  color: var(--umber);
+}
+
+.badge[data-tone="present"] {
+  color: var(--dusk-amber);
+}
+
+.badge[data-tone="done"] {
+  color: var(--stone-deep);
+}
+
+.badge[data-tone="off"] {
+  color: var(--stone);
+}
+
+.dates {
+  font-size: var(--text-sm);
+  color: var(--ink);
+}
+
+.meta {
+  font-size: var(--text-xs);
+  color: var(--stone-deep);
+}
+
+.reference {
+  font-family: var(--font-ui), sans-serif;
+  letter-spacing: 0.08em;
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.book {
+  padding: 0.9rem var(--space-3);
+  color: var(--ivory);
+  background: var(--umber);
+  border: 1px solid var(--umber);
+  transition:
+    background-color 0.4s var(--ease-ui),
+    color 0.4s var(--ease-ui);
+}
+
+.book:hover {
+  color: var(--umber);
+  background: transparent;
+}
+
+.book:focus-visible {
+  outline: 2px solid var(--dusk-amber);
+  outline-offset: 4px;
+}
+
+/* Announced when it arrives, because it arrives after a round trip. */
+.notice {
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  padding-left: var(--space-1);
+  border-left: 2px solid var(--dusk-amber);
+  color: var(--stone-deep);
+  max-width: 34rem;
+}
+
+.error {
+  composes: notice;
+  border-left-color: var(--umber);
+  color: var(--umber);
+}
+
+.footnote {
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+  color: var(--stone-deep);
+}
+
+.footnoteLink {
+  color: var(--umber);
+  border-bottom: 1px solid rgb(var(--umber-rgb) / 0.3);
+  transition: border-color 0.4s var(--ease-ui);
+}
+
+.footnoteLink:hover {
+  border-bottom-color: var(--umber);
+}
