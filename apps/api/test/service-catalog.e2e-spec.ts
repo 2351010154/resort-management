@@ -33,6 +33,7 @@
 // and a fixture that read like a real one would be that defect wearing a test's
 // clothes.
 
+import { noAccrual } from "./accrual.js";
 import "reflect-metadata";
 
 import { parseDate } from "@internationalized/date";
@@ -181,7 +182,7 @@ beforeAll(async () => {
 
   deskId = staff!.id;
 
-  folios = new FolioService(db, new SystemConfigService());
+  folios = new FolioService(db, new SystemConfigService(), noAccrual);
   catalog = new CatalogService();
 });
 

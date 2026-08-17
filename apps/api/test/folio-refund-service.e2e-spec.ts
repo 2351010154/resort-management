@@ -44,6 +44,7 @@
 // the split; the room charges exist only so that an early departure has nights
 // already posted to count.
 
+import { noAccrual } from "./accrual.js";
 import "reflect-metadata";
 
 import { parseDate } from "@internationalized/date";
@@ -184,7 +185,7 @@ beforeAll(async () => {
 
   deskId = staff!.id;
 
-  folios = new FolioService(db, new SystemConfigService());
+  folios = new FolioService(db, new SystemConfigService(), noAccrual);
 });
 
 afterAll(async () => {

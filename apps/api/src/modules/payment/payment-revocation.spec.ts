@@ -60,6 +60,7 @@ import type { FolioPort } from "../booking/ports/folio.port.js";
 import type { StayQuoteService } from "../booking/stay-quote.service.js";
 import { FolioService } from "../folio/folio.service.js";
 import type { GuestService } from "../guest/guest.service.js";
+import type { LoyaltyService } from "../guest/loyalty.service.js";
 import type { HousekeepingService } from "../housekeeping/housekeeping.service.js";
 import type { InventoryService } from "../inventory/inventory.service.js";
 import type { BookingConfirmationService } from "../notification/booking-confirmation.service.js";
@@ -166,7 +167,18 @@ beforeAll(async () => {
 
   payments = new PaymentService(
     new GatewayUnderTest(),
-    new FolioService(db, new SystemConfigService()),
+    new FolioService(db, new SystemConfigService(), {
+      // Never reached: nothing here agrees an account, and points are earned at
+      // the close and nowhere else. Named rather than cast, so a case that
+      // wandered into one fails loudly instead of quietly accruing nothing.
+      accruePoints: () => {
+        throw new Error(
+          "LoyaltyService.accruePoints was reached from a suite that closes " +
+            "no folio, so no stay has finished and there is nothing to have " +
+            "earned",
+        );
+      },
+    } as unknown as LoyaltyService),
     // Never reached: nothing here resolves a callback, and the business date is
     // read only when money has actually moved.
     undefined as unknown as BusinessDateService,
