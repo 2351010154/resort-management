@@ -295,7 +295,13 @@ export class StayQuoteService {
             lte(promotion.minNights, stay.nights),
           ),
         ),
-      );
+      )
+      // By code, so the row a tie settles on is the same row on every run. The
+      // tie is in đồng and moves nobody's price, but the code is frozen onto
+      // the booking and read back by a human — an unordered scan would let two
+      // identical stays freeze different campaigns and make a report of what a
+      // discount was taken under depend on the plan Postgres picked.
+      .orderBy(asc(promotion.code));
 
     return best(candidates, stay);
   }
@@ -414,10 +420,10 @@ export class StayQuoteService {
  * the same arithmetic `stayTotalGross` will apply, so the row that wins here is
  * the row that produces the lowest total there.
  *
- * A tie goes to the first row read. It is a tie in đồng, so nothing about the
- * guest's price depends on which one wins; what it decides is only which code
- * the booking freezes, and a property that configured two identical loyalty
- * discounts has said the two are interchangeable.
+ * A tie goes to the lowest code, which the caller orders on. It is a tie in
+ * đồng, so nothing about the guest's price depends on which one wins; what it
+ * decides is only which code the booking freezes, and freezing the same one
+ * every time is what keeps two identical stays reading identically afterwards.
  *
  * A candidate that reduces by nothing is discarded rather than frozen. A
  * `FIXED_AMOUNT` row cannot reduce by nothing — the constraint keeps it below
