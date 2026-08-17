@@ -239,6 +239,13 @@
       "when": 1786954452878,
       "tag": "0033_booking_quoted_promotion",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1786961642789,
+      "tag": "0034_guest_user_profile",
+      "breakpoints": true
     }
   ]
 }

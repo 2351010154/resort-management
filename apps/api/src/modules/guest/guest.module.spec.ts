@@ -31,6 +31,15 @@
 // and writes nothing, so it needs no transaction runner of its own and no
 // change log. `BusinessDateService` is provided by the module under test, which
 // is why it is absent from the list below.
+//
+// `FR-GST-01`'s profile added the second controller, and it is asserted from
+// inside rather than through a consumer because it is the opposite kind of
+// claim: `GuestProfileService` is deliberately not exported — nothing outside
+// this module has any business reading a guest's account of themselves — so what
+// there is to prove is that the controller can be constructed at all. It
+// composes the derivation and the ledger sum, both of which live here, and a
+// module that provided the controller without them would fail at boot with a
+// message about the injector.
 
 import "reflect-metadata";
 
@@ -42,6 +51,7 @@ import { ENV } from "../../config/env.js";
 import { TransactionRunner } from "../../database/transaction-runner.js";
 import { AuditService } from "../audit/audit.service.js";
 import { OpsAlertService } from "../notification/ops-alert.service.js";
+import { GuestProfileController } from "./guest-profile.controller.js";
 import { GuestModule } from "./guest.module.js";
 import { GuestService } from "./guest.service.js";
 import { LoyaltyService } from "./loyalty.service.js";
@@ -88,6 +98,18 @@ describe("the guest module", () => {
     expect(consumer.guests).toBeInstanceOf(GuestService);
     expect(consumer.loyalty).toBeInstanceOf(LoyaltyService);
     expect(consumer.tiers).toBeInstanceOf(TierDerivationService);
+
+    await moduleRef.close();
+  });
+
+  it("constructs the guest's own profile routes out of what it provides", async () => {
+    const moduleRef = await Test.createTestingModule({
+      imports: [AmbientModule, GuestModule],
+    }).compile();
+
+    expect(moduleRef.get(GuestProfileController)).toBeInstanceOf(
+      GuestProfileController,
+    );
 
     await moduleRef.close();
   });
