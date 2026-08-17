@@ -1,5 +1,6 @@
 import { Module } from "@nestjs/common";
 import { BusinessDateService } from "../booking/business-date.service.js";
+import { GuestModule } from "../guest/guest.module.js";
 import { OperationsModule } from "../operations/operations.module.js";
 import { SystemConfigModule } from "../system-config/system-config.module.js";
 import { EInvoiceJob } from "./e-invoice.job.js";
@@ -65,8 +66,13 @@ import { E_INVOICE_PORT } from "./ports/e-invoice.port.js";
 // executor so the figure the line is computed from is the figure that was there
 // when it went in. The dependency runs one way — the catalog knows nothing about
 // a folio, and a posting is the only place the two meet.
+// `GuestModule` is imported for the one thing the close does after it commits:
+// `FR-GST-05` earns a guest points for the stay whose account was just agreed,
+// and `LoyaltyService` is where that lives. The edge runs this way and only
+// this way — the ledger row keys on a folio, and nothing in the guest realm
+// asks a folio anything — so no `forwardRef` is needed to state it.
 @Module({
-  imports: [OperationsModule, SystemConfigModule],
+  imports: [GuestModule, OperationsModule, SystemConfigModule],
   controllers: [FolioController],
   providers: [
     { provide: E_INVOICE_PORT, useClass: LocalEInvoiceService },

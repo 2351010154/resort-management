@@ -70,6 +70,7 @@ import type {
   IssueInvoiceInput,
 } from "../src/modules/folio/ports/e-invoice.port.js";
 import { SystemConfigService } from "../src/modules/system-config/system-config.service.js";
+import { accrualOn } from "./accrual.js";
 
 /** A configuration nobody could mistake for a property's real one. */
 const CONFIGURED = {
@@ -139,7 +140,7 @@ beforeAll(async () => {
 
   roomTypeId = existing?.id ?? (await someRoomType());
 
-  folios = new FolioService(db, new SystemConfigService());
+  folios = new FolioService(db, new SystemConfigService(), accrualOn(db));
   job = new EInvoiceJob(new LocalEInvoiceService(), log);
 });
 

@@ -1,0 +1,23 @@
+-- Expiry is not a figure the property sets, so it stops being a column.
+--
+-- `property-and-tariff.md` §7 states it once and states it flat: "points earned
+-- in year `Y` expire 31 December of `Y+1`", and it gives the reason in the same
+-- row — "a fixed calendar date needs no rolling-inactivity job". There is no
+-- second rule offered and no switch, and `FR-GST-05` says the same thing from
+-- the other side: points expire at a fixed configured calendar *date*, which is
+-- the date each accrual carries rather than a boolean the row carries once for
+-- every guest at the same time.
+--
+-- The column 0030 added was therefore a setting with only one usable position.
+-- `loyalty_ledger.expires_at` is NOT NULL and nothing in this schema can say
+-- "never", so `false` was a state no accrual could honour: it named no date and
+-- left the only code that had one — the accrual — with nothing to write. A
+-- configuration value whose second value cannot be obeyed is worse than its
+-- absence, because a screen offers it and the refusal only arrives at the next
+-- folio close.
+--
+-- Nothing read it. Dropping it takes away a setting and no behaviour: the
+-- expiry each accrual records is computed from the year it earned in, against
+-- the same `now()` that stamps `earned_at`, so a point earned at 23:00 on 31
+-- December in Ho Chi Minh City expires with the year it was actually earned in.
+ALTER TABLE "system_config" DROP COLUMN "points_expire_year_end";

@@ -84,6 +84,7 @@ import { GuestService } from "../src/modules/guest/guest.service.js";
 import { HousekeepingService } from "../src/modules/housekeeping/housekeeping.service.js";
 import { InventoryService } from "../src/modules/inventory/inventory.service.js";
 import { SystemConfigService } from "../src/modules/system-config/system-config.service.js";
+import { noAccrual } from "./accrual.js";
 import { noConfirmations, noStayLinks } from "./no-announcement.js";
 
 const SEED_FROM = parseDate("2027-06-01");
@@ -267,7 +268,7 @@ beforeAll(async () => {
 
   deskId = staff!.id;
 
-  folios = new FolioService(db, new SystemConfigService());
+  folios = new FolioService(db, new SystemConfigService(), noAccrual);
   sweep = new RoomChargeSweep(folios, log);
 });
 

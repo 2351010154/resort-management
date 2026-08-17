@@ -75,6 +75,40 @@ const CONFIGURED: SystemConfigValues = {
 };
 
 /**
+ * §7's loyalty figures, as the columns supply them to any row that names none.
+ *
+ * These are real values rather than deliberately unreal ones, and the
+ * difference from the rates above is ownership: §8 forbids the tree from
+ * carrying a tax rate, while §7 states that the earn rate and the thresholds
+ * are proposed here until the owner tunes them. So the figure a
+ * fresh property runs on is a value this repository chose, and a test that
+ * asserted anything else would be asserting a drift.
+ */
+const SEEDED_BY_THE_COLUMNS = {
+  loyaltyPointsPerUnit: 1,
+  loyaltyEarnUnitVnd: 10_000n,
+  tierSilverStays: 2,
+  tierSilverRevenueVnd: 15_000_000n,
+  tierGoldStays: 4,
+  tierGoldRevenueVnd: 40_000_000n,
+} as const;
+
+/**
+ * A loyalty program nobody could mistake for the one §7 proposes.
+ *
+ * Every figure differs from `SEEDED_BY_THE_COLUMNS`, so a read that answered
+ * from the column default instead of from the row cannot pass by coincidence.
+ */
+const TUNED = {
+  loyaltyPointsPerUnit: 7,
+  loyaltyEarnUnitVnd: 33_000n,
+  tierSilverStays: 6,
+  tierSilverRevenueVnd: 21_000_000n,
+  tierGoldStays: 13,
+  tierGoldRevenueVnd: 77_000_000n,
+} as const;
+
+/**
  * What an `ADMIN` edits a rate to, mid-stay, in the cases that watch for it.
  *
  * Distinct from both configured rates, so a case that expected the edit to be
@@ -161,6 +195,12 @@ describe("the boot seed", () => {
       vatIncludesServiceCharge: fromEnvironment.VAT_INCLUDES_SERVICE_CHARGE,
       serviceChargeRateBps: fromEnvironment.SERVICE_CHARGE_RATE_BPS,
       businessDateRolloverHour: fromEnvironment.BUSINESS_DATE_ROLLOVER_HOUR,
+      // Not from the environment, and written out here rather than read from
+      // one. §7's figures are this repository's proposal until the owner tunes
+      // them, so they are literals in the tree by decision — the opposite of
+      // the rates above, and the reason the two halves of this expectation are
+      // sourced differently.
+      ...SEEDED_BY_THE_COLUMNS,
     });
   });
 
@@ -174,6 +214,24 @@ describe("the boot seed", () => {
     await seederOver(db, parseEnv()).onApplicationBootstrap();
 
     expect(await stored()).toMatchObject(CONFIGURED);
+  });
+
+  it("leaves a tuned loyalty program alone on the next restart", async () => {
+    // The same property as the case above, asserted over the figures that reach
+    // the row through a column default rather than through the environment —
+    // because that is the half a reader would reasonably doubt. A default
+    // supplies the row that did not have the column and then never speaks
+    // again: the insert that would restate it is the insert `on conflict do
+    // nothing` declines to run. Without this, every deploy would quietly reset
+    // an earn rate the property had tuned, and the guests holding points earned
+    // under the old one would be the ones who noticed.
+    await store(CONFIGURED);
+    await db.update(systemConfig).set(TUNED);
+
+    await seederOver(db, parseEnv()).onApplicationBootstrap();
+    await seederOver(db, parseEnv()).onApplicationBootstrap();
+
+    expect(await stored()).toMatchObject(TUNED);
   });
 
   it("seeds a production database, which the demo seed refuses to touch", async () => {
@@ -237,6 +295,134 @@ describe("the figures a posting reads", () => {
 
     expect(await config.businessDateRolloverHour(db)).toBe(
       CONFIGURED.businessDateRolloverHour,
+    );
+  });
+});
+
+describe("the figures a loyalty accrual reads", () => {
+  it("hands back the earn rate in its two halves", async () => {
+    await store(CONFIGURED);
+    await db.update(systemConfig).set(TUNED);
+
+    // The unit is money and the count is not, and they arrive as different
+    // types for that reason: an accrual divides a `bigint` revenue by the unit
+    // and multiplies by the count, which is arithmetic TypeScript refuses to
+    // let it get backwards.
+    expect(await config.loyaltyRules(db)).toEqual({
+      pointsPerUnit: TUNED.loyaltyPointsPerUnit,
+      earnUnitVnd: TUNED.loyaltyEarnUnitVnd,
+    });
+  });
+
+  it("reads the figures §7 proposes when nobody has tuned them", async () => {
+    // A property that has never opened the screen still runs a loyalty program,
+    // because the columns carry §7's proposal. This is the read that half the
+    // deployments will actually make.
+    await store(CONFIGURED);
+
+    expect(await config.loyaltyRules(db)).toEqual({
+      pointsPerUnit: SEEDED_BY_THE_COLUMNS.loyaltyPointsPerUnit,
+      earnUnitVnd: SEEDED_BY_THE_COLUMNS.loyaltyEarnUnitVnd,
+    });
+  });
+
+  it("is read again on the next accrual and not held between them", async () => {
+    // §7 says the earn rate defines what a point *is*, and that reseeding
+    // balances after guests hold them is a support incident rather than a data
+    // edit. A rate cached between accruals is that incident arriving slowly: the
+    // run that used the stale figure has already written its ledger rows.
+    await store(CONFIGURED);
+
+    expect((await config.loyaltyRules(db)).pointsPerUnit).toBe(
+      SEEDED_BY_THE_COLUMNS.loyaltyPointsPerUnit,
+    );
+
+    await db
+      .update(systemConfig)
+      .set({ loyaltyPointsPerUnit: TUNED.loyaltyPointsPerUnit });
+
+    expect((await config.loyaltyRules(db)).pointsPerUnit).toBe(
+      TUNED.loyaltyPointsPerUnit,
+    );
+  });
+
+  it("refuses to hand an accrual anything when nobody has configured the property", async () => {
+    // The same refusal a posting gets. An assumed earn rate is points a guest
+    // did not earn, and — because the balance is a sum of the ledger rather than
+    // a column — nothing downstream would notice.
+    await db.execute(sql`truncate system_config`);
+
+    await expect(config.loyaltyRules(db)).rejects.toThrow(
+      /system_config holds no row/,
+    );
+  });
+});
+
+describe("the thresholds a tier is derived from", () => {
+  it("hands back both rungs at once, on both axes", async () => {
+    await store(CONFIGURED);
+    await db.update(systemConfig).set(TUNED);
+
+    // Four figures in one read, for the reason the tax figures are three in
+    // one: `READ COMMITTED` takes a fresh snapshot per statement, so a
+    // derivation that read the counts and the revenues separately could compare
+    // a guest against a ladder that never existed.
+    expect(await config.tierThresholds(db)).toEqual({
+      silverStays: TUNED.tierSilverStays,
+      silverRevenueVnd: TUNED.tierSilverRevenueVnd,
+      goldStays: TUNED.tierGoldStays,
+      goldRevenueVnd: TUNED.tierGoldRevenueVnd,
+    });
+  });
+
+  it("hands back thresholds and never a tier", async () => {
+    // `FR-GST-04` requires the tier be derived on read from a trailing window,
+    // so there is nothing here to return one from — a guest below the first rung
+    // is a Member, which is the absence of a match rather than a stored value.
+    await store(CONFIGURED);
+
+    const thresholds = await config.tierThresholds(db);
+
+    expect(Object.keys(thresholds).sort()).toEqual([
+      "goldRevenueVnd",
+      "goldStays",
+      "silverRevenueVnd",
+      "silverStays",
+    ]);
+  });
+
+  it("is read through the executor the caller is inside", async () => {
+    // The derivation runs at business-date rollover, inside the transaction
+    // that writes what it decided. A threshold read on another connection could
+    // promote a guest against a ladder that transaction cannot see.
+    await store(CONFIGURED);
+
+    try {
+      await db.transaction(async (tx) => {
+        await tx
+          .update(systemConfig)
+          .set({ tierGoldStays: TUNED.tierGoldStays });
+
+        expect((await config.tierThresholds(tx)).goldStays).toBe(
+          TUNED.tierGoldStays,
+        );
+
+        expect((await config.tierThresholds(db)).goldStays).toBe(
+          SEEDED_BY_THE_COLUMNS.tierGoldStays,
+        );
+
+        throw new Rollback();
+      });
+    } catch (error) {
+      if (!(error instanceof Rollback)) throw error;
+    }
+  });
+
+  it("refuses to answer at all when nobody has configured the property", async () => {
+    await db.execute(sql`truncate system_config`);
+
+    await expect(config.tierThresholds(db)).rejects.toThrow(
+      /system_config holds no row/,
     );
   });
 });

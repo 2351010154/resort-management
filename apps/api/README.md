@@ -223,7 +223,7 @@ pnpm --filter @mariva/api typecheck   # the app, then the tests and configs
 
 # The first staff account. Prompts for the password rather than taking it as an
 # argument, which would put it in the shell history and in `ps`.
-pnpm --filter @mariva/api staff:create -- \
+pnpm --filter @mariva/api staff:create \
   --email owner@mariva.vn --name "Trần Minh" --role ADMIN
 ```
 

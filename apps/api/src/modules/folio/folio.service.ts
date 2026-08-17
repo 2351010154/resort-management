@@ -130,6 +130,12 @@ import {
 // port, and a value imported back the other way would be a cycle. The port is
 // the only thing the two modules share, which is what it is for.
 import type { FolioPort } from "../booking/ports/folio.port.js";
+// The close's one after-effect. `loyalty.service.ts` argues why it is reached
+// from here rather than from the route above it — the close is the moment
+// `FR-GST-05` accrues on, and a caller that had to remember to accrue is a
+// caller that will one day forget — and why nothing it does can reach this
+// transaction.
+import { LoyaltyService } from "../guest/loyalty.service.js";
 // A type as well, and for a plainer reason than the two above: this module needs
 // to say what a resolved catalog row *is* without becoming a reader of the
 // catalog. `operations.module.ts` exports the service that does the reading,
@@ -395,6 +401,10 @@ export class FolioService implements FolioPort {
     // the caller's executor, for the reason `database.module.ts` gives.
     @Inject(DRIZZLE) private readonly db: Database,
     private readonly configuration: SystemConfigService,
+    // Last, so adding it moved no existing argument. Asked for exactly one
+    // thing and only after this service's caller has committed: what the stay
+    // it just agreed earned its guest.
+    private readonly loyalty: LoyaltyService,
   ) {}
 
   /**
@@ -741,6 +751,14 @@ export class FolioService implements FolioPort {
       .set({ state: "CLOSED", closedAt: sql`now()` })
       .where(and(eq(folio.id, account.id), eq(folio.state, "OPEN")))
       .returning({ id: folio.id, closedAt: folio.closedAt });
+
+    // `FR-GST-05` accrues at the close and nowhere else, which is what makes a
+    // cancelled or no-show stay earn nothing without any rule saying so. What
+    // is registered here is work for after this transaction commits, so the
+    // points cannot roll the checkout back and nothing is written if it rolls
+    // back on its own — `loyalty.service.ts` sets out both halves, including
+    // why a failure out there pages rather than returning.
+    await this.loyalty.accruePoints(exec, closed!.id);
 
     return { id: closed!.id, closedAt: closed!.closedAt! };
   }

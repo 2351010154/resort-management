@@ -47,6 +47,48 @@
 // must refuse rather than assume; a rate nobody chose is worse than a posting
 // that stops.
 //
+// **§7's loyalty figures do carry defaults, and the difference is ownership
+// rather than diligence.** The paragraph above is about values whose answer
+// belongs to somebody outside this repository: a VAT rate is the accountant's
+// and a service charge is the owner's, so a `.default()` on either would be this
+// tree answering a question it was never asked. §7 states the opposite about the
+// earn rate and the tier thresholds — they "are ⚑ proposed
+// here", "the developer's call until the owner tunes them", and only *tuning*
+// them is somebody else's. A default carrying the figure §7 proposes therefore
+// records a decision this repository actually made, and the property still edits
+// it without a deploy, which is the whole of what §7 asks for.
+//
+// The defaults are also what let these columns be `NOT NULL` at all. The row is
+// already there on every deployed database and the seeder writes once and never
+// again, so a column added without one would either refuse the migration or
+// force the row to be emptied and reseeded — and emptying it would discard the
+// tax figures an `ADMIN` had corrected since boot. A default backfills the row
+// that exists and supplies the row a fresh install seeds, and an `ADMIN` edit
+// then outlives every later restart exactly as the rates do.
+//
+// **No tier is stored here or anywhere.** These are the thresholds a tier is
+// derived *from*, at business-date rollover, over a trailing window —
+// `FR-GST-04` makes the tier a derived value and never a hand-set one, and
+// `schema/loyalty.ts` and `schema/guest.ts` both refuse a column for it. A
+// threshold is a property decision that holds until somebody changes it; a tier
+// is an answer that is only correct until the window moves under it.
+//
+// **Expiry is not here either, and it is not a figure at all.** §7 states it as
+// a rule with no alternative — "points earned in year `Y` expire 31 December of
+// `Y+1`" — and gives the reason in the same row: "a fixed calendar date needs no
+// rolling-inactivity job". A boolean carrying that rule would be a switch §7
+// never offers, and the off position would be a state nothing could honour,
+// because `loyalty_ledger.expires_at` is `NOT NULL` and no date exists to write
+// under it. The rule therefore lives where it is applied — the accrual computes
+// the date from the year it earned in — and the only thing stored is the date
+// each row actually carries.
+//
+// **The two tier discounts are deliberately not here.** §7 applies them "as a
+// promotions rate modifier (`FR-PRC-03`)", and `pricing.ts` already stores them
+// as `promotion` rows carrying `requires_loyalty_tier`. A copy in this row would
+// be a second authority for one figure, and the copy the pricing path did not
+// read would be a configuration value nothing reads.
+//
 // **Two rates, because statutory relief lapses into a rate rather than into
 // nothing.** This table once held a single VAT rate and argued that a second one
 // would settle `ASM-01` by guessing. That argument was wrong about what the
@@ -95,7 +137,14 @@
 //   table for every such question rather than two columns per table.
 
 import { sql } from "drizzle-orm";
-import { boolean, check, date, pgTable, smallint } from "drizzle-orm/pg-core";
+import {
+  bigint,
+  boolean,
+  check,
+  date,
+  pgTable,
+  smallint,
+} from "drizzle-orm/pg-core";
 
 /**
  * The tax and clock figures the property sets, as data.
@@ -157,6 +206,44 @@ export const systemConfig = pgTable(
     // deploy". Nothing holds the value between reads; a column that looks
     // authoritative and is not is the shape this whole file argues against.
     businessDateRolloverHour: smallint("business_date_rollover_hour").notNull(),
+    // ⚑ §7, proposed: one point per 10,000 ₫ of net room revenue. Two columns
+    // rather than one rate, because the two halves are tuned for different
+    // reasons and neither survives being folded into the other: a property
+    // doubling what a đồng earns moves the points, and a property restating the
+    // unit moves the granularity below which a stay earns nothing.
+    //
+    // Net room revenue, never gross — §7 excludes VAT, service charge and
+    // service items precisely so that a §8 tax answer cannot silently change
+    // what a stay earns. Which figure that is belongs to whatever accrues; this
+    // row says what it is multiplied and divided by.
+    loyaltyPointsPerUnit: smallint("loyalty_points_per_unit")
+      .notNull()
+      .default(1),
+    // Money, so `bigint` on `NFR-12`'s rule and on the same scale as the room
+    // revenue it is measured against — a unit that arrived as a `number` could
+    // not be divided into a `bigint` revenue without a cast somebody would get
+    // wrong in one direction.
+    //
+    // Every đồng default below is written as SQL rather than as a JavaScript
+    // `bigint`, because the migration generator serialises its snapshot as JSON
+    // and a `bigint` has no JSON form. The value Postgres holds is the same
+    // integer either way.
+    loyaltyEarnUnitVnd: bigint("loyalty_earn_unit_vnd", { mode: "bigint" })
+      .notNull()
+      .default(sql`10000`),
+    // ⚑ §7, proposed. The two ladders a tier is derived from, each reachable by
+    // stays **or** by revenue over a trailing twelve months. Thresholds and not
+    // tiers: `FR-GST-04` derives the tier at rollover and stores none, so these
+    // are the figures that derivation reads and the only part of the ladder that
+    // is data.
+    tierSilverStays: smallint("tier_silver_stays").notNull().default(2),
+    tierSilverRevenueVnd: bigint("tier_silver_revenue_vnd", { mode: "bigint" })
+      .notNull()
+      .default(sql`15000000`),
+    tierGoldStays: smallint("tier_gold_stays").notNull().default(4),
+    tierGoldRevenueVnd: bigint("tier_gold_revenue_vnd", { mode: "bigint" })
+      .notNull()
+      .default(sql`40000000`),
   },
   (table) => [
     check(
@@ -197,6 +284,48 @@ export const systemConfig = pgTable(
       "system_config_reduced_vat_window_opens_before_it_closes",
       sql`${table.reducedVatFrom} is null or ${table.reducedVatTo} is null
         or ${table.reducedVatTo} >= ${table.reducedVatFrom}`,
+    ),
+    // Zero is not a coherent answer at either half of the earn rate, and that is
+    // the difference between this and a rate: a unit of zero đồng divides a
+    // stay's revenue by nothing, and zero points per unit is a loyalty program
+    // that runs, writes a ledger row per stay and awards nothing — an outage
+    // that looks exactly like a working feature. §7 offers no way to switch the
+    // program off, so neither figure has an off value to express.
+    check(
+      "system_config_loyalty_earns_at_least_a_point",
+      sql`${table.loyaltyPointsPerUnit} >= 1`,
+    ),
+    check(
+      "system_config_loyalty_earn_unit_is_money",
+      sql`${table.loyaltyEarnUnitVnd} > 0`,
+    ),
+    // A ladder whose first rung is at zero stays or zero đồng is one every guest
+    // is already standing on, which makes the tier a label rather than a
+    // milestone.
+    check(
+      "system_config_silver_takes_at_least_one_stay",
+      sql`${table.tierSilverStays} >= 1`,
+    ),
+    check(
+      "system_config_silver_revenue_is_money",
+      sql`${table.tierSilverRevenueVnd} > 0`,
+    ),
+    // Gold is reached by stays **or** by revenue, so each axis is compared with
+    // its own, and equal is allowed: a property may raise the revenue bar while
+    // leaving the stay count where it is, and Silver still exists for the guest
+    // who reaches the money and not the nights. What is refused is a Gold rung
+    // *below* Silver's on an axis — every Silver guest would already be Gold on
+    // it, and the tier below would quietly stop existing rather than fail.
+    //
+    // Two constraints and not one, because a property correcting a ladder has
+    // typed one of these figures and the refusal has to name which.
+    check(
+      "system_config_gold_stays_not_below_silver",
+      sql`${table.tierGoldStays} >= ${table.tierSilverStays}`,
+    ),
+    check(
+      "system_config_gold_revenue_not_below_silver",
+      sql`${table.tierGoldRevenueVnd} >= ${table.tierSilverRevenueVnd}`,
     ),
   ],
 );
