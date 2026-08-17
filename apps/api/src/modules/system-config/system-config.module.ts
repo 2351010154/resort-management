@@ -1,5 +1,7 @@
 import { Module } from "@nestjs/common";
 import { AuditModule } from "../audit/audit.module.js";
+import { BusinessDateService } from "../booking/business-date.service.js";
+import { BusinessDateController } from "./business-date.controller.js";
 import { SystemConfigController } from "./system-config.controller.js";
 import { SystemConfigSeeder } from "./system-config.seeder.js";
 import { SystemConfigService } from "./system-config.service.js";
@@ -30,10 +32,16 @@ import { SystemConfigService } from "./system-config.service.js";
 // stating it is also what lets this module's graph resolve on its own: a spec
 // that builds it in isolation to check the wiring would otherwise fail on a
 // provider only a booted application supplies.
+// `BusinessDateController` answers what day the property is having, off the
+// rollover hour this module owns. `BusinessDateService` is provided here for it
+// rather than imported from `BookingModule`, the way `housekeeping.module.ts`
+// and `folio.module.ts` provide it: the class holds nothing but this module's
+// reader, and importing the booking module for it would put the whole of
+// bookings behind a route that answers a date.
 @Module({
   imports: [AuditModule],
-  controllers: [SystemConfigController],
-  providers: [SystemConfigService, SystemConfigSeeder],
+  controllers: [SystemConfigController, BusinessDateController],
+  providers: [SystemConfigService, SystemConfigSeeder, BusinessDateService],
   exports: [SystemConfigService],
 })
 export class SystemConfigModule {}
