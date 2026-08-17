@@ -1,9 +1,11 @@
 import { Module } from "@nestjs/common";
+import { BusinessDateService } from "../booking/business-date.service.js";
 import { OpsAlertService } from "../notification/ops-alert.service.js";
 import { SystemConfigService } from "../system-config/system-config.service.js";
 import { GuestController } from "./guest.controller.js";
 import { GuestService } from "./guest.service.js";
 import { LoyaltyService } from "./loyalty.service.js";
+import { TierDerivationService } from "./tier-derivation.service.js";
 
 // The guest realm — docs/architecture/repository-structure.md §apps/api.
 //
@@ -39,14 +41,29 @@ import { LoyaltyService } from "./loyalty.service.js";
 // class. Neither instance can disagree with the one next door: the
 // configuration reader caches nothing and reads the row on every call, and the
 // alerter holds only the endpoint it reads from the environment.
+//
+// `TierDerivationService` is the third export and the one that writes nothing at
+// all. `FR-GST-04` makes a tier a value computed on read, so it holds two
+// readers and no runner: the caller's transaction is the only boundary it has,
+// and it needs none of its own because there is nothing to commit. It sits here
+// beside the accrual because both answer §7 off the same net-room-revenue sum —
+// `net-room-revenue.ts` is shared between them and belongs to neither.
+//
+// `BusinessDateService` is provided rather than imported, on the reasoning
+// `folio.module.ts` gives for the same class: it lives in `BookingModule`, which
+// already imports this one for check-in's guest writes, so importing it back
+// would be a cycle broken with `forwardRef` for one stateless reader over a
+// configuration row this module already reads.
 @Module({
   controllers: [GuestController],
   providers: [
     GuestService,
     LoyaltyService,
+    TierDerivationService,
+    BusinessDateService,
     SystemConfigService,
     OpsAlertService,
   ],
-  exports: [GuestService, LoyaltyService],
+  exports: [GuestService, LoyaltyService, TierDerivationService],
 })
 export class GuestModule {}

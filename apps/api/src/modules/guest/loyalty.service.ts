@@ -44,16 +44,14 @@
 // early departure or discretionary refund cannot overstate points", and the
 // account is the only place that total exists: a night the guest did not take
 // was never charged or has been reversed, and either way the lines standing on
-// the folio are what the property actually billed for rooms. §7 defines net as
-// "the room charge before VAT and service charge, service items excluded", and
-// `folio.service.ts` already stores exactly that figure — `decomposeGross`
-// puts the net on the `ROOM_CHARGE` row and the two derived lines beside it —
-// so the sum below reads one posting type and needs no arithmetic of its own.
+// the folio are what the property actually billed for rooms. The sum itself is
+// `net-room-revenue.ts`, shared with the tier ladder that measures a guest by
+// the same figure — that file says why one implementation of it is the whole
+// value of §7 having chosen net.
 
 import { PROPERTY_TIME_ZONE } from "@mariva/shared";
 import { Injectable } from "@nestjs/common";
-import { and, eq, or, sql } from "drizzle-orm";
-import { alias } from "drizzle-orm/pg-core";
+import { eq, sql } from "drizzle-orm";
 import type { DbExecutor } from "../../database/database.module.js";
 import { booking } from "../../database/schema/booking.js";
 import { folio, folioPosting } from "../../database/schema/folio.js";
@@ -64,6 +62,7 @@ import {
 } from "../../database/transaction-runner.js";
 import { OpsAlertService } from "../notification/ops-alert.service.js";
 import { SystemConfigService } from "../system-config/system-config.service.js";
+import { netRoomRevenue } from "./net-room-revenue.js";
 
 /**
  * §7's expiry, as the date each row carries.
@@ -170,7 +169,12 @@ export class LoyaltyService {
 
     const { pointsPerUnit, earnUnitVnd } =
       await this.configuration.loyaltyRules(exec);
-    const netRoomRevenue = await this.netRoomRevenue(exec, folioId);
+    // One folio, by its id. The scope is the whole of what this caller decides;
+    // what counts as room revenue is `net-room-revenue.ts`'s and is the same
+    // answer the tier ladder gets.
+    const earnedOn = await netRoomRevenue(exec, [
+      eq(folioPosting.folioId, folioId),
+    ]);
 
     // Integer arithmetic the whole way, and divided before it is multiplied,
     // which is what §7's two halves actually say: a stay below one earn unit
@@ -179,13 +183,13 @@ export class LoyaltyService {
     // `pointsPerUnit` is a count and is widened here, at the one point the two
     // scales meet.
     const earned =
-      netRoomRevenue <= 0n
+      earnedOn <= 0n
         ? // An account whose room charges were all reversed billed nothing for
           // rooms, and the row still goes in at zero: `schema/loyalty.ts` says a
           // stay that earned nothing still occupies its folio's one row, and
           // `loyalty_ledger_accrues_only` refuses a negative one outright.
           0n
-        : (netRoomRevenue / earnUnitVnd) * BigInt(pointsPerUnit);
+        : (earnedOn / earnUnitVnd) * BigInt(pointsPerUnit);
 
     await exec
       .insert(loyaltyLedger)
@@ -201,50 +205,5 @@ export class LoyaltyService {
       // after it — and rather than a read first, because two accruals racing
       // would both read no row and both insert.
       .onConflictDoNothing({ target: loyaltyLedger.folioId });
-  }
-
-  /**
-   * What the account billed for rooms, net, once corrections are applied.
-   *
-   * One sum over two kinds of line: the `ROOM_CHARGE` rows, which already hold
-   * the net figure `FR-FOL-02` split out of the gross the guest agreed to, and
-   * the `REVERSAL` rows that undo one of them, which carry the exact negation.
-   * Adding both is what makes an early departure and a corrected night honest
-   * without a second query or a subtraction here — a reversed night contributes
-   * its charge and its undoing, which come to nothing.
-   *
-   * The service charge, the VAT and every service item are excluded by never
-   * being selected. §7 chose net for exactly that reason: a §8 tax answer, or a
-   * minibar, must not change what a stay earns.
-   *
-   * The reversal's own row is what says which line it undid, so the join is to
-   * the posting it names. `reverses_posting_id` is null on every other type, so
-   * the left join matches nothing for them and the predicate falls through to
-   * the posting's own type.
-   */
-  private async netRoomRevenue(
-    exec: DbExecutor,
-    folioId: string,
-  ): Promise<bigint> {
-    const undone = alias(folioPosting, "undone");
-
-    const [summed] = await exec
-      .select({ net: sql<string | null>`sum(${folioPosting.amount})` })
-      .from(folioPosting)
-      .leftJoin(undone, eq(undone.id, folioPosting.reversesPostingId))
-      .where(
-        and(
-          eq(folioPosting.folioId, folioId),
-          or(
-            eq(folioPosting.type, "ROOM_CHARGE"),
-            eq(undone.type, "ROOM_CHARGE"),
-          ),
-        ),
-      );
-
-    // Text on the way back, because Postgres widens `sum(bigint)` to `numeric`
-    // and the driver hands a numeric over as a string — the one route that
-    // cannot lose a đồng, and null on an account with no room line at all.
-    return BigInt(summed?.net ?? "0");
   }
 }

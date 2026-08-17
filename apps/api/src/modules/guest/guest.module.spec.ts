@@ -25,6 +25,12 @@
 // and pages when it fails after a close, so this module now depends on the
 // configuration reader and on the on-call endpoint, and a graph that could not
 // resolve either would be a boot failure in production.
+//
+// The tier derivation added no ambient dependency and that is worth noticing
+// rather than passing over: it reads the thresholds and the property's own day
+// and writes nothing, so it needs no transaction runner of its own and no
+// change log. `BusinessDateService` is provided by the module under test, which
+// is why it is absent from the list below.
 
 import "reflect-metadata";
 
@@ -39,6 +45,7 @@ import { OpsAlertService } from "../notification/ops-alert.service.js";
 import { GuestModule } from "./guest.module.js";
 import { GuestService } from "./guest.service.js";
 import { LoyaltyService } from "./loyalty.service.js";
+import { TierDerivationService } from "./tier-derivation.service.js";
 
 const AMBIENT = [
   TransactionRunner,
@@ -59,6 +66,7 @@ class GuestConsumer {
   constructor(
     readonly guests: GuestService,
     readonly loyalty: LoyaltyService,
+    readonly tiers: TierDerivationService,
   ) {}
 }
 
@@ -66,10 +74,11 @@ class GuestConsumer {
 class ConsumerModule {}
 
 describe("the guest module", () => {
-  it("gives its two services to a module that imports it", async () => {
-    // Both exports, because both have an importer that would fail at boot
-    // without them: check-in injects the guest service, and `folio.module.ts`
-    // injects the accrual so that agreeing an account earns the stay its points.
+  it("gives its three services to a module that imports it", async () => {
+    // Every export, because each has an importer that would fail at boot
+    // without it: check-in injects the guest service, `folio.module.ts` injects
+    // the accrual so that agreeing an account earns the stay its points, and a
+    // tier is derived on read by whoever is showing or gating on one.
     const moduleRef = await Test.createTestingModule({
       imports: [AmbientModule, ConsumerModule],
     }).compile();
@@ -78,6 +87,7 @@ describe("the guest module", () => {
 
     expect(consumer.guests).toBeInstanceOf(GuestService);
     expect(consumer.loyalty).toBeInstanceOf(LoyaltyService);
+    expect(consumer.tiers).toBeInstanceOf(TierDerivationService);
 
     await moduleRef.close();
   });
