@@ -85,8 +85,11 @@ export {
 } from "./folio.js";
 export {
   cccdRevealSchema,
+  guestProfileSchema,
   guestRecordSchema,
   unmaskCccdInput,
+  updateProfileInput,
+  vipTierSchema,
 } from "./guest.js";
 export {
   boardRoomSchema,
