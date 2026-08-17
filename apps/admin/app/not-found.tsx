@@ -1,20 +1,23 @@
 "use client";
 
-/* The console's 404, and — until the first screen family lands — its only exit.
+/* The console's 404 for an address outside the authenticated realm.
  *
- * The role-aware landing sends a signed-in operator to `/dashboard`,
- * `/housekeeping` or `/payments`, and none of those exist yet. That is the
- * honest state of a console with a working session and no screens, but honest
- * is not the same as recoverable: the screen families that would carry the
- * palette are the missing ones, so there is no ⌘K here and therefore no sign
- * out, and `/login` sends an operator who still has a session straight back to
- * the destination that produced this page. Without the button below, signing in
- * is a one-way door until the refresh cookie expires.
+ * It used to be every 404, and it used to sign the operator out, because when
+ * no screen family existed there was nothing to go back to: no ⌘K, no rail, and
+ * `/login` would send anyone who still held a session straight back to the
+ * destination that produced this page. Signing out was the only exit that
+ * worked.
  *
- * It is a 404 rather than a placeholder for any planned screen: it says the
- * screen is not built, names nothing that is going to be built, and describes
- * no inventory. It goes away on its own terms, not when a particular screen
- * arrives.
+ * That is no longer where an operator lands. `(app)/[...unbuilt]/page.tsx`
+ * catches the addresses the console's own navigation can reach and raises
+ * `(app)/not-found.tsx` instead, inside the shell and with the session intact.
+ * What is left here is what falls outside the group — a wrong address typed by
+ * someone with no session — so the exit is the sign-in door and nothing is
+ * revoked on the way to it.
+ *
+ * It is a 404 rather than a placeholder for any planned screen: it says nothing
+ * is at this address, names nothing that is going to be built, and describes no
+ * inventory.
  *
  * `staffSession` is reached directly rather than through the provider, because
  * `not-found.tsx` renders inside the root layout — outside `(app)` and outside
@@ -25,7 +28,7 @@ import { useRouter } from "next/navigation";
 import { useSyncExternalStore } from "react";
 
 import { Button } from "@/components/ui/button";
-import { LOGIN_ROUTE, staffSession } from "@/lib/auth";
+import { DEFAULT_LANDING, LOGIN_ROUTE, staffSession } from "@/lib/auth";
 
 export default function NotFound() {
   const router = useRouter();
@@ -57,15 +60,15 @@ export default function NotFound() {
         <Button
           className="mt-rhythm-2"
           onClick={() => {
-            // The same order the palette's command uses: leave first, then
-            // revoke, so no authenticated screen is left rendered after the
-            // token is gone.
-            router.replace(LOGIN_ROUTE);
-            void staffSession.signOut();
+            // A session is never spent to leave a 404. Someone signed in who
+            // reaches this page is one navigation away from the console they
+            // already have; revoking their token to get them there was the old
+            // behaviour and it cost them the shift's work in progress.
+            router.replace(signedIn ? DEFAULT_LANDING : LOGIN_ROUTE);
           }}
           type="button"
         >
-          {signedIn ? "Sign out" : "Go to sign in"}
+          {signedIn ? "Back to the console" : "Go to sign in"}
         </Button>
       </div>
     </main>
