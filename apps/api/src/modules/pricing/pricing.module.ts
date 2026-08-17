@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { LoyaltyPromotionSeeder } from "./loyalty-promotion.seeder.js";
 import { RateCalendarService } from "./rate-calendar.service.js";
 import { RatePlanService } from "./rate-plan.service.js";
 import { RateController } from "./rate.controller.js";
@@ -27,8 +28,19 @@ import { StayRestrictionService } from "./stay-restriction.service.js";
 // `DatabaseModule` and `AuditModule` are both global, so nothing is imported
 // here for the `TransactionRunner` the controllers open a boundary with or the
 // `AuditService` the three writes file their rows through.
+//
+// `LoyaltyPromotionSeeder` is a provider and not a controller's collaborator: it
+// runs once at bootstrap and answers nothing. It belongs here because the rows
+// it writes are `promotion` rows and this module owns that table — §7 states the
+// discount and `FR-PRC-03` is the path it rides, so the discount is a pricing
+// row rather than a guest one however much §7 is about guests.
 @Module({
   controllers: [RateController, StayRestrictionController],
-  providers: [RatePlanService, RateCalendarService, StayRestrictionService],
+  providers: [
+    RatePlanService,
+    RateCalendarService,
+    StayRestrictionService,
+    LoyaltyPromotionSeeder,
+  ],
 })
 export class PricingModule {}

@@ -193,6 +193,8 @@ describe("the booking row", () => {
       "booking_quoted_adjustment_within_bounds",
       "booking_quoted_breakfast_positive_when_set",
       "booking_quoted_extra_person_positive",
+      "booking_quoted_promotion_is_whole_or_absent",
+      "booking_quoted_promotion_reduces_within_its_scale",
       "booking_quoted_total_positive",
       "booking_reason_exactly_when_cancelled",
       "booking_records_a_cancellation_instant_exactly_when_cancelled",

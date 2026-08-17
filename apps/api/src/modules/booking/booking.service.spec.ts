@@ -64,6 +64,7 @@ import type { BusinessDateService } from "./business-date.service.js";
 import type { GuestService } from "../guest/guest.service.js";
 import type { HousekeepingService } from "../housekeeping/housekeeping.service.js";
 import type { InventoryService } from "../inventory/inventory.service.js";
+import type { TierDerivationService } from "../guest/tier-derivation.service.js";
 import type { FolioPort } from "./ports/folio.port.js";
 import type { StayQuoteService } from "./stay-quote.service.js";
 import type { BookingTokenService } from "../auth/booking-token/booking-token.service.js";
@@ -260,6 +261,8 @@ beforeAll(async () => {
     // by the transition a paid hold makes, which nothing in this file drives.
     undefined as unknown as BookingTokenService,
     undefined as unknown as BookingConfirmationService,
+    // Unreached: no case here sells a stay, so no tier is derived.
+    undefined as unknown as TierDerivationService,
   );
 
   await migrate(db, { migrationsFolder: "./src/database/migrations" });

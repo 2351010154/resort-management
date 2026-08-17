@@ -208,6 +208,12 @@ which is how a test run empties somebody's development database.
   else, and a receptionist cannot perform one.
 - `test/seed.e2e-spec.ts` — forty rooms, the numbering, and that a second run
   produces the same data rather than more of it.
+- `test/loyalty-discount.e2e-spec.ts` — §7's member discount end to end: a
+  guest's own stay history, the rung it puts them on, the `promotion` row that
+  rung is gated on, the figure frozen onto the booking, and the folio lines the
+  night audit posts against it.
+- `test/tier-is-derived.spec.ts` — the structural half of `FR-GST-04`: no table
+  stores a guest's tier, and `guest_tier_change` has exactly one reader.
 
 ## Commands
 
@@ -229,6 +235,20 @@ pnpm --filter @mariva/api staff:create \
 
 Every `db:` command reads `DATABASE_URL` the same way the app does, and
 `staff:create` boots the container to get the same hasher the API uses.
+
+`db:seed` and `staff:create` both run out of `dist/`, so both build first —
+through `turbo run build --filter=@mariva/api` rather than a bare `tsc`, because
+this workspace compiles against `@mariva/shared`'s emitted types and a fresh
+clone has not built that either. Turborepo already knows the order and caches
+it, so the build is a few hundred milliseconds once it is warm. That is what
+makes the bootstrap in the root [`README.md`](../../README.md#database) work from
+a clean checkout: install, configure, `db:migrate`, `staff:create`, with no
+separate build step to remember. `db:migrate` needs none of it — drizzle-kit
+compiles the TypeScript schema itself.
+
+Both scripts accept their flags with or without a `--` in front of them. `pnpm`
+forwards the separator into `argv` instead of consuming it, and
+`src/common/cli/script-args.ts` takes it back out.
 
 `db:seed` builds the property `docs/architecture/property-and-tariff.md` §1
 describes — five types, forty rooms, twelve months of rates and five hundred

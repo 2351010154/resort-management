@@ -56,6 +56,7 @@ import type { AssignmentService } from "./assignment.service.js";
 import { BookingService } from "./booking.service.js";
 import type { BusinessDateService } from "./business-date.service.js";
 import type { GuestService } from "../guest/guest.service.js";
+import type { TierDerivationService } from "../guest/tier-derivation.service.js";
 import type { HousekeepingService } from "../housekeeping/housekeeping.service.js";
 import type { InventoryService } from "../inventory/inventory.service.js";
 import type { FolioPort } from "./ports/folio.port.js";
@@ -110,6 +111,8 @@ function confirmerOver(enqueue: MailQueue["enqueue"]): BookingService {
       { enqueue } as MailQueue,
       silentLogger,
     ),
+    // Unreached: no case here sells a stay, so no tier is derived.
+    undefined as unknown as TierDerivationService,
   );
 }
 

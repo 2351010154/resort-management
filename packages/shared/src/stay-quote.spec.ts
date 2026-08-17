@@ -118,3 +118,139 @@ describe("what the percentage does not reach", () => {
     ).toBe(THREE_NIGHTS + 150_000n * 2n * 3n);
   });
 });
+
+// §7's member discount, and the same question asked of it: what does it NOT
+// touch. A stay of three nights with a paying third head and breakfast at 150k
+// is the shape that can tell a room discount from a stay discount, because the
+// three terms differ.
+describe("the promotion", () => {
+  it("leaves the stay alone when there is none", () => {
+    expect(
+      stayTotalGross({
+        standardTotal: THREE_NIGHTS,
+        percentAdjustment: 0,
+        breakfastPerPersonGross: null,
+        extraPersonPerNightGross: EXTRA_PERSON,
+        nights: 3,
+        party: COUPLE,
+        promotion: null,
+      }),
+    ).toBe(THREE_NIGHTS);
+  });
+
+  it("takes Silver's five percent off the room rate", () => {
+    expect(
+      stayTotalGross({
+        standardTotal: THREE_NIGHTS,
+        percentAdjustment: 0,
+        breakfastPerPersonGross: null,
+        extraPersonPerNightGross: EXTRA_PERSON,
+        nights: 3,
+        party: COUPLE,
+        promotion: { type: "PERCENTAGE", value: -5n },
+      }),
+    ).toBe(5_130_000n);
+  });
+
+  it("takes Gold's ten percent off the room rate", () => {
+    expect(
+      stayTotalGross({
+        standardTotal: THREE_NIGHTS,
+        percentAdjustment: 0,
+        breakfastPerPersonGross: null,
+        extraPersonPerNightGross: EXTRA_PERSON,
+        nights: 3,
+        party: COUPLE,
+        promotion: { type: "PERCENTAGE", value: -10n },
+      }),
+    ).toBe(4_860_000n);
+  });
+
+  it("discounts neither the extra head nor the breakfast", () => {
+    const extraHeads = EXTRA_PERSON * 3n;
+    const breakfast = 150_000n * 3n * 3n;
+
+    expect(
+      stayTotalGross({
+        standardTotal: THREE_NIGHTS,
+        percentAdjustment: 0,
+        breakfastPerPersonGross: 150_000n,
+        extraPersonPerNightGross: EXTRA_PERSON,
+        nights: 3,
+        party: { adults: 3, children: [] },
+        promotion: { type: "PERCENTAGE", value: -10n },
+      }),
+    ).toBe(4_860_000n + extraHeads + breakfast);
+  });
+
+  // The plan first, the guest second. Reversed, a Gold guest's NONREF stay
+  // would be priced off a figure the property does not sell the room at.
+  it("applies after the plan's own percentage", () => {
+    expect(
+      stayTotalGross({
+        standardTotal: THREE_NIGHTS,
+        percentAdjustment: -10,
+        breakfastPerPersonGross: null,
+        extraPersonPerNightGross: EXTRA_PERSON,
+        nights: 3,
+        party: COUPLE,
+        promotion: { type: "PERCENTAGE", value: -10n },
+      }),
+      // 5,400,000 → 4,860,000 under NONREF → 4,374,000 for a Gold guest.
+    ).toBe(4_374_000n);
+  });
+
+  it("takes a fixed amount off in đồng", () => {
+    expect(
+      stayTotalGross({
+        standardTotal: THREE_NIGHTS,
+        percentAdjustment: 0,
+        breakfastPerPersonGross: null,
+        extraPersonPerNightGross: EXTRA_PERSON,
+        nights: 3,
+        party: COUPLE,
+        promotion: { type: "FIXED_AMOUNT", value: -200_000n },
+      }),
+    ).toBe(5_200_000n);
+  });
+
+  // The only form that can overshoot. A room floored at nothing still leaves
+  // the heads and the meal standing, and a stay that came to nothing is refused
+  // by `booking_quoted_total_positive` rather than sold as a comp.
+  it("floors the room at nothing rather than turning a fixed amount into a credit", () => {
+    expect(
+      stayTotalGross({
+        standardTotal: THREE_NIGHTS,
+        percentAdjustment: 0,
+        breakfastPerPersonGross: null,
+        extraPersonPerNightGross: EXTRA_PERSON,
+        nights: 3,
+        party: { adults: 3, children: [] },
+        promotion: { type: "FIXED_AMOUNT", value: -9_000_000n },
+      }),
+    ).toBe(EXTRA_PERSON * 3n);
+  });
+
+  // The property the room-charge sweep depends on: it prices one night as the
+  // total through tonight minus the total through last night, so the nights
+  // have to telescope back to the stay's own figure however each one truncates.
+  it("leaves the nights summing to the stay's total", () => {
+    const nightly = [1_700_000n, 1_850_000n, 1_850_000n];
+    const through = (count: number): bigint =>
+      stayTotalGross({
+        standardTotal: nightly.slice(0, count).reduce((sum, n) => sum + n, 0n),
+        percentAdjustment: -10,
+        breakfastPerPersonGross: 150_000n,
+        extraPersonPerNightGross: EXTRA_PERSON,
+        nights: count,
+        party: { adults: 3, children: [] },
+        promotion: { type: "PERCENTAGE", value: -5n },
+      });
+
+    const perNight = nightly.map(
+      (_, index) => through(index + 1) - through(index),
+    );
+
+    expect(perNight.reduce((sum, night) => sum + night, 0n)).toBe(through(3));
+  });
+});

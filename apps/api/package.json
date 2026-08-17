@@ -8,12 +8,12 @@
     "build": "tsc",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
-    "db:seed": "tsc && node dist/database/seed/seed.script.js",
+    "db:seed": "pnpm exec turbo run build --filter=@mariva/api && node dist/database/seed/seed.script.js",
     "dev": "nest start --watch",
     "start": "node dist/main.js",
     "test": "vitest run",
     "test:watch": "vitest",
-    "staff:create": "node dist/modules/identity/create-staff-account.script.js",
+    "staff:create": "pnpm exec turbo run build --filter=@mariva/api && node dist/modules/identity/create-staff-account.script.js",
     "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.test.json"
   },
   "dependencies": {

@@ -162,6 +162,7 @@ import type { DbExecutor } from "../../database/database.module.js";
 import { booking, bookingNight } from "../../database/schema/booking.js";
 import { folio, folioPosting } from "../../database/schema/folio.js";
 import type { SweepJob } from "../../jobs/sweep-job.js";
+import { quotedPromotion } from "../booking/quoted-promotion.js";
 import { FolioService } from "./folio.service.js";
 
 // Hourly, and `no-show-sweep.ts` makes the whole argument for it: the rollover
@@ -265,6 +266,13 @@ export class RoomChargeSweep implements SweepJob {
         percentAdjustment: booking.quotedPercentAdjustment,
         breakfastPerPersonGross: booking.quotedBreakfastPerPersonGross,
         extraPersonPerNightGross: booking.quotedExtraPersonPerNightGross,
+        // §7's member discount, frozen at the sale. Selected here for the same
+        // reason the plan's percentage is: the charge this sweep posts has to be
+        // the price the guest agreed to, and a night priced off the
+        // undiscounted room rate would put a folio line on the account that the
+        // booking contradicts.
+        promotionType: booking.quotedPromotionType,
+        promotionValue: booking.quotedPromotionValue,
         adults: booking.adults,
         childAges: booking.childAges,
       })
@@ -336,6 +344,11 @@ export class RoomChargeSweep implements SweepJob {
       };
 
       const throughTonight = standardTotal(nights);
+      // One translation of the frozen columns, used by both calls below — the
+      // difference between them is the night, and a promotion present in one
+      // and absent from the other would make that difference a discount rather
+      // than a room.
+      const promotion = quotedPromotion(stay.promotionType, stay.promotionValue);
 
       posted.push(
         await this.charge(exec, stay.id, {
@@ -348,6 +361,7 @@ export class RoomChargeSweep implements SweepJob {
               extraPersonPerNightGross: stay.extraPersonPerNightGross,
               nights: nights.length,
               party,
+              promotion,
             }) -
             // Through last night. On the arrival night this is a stay of no
             // nights at a total of nothing, which the same function answers at
@@ -360,6 +374,7 @@ export class RoomChargeSweep implements SweepJob {
               extraPersonPerNightGross: stay.extraPersonPerNightGross,
               nights: nights.length - 1,
               party,
+              promotion,
             }),
         }),
       );

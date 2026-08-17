@@ -221,6 +221,9 @@ pnpm --filter @mariva/api staff:create \
   --email owner@mariva.vn --name "Trần Minh" --role ADMIN
 ```
 
+It compiles the API before it runs, so the sequence above works on a clone that has
+never been built — the script executes from `dist/`, and a fresh checkout has none.
+
 ### Run
 
 ```bash
