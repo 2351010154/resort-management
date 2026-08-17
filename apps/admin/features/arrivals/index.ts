@@ -13,6 +13,8 @@ export {
   parseBirthDate,
   refusalSentence,
   refusalStep,
+  type RoomRefusal,
+  roomRefusal,
   type SearchResults,
   type SequenceFacts,
   sequenceSteps,

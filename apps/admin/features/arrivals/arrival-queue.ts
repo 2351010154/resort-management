@@ -135,7 +135,7 @@ export function arrivalAfter(
 /**
  * The rooms this stay may actually be walked into, narrowed by what was typed.
  *
- * Three conditions, and each is a refusal the desk would otherwise meet at the
+ * Four conditions, and each is a refusal the desk would otherwise meet at the
  * check-in call instead of at the control that caused it:
  *
  * - **The type the stay was sold.** A booking is sold as a room type and the
@@ -148,6 +148,25 @@ export function arrivalAfter(
  *   is right: they are not ready.
  * - **Not occupied.** A clean room with somebody still in it is a room the
  *   morning's departure has not left yet.
+ * - **Not already refused for this stay.** See below.
+ *
+ * The first three are questions about **tonight**, because the board is a
+ * reading of the property on one business date: `isOccupied` is true when some
+ * assignment covers that date and false otherwise. The API asks a wider
+ * question. A room is held by a `room_assignment` over the whole of a stay's
+ * nights and an exclusion constraint refuses an overlap, so a room standing
+ * empty this afternoon and taken by a stay arriving tomorrow is free on the
+ * board and refused by `PUT /bookings/{id}/room` for any arrival staying past
+ * tonight.
+ *
+ * Nothing in the contract answers the wider question ahead of the press:
+ * `GET /availability` counts a *type's* inventory across the nights and names
+ * no room, and the board carries no future hold. So the refusal is the answer,
+ * and `refused` is what the room step has learned from it — the numbers this
+ * stay has already been declined, kept off the list so the operator is never
+ * offered the same refusal twice. It is per stay because the question is about
+ * these nights: a room refused for a guest staying to Thursday is still the
+ * right room for the one leaving in the morning.
  *
  * The typed fragment matches anywhere in the number, the way the search matches
  * a room fragment — a desk typing `20` is looking for 201 through 210.
@@ -156,6 +175,7 @@ export function assignableRooms(
   rooms: readonly BoardRoom[],
   roomType: string,
   typed: string,
+  refused: ReadonlySet<string>,
 ): BoardRoom[] {
   const fragment = typed.trim().toLowerCase();
 
@@ -165,6 +185,7 @@ export function assignableRooms(
         room.roomType === roomType &&
         room.isReady &&
         !room.isOccupied &&
+        !refused.has(room.roomNumber) &&
         (fragment === "" || room.roomNumber.toLowerCase().includes(fragment)),
     )
     .sort((left, right) =>
@@ -172,6 +193,56 @@ export function assignableRooms(
         numeric: true,
       }),
     );
+}
+
+/** What a refused assignment costs the operator, and costs the list. */
+export interface RoomRefusal {
+  /** What the desk is told, in words that name the next act. */
+  readonly sentence: string;
+  /**
+   * True when the room is spoken for across these nights. It has to leave the
+   * offered list: the hold will not lift while this guest is standing there,
+   * so offering the room again only buys the same refusal a second time.
+   */
+  readonly spokenFor: boolean;
+}
+
+/** The HTTP answer behind the exclusion constraint over `room_assignment`. */
+const ROOM_IS_HELD = 409;
+
+/**
+ * What the assignment was refused for, read off the thrown value.
+ *
+ * The status and not a code, unlike {@link checkInRefusal}: `booking.assignRoom`
+ * declares no errors in the contract, so the conflict arrives undefined —
+ * `{"defined":false,"code":"CONFLICT","status":409,"message":"Room 501 is
+ * already held across part of 2026-08-17 to 2026-08-20"}` — and there is no
+ * `data` to read a name off. A 409 from that route is the exclusion constraint
+ * and nothing else, which makes the status the honest structural reading.
+ *
+ * Read here rather than through `lib/api.ts`'s `apiStatus` so this module stays
+ * what its header says it is: no transport, no session, no client — the same
+ * reason `checkInRefusal` reads `data.code` by hand.
+ *
+ * Anything else — a room housekeeping has just soiled, a network that was not
+ * there — keeps the room on the list, because pressing again is a reasonable
+ * thing for the operator to do with it.
+ */
+export function roomRefusal(error: unknown, roomNumber: string): RoomRefusal {
+  const status =
+    typeof error === "object" && error !== null
+      ? (error as { status?: unknown }).status
+      : null;
+
+  return status === ROOM_IS_HELD
+    ? {
+        sentence: `Room ${roomNumber} is already held by another stay across these nights. It is off the list — pick another.`,
+        spokenFor: true,
+      }
+    : {
+        sentence: `Room ${roomNumber} could not be assigned. Try it again, or pick another.`,
+        spokenFor: false,
+      };
 }
 
 /**
