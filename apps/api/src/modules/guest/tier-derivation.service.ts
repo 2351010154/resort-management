@@ -14,9 +14,11 @@
 // **MEMBER is the absence of a match.** `packages/shared/src/rate-calendar.ts`
 // fixes `LOYALTY_TIERS` at Silver and Gold and says why: that tuple types a
 // *promotion's gate*, §7 gives the base tier no discount, and a promotion gated
-// on MEMBER would be gated on nothing. The base tier therefore has no row, no
-// enum member and nothing to look up — it is what a guest who reached neither
-// rung is, and it is spelled out in this file's return type and nowhere else.
+// on MEMBER would be gated on nothing. The base tier therefore has no rate-plan
+// row and nothing to look up — it is what a guest who reached neither rung is.
+// The three answers this method can give are named once, in
+// `schema/guest-tier.ts`, because the trail that records a change has to be able
+// to write down every one of them.
 //
 // ## The window, and why both axes share one
 //
@@ -64,6 +66,7 @@ import { and, count, eq, gte, type SQL } from "drizzle-orm";
 import type { DbExecutor } from "../../database/database.module.js";
 import { booking } from "../../database/schema/booking.js";
 import { folio } from "../../database/schema/folio.js";
+import { DERIVED_TIERS } from "../../database/schema/guest-tier.js";
 import { BusinessDateService } from "../booking/business-date.service.js";
 import { SystemConfigService } from "../system-config/system-config.service.js";
 import { netRoomRevenue } from "./net-room-revenue.js";
@@ -72,11 +75,16 @@ import { netRoomRevenue } from "./net-room-revenue.js";
  * The three rungs of §7's ladder, as an answer rather than as stored state.
  *
  * `LOYALTY_TIERS` holds the two a promotion can be gated on and is not widened
- * to hold the third — see the header. This union is where the base tier is
- * named, and it is named as a literal because there is no row it could be read
- * from.
+ * to hold the third — see the header. The three are named in
+ * `schema/guest-tier.ts`, because the column that records a change has to hold
+ * every answer this method can give, and a second spelling of them here is a
+ * ladder the trail could fail to write down.
+ *
+ * Nothing about that makes the tier stored. `DERIVED_TIERS` is a tuple of words;
+ * the table it types holds observations of when this method's answer changed,
+ * and it is never read back to find out what tier a guest is.
  */
-export type DerivedTier = "MEMBER" | "SILVER" | "GOLD";
+export type DerivedTier = (typeof DERIVED_TIERS)[number];
 
 /** §7's window, stated once. */
 const TRAILING_MONTHS = 12;
