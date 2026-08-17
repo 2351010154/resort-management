@@ -1,7 +1,7 @@
 // The guest's own record of themselves — `FR-GST-01` over HTTP, against a real
 // Postgres, the real capability guard and a real Better Auth session.
 //
-// Five claims, and each is a way the profile could be wrong while every other
+// Six claims, and each is a way the profile could be wrong while every other
 // test in the tree stayed green.
 //
 // 1. **The three sources arrive as one shape, and each is really its own.** The
@@ -30,6 +30,14 @@
 //    their own profile, a caller with no session is refused, and a member of
 //    staff — who holds `👁` on this row for a screen that names a guest — is
 //    refused here, where nothing names one.
+// 6. **The masked number shown is the account holder's own, or there is none.**
+//    Booking a stay proves who booked it and not who stayed: a guest who
+//    reserves a room for a parent has the parent registered at the desk, and the
+//    parent's document is not theirs to be shown. The last three cases register
+//    somebody else on a stay the account booked — including more recently than
+//    the account holder's own registration — and assert that nothing of that
+//    person's reaches the response, over its whole serialisation rather than
+//    over the one field.
 //
 // The fixtures are written straight to the tables rather than driven through the
 // funnel and the desk. What is under test is a read across four tables and a
@@ -88,6 +96,27 @@ const AN_OLD_CCCD = "079301880001";
 /** And at her most recent one, which is the number the profile must show. */
 const THE_LATEST_CCCD = "079301880002";
 
+/**
+ * The father's number, taken at the desk on a stay his daughter booked for him.
+ *
+ * Hers is the account, his is the document, and the whole of what the last three
+ * cases are about is that the two are not the same person. Three distinct numbers
+ * rather than one reused, because `guest_cccd_number_key` allows one row per
+ * number and a shared constant would make the three fixtures one guest.
+ */
+const A_FATHERS_CCCD = "079301880010";
+
+/** The same situation on a second account, where his registration is the more
+ *  recent of the two and hers is the number that must still win. */
+const ANOTHER_FATHERS_CCCD = "079301880011";
+
+/** Her own, taken on her own earlier stay under her own address. */
+const HER_OWN_EARLIER_CCCD = "079301880012";
+
+/** Taken at a desk that recorded no address at all, which is most walk-ins —
+ *  so it identifies nobody an account can be matched to. */
+const AN_UNMATCHABLE_CCCD = "079301880013";
+
 const RECEPTIONIST = {
   email: "le.tan.profile@mariva.test",
   fullName: "Phạm Văn Dũng",
@@ -106,6 +135,32 @@ const BINH = {
   email: "binh.profile@example.test",
   password: "battery-horse-correct",
 } as const;
+
+/** Books a room for her father and is never registered herself. */
+const CHI = {
+  name: "Chi Nguyễn",
+  email: "chi.profile@example.test",
+  password: "horse-battery-correct",
+} as const;
+
+/** Stayed once herself, then booked for her father — whose registration is the
+ *  more recent of the two. */
+const GIANG = {
+  name: "Giang Lê",
+  email: "giang.profile@example.test",
+  password: "correct-battery-horse",
+} as const;
+
+/** Checked in at a desk that took no email address from anybody. */
+const HOA = {
+  name: "Hoa Trần",
+  email: "hoa.profile@example.test",
+  password: "battery-correct-horse",
+} as const;
+
+/** The father's own address, and the point is only that it is not an account's.
+ *  Nobody signs in with it. */
+const A_FATHERS_EMAIL = "cuong.the.father@example.test";
 
 /** Captures what would have been sent, so a verification link can be followed
  *  in a test the way a guest follows it out of an inbox. */
@@ -449,6 +504,108 @@ describe("whose profile a session opens", () => {
   });
 });
 
+// The three cases below build their fixtures in their own `beforeAll` rather
+// than in the file's opening one, and that placement is load-bearing: the
+// feed-forward case above photographs *every* `guest` row in the database and
+// asserts how many there are, so a person registered before it ran would be
+// counted as one of Anh's. Declared last, they are created last.
+
+describe("a document taken from somebody the account merely booked for", () => {
+  let chi: request.Agent;
+
+  beforeAll(async () => {
+    chi = await signedInGuest(CHI);
+
+    const stay = await aFinishedStay(await accountId(CHI.email), 30);
+
+    // Her booking, his document. `booking.user_id` says she paid for the room;
+    // it says nothing at all about who slept in it or whose card the desk read.
+    await aRegistration(stay.bookingId, A_FATHERS_CCCD, 30, {
+      fullName: "Nguyễn Văn Cường",
+      email: A_FATHERS_EMAIL,
+    });
+  });
+
+  it("is withheld from the account that booked the stay", async () => {
+    const profile = await profileOf(chi);
+
+    // Not "masked" — absent. A masked number in this box would be a claim that
+    // the property holds a document for *her*, and it holds none.
+    expect(profile.cccdMasked).toBeNull();
+
+    // Neither the number nor its mask, and asserted over the whole answer: a
+    // field nobody thought to check is exactly how the four digits would travel.
+    const answer = JSON.stringify(profile);
+
+    expect(answer).not.toContain(A_FATHERS_CCCD);
+    expect(answer).not.toContain(masked(A_FATHERS_CCCD));
+  });
+});
+
+describe("that same document registered more recently than the guest's own", () => {
+  let giang: request.Agent;
+
+  beforeAll(async () => {
+    giang = await signedInGuest(GIANG);
+
+    const account = await accountId(GIANG.email);
+    const hers = await aFinishedStay(account, 90);
+    const his = await aFinishedStay(account, 30);
+
+    // Hers first and his second, so the most recent registration on the account
+    // is the one that must not be answered with. A read that ordered before it
+    // matched would take his; a read that matched without ordering would take
+    // whichever row Postgres handed back first.
+    //
+    // Her address is stored capitalised, as a desk would type it. The account's
+    // is lowercase, and the two are the same person — which is the whole of why
+    // the comparison cannot be case-sensitive.
+    await aRegistration(hers.bookingId, HER_OWN_EARLIER_CCCD, 90, {
+      fullName: "Lê Thị Giang",
+      email: GIANG.email.toUpperCase(),
+    });
+    await aRegistration(his.bookingId, ANOTHER_FATHERS_CCCD, 30, {
+      fullName: "Lê Văn Cường",
+      email: A_FATHERS_EMAIL,
+    });
+  });
+
+  it("answers the guest's own number and never the other person's", async () => {
+    const profile = await profileOf(giang);
+
+    expect(profile.cccdMasked).toBe(masked(HER_OWN_EARLIER_CCCD));
+
+    const answer = JSON.stringify(profile);
+
+    expect(answer).not.toContain(ANOTHER_FATHERS_CCCD);
+    expect(answer).not.toContain(masked(ANOTHER_FATHERS_CCCD));
+  });
+});
+
+describe("a holder the desk recorded no address for", () => {
+  let hoa: request.Agent;
+
+  beforeAll(async () => {
+    hoa = await signedInGuest(HOA);
+
+    const stay = await aFinishedStay(await accountId(HOA.email), 15);
+
+    // The ordinary walk-in: a name, a document, no address. It may well be her —
+    // and "may well be" is not a link, so the profile says nothing.
+    await aRegistration(stay.bookingId, AN_UNMATCHABLE_CCCD, 15, {
+      fullName: HOA.name,
+      email: null,
+    });
+  });
+
+  it("shows nothing, rather than guessing from the stay", async () => {
+    const profile = await profileOf(hoa);
+
+    expect(profile.cccdMasked).toBeNull();
+    expect(JSON.stringify(profile)).not.toContain(AN_UNMATCHABLE_CCCD);
+  });
+});
+
 function http(): request.Agent {
   return request(app.getHttpServer());
 }
@@ -531,8 +688,15 @@ async function aHistoryFor(userId: string): Promise<void> {
   const older = await aFinishedStay(userId, 200);
   const latest = await aFinishedStay(userId, 20);
 
-  await aRegistration(older.bookingId, AN_OLD_CCCD, 200);
-  await aRegistration(latest.bookingId, THE_LATEST_CCCD, 20);
+  // Both registrations carry the account's own address, because both are the
+  // account holder standing at the desk. That is what makes either number hers
+  // to be shown, and it is why the case below is about *which* of the two.
+  await aRegistration(older.bookingId, AN_OLD_CCCD, 200, {
+    email: ANH.email,
+  });
+  await aRegistration(latest.bookingId, THE_LATEST_CCCD, 20, {
+    email: ANH.email,
+  });
 
   const third = await aFinishedStay(userId, 40);
 
@@ -597,16 +761,24 @@ async function aFinishedStay(
  *
  * `registered_at` is set rather than defaulted, because which registration is
  * the *latest* is exactly what the read under test orders by.
+ *
+ * Who the person is has to be stated rather than defaulted, and `email` is
+ * required for that reason: it is what decides whether the number reaches the
+ * profile at all, so a fixture that left it out would be asserting the
+ * withholding case while looking like it asserted the showing one. `null` is
+ * the desk having taken no address, which is most walk-ins.
  */
 async function aRegistration(
   bookingId: string,
   cccdNumber: string,
   daysAgo: number,
+  person: { fullName?: string; email: string | null },
 ): Promise<void> {
-  const [person] = await db
+  const [registered] = await db
     .insert(guest)
     .values({
-      fullName: "Nguyễn Thị Anh",
+      fullName: person.fullName ?? "Nguyễn Thị Anh",
+      email: person.email,
       cccdNumber,
       dateOfBirth: "1988-02-02",
       nationality: "Việt Nam",
@@ -615,7 +787,7 @@ async function aRegistration(
 
   await db.insert(registration).values({
     bookingId,
-    guestId: person!.id,
+    guestId: registered!.id,
     isPrimary: true,
     registeredAt: new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000),
   });

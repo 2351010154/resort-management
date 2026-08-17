@@ -28,37 +28,77 @@
 // wrote, so read on two connections they could straddle a folio close and show a
 // guest points for a stay the ladder had not counted yet.
 //
-// ## Which CCCD a guest is shown, and why it is a proxy
+// ## Which CCCD a guest is shown, and why it is not whoever they booked for
 //
-// The number comes off the `guest` row registered as the holder on the most
-// recent stay this account booked. There is no verified link between an account
-// and a guest record — `schema/guest.ts` declined to put one on every walk-in,
-// and `schema/guest-profile.ts` keys the other way round — so `booking.user_id`
-// is the only bridge there is, and it proves who *booked* rather than who
-// stayed. A guest who books for a parent would be shown the parent's masked
-// number.
+// The number comes off the `guest` row registered as the holder of the most
+// recent stay this account booked — **and only when that row carries the
+// account's own verified address**, which is `guest.email` equal to
+// `guest_user.email`, compared case-insensitively. Anything else answers `null`.
 //
-// That is tolerable exactly because it is masked. `FR-GST-03`'s threat model is
-// staff reading guests' numbers, which is why unmasking is a separate capability
-// audited per call; four digits echoed to the person who booked the room
-// discloses nothing an investigation counts. Nothing here writes to
+// The narrowing is the whole point, because `booking.user_id` proves who
+// *booked* and not who stayed. A guest who reserves a room for a parent has the
+// parent registered at the desk, so the holder of that account's most recent
+// stay is the parent's `guest` row and the number on it is the parent's
+// document. Rendered on the booker's own profile, under the heading of their own
+// identity, that is a third party's personal data presented to this account as
+// its own — and masking does not change whose data it is. Four digits of
+// somebody else's identity document are still somebody else's, and the subject
+// reading their profile has no way to tell that the number they are being shown
+// is not theirs. `FR-GST-03` audits staff unmasking per call because a number
+// belongs to its subject; the same reasoning is why this read has to establish
+// who the subject is before it answers.
+//
+// The evidence is the email address, deliberately, and never the name:
+//
+// - `guest.email` is taken per registered person at the desk, from
+//   `checkInGuestSchema`'s own optional field, and is never copied from the
+//   booking's contact address — so it is that person's own address rather than
+//   the booker's.
+// - `guest_user.email` is the address the account signs in with, and no session
+//   exists on it until a link sent to it has been followed. It is verified,
+//   which is exactly what a name is not.
+// - Matching on the name would readmit the same disclosure wearing a check:
+//   names repeat heavily, and a parent and child registered by the same account
+//   are the likeliest pair of all to share one.
+//
+// **It is evidence and not an identity, and one case survives it.** The address
+// on a registration is whatever the desk was given, so a guest who books for a
+// parent, stands at the desk with them and offers their *own* address for the
+// parent's record would match and be shown the parent's number — the disclosure
+// this narrowing exists to stop, in the one arrangement the narrowing cannot
+// see. It is left standing because the alternative is worse than the residue:
+// the schema holds no verified key between an account and a `guest` row, and
+// `schema/guest-profile.ts` explains why it deliberately does not — one CCCD is
+// one person, so a `guest` row is shared across the stays of everyone who has
+// ever registered that document, and a `user_id` on it would have to arbitrate
+// an ownership nothing here can settle. Narrowing further on what is available
+// would mean the name, which is the check the point above refuses. What closes
+// this properly is a link the desk confirms against the document in front of it,
+// and that is a change to check-in rather than to a read.
+//
+// **The match fails closed.** `guest.email` is nullable and most rows have none
+// — a walk-in hands over a document and a phone number, not an address — so
+// `null` is the ordinary answer here and it is the intended one rather than a
+// gap to be filled. There is no fallback to "whoever held the stay" when the
+// addresses do not match, because a fallback is the disclosure above under a
+// condition nobody could see from the response. Nothing here writes to
 // `cccd_unmask_audit`, and it must not: this is not an unmask, and the trail is
 // `NOT NULL` against a `staff_user` who did not do anything.
 //
-// The editable fields are deliberately *not* filled in from the same place, and
-// the asymmetry is the point. A masked number is read-only and discloses four
-// digits; a birthday and a nationality prefilled off somebody else's document
-// would be that person's data presented to this account as its own, in a box it
-// could then edit — and an edit that looked like a correction of the desk's
-// record while writing somewhere else entirely is the confusion the feed-forward
-// rule exists to prevent. An account that has declared nothing gets the name it
-// registered under and nulls.
+// The editable fields are still not filled in from the same place, and the
+// asymmetry survives the narrowing. The masked number is the property's own
+// record, shown read-only and writable from nowhere in this file; a birthday and
+// a nationality prefilled off a registration would arrive in boxes the guest can
+// edit — and an edit that looked like a correction of the desk's record while
+// writing into `guest_user_profile` is the confusion the feed-forward rule exists
+// to prevent. An account that has declared nothing gets the name it registered
+// under and nulls.
 
 import { parseDate } from "@internationalized/date";
 import type { StayDate } from "@mariva/shared";
 import { Injectable } from "@nestjs/common";
 import { ORPCError } from "@orpc/nest";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, sql } from "drizzle-orm";
 import type { DbExecutor } from "../../database/database.module.js";
 import { booking } from "../../database/schema/booking.js";
 import { guest, registration } from "../../database/schema/guest.js";
@@ -83,8 +123,9 @@ export interface GuestProfile {
   readonly email: string;
   readonly dateOfBirth: StayDate | null;
   readonly nationality: string | null;
-  /** The property's record of them, masked — see the header on whose number
-   *  this is when a guest books for somebody else. Never the number itself. */
+  /** The property's record of them, masked, and only when the person registered
+   *  at the desk is provably this account holder — see the header. `null`
+   *  otherwise, which is the common case. Never the number itself. */
   readonly cccdMasked: string | null;
   readonly vipTier: DerivedTier;
   readonly loyaltyPoints: bigint;
@@ -220,22 +261,39 @@ export class GuestProfileService {
   }
 
   /**
-   * The number the property holds for whoever this account last registered as
-   * the holder of a stay.
+   * The number the property holds for this account holder themselves.
    *
    * One statement, and a read: the plain number is selected because computing
    * the mask needs it and it reaches no further than the caller's `maskCccd`.
-   * Ordered by the registration rather than by the stay's dates — what is wanted
-   * is the most recently *taken* document, and a guest checking in late for an
-   * earlier booking registered it later.
    *
-   * `is_primary`, so it is the booking holder rather than whichever occupant the
-   * desk typed second. `registration_one_primary_per_booking_key` allows exactly
-   * one per stay, so the join cannot multiply.
+   * Three conditions, each load-bearing:
    *
-   * Null for an account that has never checked in anywhere, which is most of
-   * them: a booking is not a registration, and the property has taken no
-   * document until somebody stands at the desk.
+   * - `booking.user_id`, which narrows to the stays this account booked;
+   * - `is_primary`, so it is the booking holder rather than whichever occupant
+   *   the desk typed second. `registration_one_primary_per_booking_key` allows
+   *   exactly one per stay, so that join cannot multiply;
+   * - the registered person's address against the account's, lowercased on both
+   *   sides, which is what makes the answer this guest's own number rather than
+   *   the number of whoever they booked for. `guest_user_email_lower_key` is
+   *   unique on `lower(email)`, so this join adds at most the one account row it
+   *   is already keyed to.
+   *
+   * The account's address is joined here rather than passed down from the row
+   * {@link GuestProfileService.readProfile} already loaded, so the address being
+   * matched is by construction the one belonging to the id under test — there is
+   * no parameter a later caller could fill in with somebody else's.
+   *
+   * Ordered by the registration rather than by the stay's dates, because what is
+   * wanted is the most recently *taken* document and a guest checking in late for
+   * an earlier booking registered it later. The order is applied to what the
+   * match left, so a more recent registration of somebody else neither answers
+   * nor hides this guest's own.
+   *
+   * Null for an account never registered as a holder under its own address,
+   * which is most of them: a booking is not a registration, the desk takes an
+   * address only when one is offered, and a null on either side is equal to
+   * nothing — so an absence answers `null` instead of falling back to whoever
+   * stood at the desk.
    */
   private async cccdOnFile(
     exec: DbExecutor,
@@ -246,6 +304,13 @@ export class GuestProfileService {
       .from(registration)
       .innerJoin(booking, eq(booking.id, registration.bookingId))
       .innerJoin(guest, eq(guest.id, registration.guestId))
+      .innerJoin(
+        guestUser,
+        and(
+          eq(guestUser.id, userId),
+          sql`lower(${guest.email}) = lower(${guestUser.email})`,
+        ),
+      )
       .where(and(eq(booking.userId, userId), eq(registration.isPrimary, true)))
       .orderBy(desc(registration.registeredAt))
       .limit(1);
