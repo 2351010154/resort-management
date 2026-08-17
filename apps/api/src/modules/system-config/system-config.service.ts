@@ -124,6 +124,55 @@ export interface TaxRules {
 }
 
 /**
+ * What an accrual needs to turn a stay's net room revenue into points —
+ * `FR-GST-05`, and `property-and-tariff.md` §7.
+ *
+ * The rate arrives as its two halves rather than as one ratio, because that is
+ * how §7 states it and because a single number could not say what a stay below
+ * one unit earns. Points per unit is a count and the unit is money, which is
+ * why one is a `number` and the other a `bigint`: `money.ts` keeps amounts on
+ * `bigint` precisely so an amount cannot be added to a count by accident, and
+ * an accrual divides revenue by the unit before it multiplies by the count.
+ */
+export interface LoyaltyRules {
+  readonly pointsPerUnit: number;
+  /** The đồng of net room revenue one lot of {@link pointsPerUnit} costs. */
+  readonly earnUnitVnd: bigint;
+  /**
+   * Whether points expire on 31 December of the year after they were earned.
+   *
+   * False is the property withdrawing that rule and not a second rule: nothing
+   * here says what date an accrual would carry instead, and
+   * `loyalty_ledger.expires_at` is `NOT NULL`. Whatever accrues is the only code
+   * that knows the date it was about to write, so it is where that has to be
+   * answered.
+   */
+  readonly pointsExpireAtYearEnd: boolean;
+}
+
+/**
+ * The rungs a tier is derived from — `FR-GST-04`, and §7's ladder.
+ *
+ * **Thresholds, and never a tier.** `FR-GST-04` makes the tier a derived value
+ * recomputed at business-date rollover over a trailing twelve months, so it is
+ * an answer that stops being true when the window moves; these are the figures
+ * that answer is derived *from*, and they hold until somebody edits them.
+ * Nothing in this schema stores a tier, and `schema/loyalty.ts` and
+ * `schema/guest.ts` each refuse a column for one.
+ *
+ * Each rung is reachable by stays **or** by revenue, which is why the two
+ * figures of a rung come back together: a caller that read them separately
+ * could resolve the count against one configuration and the money against the
+ * next.
+ */
+export interface TierThresholds {
+  readonly silverStays: number;
+  readonly silverRevenueVnd: bigint;
+  readonly goldStays: number;
+  readonly goldRevenueVnd: bigint;
+}
+
+/**
  * A change to the configuration, naming only the figures it changes.
  *
  * An absent field is one the caller did not mention and is left exactly as it
@@ -140,6 +189,13 @@ export interface ConfigurationEdit {
   readonly vatIncludesServiceCharge?: boolean;
   readonly serviceChargeRateBps?: number;
   readonly businessDateRolloverHour?: number;
+  readonly loyaltyPointsPerUnit?: number;
+  readonly loyaltyEarnUnitVnd?: bigint;
+  readonly tierSilverStays?: number;
+  readonly tierSilverRevenueVnd?: bigint;
+  readonly tierGoldStays?: number;
+  readonly tierGoldRevenueVnd?: bigint;
+  readonly pointsExpireYearEnd?: boolean;
 }
 
 @Injectable()
@@ -220,6 +276,57 @@ export class SystemConfigService {
   }
 
   /**
+   * What a stay earns, as §7 states it — the rate in its two halves and the
+   * expiry rule.
+   *
+   * Read at the moment of the accrual and never held, for the reason
+   * {@link taxRules} is: the earn rate defines what a point *is*, and §7 says so
+   * outright — reseeding balances after guests already hold them is a support
+   * incident rather than a data edit. A rate cached between accruals is the same
+   * incident arriving by a slower route, because the run that used the stale
+   * figure has already written its ledger rows.
+   *
+   * Its own read rather than a field on {@link tierThresholds}, because they
+   * answer at different moments: this one at a folio close, the other at
+   * business-date rollover. Both read the whole row in one statement all the
+   * same, so neither can see half of one configuration.
+   */
+  async loyaltyRules(exec: DbExecutor): Promise<LoyaltyRules> {
+    const configured = await this.configuration(exec);
+
+    return {
+      pointsPerUnit: configured.loyaltyPointsPerUnit,
+      earnUnitVnd: configured.loyaltyEarnUnitVnd,
+      pointsExpireAtYearEnd: configured.pointsExpireYearEnd,
+    };
+  }
+
+  /**
+   * The two rungs a tier is derived from, all four figures together.
+   *
+   * Together and not one rung at a time, on the argument this file already makes
+   * for the tax figures: `READ COMMITTED` takes a fresh snapshot per statement,
+   * so two reads inside one transaction can straddle an `ADMIN` edit — and a
+   * derivation that compared a guest's stays against the old ladder and their
+   * revenue against the new one would promote or hold a guest on a ladder that
+   * never existed.
+   *
+   * What comes back is thresholds. Deriving a tier from them is the caller's,
+   * and `FR-GST-04` requires that it be done on read: this method has nowhere to
+   * return a tier from, because nothing stores one.
+   */
+  async tierThresholds(exec: DbExecutor): Promise<TierThresholds> {
+    const configured = await this.configuration(exec);
+
+    return {
+      silverStays: configured.tierSilverStays,
+      silverRevenueVnd: configured.tierSilverRevenueVnd,
+      goldStays: configured.tierGoldStays,
+      goldRevenueVnd: configured.tierGoldRevenueVnd,
+    };
+  }
+
+  /**
    * Every figure as it stands — what the `ADMIN` screen behind `system.config`
    * reads before it changes one of them.
    *
@@ -262,8 +369,10 @@ export class SystemConfigService {
    * `schema/config.ts` puts on a single column, so a rate above 100% or an hour
    * of 24 is a 400 naming the field before it reaches this method — and the
    * constraints are what make that true of every writer, including a `psql`
-   * session. The remaining constraint is the window's, and it is the one thing
-   * neither the wire schema nor a single column can see.
+   * session. What is left are the constraints that span two columns: the relief
+   * window's ends, and each tier rung against the one below it. A `PATCH` may
+   * name one side of either, so only this method — holding the stored row beside
+   * the edit — can see the pair the write would produce.
    */
   async update(
     exec: DbExecutor,
@@ -301,6 +410,12 @@ export class SystemConfigService {
           "inside it would be refused. Set the end on or after the start, or " +
           "clear one of them to leave that side of the window unbounded.",
       });
+    }
+
+    const collapsedRung = tierLadderCollapsedBy(proposed);
+
+    if (collapsedRung) {
+      throw new ORPCError("BAD_REQUEST", { message: collapsedRung });
     }
 
     // No `where`: the table's primary key is a boolean a `CHECK` pins to true,
@@ -394,7 +509,80 @@ function namedIn(edit: ConfigurationEdit): Partial<SystemConfigValues> {
     ...(edit.businessDateRolloverHour === undefined
       ? {}
       : { businessDateRolloverHour: edit.businessDateRolloverHour }),
+    ...(edit.loyaltyPointsPerUnit === undefined
+      ? {}
+      : { loyaltyPointsPerUnit: edit.loyaltyPointsPerUnit }),
+    ...(edit.loyaltyEarnUnitVnd === undefined
+      ? {}
+      : { loyaltyEarnUnitVnd: edit.loyaltyEarnUnitVnd }),
+    ...(edit.tierSilverStays === undefined
+      ? {}
+      : { tierSilverStays: edit.tierSilverStays }),
+    ...(edit.tierSilverRevenueVnd === undefined
+      ? {}
+      : { tierSilverRevenueVnd: edit.tierSilverRevenueVnd }),
+    ...(edit.tierGoldStays === undefined
+      ? {}
+      : { tierGoldStays: edit.tierGoldStays }),
+    ...(edit.tierGoldRevenueVnd === undefined
+      ? {}
+      : { tierGoldRevenueVnd: edit.tierGoldRevenueVnd }),
+    ...(edit.pointsExpireYearEnd === undefined
+      ? {}
+      : { pointsExpireYearEnd: edit.pointsExpireYearEnd }),
   };
+}
+
+/**
+ * Why the ladder an edit would leave behind has a rung nobody can stand on, or
+ * nothing if it stands.
+ *
+ * Mirrors `system_config_gold_stays_not_below_silver` and
+ * `system_config_gold_revenue_not_below_silver`, and is checked here as well for
+ * the reason the window's invariant is: the constraint refuses the write as a
+ * 500 naming a constraint, and the person reading it typed one of the two
+ * figures and cannot see the other.
+ *
+ * Each axis is compared with its own, because a rung is reached by stays **or**
+ * by revenue. Equal figures are a ladder, not a collapse — a property may raise
+ * the money bar and leave the nights alone, and Silver still exists for whoever
+ * reaches one and not the other. A Gold rung *below* Silver's on an axis is the
+ * collapse: every Silver guest is already Gold on it, so the tier beneath stops
+ * existing without anything failing.
+ */
+function tierLadderCollapsedBy({
+  tierSilverStays,
+  tierGoldStays,
+  tierSilverRevenueVnd,
+  tierGoldRevenueVnd,
+}: SystemConfigValues): string | undefined {
+  if (
+    tierSilverStays !== undefined &&
+    tierGoldStays !== undefined &&
+    tierGoldStays < tierSilverStays
+  ) {
+    return (
+      `Gold at ${tierGoldStays} stays sits below Silver at ${tierSilverStays}, ` +
+      "so every guest who reached Silver would already be Gold and the tier " +
+      "beneath it would stop being reachable. Set the Gold stay count on or " +
+      "above the Silver one."
+    );
+  }
+
+  if (
+    tierSilverRevenueVnd !== undefined &&
+    tierGoldRevenueVnd !== undefined &&
+    tierGoldRevenueVnd < tierSilverRevenueVnd
+  ) {
+    return (
+      `Gold at ${tierGoldRevenueVnd} đồng sits below Silver at ` +
+      `${tierSilverRevenueVnd}, so every guest who reached Silver by revenue ` +
+      "would already be Gold. Set the Gold revenue threshold on or above the " +
+      "Silver one."
+    );
+  }
+
+  return undefined;
 }
 
 /**

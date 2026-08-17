@@ -86,6 +86,12 @@ describe("the system configuration", () => {
       "system_config_service_charge_rate_within_bounds",
       "system_config_rollover_hour_is_an_hour",
       "system_config_reduced_vat_window_opens_before_it_closes",
+      "system_config_loyalty_earns_at_least_a_point",
+      "system_config_loyalty_earn_unit_is_money",
+      "system_config_silver_takes_at_least_one_stay",
+      "system_config_silver_revenue_is_money",
+      "system_config_gold_stays_not_below_silver",
+      "system_config_gold_revenue_not_below_silver",
     ]);
   });
 
@@ -144,6 +150,60 @@ describe("the system configuration", () => {
 
     expect(columns).not.toContain("class");
     expect(columns).not.toContain("taxrate");
+  });
+
+  it("carries §7's loyalty figures with the values §7 proposes", () => {
+    // The opposite arrangement to the rates above, and the difference is
+    // ownership rather than rigour. §8's figures belong to an accountant or to
+    // the owner, so a default would be this repository answering for them; §7
+    // says the earn rate, the thresholds and the expiry rule are the developer's
+    // proposal until the owner tunes them, so the default *is* the answer this
+    // repository gave. Asserted as values, because the figures are the thing §7
+    // decided and a column that silently drifted from them would still look
+    // configured.
+    expect(systemConfig.loyaltyPointsPerUnit.default).toBe(1);
+    expect(systemConfig.tierSilverStays.default).toBe(2);
+    expect(systemConfig.tierGoldStays.default).toBe(4);
+    expect(systemConfig.pointsExpireYearEnd.default).toBe(true);
+
+    // The đồng figures declare their defaults as SQL, because the migration
+    // generator writes its snapshot as JSON and a `bigint` has none. What
+    // Postgres stores is asserted in `test/config-storage.e2e-spec.ts`, where
+    // the value can be read back rather than inspected as a declaration.
+    for (const column of [
+      systemConfig.loyaltyEarnUnitVnd,
+      systemConfig.tierSilverRevenueVnd,
+      systemConfig.tierGoldRevenueVnd,
+    ]) {
+      expect(column.notNull).toBe(true);
+      expect(column.hasDefault).toBe(true);
+      expect(column.getSQLType()).toBe("bigint");
+    }
+  });
+
+  it("stores thresholds a tier is derived from, and never a tier", () => {
+    // `FR-GST-04` makes the tier a derived value recomputed at rollover over a
+    // trailing window, so a stored one is correct only until the window moves
+    // under it. `schema/loyalty.ts` and `schema/guest.ts` refuse a column for it
+    // and this row refuses one too — what it holds is the ladder, which is a
+    // decision that stands until somebody edits it.
+    const columns = Object.keys(systemConfig).join(" ").toLowerCase();
+
+    expect(columns).toContain("tiersilverstays");
+    expect(columns).toContain("tiergoldrevenuevnd");
+    expect(columns).not.toContain("currenttier");
+    expect(columns).not.toContain("loyaltytier");
+  });
+
+  it("keeps the tier discounts where the pricing path reads them", () => {
+    // §7 applies the Silver and Gold discounts "as a promotions rate modifier
+    // (`FR-PRC-03`)", and `pricing.ts` stores them as `promotion` rows carrying
+    // `requires_loyalty_tier`. A copy here would be a second authority for one
+    // figure, and whichever copy the pricing path did not read would be a
+    // configuration value nothing reads.
+    const columns = Object.keys(systemConfig).join(" ").toLowerCase();
+
+    expect(columns).not.toContain("discount");
   });
 
   it("stores no gateway credential", () => {
