@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   type CreatedBooking,
+  checkInFollows,
   defaultStay,
   mayTakeBookings,
   type NewBookingFields,
@@ -67,6 +68,38 @@ function form(over: Partial<NewBookingFields> = {}): NewBookingFields {
     contactEmail: "",
     ...over,
   };
+}
+
+/** A stay one request old, as the desk's own creating door answers it. */
+function created(over: Partial<CreatedBooking> = {}): CreatedBooking {
+  return {
+    id: "33333333-3333-4333-8333-333333333333",
+    reference: "BK-9001",
+    userId: null,
+    contactEmail: null,
+    contactName: null,
+    state: "CONFIRMED",
+    cancellationReason: null,
+    roomType: "SUPERIOR",
+    checkIn: TODAY,
+    checkOut: "2026-08-17",
+    plan: "STANDARD",
+    adults: 2,
+    childAges: [],
+    stayTotalGross: 1_200_000n,
+    holdExpiresAt: null,
+    ...over,
+  };
+}
+
+/** The same form, taken down over the telephone — so it carries a contact. */
+function onThePhone(over: Partial<NewBookingFields> = {}): NewBookingFields {
+  return form({
+    kind: "phone",
+    contactName: "Đỗ Thị Lan",
+    contactEmail: "lan@example.test",
+    ...over,
+  });
 }
 
 describe("todaysCriteria", () => {
@@ -254,7 +287,7 @@ describe("newBookingInput", () => {
 
   it("reads the dates the way an operator writes them, from the property's day", () => {
     const attempt = newBookingInput(
-      form({ checkIn: "tomorrow", checkOut: "+3d" }),
+      onThePhone({ checkIn: "tomorrow", checkOut: "+3d" }),
       TODAY,
     );
 
@@ -268,8 +301,36 @@ describe("newBookingInput", () => {
 
   it("refuses a date it cannot read", () => {
     expect(
-      newBookingInput(form({ checkIn: "next week" }), TODAY),
+      newBookingInput(onThePhone({ checkIn: "next week" }), TODAY),
     ).toHaveProperty("problem");
+    expect(
+      newBookingInput(form({ checkOut: "next week" }), TODAY),
+    ).toHaveProperty("problem");
+  });
+
+  it("arrives today for a walk-in, whatever date the form is holding", () => {
+    // The guest is at the counter. A stay created for next week down this path
+    // is one the property refuses to check in, which is the whole of what the
+    // press is for.
+    expect(
+      newBookingInput(form({ checkIn: "+8d", checkOut: "+9d" }), TODAY),
+    ).toEqual({
+      input: expect.objectContaining({
+        checkIn: TODAY,
+        checkOut: "2026-08-25",
+      }),
+    });
+  });
+
+  it("leaves the telephone booking its own arrival, because that guest is elsewhere", () => {
+    expect(
+      newBookingInput(onThePhone({ checkIn: "+8d", checkOut: "+9d" }), TODAY),
+    ).toEqual({
+      input: expect.objectContaining({
+        checkIn: "2026-08-24",
+        checkOut: "2026-08-25",
+      }),
+    });
   });
 
   it("refuses a departure that does not fall after the arrival", () => {
@@ -388,24 +449,27 @@ describe("newBookingInput", () => {
   });
 });
 
+describe("checkInFollows", () => {
+  it("follows a walk-in arriving today, which is the guest at the counter", () => {
+    expect(checkInFollows(created(), "walk-in", TODAY)).toBe(true);
+  });
+
+  it("does not follow a stay arriving later, whatever the desk called it", () => {
+    // The property refuses a check-in before the arrival date, so a sequence
+    // opened on one is a dead end the operator can only back out of.
+    const nextWeek = created({ checkIn: "2026-08-25", checkOut: "2026-08-27" });
+
+    expect(checkInFollows(nextWeek, "walk-in", TODAY)).toBe(false);
+    expect(checkInFollows(nextWeek, "phone", TODAY)).toBe(false);
+  });
+
+  it("does not follow a telephone booking, which stops at confirmed", () => {
+    expect(checkInFollows(created(), "phone", TODAY)).toBe(false);
+  });
+});
+
 describe("walkInArrival", () => {
-  const taken: CreatedBooking = {
-    id: "33333333-3333-4333-8333-333333333333",
-    reference: "BK-9001",
-    userId: null,
-    contactEmail: null,
-    contactName: null,
-    state: "CONFIRMED",
-    cancellationReason: null,
-    roomType: "SUPERIOR",
-    checkIn: TODAY,
-    checkOut: "2026-08-17",
-    plan: "STANDARD",
-    adults: 2,
-    childAges: [],
-    stayTotalGross: 1_200_000n,
-    holdExpiresAt: null,
-  };
+  const taken = created();
 
   it("hands the sequence the stay the search would have answered", () => {
     expect(walkInArrival(taken)).toEqual({
