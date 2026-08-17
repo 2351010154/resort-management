@@ -7,8 +7,11 @@
 // the system's life and then be a hole forever. Every account after the first
 // can be created through `POST /identity/staff-accounts`.
 //
-//   pnpm --filter @mariva/api staff:create -- \
+//   pnpm --filter @mariva/api staff:create \
 //     --email owner@mariva.vn --name "Trần Minh" --role ADMIN
+//
+// No `--` before the flags: pnpm forwards it to the script as an argument of
+// its own, and `parseArgs` takes no positionals.
 //
 // The password is read from stdin, never from an argument: an argument is in
 // the shell history, in `ps`, and in whatever shipped the terminal's scrollback
@@ -39,7 +42,7 @@ async function main(): Promise<void> {
 
   if (!values.email || !values.name || !values.role) {
     throw new Error(
-      "Usage: staff:create -- --email <address> --name <full name> --role <ROLE>",
+      "Usage: pnpm --filter @mariva/api staff:create --email <address> --name <full name> --role <ROLE>",
     );
   }
 
