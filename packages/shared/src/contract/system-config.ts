@@ -19,8 +19,20 @@
 // answer, so nothing it renders can be half of one configuration and half of
 // another.
 //
+// **§7's loyalty figures ride the same resource, and for a different reason.**
+// The tax figures are here because nobody in this repository may answer them.
+// The earn rate, the tier thresholds and the expiry rule are here because §7
+// says the developer proposes them and the property tunes them — the same
+// storage, a different owner. Putting them on this resource rather than on one
+// of their own follows the argument below about reading a configuration whole: a
+// screen shows what a stay costs and what it earns together, and `schema/
+// config.ts` keeps all of it in one row so that nothing can read half of one
+// configuration beside half of another. What is *not* here is a tier:
+// `FR-GST-04` derives it on read, and these fields are the thresholds it is
+// derived from.
+//
 // **PATCH and not PUT.** Every field is optional and the omitted ones are left
-// alone. A PUT would demand all seven on every call, and the fields here are
+// alone. A PUT would demand every figure on every call, and the fields here are
 // answers that arrive at different times — `ASM-01` is answered provisionally
 // from published sources rather than by a practising accountant, and a
 // correction may land on one rate, or on the relief period, without touching the
@@ -47,13 +59,14 @@
 // Gateway credentials stay in the environment, by the decision
 // `schema/config.ts` records: a secret in a table an `ADMIN` screen reads is a
 // secret with a wider audience than the process that spends it. So the read
-// answers a stated list of seven figures and there is no field on it a credential
+// answers a stated list of figures and there is no field on it a credential
 // could travel in. A statutory retention floor is not missing from that list —
 // it was removed from the row, because `FR-GST-02` stores no identity-document
 // image and the floor that remains over the registration record has no reader.
 
 import { oc } from "@orpc/contract";
 import { z } from "zod";
+import { vndAmountInputSchema, vndAmountSchema } from "../money.js";
 import { isoStayDateSchema, stayDateSchema } from "../stay-date.js";
 
 /**
@@ -83,6 +96,36 @@ const LAST_HOUR_OF_THE_DAY = 23;
 const rateBasisPoints = z.number().int().min(0).max(HIGHEST_RATE_BPS);
 
 const hourOfTheDay = z.number().int().min(0).max(LAST_HOUR_OF_THE_DAY);
+
+/**
+ * The largest value a `smallint` column holds, and therefore the last answer
+ * this contract can carry into one.
+ *
+ * Not a policy about how many stays a tier may ask for — nobody has decided
+ * that, and inventing a ceiling here would be this file settling a question §7
+ * left to the property. It is the point past which the figure stops being
+ * storable, and a 400 naming the field is a better answer than the 500 Postgres
+ * would give for the same value.
+ */
+const LARGEST_SMALLINT = 32_767;
+
+/**
+ * A count of stays a tier is reached at. At least one: a rung at zero stays is
+ * one every guest is already standing on.
+ */
+const stayCount = z.number().int().min(1).max(LARGEST_SMALLINT);
+
+/**
+ * An amount of đồng that has to be more than nothing — a divisor or a rung.
+ *
+ * Text on the way in and a `bigint` on the way out, which is `money.ts`'s
+ * asymmetry rather than this file's: validating an input means checking what
+ * arrived, and JSON has no integer wide enough to be trusted with đồng.
+ */
+const positiveDongInput = vndAmountInputSchema.refine(
+  (amount) => amount > 0n,
+  "must be more than nothing",
+);
 
 /**
  * The configuration as it stands — every figure a posting will read, together.
@@ -115,6 +158,50 @@ export const systemConfigurationSchema = z.object({
   serviceChargeRateBps: rateBasisPoints,
   /** The hour the property's own day rolls over — §2's operating clock. */
   businessDateRolloverHour: hourOfTheDay,
+  /**
+   * What a stay earns, in §7's two halves: this many points for every
+   * {@link systemConfigurationSchema.shape.loyaltyEarnUnitVnd} đồng of net room
+   * revenue. Read by whatever accrues points at folio close (`FR-GST-05`).
+   *
+   * Two figures rather than one ratio because §7 states it that way and because
+   * a single number could not say what a stay below one unit earns.
+   */
+  loyaltyPointsPerUnit: z.number().int().min(1).max(LARGEST_SMALLINT),
+  /**
+   * The đồng of net room revenue one lot of points costs. Net is the room charge
+   * before VAT and service charge, service items excluded — §7 chose net so that
+   * a §8 tax answer cannot silently change what a stay earns.
+   */
+  loyaltyEarnUnitVnd: vndAmountSchema,
+  /**
+   * The rungs a tier is derived from, each reached by stays **or** by revenue
+   * over a trailing twelve months. Read by the tier derivation that runs at
+   * business-date rollover (`FR-GST-04`).
+   *
+   * **These are thresholds and never a tier.** `FR-GST-04` requires the tier be
+   * derived on read and hand-set by nobody, so no field here — and no column
+   * behind it — holds one. A guest below the Silver rung is a Member, which is
+   * the absence of a match rather than a value anything stores.
+   *
+   * A Gold figure below the Silver one on the same axis is refused: every Silver
+   * guest would already be Gold on it and the rung beneath would stop being
+   * reachable. Equal figures are allowed, because each axis is compared with its
+   * own and a property may raise one bar while leaving the other.
+   */
+  tierSilverStays: stayCount,
+  tierSilverRevenueVnd: vndAmountSchema,
+  tierGoldStays: stayCount,
+  tierGoldRevenueVnd: vndAmountSchema,
+  /**
+   * Whether points earned in a year expire on 31 December of the year after —
+   * §7's fixed calendar expiry, which is what saves the property a
+   * rolling-inactivity job.
+   *
+   * The date each accrual actually expires on is carried by the accrual, so
+   * turning this off changes what future accruals are given and never what an
+   * existing one holds.
+   */
+  pointsExpireYearEnd: z.boolean(),
 });
 
 /**
@@ -134,6 +221,18 @@ export const updateSystemConfigInput = z
     vatIncludesServiceCharge: z.boolean().optional(),
     serviceChargeRateBps: rateBasisPoints.optional(),
     businessDateRolloverHour: hourOfTheDay.optional(),
+    loyaltyPointsPerUnit: z
+      .number()
+      .int()
+      .min(1)
+      .max(LARGEST_SMALLINT)
+      .optional(),
+    loyaltyEarnUnitVnd: positiveDongInput.optional(),
+    tierSilverStays: stayCount.optional(),
+    tierSilverRevenueVnd: positiveDongInput.optional(),
+    tierGoldStays: stayCount.optional(),
+    tierGoldRevenueVnd: positiveDongInput.optional(),
+    pointsExpireYearEnd: z.boolean().optional(),
   })
   .refine((edit) => Object.keys(edit).length > 0, {
     // An edit naming nothing is not a caller politely doing nothing — unknown
@@ -153,8 +252,8 @@ export const systemConfig = {
     .route({ method: "PATCH", path: "/system/config" })
     .input(updateSystemConfigInput)
     // The whole configuration back, not the fields that moved. The caller is a
-    // screen that has just changed one figure and must now show the seven a
-    // posting will read — and the answer is the row as it committed, so a
+    // screen that has just changed one figure and must now show every figure a
+    // posting or an accrual will read — and the answer is the row as it committed, so a
     // concurrent edit is visible rather than painted over by the client's own
     // optimistic copy.
     .output(systemConfigurationSchema),
