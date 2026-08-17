@@ -208,6 +208,12 @@ which is how a test run empties somebody's development database.
   else, and a receptionist cannot perform one.
 - `test/seed.e2e-spec.ts` — forty rooms, the numbering, and that a second run
   produces the same data rather than more of it.
+- `test/loyalty-discount.e2e-spec.ts` — §7's member discount end to end: a
+  guest's own stay history, the rung it puts them on, the `promotion` row that
+  rung is gated on, the figure frozen onto the booking, and the folio lines the
+  night audit posts against it.
+- `test/tier-is-derived.spec.ts` — the structural half of `FR-GST-04`: no table
+  stores a guest's tier, and `guest_tier_change` has exactly one reader.
 
 ## Commands
 

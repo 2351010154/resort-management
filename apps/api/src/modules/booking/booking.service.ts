@@ -41,6 +41,7 @@ import {
   PROPERTY_TIME_ZONE,
   type BookingState,
   type CancellationReason,
+  type LoyaltyTier,
   type Party,
   type RatePlanCode,
   type RoomTypeCode,
@@ -65,6 +66,7 @@ import { afterCommit } from "../../database/transaction-runner.js";
 import { BookingTokenService } from "../auth/booking-token/booking-token.service.js";
 import { accountForAddress } from "../auth/guest/registered-address.js";
 import { GuestService, type NewGuest } from "../guest/guest.service.js";
+import { TierDerivationService } from "../guest/tier-derivation.service.js";
 import { BookingConfirmationService } from "../notification/booking-confirmation.service.js";
 import { HousekeepingService } from "../housekeeping/housekeeping.service.js";
 import { InventoryService } from "../inventory/inventory.service.js";
@@ -404,6 +406,11 @@ export class BookingService {
     // carries; the other composes the message and hands it to the queue.
     private readonly bookingTokens: BookingTokenService,
     private readonly confirmations: BookingConfirmationService,
+    // §7's ladder, read at the moment of sale and nowhere else in this file.
+    // The tier is what gates the member discount `stay-quote.service.ts`
+    // applies, and this is the only place in the booking path that knows which
+    // guest — if any — is buying.
+    private readonly tiers: TierDerivationService,
   ) {}
 
   /**
@@ -2337,7 +2344,10 @@ export class BookingService {
       });
     }
 
-    const quote = await this.quotes.quote(exec, input);
+    const quote = await this.quotes.quote(exec, {
+      ...input,
+      loyaltyTier: await this.loyaltyTier(exec, input.userId),
+    });
 
     await this.inventory.reserve(exec, {
       roomType: input.roomType,
@@ -2383,6 +2393,14 @@ export class BookingService {
             quotedPercentAdjustment: quote.percentAdjustment,
             quotedBreakfastPerPersonGross: quote.breakfastPerPersonGross,
             quotedExtraPersonPerNightGross: quote.extraPersonPerNightGross,
+            // Frozen beside the plan's percentage and for the same reason: the
+            // promotion is an input to the total, so a later edit to the
+            // campaign must not be able to reprice a stay that was agreed under
+            // it. All three null together on a stay no promotion reduced, which
+            // `booking_quoted_promotion_is_whole_or_absent` holds them to.
+            quotedPromotionCode: quote.promotion?.code ?? null,
+            quotedPromotionType: quote.promotion?.type ?? null,
+            quotedPromotionValue: quote.promotion?.value ?? null,
             holdExpiresAt: state === "HELD" ? this.holdExpiry() : null,
             // Written on the same condition as the expiry above, because the
             // two die together: the check constraint refuses a caller key on
@@ -2457,6 +2475,37 @@ export class BookingService {
     }
 
     return row;
+  }
+
+  /**
+   * The tier the buyer holds, in the form the quote gates a discount on.
+   *
+   * Null for a stay nobody signed in for — a walk-in, a telephone booking, a
+   * funnel hold taken before the guest attached an account — because there is
+   * no history to derive from and §7's ladder is about a guest's own stays.
+   *
+   * `MEMBER` becomes null too, and that is `rate-calendar.ts`'s rule rather than
+   * a convenience: the base tier carries no discount, so a promotion gated on it
+   * would be gated on nothing, and `LOYALTY_TIERS` deliberately does not hold
+   * the word. Derived here and not stored anywhere — `FR-GST-04` makes the tier
+   * a derived value, and what the booking freezes is the *discount* it produced,
+   * never the tier itself.
+   *
+   * A stay attached to an account after the fact keeps the price it was sold at.
+   * §8 freezes a quote at the moment of sale, and a guest who signed in
+   * afterwards was not quoted a member rate to be given one retrospectively.
+   */
+  private async loyaltyTier(
+    exec: DbExecutor,
+    userId: string | null | undefined,
+  ): Promise<LoyaltyTier | null> {
+    if (!userId) {
+      return null;
+    }
+
+    const tier = await this.tiers.deriveTier(exec, userId);
+
+    return tier === "MEMBER" ? null : tier;
   }
 
   /** When a hold stops holding — `FR-BOOK-02`, at the configured length. */

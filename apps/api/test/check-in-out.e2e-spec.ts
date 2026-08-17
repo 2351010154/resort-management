@@ -48,6 +48,7 @@ import { HousekeepingService } from "../src/modules/housekeeping/housekeeping.se
 import { InventoryService } from "../src/modules/inventory/inventory.service.js";
 import { StayQuoteService } from "../src/modules/booking/stay-quote.service.js";
 import { noConfirmations, noStayLinks } from "./no-announcement.js";
+import { tiersAt } from "./tiers.js";
 
 const SEED_FROM = parseDate("2027-06-01");
 
@@ -128,6 +129,8 @@ function deskAt(today: StayDate, balance: VndAmount = 0n): BookingService {
     // Stubs that say so if they are, rather than casts that say nothing.
     noStayLinks,
     noConfirmations,
+    // §7's ladder, reached only where a stay is sold to a signed-in guest.
+    tiersAt(clock),
   );
 }
 

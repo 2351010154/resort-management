@@ -41,7 +41,7 @@ import {
 import { user as guestUser } from "./guest-auth.js";
 import { staffUser } from "./identity.js";
 import { roomType } from "./inventory.js";
-import { ratePlanCodeEnum } from "./pricing.js";
+import { promotionTypeEnum, ratePlanCodeEnum } from "./pricing.js";
 
 /**
  * The six states as a database type, from the same tuple the wire schema is
@@ -167,9 +167,9 @@ export const booking = pgTable(
 
     // ── The frozen quote ────────────────────────────────────────────────────
     // Everything below was read at the moment of sale and is never recomputed.
-    // The stay total is the authoritative figure; the other three are the inputs
-    // that produced it, kept so a folio line at M6 can explain the number
-    // without reading tables that have since changed.
+    // The stay total is the authoritative figure; the rest are the inputs that
+    // produced it, kept so a folio line at M6 can explain the number without
+    // reading tables that have since changed.
     quotedStayTotalGross: bigint("quoted_stay_total_gross", {
       mode: "bigint",
     }).notNull(),
@@ -185,6 +185,23 @@ export const booking = pgTable(
       "quoted_extra_person_per_night_gross",
       { mode: "bigint" },
     ).notNull(),
+
+    // The promotion that reduced the room rate, frozen the same way and for the
+    // same reason — §7's member discount applies "as a promotions rate
+    // modifier", so it is an input to the total and not a line beside it.
+    //
+    // The type and the value and not the promotion's id, deliberately. An id
+    // would make the stored quote a recipe again: `promotion.value` is a figure
+    // an `ADMIN` retunes, so a stay repriced through the id would be repriced at
+    // whatever the campaign says today rather than at what the guest agreed to.
+    // `pricing.ts` keeps the row rather than deleting it precisely so the code
+    // below still names something — but naming it is all the code does.
+    //
+    // All three null on a stay no promotion touched, which is every stay taken
+    // by a guest below Silver and every stay taken at the desk.
+    quotedPromotionCode: text("quoted_promotion_code"),
+    quotedPromotionType: promotionTypeEnum("quoted_promotion_type"),
+    quotedPromotionValue: bigint("quoted_promotion_value", { mode: "bigint" }),
 
     // When an unconfirmed hold stops holding anything. Null once the booking is
     // no longer `HELD`: the TTL is a fact about a hold, and a stale expiry left
@@ -407,6 +424,26 @@ export const booking = pgTable(
     check(
       "booking_quoted_extra_person_positive",
       sql`${table.quotedExtraPersonPerNightGross} > 0`,
+    ),
+    // A promotion is three columns of one fact, so a row holding some of them
+    // is a stay nothing can reprice: a type and a value with no code cannot be
+    // traced back to the campaign, and a code with no figures cannot be
+    // arithmetic. `num_nonnulls` rather than three pairwise null checks, which
+    // is the same rule written once.
+    check(
+      "booking_quoted_promotion_is_whole_or_absent",
+      sql`num_nonnulls(${table.quotedPromotionCode}, ${table.quotedPromotionType}, ${table.quotedPromotionValue}) in (0, 3)`,
+    ),
+    // The bounds `promotion` puts on the live row, kept on the frozen copy for
+    // the reason the plan's adjustment is bounded here: a quote cannot store a
+    // modifier the table it came from could not hold. A promotion only ever
+    // reduces, so a positive value frozen here would be a surcharge nobody
+    // could have been quoted.
+    check(
+      "booking_quoted_promotion_reduces_within_its_scale",
+      sql`${table.quotedPromotionType} is null
+        or (${table.quotedPromotionType} = 'PERCENTAGE' and ${table.quotedPromotionValue} between -99 and -1)
+        or (${table.quotedPromotionType} = 'FIXED_AMOUNT' and ${table.quotedPromotionValue} < 0)`,
     ),
   ],
 );

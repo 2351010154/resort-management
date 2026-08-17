@@ -79,6 +79,7 @@ import { HousekeepingService } from "../housekeeping/housekeeping.service.js";
 import { InventoryService } from "../inventory/inventory.service.js";
 import { BusinessDateService } from "./business-date.service.js";
 import { type PolicyCharge, policyCharge } from "./cancellation-calculator.js";
+import { quotedPromotion } from "./quoted-promotion.js";
 import { StayQuoteService } from "./stay-quote.service.js";
 
 /** Postgres' SQLSTATE for the refusal every write in this file expects. */
@@ -787,9 +788,13 @@ export class AssignmentService {
    * nights and the four frozen inputs reproduce this figure exactly — and an
    * extension is precisely where a careless total would break it.
    *
-   * The three plan figures are the booking's own and are never re-read. That is
-   * the whole of §8: they are the terms the guest agreed to, and a stay extended
-   * after a manager edited the plan is still that guest's stay.
+   * The plan figures are the booking's own and are never re-read. That is the
+   * whole of §8: they are the terms the guest agreed to, and a stay extended
+   * after a manager edited the plan is still that guest's stay. §7's member
+   * discount is one of those terms and is carried the same way — a Gold guest
+   * who stays two nights longer is still a Gold guest's booking, and re-deriving
+   * the tier here would let a stay be repriced by a ladder that moved under it
+   * after the sale.
    */
   private async retotal(
     exec: DbExecutor,
@@ -813,6 +818,10 @@ export class AssignmentService {
       extraPersonPerNightGross: row.quotedExtraPersonPerNightGross,
       nights: nights.length,
       party: this.partyOf(row),
+      promotion: quotedPromotion(
+        row.quotedPromotionType,
+        row.quotedPromotionValue,
+      ),
     });
   }
 
