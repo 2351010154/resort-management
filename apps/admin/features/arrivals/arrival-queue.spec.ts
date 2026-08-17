@@ -15,6 +15,7 @@ import {
   parseBirthDate,
   refusalSentence,
   refusalStep,
+  roomRefusal,
   type SearchResults,
   sequenceSteps,
   stepAfter,
@@ -182,20 +183,87 @@ describe("the rooms a stay may be walked into", () => {
     room({ roomNumber: "21", floor: 2 }),
   ];
 
+  const nothingRefused: ReadonlySet<string> = new Set();
+
   it("offers only ready, empty rooms of the type the stay was sold", () => {
     expect(
-      assignableRooms(rooms, "DELUXE", "").map((one) => one.roomNumber),
+      assignableRooms(rooms, "DELUXE", "", nothingRefused).map(
+        (one) => one.roomNumber,
+      ),
     ).toEqual(["21", "201", "210"]);
   });
 
   it("narrows on a typed fragment anywhere in the number", () => {
     expect(
-      assignableRooms(rooms, "DELUXE", "01").map((one) => one.roomNumber),
+      assignableRooms(rooms, "DELUXE", "01", nothingRefused).map(
+        (one) => one.roomNumber,
+      ),
     ).toEqual(["201"]);
   });
 
   it("offers nothing when the property has no ready room of that type", () => {
-    expect(assignableRooms(rooms, "PREMIER", "")).toEqual([]);
+    expect(assignableRooms(rooms, "PREMIER", "", nothingRefused)).toEqual([]);
+  });
+
+  it("drops a room the API has already refused for this stay", () => {
+    // The board answers tonight — clean, nobody in it — while the API refuses
+    // across every night the stay covers, so a room taken by a booking that
+    // arrives tomorrow looks free here and is not. Once it has been refused,
+    // offering it again buys the same refusal.
+    expect(
+      assignableRooms(rooms, "DELUXE", "", new Set(["201"])).map(
+        (one) => one.roomNumber,
+      ),
+    ).toEqual(["21", "210"]);
+  });
+
+  it("empties the list once every ready room has been refused", () => {
+    expect(
+      assignableRooms(rooms, "DELUXE", "", new Set(["21", "201", "210"])),
+    ).toEqual([]);
+  });
+
+  it("keeps a refused room out of a narrowed list too", () => {
+    expect(
+      assignableRooms(rooms, "DELUXE", "21", new Set(["210"])).map(
+        (one) => one.roomNumber,
+      ),
+    ).toEqual(["21"]);
+  });
+});
+
+describe("reading a refused room assignment", () => {
+  it("takes a held room off the list and names picking another", () => {
+    // `booking.assignRoom` declares no errors, so the exclusion constraint
+    // arrives as an undefined conflict carrying only a status and a sentence.
+    const refusal = roomRefusal(
+      {
+        defined: false,
+        code: "CONFLICT",
+        status: 409,
+        message:
+          "Room 501 is already held across part of 2026-08-17 to 2026-08-20",
+      },
+      "501",
+    );
+
+    expect(refusal.spokenFor).toBe(true);
+    expect(refusal.sentence).toContain("501");
+    expect(refusal.sentence).toContain("pick another");
+  });
+
+  it("leaves the room on the list for anything that is not a hold", () => {
+    // A room housekeeping soiled a moment ago, or a request that never landed:
+    // pressing again is a reasonable thing for the operator to do with either.
+    expect(roomRefusal({ status: 422 }, "204").spokenFor).toBe(false);
+    expect(roomRefusal(new Error("network"), "204").spokenFor).toBe(false);
+    expect(roomRefusal(undefined, "204").spokenFor).toBe(false);
+  });
+
+  it("names the room in every sentence, so the operator knows which press", () => {
+    for (const error of [{ status: 409 }, { status: 500 }, null]) {
+      expect(roomRefusal(error, "308").sentence).toContain("308");
+    }
   });
 });
 

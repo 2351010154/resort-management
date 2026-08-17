@@ -20,6 +20,7 @@ import {
   parseBirthDate,
   refusalSentence,
   refusalStep,
+  roomRefusal,
   type SequenceFacts,
   sequenceSteps,
   stepAfter,
@@ -74,6 +75,19 @@ import { FilterList, type FilterOption } from "./filter-list";
  * Both are idempotent in the way that matters here: assigning the same room
  * twice leaves the booking holding that room, and the deposit step is left
  * behind once it is answered.
+ *
+ * ## Landing the room refusal
+ *
+ * "Refused at the assignment field" is worked out in {@link Sequence.chooseRoom}
+ * and is two acts, not one. The sentence is written into the step, because the
+ * central toast in `lib/query-client.ts` dismisses itself and sits nowhere near
+ * the control — an operator who looked away for a moment is left with a press
+ * that did nothing and no account of why. And the room comes off the offered
+ * list, because the list is drawn from a board that only knows about tonight
+ * while the API refuses across every night of the stay: leaving the number
+ * highlighted under the operator's fingers means the next Enter buys the same
+ * refusal. {@link roomRefusal} decides which refusals are worth that — see it
+ * for why a hold is different from a room that merely would not take.
  */
 
 export interface CheckInSequenceProps {
@@ -139,6 +153,13 @@ function Sequence({
   const [roomQuery, setRoomQuery] = useState("");
   const [roomNumber, setRoomNumber] = useState<string | null>(
     arrival.roomNumber,
+  );
+  // The numbers the API has already declined for this stay. State of the
+  // sequence and not of the board, because it is an answer about these nights:
+  // it is right that it is forgotten when the operator abandons the row and
+  // asked again for the next guest.
+  const [refusedRooms, setRefusedRooms] = useState<ReadonlySet<string>>(
+    () => new Set(),
   );
   const [deposit, setDeposit] = useState({
     amount: "",
@@ -240,9 +261,22 @@ function Sequence({
         bookingId: arrival.id,
         roomNumber: number,
       });
-    } catch {
-      // Reported by `lib/query-client.ts`'s central toast. What is owed here is
-      // staying on the control the operator can fix it at.
+    } catch (error) {
+      const refusal = roomRefusal(error, number);
+
+      // The central toast has said it too, and says it once and briefly. This
+      // is the copy that stays beside the field until the operator has picked
+      // something the property will accept.
+      setProblem(refusal.sentence);
+
+      if (refusal.spokenFor) {
+        setRefusedRooms((already) => new Set(already).add(number));
+        // The refused number is cleared out of the field with it, so what is
+        // left under the operator is the rooms that are still worth trying
+        // rather than an empty list and a number that will never be taken.
+        setRoomQuery("");
+      }
+
       return;
     }
 
@@ -414,11 +448,11 @@ function Sequence({
           placeholder="204"
           query={roomQuery}
           onQueryChange={setRoomQuery}
-          options={roomOptions(rooms, arrival, roomQuery)}
+          options={roomOptions(rooms, arrival, roomQuery, refusedRooms)}
           onPick={(number) => {
             void chooseRoom(number);
           }}
-          emptyMessage={`No ready ${arrival.roomType} is free. Housekeeping releases one, or the stay needs a different type.`}
+          emptyMessage={nothingToOffer(arrival, refusedRooms)}
         />
       ) : null}
 
@@ -655,12 +689,35 @@ function roomOptions(
   rooms: readonly BoardRoom[],
   arrival: Arrival,
   typed: string,
+  refused: ReadonlySet<string>,
 ): FilterOption[] {
-  return assignableRooms(rooms, arrival.roomType, typed).map((room) => ({
-    id: room.roomNumber,
-    label: room.roomNumber,
-    detail: `Floor ${room.floor} · ${room.status.toLowerCase()}`,
-  }));
+  return assignableRooms(rooms, arrival.roomType, typed, refused).map(
+    (room) => ({
+      id: room.roomNumber,
+      label: room.roomNumber,
+      detail: `Floor ${room.floor} · ${room.status.toLowerCase()}`,
+    }),
+  );
+}
+
+/**
+ * Why there is nothing to pick, which is two different afternoons.
+ *
+ * A property with nothing ready of the type is housekeeping's to fix and is the
+ * same answer for every stay sold that type today. A list emptied by refusals
+ * is about these nights and this stay — the rooms exist and are clean, they are
+ * simply spoken for — and the way out of it is a shorter stay or a different
+ * type, which is a manager's decision and not a queue's. Saying "no ready room
+ * is free" for the second one would send the desk to ring housekeeping about
+ * rooms housekeeping has already released.
+ */
+function nothingToOffer(
+  arrival: Arrival,
+  refused: ReadonlySet<string>,
+): string {
+  return refused.size === 0
+    ? `No ready ${arrival.roomType} is free. Housekeeping releases one, or the stay needs a different type.`
+    : `Every ready ${arrival.roomType} is held by another stay across these nights. The stay needs a different type or different dates.`;
 }
 
 function roomHint(arrival: Arrival, held: string | null): string {
