@@ -226,12 +226,22 @@ export function sequenceSteps(facts: SequenceFacts): CheckoutStep[] {
   );
 }
 
-/** The step after this one, or null at the end of the sequence. */
+/**
+ * The step after this one, or null at the end of the sequence.
+ *
+ * Found by the declared order rather than by the answered step's position in
+ * the list, because answering a step is what can remove it: a balance paid
+ * settles the account, so the sequence the operator is routed against no longer
+ * has a payment step in it. Reading a position in that list would find nothing
+ * and send them back to the charges they have already agreed.
+ */
 export function stepAfter(
   steps: readonly CheckoutStep[],
   step: CheckoutStep,
 ): CheckoutStep | null {
-  return steps[steps.indexOf(step) + 1] ?? null;
+  const answered = CHECKOUT_STEPS.indexOf(step);
+
+  return steps.find((one) => CHECKOUT_STEPS.indexOf(one) > answered) ?? null;
 }
 
 /**

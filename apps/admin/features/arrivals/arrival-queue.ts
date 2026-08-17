@@ -306,12 +306,23 @@ export function sequenceSteps(facts: SequenceFacts): CheckInStep[] {
   );
 }
 
-/** The step after this one, or null at the end of the sequence. */
+/**
+ * The step after this one, or null at the end of the sequence.
+ *
+ * Found by the declared order rather than by the answered step's position in
+ * the list, because answering a step is what can remove it: a deposit posted
+ * settles the account, so the sequence the operator is routed against no longer
+ * has a deposit step in it. Reading a position in that list would find nothing
+ * and send them back to the first step of a check-in they are most of the way
+ * through.
+ */
 export function stepAfter(
   steps: readonly CheckInStep[],
   step: CheckInStep,
 ): CheckInStep | null {
-  return steps[steps.indexOf(step) + 1] ?? null;
+  const answered = CHECK_IN_STEPS.indexOf(step);
+
+  return steps.find((one) => CHECK_IN_STEPS.indexOf(one) > answered) ?? null;
 }
 
 /**
