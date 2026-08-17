@@ -106,6 +106,7 @@ class StoppedClock extends BusinessDateService {
 let pool: pg.Pool;
 let db: ReturnType<typeof drizzle<typeof schema>>;
 let bookings: BookingService;
+let stays: AssignmentService;
 let folios: FolioService;
 let sweep: RoomChargeSweep;
 let roomTypeId: string;
@@ -145,16 +146,21 @@ beforeAll(async () => {
 
   folios = new FolioService(db, configuration, accrualOn(db));
 
+  // Held rather than constructed inline, because the extension is a case here
+  // and not only a collaborator: a stay lengthened after the sale reprices off
+  // the promotion the booking froze, and that is this service's arithmetic.
+  stays = new AssignmentService(
+    inventory,
+    clock,
+    new StayQuoteService(),
+    housekeeping,
+  );
+
   bookings = new BookingService(
     inventory,
     new StayQuoteService(),
     clock,
-    new AssignmentService(
-      inventory,
-      clock,
-      new StayQuoteService(),
-      housekeeping,
-    ),
+    stays,
     new GuestService(),
     housekeeping,
     new FolioStubService(),
@@ -489,6 +495,50 @@ describe("what the sale freezes, and what bills against it", () => {
     }
 
     expect(charged).toBe(sold.stayTotalGross);
+  });
+
+  it("keeps the member rate on the nights an extension adds", async () => {
+    // The extension reprices the whole stay from the booking's own frozen
+    // figures, and the promotion is one of them. Dropping it there is the
+    // quietest failure in the feature: `stayTotalGross` defaults the promotion
+    // to none, so the extension would return the undiscounted room rate — a
+    // larger number that still reconciles against the nights, still passes
+    // every constraint, and raises a total the guest had already agreed.
+    const guest = await aGuestAccount();
+
+    await aFinishedStay(guest);
+    await aFinishedStay(guest);
+    await theLadderIs({
+      silverStays: 1,
+      silverRevenueVnd: UNREACHABLE.revenueVnd,
+      goldStays: 2,
+      goldRevenueVnd: UNREACHABLE.revenueVnd,
+    });
+
+    const sold = await sell(guest, "2028-05-10", "2028-05-13");
+
+    expect((await rowOf(sold)).quotedPromotionValue).toBe(-10n);
+
+    const extended = await db.transaction((exec) =>
+      stays.extendStay(exec, {
+        bookingId: sold.id,
+        checkOut: parseDate("2028-05-15"),
+      }),
+    );
+
+    expect(extended.nightsAdded).toBe(2);
+
+    // Ten percent off the calendar price of all five nights, and not off the
+    // three that were sold at it — §8 reprices the stay whole, so the added
+    // nights arrive under the terms the booking carries rather than at the
+    // rack rate.
+    const calendar = await standardTotalOf(sold);
+
+    expect(extended.stayTotalGross).toBe((calendar * 90n) / 100n);
+    expect((await rowOf(sold)).quotedStayTotalGross).toBe(
+      extended.stayTotalGross,
+    );
+    expect(extended.stayTotalGross).toBeLessThan(calendar);
   });
 });
 
