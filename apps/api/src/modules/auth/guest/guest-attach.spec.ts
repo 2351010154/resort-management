@@ -53,6 +53,7 @@ import type { StayQuoteService } from "../../booking/stay-quote.service.js";
 import type { GuestService } from "../../guest/guest.service.js";
 import type { HousekeepingService } from "../../housekeeping/housekeeping.service.js";
 import type { InventoryService } from "../../inventory/inventory.service.js";
+import type { TierDerivationService } from "../../guest/tier-derivation.service.js";
 import type { BookingConfirmationService } from "../../notification/booking-confirmation.service.js";
 import type { MailQueue } from "../../notification/mail-queue.service.js";
 import { BookingTokenService } from "../booking-token/booking-token.service.js";
@@ -311,6 +312,8 @@ beforeAll(async () => {
     // Neither is reached: no case here confirms a paid hold.
     undefined as unknown as BookingTokenService,
     undefined as unknown as BookingConfirmationService,
+    // Unreached: no case here sells a stay, so no tier is derived.
+    undefined as unknown as TierDerivationService,
   );
 
   await migrate(db, { migrationsFolder: "./src/database/migrations" });

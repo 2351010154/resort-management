@@ -232,6 +232,13 @@
       "when": 1786949021011,
       "tag": "0032_guest_tier_change_trail",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1786954452878,
+      "tag": "0033_booking_quoted_promotion",
+      "breakpoints": true
     }
   ]
 }

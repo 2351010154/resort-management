@@ -83,6 +83,9 @@ let pool: pg.Pool;
 let db: ReturnType<typeof drizzle<typeof schema>>;
 let transactions: TransactionRunner;
 let sweep: TierRecomputeSweep;
+// The derivation the sweep drives, held so the cases about what the trail is
+// *not* can ask it the same question the sweep asks.
+let tiers: TierDerivationService;
 let roomTypeId: string;
 
 // Accounts and stay references are unique per case. Counted rather than drawn,
@@ -112,12 +115,11 @@ beforeAll(async () => {
   const configuration = new SystemConfigService();
 
   transactions = new TransactionRunner(db);
-  sweep = new TierRecomputeSweep(
-    new TierDerivationService(
-      configuration,
-      new BusinessDateService(configuration),
-    ),
+  tiers = new TierDerivationService(
+    configuration,
+    new BusinessDateService(configuration),
   );
+  sweep = new TierRecomputeSweep(tiers);
 });
 
 beforeEach(async () => {
@@ -256,6 +258,81 @@ describe("what the sweep writes down", () => {
 
     expect(await whatIsStored()).toEqual(before);
     expect(await countOf(guestTierChange)).toBe(1);
+  });
+});
+
+// `FR-GST-04` opens with "VIP tier is a **derived value**, never hand-set", and
+// `schema/guest-tier.ts` says what these rows are: "a log of observations, not
+// the tier". The distinction is not enforceable by a constraint — a trail row
+// looks exactly like a stored tier, and reading one back would be a one-line
+// change that no other case here would notice. So it is asserted directly: the
+// trail is written to and never consulted, and what a guest holds comes from
+// their own history every time it is asked.
+describe("the trail is history, and the derivation is the tier", () => {
+  it("answers from the guest's stays even when the trail says otherwise", async () => {
+    // A row claiming GOLD, standing against a guest whose history reaches
+    // Silver and no further. An implementation that took the last observation
+    // as the current tier would say GOLD; the requirement is that it says what
+    // the history says.
+    const guest = await aGuestAccount();
+
+    await aFinishedStay(guest, daysAgo(10));
+    await theLadderIs({ silverStays: 1, goldStays: 4 });
+
+    await db.insert(guestTierChange).values({
+      userId: guest,
+      fromTier: null,
+      toTier: "GOLD",
+    });
+
+    expect(await tiers.deriveTier(db, guest)).toBe("SILVER");
+  });
+
+  it("answers the same with the trail emptied under it", async () => {
+    // The other direction, and the one a retention policy would create. If the
+    // derivation consulted these rows at all, deleting them would move a
+    // guest's tier — so the answer before and after has to be the same figure,
+    // and it is because nothing reads them.
+    const guest = await aGuestAccount();
+
+    await aFinishedStay(guest, daysAgo(11));
+    await aFinishedStay(guest, daysAgo(12));
+    await theLadderIs({ silverStays: 1, goldStays: 2 });
+
+    expect(await runTheSweep()).toHaveLength(1);
+    expect(await tiers.deriveTier(db, guest)).toBe("GOLD");
+
+    await purgeTheTrail();
+
+    expect(await tiers.deriveTier(db, guest)).toBe("GOLD");
+  });
+
+  it("re-records a change the trail no longer remembers", async () => {
+    // What purging the trail actually costs, stated as behaviour rather than as
+    // a warning. `schema/guest-tier.ts` says a guest's previous tier is
+    // recovered from these rows and that silence about an account means MEMBER,
+    // so a purge makes the next sweep record a promotion that already happened.
+    // The guest's *tier* is unharmed — the case above — and the history is what
+    // is lost. This is the evidence behind the table's no-expiry rule.
+    const guest = await aGuestAccount();
+
+    await aFinishedStay(guest, daysAgo(13));
+    await theLadderIs({ silverStays: 1, goldStays: 4 });
+
+    expect(await runTheSweep()).toHaveLength(1);
+    // Nothing to say on the next tick: the trail already holds the change.
+    expect(await runTheSweep()).toHaveLength(0);
+
+    await purgeTheTrail();
+
+    const rewritten = await runTheSweep();
+
+    expect(rewritten).toHaveLength(1);
+
+    const [observation] = await db.select().from(guestTierChange);
+
+    expect(observation?.fromTier).toBeNull();
+    expect(observation?.toTier).toBe("SILVER");
   });
 });
 
@@ -399,6 +476,20 @@ describe("an observation, once made", () => {
 /** One run of the sweep, on its own transaction, as an hourly tick is. */
 async function runTheSweep(): Promise<readonly string[]> {
   return await transactions.run((exec) => sweep.run(exec, today()));
+}
+
+/**
+ * The trail emptied — what a retention policy would have to do to it.
+ *
+ * `truncate` and not `delete`, and the difference is the point rather than a
+ * detail of this file: `guest_tier_change_refuse_rewrite` raises `MV005` on a
+ * delete, so no purge can be written as one. Anybody who ever wants a retention
+ * rule here has to disable the append-only guard or truncate the table wholesale
+ * — an act that cannot happen by accident, which is exactly what
+ * `schema/guest-tier.ts` is asking for when it says this memory has no expiry.
+ */
+async function purgeTheTrail(): Promise<void> {
+  await db.execute(sql`truncate guest_tier_change`);
 }
 
 /**

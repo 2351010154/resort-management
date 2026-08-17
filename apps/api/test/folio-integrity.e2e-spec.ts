@@ -78,6 +78,7 @@ import { CatalogService } from "../src/modules/operations/catalog.service.js";
 import { SystemConfigService } from "../src/modules/system-config/system-config.service.js";
 import { accrualOn } from "./accrual.js";
 import { noConfirmations, noStayLinks } from "./no-announcement.js";
+import { tiersAt } from "./tiers.js";
 
 /** Raised by `folio_posting_refuse_rewrite()` — `migrations/0011`. */
 const APPEND_ONLY_VIOLATION = "MV001";
@@ -731,6 +732,8 @@ function deskAt(today: StayDate): BookingService {
     // Stubs that say so if they are, rather than casts that say nothing.
     noStayLinks,
     noConfirmations,
+    // §7's ladder, reached only where a stay is sold to a signed-in guest.
+    tiersAt(clock),
   );
 }
 

@@ -65,6 +65,7 @@ import type { HousekeepingService } from "../housekeeping/housekeeping.service.j
 import type { InventoryService } from "../inventory/inventory.service.js";
 import type { BookingConfirmationService } from "../notification/booking-confirmation.service.js";
 import type { OpsAlertService } from "../notification/ops-alert.service.js";
+import type { TierDerivationService } from "../guest/tier-derivation.service.js";
 import { SystemConfigService } from "../system-config/system-config.service.js";
 import type { GatewayPaymentRequest } from "./payment.service.js";
 import { PaymentService } from "./payment.service.js";
@@ -163,6 +164,8 @@ beforeAll(async () => {
     // by the transition a paid hold makes, which nothing in this file drives.
     undefined as unknown as BookingTokenService,
     undefined as unknown as BookingConfirmationService,
+    // Unreached: no case here sells a stay, so no tier is derived.
+    undefined as unknown as TierDerivationService,
   );
 
   payments = new PaymentService(

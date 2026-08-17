@@ -118,6 +118,7 @@ import type {
   PaymentGateway,
 } from "../src/modules/payment/ports/payment-gateway.port.js";
 import { SystemConfigService } from "../src/modules/system-config/system-config.service.js";
+import { tiersAt } from "./tiers.js";
 
 /** `FR-PAY-03`'s number. */
 const REPLAYS = 10;
@@ -1651,6 +1652,8 @@ function realBookings(): BookingService {
       confirmationsQueued,
       undefined as unknown as PinoLogger,
     ),
+    // §7's ladder, reached only where a stay is sold to a signed-in guest.
+    tiersAt(businessDate),
   );
 }
 
