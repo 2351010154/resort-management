@@ -17,8 +17,8 @@
 // **§7's loyalty figures are seeded by the columns rather than named here, and
 // that is the same decision seen from the other side.** The values this file
 // passes are the ones §8 forbids the tree from knowing, so they have to arrive
-// from outside it. §7's earn rate, tier thresholds and expiry rule are the
-// developer's proposal until the owner tunes them, so their columns carry them
+// from outside it. §7's earn rate and tier thresholds are the developer's
+// proposal until the owner tunes them, so their columns carry them
 // as defaults and the row this insert writes comes out holding them. Naming them
 // here as well would put the same figure in two places, and the day they
 // disagreed the row would take whichever this file said. They are protected by

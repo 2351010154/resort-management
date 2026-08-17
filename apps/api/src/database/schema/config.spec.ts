@@ -156,15 +156,14 @@ describe("the system configuration", () => {
     // The opposite arrangement to the rates above, and the difference is
     // ownership rather than rigour. §8's figures belong to an accountant or to
     // the owner, so a default would be this repository answering for them; §7
-    // says the earn rate, the thresholds and the expiry rule are the developer's
-    // proposal until the owner tunes them, so the default *is* the answer this
+    // says the earn rate and the thresholds are the developer's proposal until
+    // the owner tunes them, so the default *is* the answer this
     // repository gave. Asserted as values, because the figures are the thing §7
     // decided and a column that silently drifted from them would still look
     // configured.
     expect(systemConfig.loyaltyPointsPerUnit.default).toBe(1);
     expect(systemConfig.tierSilverStays.default).toBe(2);
     expect(systemConfig.tierGoldStays.default).toBe(4);
-    expect(systemConfig.pointsExpireYearEnd.default).toBe(true);
 
     // The đồng figures declare their defaults as SQL, because the migration
     // generator writes its snapshot as JSON and a `bigint` has none. What

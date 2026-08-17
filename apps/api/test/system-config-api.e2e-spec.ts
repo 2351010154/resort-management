@@ -109,7 +109,6 @@ const CONFIGURATION_FIELDS = [
   "tierSilverRevenueVnd",
   "tierGoldStays",
   "tierGoldRevenueVnd",
-  "pointsExpireYearEnd",
 ] as const;
 
 /** Figures nobody could mistake for a property's real ones. */
@@ -489,7 +488,6 @@ describe("the configuration as the read route answers it", () => {
       tierSilverRevenueVnd: configured.tierSilverRevenueVnd.toString(),
       tierGoldStays: configured.tierGoldStays,
       tierGoldRevenueVnd: configured.tierGoldRevenueVnd.toString(),
-      pointsExpireYearEnd: configured.pointsExpireYearEnd,
     });
   });
 
@@ -655,13 +653,18 @@ describe("a loyalty figure an admin changes", () => {
     });
   });
 
-  it("turns the expiry rule off and answers with it off", async () => {
-    const response = await edit({ pointsExpireYearEnd: false }).expect(200);
+  it("carries no expiry setting, because expiry is not a setting", async () => {
+    // §7 states expiry as a rule with no alternative — points earned in year
+    // `Y` expire on 31 December of `Y+1` — so there is nothing here to turn
+    // off. A field for it would offer a position no accrual could honour:
+    // `loyalty_ledger.expires_at` is `NOT NULL` and nothing can say "never".
+    const response = await as("ADMIN", "get").expect(200);
 
-    expect(response.body.pointsExpireYearEnd).toBe(false);
-    expect((await posting.loyaltyRules(db)).pointsExpireAtYearEnd).toBe(false);
+    expect(response.body).not.toHaveProperty("pointsExpireYearEnd");
 
-    await edit({ pointsExpireYearEnd: true }).expect(200);
+    // And an edit naming it is a body naming nothing this contract knows,
+    // which the empty-edit refusal answers rather than quietly storing.
+    await as("ADMIN", "patch", { pointsExpireYearEnd: false }).expect(400);
   });
 
   it("is refused to a manager, who may read the program and not tune it", async () => {

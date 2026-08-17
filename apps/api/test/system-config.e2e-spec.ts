@@ -79,8 +79,8 @@ const CONFIGURED: SystemConfigValues = {
  *
  * These are real values rather than deliberately unreal ones, and the
  * difference from the rates above is ownership: §8 forbids the tree from
- * carrying a tax rate, while §7 states that the earn rate, the thresholds and
- * the expiry rule are proposed here until the owner tunes them. So the figure a
+ * carrying a tax rate, while §7 states that the earn rate and the thresholds
+ * are proposed here until the owner tunes them. So the figure a
  * fresh property runs on is a value this repository chose, and a test that
  * asserted anything else would be asserting a drift.
  */
@@ -91,7 +91,6 @@ const SEEDED_BY_THE_COLUMNS = {
   tierSilverRevenueVnd: 15_000_000n,
   tierGoldStays: 4,
   tierGoldRevenueVnd: 40_000_000n,
-  pointsExpireYearEnd: true,
 } as const;
 
 /**
@@ -107,7 +106,6 @@ const TUNED = {
   tierSilverRevenueVnd: 21_000_000n,
   tierGoldStays: 13,
   tierGoldRevenueVnd: 77_000_000n,
-  pointsExpireYearEnd: false,
 } as const;
 
 /**
@@ -302,7 +300,7 @@ describe("the figures a posting reads", () => {
 });
 
 describe("the figures a loyalty accrual reads", () => {
-  it("hands back the earn rate in its two halves and the expiry rule", async () => {
+  it("hands back the earn rate in its two halves", async () => {
     await store(CONFIGURED);
     await db.update(systemConfig).set(TUNED);
 
@@ -313,7 +311,6 @@ describe("the figures a loyalty accrual reads", () => {
     expect(await config.loyaltyRules(db)).toEqual({
       pointsPerUnit: TUNED.loyaltyPointsPerUnit,
       earnUnitVnd: TUNED.loyaltyEarnUnitVnd,
-      pointsExpireAtYearEnd: TUNED.pointsExpireYearEnd,
     });
   });
 
@@ -326,7 +323,6 @@ describe("the figures a loyalty accrual reads", () => {
     expect(await config.loyaltyRules(db)).toEqual({
       pointsPerUnit: SEEDED_BY_THE_COLUMNS.loyaltyPointsPerUnit,
       earnUnitVnd: SEEDED_BY_THE_COLUMNS.loyaltyEarnUnitVnd,
-      pointsExpireAtYearEnd: SEEDED_BY_THE_COLUMNS.pointsExpireYearEnd,
     });
   });
 
