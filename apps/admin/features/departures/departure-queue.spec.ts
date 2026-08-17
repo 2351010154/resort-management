@@ -265,6 +265,14 @@ describe("how many steps this checkout has", () => {
     );
   });
 
+  it("goes on past a step the answer to it removed", () => {
+    // The balance is paid, which settles the account and drops the step that
+    // was just answered. What follows it is still the settlement.
+    expect(stepAfter(sequenceSteps({ balanceDue: false }), "payment")).toBe(
+      "settlement",
+    );
+  });
+
   it("names every step the sequence can show", () => {
     expect(CHECKOUT_STEPS).toEqual(["account", "payment", "settlement"]);
   });

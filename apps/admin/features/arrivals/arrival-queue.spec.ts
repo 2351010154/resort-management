@@ -332,6 +332,23 @@ describe("the steps this arrival has", () => {
       ),
     ).toBe("room");
   });
+
+  it("goes on past a step the answer to it removed", () => {
+    // The deposit is posted, which settles the account and drops the step that
+    // was just answered. What follows it is still the review.
+    expect(
+      stepAfter(
+        sequenceSteps({ knownGuest: false, depositDue: false }),
+        "deposit",
+      ),
+    ).toBe("review");
+    expect(
+      stepAfter(
+        sequenceSteps({ knownGuest: true, depositDue: false }),
+        "deposit",
+      ),
+    ).toBe("review");
+  });
 });
 
 describe("reading a refused check-in", () => {
