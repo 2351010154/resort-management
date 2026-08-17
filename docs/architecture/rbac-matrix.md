@@ -210,6 +210,7 @@ screen.
 |---|:-:|:-:|:-:|:-:|:-:|:-:|---|
 | Staff accounts + role assignment | — | — | — | — | — | ✅ | |
 | System config (tax rates, business date, gateway credentials) | — | — | — | — | 👁 | ✅ | |
+| Read the property's business date | — | 👁 | 👁 | 👁 | 👁 | 👁 | The day only, never the rollover hour or any other configured figure. Its own row because every staff screen renders against the property's day and none of them may open the row above; the day is not settable here — the hour it is derived from is changed through that row by `ADMIN` |
 | Trigger night audit manually | — | — | — | — | ✅ | ✅ | |
 | Job queue / dead-letter inspection | — | — | — | — | — | ✅ | |
 

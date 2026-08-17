@@ -211,6 +211,17 @@ export class BookingController {
    * above and denied to a guest. That denial is the enforcement of §2's "only
    * the public funnel starts at `HELD`" read the other way round: a guest
    * cannot write themselves a confirmed stay with no deposit behind it.
+   *
+   * **The contact comes off the body here and off no other creating route.**
+   * This stay is `CONFIRMED` from birth, so it never becomes a hold and never
+   * reaches {@link setOwnHoldContact}: a telephone booking that could not name
+   * an address at creation would have none for the rest of its life, and the
+   * cancellation and pre-arrival messages would have nowhere to go.
+   * `contract/booking.ts` argues why the funnel's door still does not take it.
+   *
+   * It is an address and not an authority. Nothing is granted by naming one —
+   * the stay is filed under nobody, exactly as a walk-in is, and
+   * {@link attachToAccount} is the only route that gives a booking an owner.
    */
   @RequiresCapability("booking.write")
   @Implement(contract.booking.createConfirmed)
@@ -219,7 +230,16 @@ export class BookingController {
       async ({ input }) =>
         onWire(
           await this.transactions.run((exec) =>
-            this.bookings.createConfirmed(exec, asCreateInput(input)),
+            this.bookings.createConfirmed(exec, {
+              ...asCreateInput(input),
+              // Whole or absent, which the schema has already held the body to
+              // — so one half being present is enough to know both are.
+              contact:
+                input.contactEmail === undefined ||
+                input.contactName === undefined
+                  ? null
+                  : { email: input.contactEmail, name: input.contactName },
+            }),
           ),
         ),
     );

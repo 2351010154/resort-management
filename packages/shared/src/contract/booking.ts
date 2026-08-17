@@ -131,6 +131,12 @@ const stayFields = {
 /**
  * Who to write to about the stay, and what to call them.
  *
+ * **One fact and not two.** Every door below that takes this takes both halves
+ * or neither: an address with no name to put at the top of it is not half a
+ * contact, it is an unusable one, and a name with no address is somebody the
+ * property still cannot write to. {@link createBookingInput} makes the pair
+ * optional and keeps it whole; {@link setHoldContactInput} requires it outright.
+ *
  * **On the booking and not on `registration`.** A registration row is the legal
  * check-in record — `schema/guest.ts` gives it `is_primary` and `registered_at`,
  * allows one primary per booking and feeds the residence report — so writing one
@@ -169,6 +175,19 @@ const partyFitsARoom = (stay: {
   childAges: readonly unknown[];
 }) => stay.adults + stay.childAges.length <= LARGEST_PLAUSIBLE_PARTY;
 
+/**
+ * Both halves of {@link contactFields}, or neither of them.
+ *
+ * Structural like the two above, and stated once because both places a contact
+ * may arrive optionally have to refuse the same half-filled pair — a form that
+ * collected a name and lost the address would otherwise write a booking the
+ * property can name and cannot reach.
+ */
+const contactIsWholeOrAbsent = (stay: {
+  contactEmail?: string;
+  contactName?: string;
+}) => (stay.contactEmail === undefined) === (stay.contactName === undefined);
+
 const DEPARTURE_MESSAGE = {
   message: "checkOut must fall after checkIn",
   path: ["checkOut"],
@@ -179,6 +198,11 @@ const PARTY_MESSAGE = {
   path: ["childAges"],
 };
 
+const CONTACT_MESSAGE = {
+  message: "a contact is a name and an address together, or neither",
+  path: ["contactEmail"],
+};
+
 /**
  * A stay as the desk sells it — the body behind §2's *(new)* → `CONFIRMED`.
  *
@@ -186,15 +210,34 @@ const PARTY_MESSAGE = {
  * and the quote is computed inside the transaction that consumes the nights —
  * an amount arriving here would be a price the guest proposed.
  *
- * No contact pair, and that is the difference between this door and the one
- * below rather than an omission. A walk-in is somebody at the counter: the
- * property has them in front of it, takes their document at check-in, and has
- * nowhere to send a confirmation that the desk is not already handing over.
+ * **The contact pair is optional here, and this is the only creating door that
+ * takes it at all.** A stay taken at the desk is `CONFIRMED` from birth, so it
+ * never passes through `HELD` and can never reach {@link setHoldContactInput} —
+ * without this the property would hold a telephone booking it cannot write to
+ * about a cancellation or an arrival, for the whole life of the stay.
+ *
+ * **Optional and not required, because this one door takes two conversations.**
+ * A walk-in is somebody at the counter: the property has them in front of it,
+ * takes their document at check-in, and has nowhere to send a confirmation the
+ * desk is not already handing over — so an address is genuinely absent rather
+ * than forgotten. A telephone booking is the opposite and is the case this
+ * field exists for. Nothing on the wire tells the two apart, and a `kind` field
+ * would not: it would be a claim the caller makes freely, so the requirement it
+ * governed could always be escaped by making the other claim. Which
+ * conversation the operator is in is known at the screen and nowhere else, so
+ * the desk's own form is where the telephone path insists — `new-booking-form.tsx`.
+ *
+ * What is *not* optional is either half on its own — {@link contactIsWholeOrAbsent}.
  */
 export const createBookingInput = z
-  .object(stayFields)
+  .object({
+    ...stayFields,
+    contactEmail: contactFields.contactEmail.optional(),
+    contactName: contactFields.contactName.optional(),
+  })
   .refine(departsAfterArrival, DEPARTURE_MESSAGE)
-  .refine(partyFitsARoom, PARTY_MESSAGE);
+  .refine(partyFitsARoom, PARTY_MESSAGE)
+  .refine(contactIsWholeOrAbsent, CONTACT_MESSAGE);
 
 /**
  * The same stay, from a funnel — §2's *(new)* → `HELD`.
@@ -213,9 +256,20 @@ export const createBookingInput = z
  * there, one press before the money, that the funnel refuses to go on without
  * it.
  *
- * Everything is {@link createBookingInput}, spread from the same fields so the
- * two doors cannot come to disagree about what a stay is. What still separates
- * them is the TTL and who may call them, which is what §2 says they are.
+ * **The desk's door takes the pair and this one still does not, and the
+ * asymmetry is the argument above rather than an inconsistency.** What the move
+ * refused was asking a stranger who they are in order to reserve twenty
+ * minutes; the review screen is one press before the money and is where the
+ * funnel asks. A stay taken at the desk has no such screen — it is `CONFIRMED`
+ * from birth and never `HELD` — so its only chance to record an address is the
+ * creating call, and {@link createBookingInput} is where it takes it. Adding
+ * the pair here would put the question back in front of the total for the
+ * caller who has not seen one, which is the whole of what the move was for.
+ *
+ * The stay is {@link createBookingInput}'s, spread from the same fields so the
+ * two doors cannot come to disagree about what a stay is. What separates them
+ * is the TTL, who may call them, and the contact the desk has no later door
+ * for — the first two being what §2 says they are.
  */
 export const createHoldInput = z
   .object(stayFields)
@@ -277,9 +331,11 @@ export const bookingSchema = z.object({
    * an address, refreshes, and comes back has to find it still there. A field
    * the API took and would not say back is a form that empties itself.
    *
-   * Null on every stay the desk took, which is most of them: a walk-in is
-   * somebody at the counter, and `schema/booking.ts` records why the column is
-   * shared by both doors and required by neither.
+   * Null on the walk-in, which is most stays the desk takes: somebody at the
+   * counter has nowhere for a confirmation to go. Set on a telephone booking,
+   * which the desk's own door collects it for —
+   * {@link createBookingInput} — and `schema/booking.ts` records why the column
+   * is shared by every door and required by none.
    */
   contactEmail: z.email().max(254).nullable(),
   contactName: z.string().max(120).nullable(),

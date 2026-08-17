@@ -29,6 +29,10 @@ export default defineConfig({
     // screen author would otherwise sit there passing silently by never being
     // run at all, which is worse than having no spec.
     include: ["**/*.spec.ts"],
-    exclude: ["node_modules/**", ".next/**"],
+    // `e2e/` is the Playwright run named above. Its specs are `*.spec.ts` too —
+    // they are the console's tests and are named like them — but they import
+    // `@playwright/test`, which throws when it is not the runner. `pnpm test:e2e`
+    // is what executes them.
+    exclude: ["node_modules/**", ".next/**", "e2e/**"],
   },
 });

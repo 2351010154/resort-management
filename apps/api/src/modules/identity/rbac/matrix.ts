@@ -758,6 +758,35 @@ export const CAPABILITIES = [
     staff: staff({ MANAGER: "read", ADMIN: "full" }),
   },
   {
+    // What day the property is having — read by every screen that renders a
+    // date, which is nearly all of them.
+    //
+    // Its own row rather than a use of the one above, and the difference is the
+    // whole reason it exists. `system.config` is `MANAGER` and `ADMIN` because
+    // it carries the figures every future invoice is computed from; the day is
+    // not privileged and a receptionist cannot work a shift without it. Reading
+    // the day off that row would either widen it to the desk or leave the desk
+    // computing its own rollover, and a console that decides for itself what day
+    // it is renders against a different day than the property is working.
+    //
+    // `read` to every staff role and no write anywhere: the day is not settable
+    // — it is `business_date_rollover_hour` applied to the clock, and the hour
+    // is changed through the row above by the one role that owns it.
+    key: "system.business-date",
+    section: "System",
+    row: "Read the property's business date",
+    unauthenticated: false,
+    guest: "denied",
+    staff: staff({
+      RECEPTIONIST: "read",
+      HOUSEKEEPING: "read",
+      ACCOUNTANT: "read",
+      MANAGER: "read",
+      ADMIN: "read",
+    }),
+    note: "The day only, never the rollover hour or any other configured figure",
+  },
+  {
     key: "operations.night-audit-trigger",
     section: "System",
     row: "Trigger night audit manually",
