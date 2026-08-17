@@ -225,6 +225,13 @@
       "when": 1786944878667,
       "tag": "0031_loyalty_expiry_is_a_rule",
       "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1786949021011,
+      "tag": "0032_guest_tier_change_trail",
+      "breakpoints": true
     }
   ]
 }
