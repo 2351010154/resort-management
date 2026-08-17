@@ -217,7 +217,7 @@ password rather than taking it as an argument, which would put it in the shell h
 in `ps`:
 
 ```bash
-pnpm --filter @mariva/api staff:create -- \
+pnpm --filter @mariva/api staff:create \
   --email owner@mariva.vn --name "Trần Minh" --role ADMIN
 ```
 

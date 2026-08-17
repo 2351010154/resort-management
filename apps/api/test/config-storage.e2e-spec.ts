@@ -90,6 +90,18 @@ describe("the seeded configuration", () => {
       vatIncludesServiceCharge: true,
       serviceChargeRateBps: 500,
       businessDateRolloverHour: 4,
+      // Written by the columns rather than by `SEEDED`, which names none of
+      // them. These are §7's own figures, and they are values in this
+      // repository rather than values from an environment because §7 says they
+      // are the developer's proposal until the owner tunes them. Đồng come back
+      // as `bigint` for `money.ts`'s reason: an amount that arrived as a
+      // `number` could be added to a count of stays and would compile.
+      loyaltyPointsPerUnit: 1,
+      loyaltyEarnUnitVnd: 10_000n,
+      tierSilverStays: 2,
+      tierSilverRevenueVnd: 15_000_000n,
+      tierGoldStays: 4,
+      tierGoldRevenueVnd: 40_000_000n,
     });
   });
 
@@ -282,6 +294,104 @@ describe("the reduced-VAT window", () => {
     const [stored] = await db.select().from(systemConfig);
 
     expect(stored?.reducedVatFrom).toBe("2026-07-01");
+  });
+});
+
+describe("§7's loyalty figures", () => {
+  it("survives an edit the way the tax figures do, because nothing rewrites them", async () => {
+    // The property that matters most about a default: it supplies the row that
+    // did not have the column and then never speaks again. A figure the property
+    // tuned is a plain `UPDATE`, and a default cannot reach back over it.
+    await db.insert(systemConfig).values(SEEDED);
+    await db
+      .update(systemConfig)
+      .set({ loyaltyEarnUnitVnd: 25_000n, tierGoldStays: 9 });
+
+    const [stored] = await db.select().from(systemConfig);
+
+    expect(stored?.loyaltyEarnUnitVnd).toBe(25_000n);
+    expect(stored?.tierGoldStays).toBe(9);
+  });
+
+  it("refuses an earn unit of nothing, which no revenue can be divided by", async () => {
+    // Zero đồng per point is not a program that earns nothing — it is a
+    // division by zero at whatever accrues, which is a failure at the folio
+    // close of a stay that has already happened.
+    const refusal = await refused(
+      db.insert(systemConfig).values({ ...SEEDED, loyaltyEarnUnitVnd: 0n }),
+    );
+
+    expect(refusal.code).toBe(CHECK_VIOLATION);
+    expect(refusal.constraint).toBe("system_config_loyalty_earn_unit_is_money");
+  });
+
+  it("refuses an earn rate that awards no points", async () => {
+    // A program that runs, writes a ledger row per stay and awards nothing is
+    // an outage that looks exactly like a working feature. §7 offers no way to
+    // switch the program off, so there is no off value to express.
+    const refusal = await refused(
+      db.insert(systemConfig).values({ ...SEEDED, loyaltyPointsPerUnit: 0 }),
+    );
+
+    expect(refusal.code).toBe(CHECK_VIOLATION);
+    expect(refusal.constraint).toBe(
+      "system_config_loyalty_earns_at_least_a_point",
+    );
+  });
+
+  it("refuses a first rung every guest is already standing on", async () => {
+    const refusal = await refused(
+      db.insert(systemConfig).values({ ...SEEDED, tierSilverStays: 0 }),
+    );
+
+    expect(refusal.code).toBe(CHECK_VIOLATION);
+    expect(refusal.constraint).toBe(
+      "system_config_silver_takes_at_least_one_stay",
+    );
+  });
+
+  it("refuses a Gold rung below the Silver one, on either axis", async () => {
+    // A ladder that collapses does not fail — every Silver guest is simply
+    // already Gold, and the tier beneath stops existing while the configuration
+    // still reads like a three-level program. Two constraints, because the
+    // property correcting this typed one of the two figures.
+    const stays = await refused(
+      db
+        .insert(systemConfig)
+        .values({ ...SEEDED, tierSilverStays: 5, tierGoldStays: 3 }),
+    );
+
+    expect(stays.constraint).toBe("system_config_gold_stays_not_below_silver");
+
+    const revenue = await refused(
+      db.insert(systemConfig).values({
+        ...SEEDED,
+        tierSilverRevenueVnd: 40_000_000n,
+        tierGoldRevenueVnd: 15_000_000n,
+      }),
+    );
+
+    expect(revenue.constraint).toBe(
+      "system_config_gold_revenue_not_below_silver",
+    );
+  });
+
+  it("accepts a rung equal to the one below it on one axis", async () => {
+    // A rung is reached by stays **or** by revenue, so each axis is compared
+    // with its own. A property that raises the money bar and leaves the nights
+    // alone still has a Silver tier: the guest who reaches the revenue and not
+    // the nights stands on it.
+    await db.insert(systemConfig).values({
+      ...SEEDED,
+      tierSilverStays: 3,
+      tierGoldStays: 3,
+      tierGoldRevenueVnd: 90_000_000n,
+    });
+
+    const [stored] = await db.select().from(systemConfig);
+
+    expect(stored?.tierGoldStays).toBe(3);
+    expect(stored?.tierGoldRevenueVnd).toBe(90_000_000n);
   });
 });
 

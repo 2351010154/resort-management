@@ -5,6 +5,8 @@ import { NoShowSweep } from "../modules/booking/no-show-sweep.js";
 import { EInvoiceJob } from "../modules/folio/e-invoice.job.js";
 import { FolioModule } from "../modules/folio/folio.module.js";
 import { RoomChargeSweep } from "../modules/folio/room-charge-sweep.js";
+import { GuestModule } from "../modules/guest/guest.module.js";
+import { TierRecomputeSweep } from "../modules/guest/tier-recompute-sweep.js";
 import { NotificationModule } from "../modules/notification/notification.module.js";
 import { PaymentModule } from "../modules/payment/payment.module.js";
 import { ReconciliationJob } from "../modules/payment/reconciliation.job.js";
@@ -64,10 +66,22 @@ import { SWEEP_JOBS, type SweepJob } from "./sweep-job.js";
 // discrepancy reaches a person. Same reason once more — how anything leaves this
 // process is decided in one place, and `notification.module.ts` is it.
 //
+// `GuestModule` is imported for `TierDerivationService`, which is what
+// `TierRecomputeSweep` asks where a guest is standing. Sharpest of the four:
+// `FR-GST-04` makes the tier a value derived from history against configured
+// thresholds, so a sweep that worked one out itself would be a second ladder,
+// and the two would agree until an `ADMIN` moved a rung.
+//
 // `DatabaseModule` is global, so nothing is imported for the pool pg-boss
 // borrows or for the transaction runner that opens a run's boundary.
 @Module({
-  imports: [BookingModule, FolioModule, PaymentModule, NotificationModule],
+  imports: [
+    BookingModule,
+    FolioModule,
+    PaymentModule,
+    NotificationModule,
+    GuestModule,
+  ],
   controllers: [JobTriggerController],
   providers: [
     {
@@ -83,6 +97,7 @@ import { SWEEP_JOBS, type SweepJob } from "./sweep-job.js";
         RoomChargeSweep,
         EInvoiceJob,
         ReconciliationJob,
+        TierRecomputeSweep,
       ],
       useFactory: (...jobs: SweepJob[]): readonly SweepJob[] => jobs,
     },
@@ -90,6 +105,7 @@ import { SWEEP_JOBS, type SweepJob } from "./sweep-job.js";
     NoShowSweep,
     RoomChargeSweep,
     ReconciliationJob,
+    TierRecomputeSweep,
     JobRunner,
     JobScheduler,
   ],

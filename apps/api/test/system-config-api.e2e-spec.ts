@@ -86,7 +86,15 @@ import { SystemConfigService } from "../src/modules/system-config/system-config.
 
 const ROUTE = "/system/config";
 
-/** Every figure the answer may carry — `FR-IDN-03`'s, as a list. */
+/**
+ * Every figure the answer may carry — `FR-IDN-03`'s, and §7's loyalty figures,
+ * as a list.
+ *
+ * The two halves are on one resource for opposite reasons: the tax figures
+ * because nobody here may answer them, the loyalty figures because §7 says the
+ * developer proposes them and the property tunes them. What they share is the
+ * row, and a screen that reads it whole.
+ */
 const CONFIGURATION_FIELDS = [
   "standardVatRateBps",
   "reducedVatRateBps",
@@ -95,6 +103,12 @@ const CONFIGURATION_FIELDS = [
   "vatIncludesServiceCharge",
   "serviceChargeRateBps",
   "businessDateRolloverHour",
+  "loyaltyPointsPerUnit",
+  "loyaltyEarnUnitVnd",
+  "tierSilverStays",
+  "tierSilverRevenueVnd",
+  "tierGoldStays",
+  "tierGoldRevenueVnd",
 ] as const;
 
 /** Figures nobody could mistake for a property's real ones. */
@@ -117,6 +131,17 @@ const BEFORE_THE_INSTANT = 5;
 const AFTER_THE_INSTANT = 9;
 const THE_DAY_IT_LANDS_ON = "2077-05-05";
 const THE_DAY_BEFORE_IT = "2077-05-04";
+
+/**
+ * A loyalty program an `ADMIN` tunes to, differing from §7's proposal in every
+ * figure so that no assertion can pass on a value the column supplied.
+ */
+const EDITED_POINTS_PER_UNIT = 7;
+const EDITED_EARN_UNIT_VND = 33_000n;
+const EDITED_GOLD_STAYS = 13;
+
+/** A Gold rung below the Silver one, which would leave Silver unreachable. */
+const GOLD_BELOW_SILVER_STAYS = 1;
 
 /** 10000 basis points is 100%, so this is one past the last real answer. */
 const IMPOSSIBLE_RATE_BPS = 10_001;
@@ -442,7 +467,7 @@ describe("the capability each system-configuration route declares", () => {
 });
 
 describe("the configuration as the read route answers it", () => {
-  it("carries the seven figures a posting reads, and the row's own values", async () => {
+  it("carries every figure a posting or an accrual reads, and the row's own values", async () => {
     const configured = await stored();
 
     expect(await read()).toEqual({
@@ -453,7 +478,29 @@ describe("the configuration as the read route answers it", () => {
       vatIncludesServiceCharge: configured.vatIncludesServiceCharge,
       serviceChargeRateBps: configured.serviceChargeRateBps,
       businessDateRolloverHour: configured.businessDateRolloverHour,
+      loyaltyPointsPerUnit: configured.loyaltyPointsPerUnit,
+      // Đồng cross as decimal text and never as a JSON number, which is
+      // `money.ts`'s rule rather than this route's: a total in đồng need not fit
+      // a double, and a number that silently loses its last digits is worse
+      // than one that never arrives.
+      loyaltyEarnUnitVnd: configured.loyaltyEarnUnitVnd.toString(),
+      tierSilverStays: configured.tierSilverStays,
+      tierSilverRevenueVnd: configured.tierSilverRevenueVnd.toString(),
+      tierGoldStays: configured.tierGoldStays,
+      tierGoldRevenueVnd: configured.tierGoldRevenueVnd.toString(),
     });
+  });
+
+  it("carries the thresholds a tier is derived from, and no tier", async () => {
+    // `FR-GST-04` derives the tier on read from a trailing window, so there is
+    // none in the row and none on the wire. A field here would be the one place
+    // a screen could show a guest a tier that stopped being true when the
+    // window moved.
+    const answered = Object.keys(await read()).join(" ").toLowerCase();
+
+    expect(answered).toContain("tiersilverstays");
+    expect(answered).not.toContain("currenttier");
+    expect(answered).not.toContain("loyaltytier");
   });
 
   it("carries nothing else, including nothing a secret could travel in", async () => {
@@ -580,6 +627,63 @@ describe("a figure an admin changes", () => {
   });
 });
 
+describe("a loyalty figure an admin changes", () => {
+  it("is read by the next accrual, with nothing restarted", async () => {
+    // §7's claim about its own values — tuning one is a data edit and not a
+    // deploy — asserted against the service an accrual reads through, called
+    // straight after the request that changed the row returned. Đồng go up as
+    // decimal text, which is what `money.ts` puts on the wire in both
+    // directions.
+    await edit({
+      loyaltyPointsPerUnit: EDITED_POINTS_PER_UNIT,
+      loyaltyEarnUnitVnd: EDITED_EARN_UNIT_VND.toString(),
+    }).expect(200);
+
+    expect(await posting.loyaltyRules(db)).toMatchObject({
+      pointsPerUnit: EDITED_POINTS_PER_UNIT,
+      earnUnitVnd: EDITED_EARN_UNIT_VND,
+    });
+  });
+
+  it("moves the rung a tier is derived at, without storing a tier", async () => {
+    await edit({ tierGoldStays: EDITED_GOLD_STAYS }).expect(200);
+
+    expect(await posting.tierThresholds(db)).toMatchObject({
+      goldStays: EDITED_GOLD_STAYS,
+    });
+  });
+
+  it("carries no expiry setting, because expiry is not a setting", async () => {
+    // §7 states expiry as a rule with no alternative — points earned in year
+    // `Y` expire on 31 December of `Y+1` — so there is nothing here to turn
+    // off. A field for it would offer a position no accrual could honour:
+    // `loyalty_ledger.expires_at` is `NOT NULL` and nothing can say "never".
+    const response = await as("ADMIN", "get").expect(200);
+
+    expect(response.body).not.toHaveProperty("pointsExpireYearEnd");
+
+    // And an edit naming it is a body naming nothing this contract knows,
+    // which the empty-edit refusal answers rather than quietly storing.
+    await as("ADMIN", "patch", { pointsExpireYearEnd: false }).expect(400);
+  });
+
+  it("is refused to a manager, who may read the program and not tune it", async () => {
+    // The matrix row is one row for the whole configuration, so this is the
+    // same 👁 that guards a tax rate — asserted here as well, because "the
+    // manager cannot change a rate" and "the manager cannot change what a stay
+    // earns" are the same guard and would be the same omission.
+    const before = await stored();
+
+    await as("MANAGER", "patch", {
+      loyaltyPointsPerUnit: EDITED_POINTS_PER_UNIT,
+    }).expect(403);
+
+    expect((await stored()).loyaltyPointsPerUnit).toBe(
+      before.loyaltyPointsPerUnit,
+    );
+  });
+});
+
 describe("a figure the configuration will not hold", () => {
   it("refuses a rate above a hundred percent", async () => {
     // Both rates, because the ceiling is a property of the field and not of
@@ -615,6 +719,36 @@ describe("a figure the configuration will not hold", () => {
     // is usually a misspelled field. Accepted, it is an admin who believes they
     // changed a tax rate and did not.
     await refuses({});
+  });
+
+  it("refuses an earn rate that would award nothing or divide by nothing", async () => {
+    // Both halves, because the failure differs at each: no points is a program
+    // that runs and awards nothing, and no unit is a division by zero at the
+    // close of a stay that has already happened.
+    await refuses({ loyaltyPointsPerUnit: 0 });
+    await refuses({ loyaltyEarnUnitVnd: "0" });
+  });
+
+  it("refuses an amount of đồng that is not whole", async () => {
+    // Money crosses as decimal text, so this is the shape check rather than a
+    // rounding rule — VND has no minor unit and nothing here would know what to
+    // do with a half.
+    await refuses({ tierSilverRevenueVnd: "15000000.5" });
+  });
+
+  it("refuses a tier rung the stored one would leave below its neighbour", async () => {
+    // The tier ladder's version of the window case: the edit names Gold and only
+    // the row says what Silver is, so this is refusable nowhere but the server.
+    // A collapsed ladder does not fail on its own — Silver simply stops being
+    // reachable while the configuration still reads like three levels.
+    await edit({ tierSilverStays: 2, tierGoldStays: 4 }).expect(200);
+
+    const refusal = await refuses({ tierGoldStays: GOLD_BELOW_SILVER_STAYS });
+
+    // Both figures named, because the person reading it typed one of them and
+    // cannot see the other.
+    expect(refusal.body.message).toContain(String(GOLD_BELOW_SILVER_STAYS));
+    expect(refusal.body.message).toContain("Silver");
   });
 
   it("refuses a window that the stored end would leave closing before it opens", async () => {

@@ -71,6 +71,7 @@
 // that set it in an environment variable would be asserting against a value
 // nothing consults.
 
+import { noAccrual } from "./accrual.js";
 import "reflect-metadata";
 
 import type { VndAmount } from "@mariva/shared";
@@ -242,7 +243,7 @@ beforeAll(async () => {
   roomTypeId = created!.id;
 
   gateway = new GatewayUnderTest();
-  folios = new FolioService(db, new SystemConfigService());
+  folios = new FolioService(db, new SystemConfigService(), noAccrual);
   bookings = realBookings();
   payments = new PaymentService(
     gateway,
@@ -979,7 +980,7 @@ describe("a posting the ledger refuses", () => {
     const refusal = await refused(
       new PaymentService(
         gateway,
-        new LedgerThatRefuses(db, new SystemConfigService()),
+        new LedgerThatRefuses(db, new SystemConfigService(), noAccrual),
         new BusinessDateService(new SystemConfigService()),
         bookings,
         new TransactionRunner(db),
@@ -1040,7 +1041,7 @@ describe("the stay a callback pays for", () => {
     await refused(
       new PaymentService(
         gateway,
-        new LedgerThatRefuses(db, new SystemConfigService()),
+        new LedgerThatRefuses(db, new SystemConfigService(), noAccrual),
         new BusinessDateService(new SystemConfigService()),
         bookings,
         new TransactionRunner(db),
@@ -1185,7 +1186,7 @@ describe("money landing on a stay nobody can honour", () => {
     await refused(
       new PaymentService(
         gateway,
-        new LedgerThatRefuses(db, new SystemConfigService()),
+        new LedgerThatRefuses(db, new SystemConfigService(), noAccrual),
         new BusinessDateService(new SystemConfigService()),
         bookings,
         new TransactionRunner(db),

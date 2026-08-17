@@ -32,6 +32,7 @@
 // resolved to cannot pass by having them the right way round for the wrong
 // reason.
 
+import { noAccrual } from "./accrual.js";
 import "reflect-metadata";
 
 import { parseDate } from "@internationalized/date";
@@ -164,7 +165,7 @@ beforeAll(async () => {
 
   deskId = staff!.id;
 
-  folios = new FolioService(db, new SystemConfigService());
+  folios = new FolioService(db, new SystemConfigService(), noAccrual);
 });
 
 afterAll(async () => {

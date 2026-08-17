@@ -69,6 +69,12 @@ export * from "./reconciliation.js";
 // it. Owned by `modules/guest`.
 export * from "./loyalty.js";
 
+// When the nightly recomputation found a guest on a different rung of §7's
+// ladder from the one it last recorded. A trail of observations and never the
+// tier itself, which stays derived — `modules/guest` owns both, and the
+// derivation is the only thing that answers what tier a guest holds.
+export * from "./guest-tier.js";
+
 // The change log every state-changing action writes to — who changed which row
 // of which table, when, and what it looked like on either side. Owned by
 // `modules/audit`; written by the module that owns the row being changed.
