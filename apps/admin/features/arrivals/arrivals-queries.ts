@@ -17,7 +17,9 @@
  *
  * Nothing here reports its own failure: `lib/query-client.ts` raises the toast
  * centrally. What these hooks owe the screen is the honest state of the queue,
- * which is {@link useArrivalQueue}'s reading.
+ * which is {@link useArrivalQueue}'s reading. The single exception is the
+ * account read, whose absence is a normal fact about a stay nobody has checked
+ * in yet — see {@link useBookingFolio}.
  */
 
 "use client";
@@ -134,14 +136,24 @@ function queueReading(
  * the ledger: a stay booked through the funnel arrives paid in full and one the
  * desk took by telephone does not, and a sequence that offered the step either
  * way would ask a receptionist for money the guest has already handed over.
+ *
+ * **The one read in the console that is not toasted when it fails.** A stay
+ * that has not checked in has no account yet — the folio is opened by the
+ * transition this sequence is working towards — so `folio.read` answering that
+ * there is none is the ordinary case here and not a fault, and it would put a
+ * red toast in front of the desk on every check-in. The sequence draws the
+ * consequence itself, on the step where it matters: no deposit is offered and
+ * the review says the account could not be read. That line covers a folio that
+ * failed for any other reason too, which is why the whole read opts out rather
+ * than one status of it.
  */
 export function useBookingFolio(bookingId: string | null) {
   return useQuery(
     orpc.folio.read.queryOptions({
       input: bookingId === null ? skipToken : { bookingId },
-      meta: {
-        errorMessage: "The stay's account could not be read.",
-      } satisfies ConsoleMeta,
+      // No `errorMessage` beside it: nothing is said centrally about this read,
+      // so a sentence here would be one that can never be shown.
+      meta: { rendersFailureInline: true } satisfies ConsoleMeta,
     }),
   );
 }

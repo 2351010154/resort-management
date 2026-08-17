@@ -41,12 +41,41 @@ export interface ConsoleMeta {
    * failed; the generic fallback cannot, because it does not know.
    */
   readonly errorMessage?: string;
+
+  /**
+   * Declared by a call that draws its own failure where the operator is
+   * already looking, and the only thing that takes the central toast away.
+   *
+   * The toast below is a floor because a screen that forgets its `onError`
+   * would otherwise fail silently, and that argument does not hold for a read
+   * whose failure is a normal state of the property and is answered in place:
+   * the check-in sequence asks for the account of a stay that has not checked
+   * in, which correctly has none, and says so in a line beside the deposit. A
+   * red toast over handling that is already correct puts an error in front of
+   * the desk on every single check-in, which is how a property learns to read
+   * past its own toasts. Narrow on purpose — a call that does not declare it
+   * is reported, and a screen that stops drawing the failure has to come back
+   * here and take this off.
+   */
+  readonly rendersFailureInline?: boolean;
 }
 
 function errorSentence(meta: unknown, fallback: string): string {
   const named = (meta as ConsoleMeta | undefined)?.errorMessage;
 
   return typeof named === "string" && named.trim() !== "" ? named : fallback;
+}
+
+/**
+ * Whether the caller has taken the reporting of this failure on itself.
+ *
+ * Strictly `true`, and read defensively for {@link errorSentence}'s reason:
+ * `meta` is a free-form record by convention, so a misspelled key or a value
+ * that is merely truthy falls back to reporting the failure rather than to
+ * swallowing it. Silence is the answer that has to be asked for exactly.
+ */
+function rendersFailureInline(meta: unknown): boolean {
+  return (meta as ConsoleMeta | undefined)?.rendersFailureInline === true;
 }
 
 /**
@@ -106,11 +135,19 @@ const GENERIC_MUTATION_FAILURE = "That could not be saved.";
  * data is worse than one that says it could not load. A screen that wants to
  * render the failure inline still gets `error` from its own hook; the toast is
  * the floor, not the ceiling.
+ *
+ * The one way through that floor is {@link ConsoleMeta.rendersFailureInline},
+ * declared on the call itself. It is not a default anything can drift into: a
+ * call that says nothing about it is reported.
  */
 export function createQueryClient(): QueryClient {
   return new QueryClient({
     queryCache: new QueryCache({
       onError: (error, query) => {
+        if (rendersFailureInline(query.meta)) {
+          return;
+        }
+
         // Keyed by the query's hash so a screen polling a broken endpoint
         // replaces its own toast instead of stacking a column of identical
         // ones over the work.
@@ -123,6 +160,13 @@ export function createQueryClient(): QueryClient {
 
     mutationCache: new MutationCache({
       onError: (error, _variables, _context, mutation) => {
+        // Honoured on a write as well as on a read, because `ConsoleMeta` is
+        // one channel: a field that worked in one cache and was quietly
+        // ignored in the other would be a trap for whoever declared it next.
+        if (rendersFailureInline(mutation.meta)) {
+          return;
+        }
+
         toast.error(
           apiMessage(
             error,
