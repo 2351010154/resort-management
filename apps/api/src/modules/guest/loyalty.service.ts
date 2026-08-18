@@ -51,7 +51,7 @@
 
 import { PROPERTY_TIME_ZONE } from "@mariva/shared";
 import { Injectable } from "@nestjs/common";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, gte, sql } from "drizzle-orm";
 import type { DbExecutor } from "../../database/database.module.js";
 import { booking } from "../../database/schema/booking.js";
 import { folio, folioPosting } from "../../database/schema/folio.js";
@@ -82,6 +82,21 @@ import { netRoomRevenue } from "./net-room-revenue.js";
 const EXPIRES_AT_THE_END_OF_THE_FOLLOWING_YEAR = sql`make_date(
   extract(year from (now() at time zone ${PROPERTY_TIME_ZONE}))::int + 1, 12, 31
 )`;
+
+/**
+ * Today in the property's own zone — the day a balance is asked about.
+ *
+ * The same reading of §7 the expiry above takes, and it has to be: the two are
+ * the sides of one comparison, so a date computed in UTC on one side would let a
+ * point expire seven hours early for every guest reading their balance between
+ * midnight and 07:00 in Ho Chi Minh City.
+ *
+ * Not `current_date`, which is the server's zone and therefore whatever the
+ * container was started with, and not the business date — §2's rollover hour
+ * decides which trading day a *posting* is reported under, and §7 states a
+ * calendar rule about a calendar date.
+ */
+const TODAY_HERE = sql`(now() at time zone ${PROPERTY_TIME_ZONE})::date`;
 
 @Injectable()
 export class LoyaltyService {
@@ -138,6 +153,52 @@ export class LoyaltyService {
         });
       }
     });
+  }
+
+  /**
+   * What the account has to its name right now — `FR-GST-05`'s "balance = Σ
+   * ledger rows, never a mutable counter".
+   *
+   * The sum, computed on the read, because that is the requirement rather than
+   * an implementation of it: `schema/loyalty.ts` refuses a balance column on the
+   * grounds that a second place for a guest's points to live is a second place
+   * that can be wrong, and the ledger is append-only precisely so this sum is
+   * the whole of the answer.
+   *
+   * **Unexpired rows only.** §7 expires points earned in year `Y` at the end of
+   * 31 December of `Y+1`, and the row carries that date rather than a job
+   * carrying it — so the predicate is the expiry rule, applied here, on every
+   * read. The bound is inclusive: a point whose `expires_at` is today has not
+   * expired yet, it expires when today ends, and a strict comparison would take
+   * a guest's points away a day early.
+   *
+   * Takes the caller's executor, like everything else that reads in this module.
+   * The balance travels beside a derived tier on the profile screen, and the two
+   * belong to one snapshot: read on separate connections they could straddle a
+   * folio close and show a stay's points against a ladder that had not counted
+   * it yet.
+   *
+   * An account with no accruals sums to nothing, which Postgres answers as a
+   * null and this reads as zero. A guest who has never stayed has a balance of
+   * zero rather than no balance.
+   */
+  async balance(exec: DbExecutor, userId: string): Promise<bigint> {
+    const [summed] = await exec
+      .select({
+        points: sql<string>`coalesce(sum(${loyaltyLedger.pointsEarned}), 0)`,
+      })
+      .from(loyaltyLedger)
+      .where(
+        and(
+          eq(loyaltyLedger.userId, userId),
+          gte(loyaltyLedger.expiresAt, TODAY_HERE),
+        ),
+      );
+
+    // `sum` over a `bigint` column is `numeric` in Postgres, which the driver
+    // hands back as text rather than risking a `number` that cannot hold it.
+    // The conversion is here, once, at the edge of the one query that does it.
+    return BigInt(summed?.points ?? 0);
   }
 
   /**

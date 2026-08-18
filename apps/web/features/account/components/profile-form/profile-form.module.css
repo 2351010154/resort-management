@@ -1,0 +1,181 @@
+/* `/account` — the profile and the two credential forms under it.
+ *
+ * The field, the button and the two message treatments are
+ * `auth-shell.module.css`'s: the guest realm's forms all look like this, and a
+ * profile that boxed its inputs while the login screen underlined them would be
+ * two design systems one press apart. What is new here is the definition list of
+ * facts a guest cannot change, and the rule that separates one section from the
+ * next.
+ *
+ * Everything reads from @mariva/tokens — design-foundations.md §2. Motion is CSS
+ * only, on the permitted properties, at 0.4s on --ease-ui: §5.
+ */
+
+/* What the guest cannot change, above what they can. A definition list because
+   that is what it is: four labelled facts, not a table and not a paragraph. */
+.facts {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-1) var(--space-2);
+  margin: var(--space-1) 0 0;
+  padding: var(--space-2) 0;
+  border-top: 1px solid rgb(var(--umber-rgb) / 0.15);
+  border-bottom: 1px solid rgb(var(--umber-rgb) / 0.15);
+}
+
+.factLabel {
+  font-family: var(--font-ui), sans-serif;
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--stone-deep);
+}
+
+.factValue {
+  font-size: var(--text-sm);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The sentence that keeps the two derived figures from reading as a balance. */
+.aside {
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--stone);
+  max-width: 34rem;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid rgb(var(--umber-rgb) / 0.15);
+}
+
+.sectionTitle {
+  color: var(--stone-deep);
+}
+
+.subheading {
+  font-size: var(--text-sm);
+  font-weight: 400;
+  color: var(--ink);
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  max-width: 27rem;
+}
+
+.field {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.fieldLabel {
+  font-family: var(--font-ui), sans-serif;
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--stone-deep);
+}
+
+/* An underline rather than a box — `auth-shell.module.css` argues it, and the
+   guest realm's other forms are set this way. */
+.input {
+  width: 100%;
+  padding: 0.75rem 0;
+  font: inherit;
+  font-size: var(--text-base);
+  color: var(--ink);
+  background: none;
+  border: none;
+  border-bottom: 1px solid rgb(var(--umber-rgb) / 0.25);
+  border-radius: 0;
+  transition:
+    border-color 0.4s var(--ease-ui),
+    color 0.4s var(--ease-ui);
+}
+
+.input::placeholder {
+  color: rgb(var(--umber-rgb) / 0.35);
+}
+
+.input:focus {
+  outline: none;
+  border-bottom-color: var(--umber);
+}
+
+.input:focus-visible {
+  outline: 2px solid var(--dusk-amber);
+  outline-offset: 4px;
+}
+
+.hint {
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--stone);
+}
+
+.submit {
+  align-self: flex-start;
+  padding: 0.9rem var(--space-3);
+  color: var(--ivory);
+  background: var(--umber);
+  border: 1px solid var(--umber);
+  cursor: pointer;
+  transition:
+    background-color 0.4s var(--ease-ui),
+    color 0.4s var(--ease-ui),
+    border-color 0.4s var(--ease-ui);
+}
+
+.submit:hover:not(:disabled) {
+  color: var(--umber);
+  background: transparent;
+}
+
+.submit:disabled {
+  cursor: default;
+  color: rgb(var(--ivory-rgb) / 0.6);
+  background: var(--stone);
+  border-color: var(--stone);
+}
+
+/* Announced when it arrives, because it arrives after a round trip. */
+.notice {
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  padding-left: var(--space-1);
+  border-left: 2px solid var(--dusk-amber);
+  color: var(--stone-deep);
+}
+
+.error {
+  composes: notice;
+  border-left-color: var(--umber);
+  color: var(--umber);
+}
+
+.footnote {
+  margin-top: var(--space-3);
+  font-size: var(--text-sm);
+  color: var(--stone-deep);
+}
+
+.footnoteLink {
+  color: var(--umber);
+  border-bottom: 1px solid rgb(var(--umber-rgb) / 0.3);
+  transition: border-color 0.4s var(--ease-ui);
+}
+
+.footnoteLink:hover {
+  border-bottom-color: var(--umber);
+}

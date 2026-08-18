@@ -30,6 +30,13 @@ export * from "./booking-link.js";
 // written at check-in, and the unmask audit trail. Owned by `modules/guest`.
 export * from "./guest.js";
 
+// What an account holder says about themselves, so a future booking and a
+// future check-in can be prefilled from it. A different fact from the guest
+// record above — that one is read off a document at the desk, this one is
+// typed by the subject — and the reason the two are not one table is the
+// statutory record that references the first. Owned by `modules/guest`.
+export * from "./guest-profile.js";
+
 // What state each room is in — clean, dirty, inspected or out of order — on an
 // axis of its own, independent of who is staying in it. Owned by
 // `modules/housekeeping`.

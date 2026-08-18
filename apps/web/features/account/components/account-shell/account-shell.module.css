@@ -1,0 +1,116 @@
+/* The account area's frame.
+ *
+ * Set to `stay-shell.module.css`'s ground and measure on purpose: a guest moves
+ * between `/account/stays` and `/bookings/<reference>` constantly — that is what
+ * the stay list is for — and two surfaces one press apart that sit on different
+ * columns read as two different products.
+ *
+ * The bar is this file's own, and the wordmark is `funnel-nav.module.css`'s
+ * technique rather than a copy of its layout: masked over `currentcolor`, so the
+ * mark is painted in the text colour it inherits and needs no image state.
+ *
+ * Everything reads from @mariva/tokens — design-foundations.md §2. Motion is CSS
+ * only, on the permitted properties, at 0.4s on --ease-ui: §5.
+ */
+
+.screen {
+  min-height: 100dvh;
+  display: grid;
+  place-items: start center;
+  padding: var(--space-3) var(--space-2) var(--space-4);
+  background: var(--ivory);
+  color: var(--ink);
+}
+
+.column {
+  position: relative;
+  width: 100%;
+  max-width: 42rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-2);
+  padding-bottom: var(--space-2);
+  border-bottom: 1px solid rgb(var(--umber-rgb) / 0.12);
+}
+
+.brand {
+  display: block;
+  height: 20px;
+  flex: 0 0 auto;
+}
+
+.wordmark {
+  display: block;
+  width: 118px;
+  height: 100%;
+  background: currentcolor;
+  mask-image: url("/brand/mariva-wordmark.svg");
+  mask-repeat: no-repeat;
+  mask-size: contain;
+  mask-position: left center;
+  -webkit-mask-image: url("/brand/mariva-wordmark.svg");
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  -webkit-mask-position: left center;
+}
+
+.brand:focus-visible {
+  outline: 2px solid var(--dusk-amber);
+  outline-offset: 6px;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.navLink {
+  display: flex;
+  align-items: center;
+  min-height: 2.75rem; /* 44px — the tap floor the funnel is set to. */
+  color: var(--stone);
+  border-bottom: 1px solid transparent;
+  transition:
+    color 0.4s var(--ease-ui),
+    border-color 0.4s var(--ease-ui);
+}
+
+.navLink:hover {
+  color: var(--ink);
+}
+
+/* The page the guest is standing on names itself for a screen reader through
+   `aria-current`, and to everyone else through the rule under it. */
+.navLink[aria-current="page"] {
+  color: var(--ink);
+  border-bottom-color: var(--umber);
+}
+
+.navLink:focus-visible {
+  outline: 2px solid var(--dusk-amber);
+  outline-offset: 4px;
+}
+
+.title {
+  font-size: var(--text-display-sm);
+  font-weight: 300;
+  line-height: 1.1;
+}
+
+/* A headline states, a caption qualifies — design-foundations.md §6. */
+.subtitle {
+  color: var(--stone-deep);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  max-width: 34rem;
+}

@@ -16,7 +16,10 @@ next-env.d.ts
 !.env.example
 *.local
 
-# Editor and AI tooling
+# Editor and AI tooling. The stray `.ps1` is a one-line reader an assistant
+# writes into the repo root to page through a long document; it holds an
+# absolute path to one machine and is regenerated whenever it is wanted again.
+.codex-read.ps1
 .vscode/
 .idea/
 .cursor/
@@ -42,8 +45,10 @@ __pycache__/
 test-results/
 playwright-report/
 
-# Logs and temp files
+# Logs and temp files. The `.err` sidecar is the stderr half of a backgrounded
+# dev server, written beside the `*.log` the same run produces.
 *.log
+*.log.err
 *.tmp
 .tmp/
 .cache/

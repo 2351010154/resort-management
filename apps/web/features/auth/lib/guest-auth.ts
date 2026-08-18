@@ -5,28 +5,28 @@
 // `@mariva/api-client`, every outcome resolved rather than thrown, and one
 // sentence per outcome that the screen can render as it stands. Sign-in kept
 // its own file because it was written first and is the only call with three
-// distinct failure statuses; everything below shares the small helper at the
-// bottom of this one.
+// distinct failure statuses.
+//
+// The send itself is `better-auth-call.ts`'s, shared with `/account`'s two
+// credential forms. What stays here is which failure names these calls have a
+// sentence for — a link that has expired means something on a reset screen and
+// nothing on a profile.
 //
 // Better Auth serves all of these itself (apps/api/src/modules/auth/guest), so
 // the paths are its `basePath` plus its own endpoint names, and neither half is
 // ours to rename.
 
 import { ATTACH_ON_ARRIVAL_PARAM } from "@/lib/booking-links";
+import { type AuthResult, callBetterAuth } from "./better-auth-call";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
-
-export type AuthResult =
-  | { readonly ok: true }
-  | { readonly ok: false; readonly message: string };
+export type { AuthResult };
 
 // Copy per design-foundations §6 — plain and blameless, no apology theatre and
-// no exclamation marks.
+// no exclamation marks. The unreachable and throttled sentences are not here:
+// they belong to every Better Auth caller alike and live beside the call.
 const MESSAGES = {
   weakPassword: "Passwords need at least 12 characters.",
-  throttled: "Too many attempts. Try again in a minute.",
   expiredLink: "That link has expired. Ask for a new one.",
-  unreachable: "The connection did not hold. Try again.",
   refused: "That did not go through. Check the details and try again.",
 } as const;
 
@@ -164,57 +164,26 @@ export async function signOut(): Promise<AuthResult> {
   return post("/api/auth/sign-out", {});
 }
 
+/**
+ * One of these calls, and the two failure names worth reading.
+ *
+ * A password that is too short and a link that has expired are different
+ * corrections for the guest to make, and both arrive as 400 — which is why the
+ * name in the body is what decides and not the status.
+ */
 async function post(
   path: string,
   body: Record<string, unknown>,
 ): Promise<AuthResult> {
-  let response: Response;
+  return callBetterAuth(path, body, ({ code }) => {
+    if (code === "PASSWORD_TOO_SHORT") {
+      return MESSAGES.weakPassword;
+    }
 
-  try {
-    response = await fetch(`${API_URL}${path}`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      // The session is an httpOnly cookie the API sets on its own origin.
-      // Without this the request succeeds and the browser discards the cookie.
-      credentials: "include",
-      body: JSON.stringify(body),
-    });
-  } catch {
-    return { ok: false, message: MESSAGES.unreachable };
-  }
+    if (code === "INVALID_TOKEN" || code === "TOKEN_EXPIRED") {
+      return MESSAGES.expiredLink;
+    }
 
-  if (response.ok) {
-    return { ok: true };
-  }
-
-  if (response.status === 429) {
-    return { ok: false, message: MESSAGES.throttled };
-  }
-
-  // Better Auth names its failures in the body, and two of those names are
-  // worth reading: a password that is too short and a link that has expired are
-  // different corrections for the guest to make, and both arrive as 400.
-  const code = await errorCode(response);
-
-  if (code === "PASSWORD_TOO_SHORT") {
-    return { ok: false, message: MESSAGES.weakPassword };
-  }
-
-  if (code === "INVALID_TOKEN" || code === "TOKEN_EXPIRED") {
-    return { ok: false, message: MESSAGES.expiredLink };
-  }
-
-  return { ok: false, message: MESSAGES.refused };
-}
-
-async function errorCode(response: Response): Promise<string | undefined> {
-  try {
-    const body = (await response.json()) as { code?: unknown };
-
-    return typeof body.code === "string" ? body.code : undefined;
-  } catch {
-    // A response that is not JSON is a response with nothing to add. The
-    // status has already been read.
-    return undefined;
-  }
+    return MESSAGES.refused;
+  });
 }
