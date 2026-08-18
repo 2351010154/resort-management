@@ -400,6 +400,32 @@ export function fieldsFrom(config: SystemConfiguration): ConfigFields {
 }
 
 /**
+ * The stored row, as one string that changes exactly when the row does.
+ *
+ * The form is seeded from the configuration once and then diffs what is typed
+ * back against it, which is only sound while the two are the same row. They stop
+ * being the same row on a background refetch — `lib/query-client.ts` refetches
+ * on window focus and trusts a read for thirty seconds, and this console is left
+ * open on a desk all day — and a form still showing yesterday's figures would
+ * read every figure another administrator moved as a figure *this* operator
+ * moved, and send it back. A save meant to correct the rollover hour would
+ * quietly restore the VAT rate somebody else had just changed.
+ *
+ * So the screen mounts the form under this, the way `rates-screen.tsx` mounts a
+ * plan card under the plan as it currently stands: a refetch that answers with
+ * the same row produces the same string and leaves a half-typed edit alone,
+ * while a row that actually moved produces a different one and the form starts
+ * again from what the property now holds.
+ *
+ * Built from {@link fieldsFrom} rather than from the configuration directly, so
+ * the figures are listed in one place and money — which is `bigint`, and which
+ * `JSON.stringify` refuses — is already text by the time it arrives here.
+ */
+export function configFingerprint(config: SystemConfiguration): string {
+  return JSON.stringify(fieldsFrom(config));
+}
+
+/**
  * What an edit resolves to: a body with the figures it names, a form nobody has
  * moved, or the sentence saying why what is typed is not an edit yet.
  *

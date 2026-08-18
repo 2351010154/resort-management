@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import {
   type ConfigFields,
   configEdit,
+  configFingerprint,
   dongLabel,
   fieldsFrom,
   lastSignedInLabel,
@@ -410,7 +411,14 @@ function ConfigurationPanel({ mayEdit }: { mayEdit: boolean }) {
       ) : null}
 
       {reading.status === "ready" ? (
+        /* Keyed by the row as it currently stands, for the reason
+           {@link configFingerprint} sets out: the form diffs what is typed back
+           against the configuration it was seeded from, so a row that moved
+           under it has to reseed it rather than be treated as this operator's
+           own edit. A refetch answering with the same figures keeps the same key
+           and leaves a half-typed edit where it is. */
         <ConfigurationForm
+          key={configFingerprint(reading.config)}
           config={reading.config}
           businessDate={businessDate}
           mayEdit={mayEdit}

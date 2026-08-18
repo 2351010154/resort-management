@@ -9,6 +9,7 @@ import {
   type ConfigEditAttempt,
   type ConfigFields,
   configEdit,
+  configFingerprint,
   type ConfigurationEdit,
   dongLabel,
   fieldsFrom,
@@ -653,5 +654,84 @@ describe("dongLabel", () => {
     expect(dongLabel("")).toBeNull();
     expect(dongLabel("1.250.000")).toBeNull();
     expect(dongLabel("-5")).toBeNull();
+  });
+});
+
+describe("configFingerprint — the row the form was seeded from", () => {
+  it("is the same string for a read that answered with the same row", () => {
+    // The ordinary refetch. `lib/query-client.ts` re-asks on window focus and a
+    // console left open on a desk asks often, so the common case must leave a
+    // half-typed edit exactly where the operator left it.
+    expect(configFingerprint({ ...PROPERTY })).toBe(
+      configFingerprint(PROPERTY),
+    );
+  });
+
+  it("changes when any one of the thirteen figures moves", () => {
+    const moved: Partial<SystemConfiguration>[] = [
+      { standardVatRateBps: 1200 },
+      { reducedVatRateBps: 500 },
+      { reducedVatFrom: "2025-08-01" },
+      { reducedVatTo: "2027-01-31" },
+      { vatIncludesServiceCharge: false },
+      { serviceChargeRateBps: 700 },
+      { businessDateRolloverHour: 6 },
+      { loyaltyPointsPerUnit: 2 },
+      { loyaltyEarnUnitVnd: 200_000n },
+      { tierSilverStays: 4 },
+      { tierSilverRevenueVnd: 35_000_000n },
+      { tierGoldStays: 9 },
+      { tierGoldRevenueVnd: 90_000_000n },
+    ];
+
+    for (const one of moved) {
+      expect(configFingerprint({ ...PROPERTY, ...one })).not.toBe(
+        configFingerprint(PROPERTY),
+      );
+    }
+  });
+
+  it("tells an unbounded end from an end that happens to be empty", () => {
+    // The two states the form draws differently, and the one pair that would
+    // collapse if the row were read as text rather than through `fieldsFrom`.
+    expect(configFingerprint({ ...PROPERTY, reducedVatTo: null })).not.toBe(
+      configFingerprint(PROPERTY),
+    );
+  });
+
+  it("survives money, which is bigint and which JSON refuses on its own", () => {
+    expect(() => configFingerprint(PROPERTY)).not.toThrow();
+    expect(configFingerprint(PROPERTY)).toContain("100000");
+  });
+});
+
+describe("the edit a form that was never reseeded would send", () => {
+  it("re-sends a figure this operator never touched, which is why the screen keys on the row", () => {
+    // Another administrator raises the standard rate while this form sits open.
+    // The form still holds the figures it was seeded with; only the refetched
+    // row moved.
+    const stale = fieldsFrom(PROPERTY);
+    const fresh: SystemConfiguration = {
+      ...PROPERTY,
+      standardVatRateBps: 1200,
+    };
+
+    // This operator corrects the rollover hour and nothing else.
+    const answered = configEdit(
+      { ...stale, businessDateRolloverHour: "6" },
+      fresh,
+      TODAY,
+    );
+
+    if (!("input" in answered)) {
+      throw new Error("expected a body to send");
+    }
+
+    // The rate goes back down to what this form was seeded with — the other
+    // administrator's change, reverted by somebody who never typed into that
+    // field. `configFingerprint` is what stops the pair reaching this state:
+    // the row moved, so the form is remounted and seeded again from it.
+    expect(answered.input.standardVatRateBps).toBe(1000);
+    expect(configFingerprint(fresh)).not.toBe(configFingerprint(PROPERTY));
   });
 });
