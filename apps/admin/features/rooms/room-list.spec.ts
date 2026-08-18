@@ -10,7 +10,9 @@ import {
   mayCloseRooms,
   mayMarkOutOfOrder,
   NO_CLOSURE_FIELDS,
+  narrowRooms,
   outOfOrderAttempt,
+  roomMatches,
   roomStateLabel,
   roomsByType,
   withOutOfOrder,
@@ -285,5 +287,59 @@ describe("withOutOfOrder", () => {
     });
 
     expect(next.rooms).toEqual(board.rooms);
+  });
+});
+
+describe("searching the list", () => {
+  it("answers every room while nothing has been typed", () => {
+    expect(roomMatches(room(), "")).toBe(true);
+    expect(roomMatches(room(), "   ")).toBe(true);
+  });
+
+  it("finds a room part way through its number", () => {
+    expect(roomMatches(room({ roomNumber: "402" }), "02")).toBe(true);
+    expect(roomMatches(room({ roomNumber: "402" }), "03")).toBe(false);
+  });
+
+  it("finds a type by the code and by how anybody says it", () => {
+    const junior = room({ roomType: "JUNIOR_SUITE" });
+
+    expect(roomMatches(junior, "JUNIOR_SUITE")).toBe(true);
+    expect(roomMatches(junior, "junior suite")).toBe(true);
+    expect(roomMatches(junior, "deluxe")).toBe(false);
+  });
+
+  it("matches a condition in the words the row itself prints", () => {
+    expect(roomMatches(room({ status: "OUT_OF_ORDER" }), "out of order")).toBe(
+      true,
+    );
+    expect(roomMatches(room({ status: "DIRTY" }), "dirty")).toBe(true);
+    expect(
+      roomMatches(room({ status: "CLEAN", isOccupied: true }), "occupied"),
+    ).toBe(true);
+    expect(
+      roomMatches(room({ status: "CLEAN", isOccupied: true }), "vacant"),
+    ).toBe(false);
+  });
+
+  it("takes a type off the list once the query has emptied it", () => {
+    const groups = roomsByType([
+      room({ roomNumber: "101", roomType: "SUPERIOR" }),
+      room({ roomNumber: "301", roomType: "DELUXE" }),
+    ]);
+
+    expect(narrowRooms(groups, "101").map((group) => group.roomType)).toEqual([
+      "SUPERIOR",
+    ]);
+    expect(narrowRooms(groups, "601")).toEqual([]);
+  });
+
+  it("leaves the property whole when nothing has been typed", () => {
+    const groups = roomsByType([
+      room({ roomNumber: "101", roomType: "SUPERIOR" }),
+      room({ roomNumber: "301", roomType: "DELUXE" }),
+    ]);
+
+    expect(narrowRooms(groups, "")).toEqual(groups);
   });
 });
