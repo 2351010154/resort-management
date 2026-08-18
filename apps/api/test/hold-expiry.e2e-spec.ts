@@ -99,7 +99,11 @@ import type {
   PaymentGateway,
 } from "../src/modules/payment/ports/payment-gateway.port.js";
 import { noAccrual } from "./accrual.js";
-import { noConfirmations, noStayLinks } from "./no-announcement.js";
+import {
+  noCancellations,
+  noConfirmations,
+  noStayLinks,
+} from "./no-announcement.js";
 import { tiersAt } from "./tiers.js";
 
 const SEED_FROM = parseDate("2027-06-01");
@@ -191,6 +195,8 @@ beforeAll(async () => {
     noConfirmations,
     // §7's ladder, reached only where a stay is sold to a signed-in guest.
     tiersAt(clock),
+    // Nothing here cancels a confirmed stay that names somebody to write to.
+    noCancellations,
   );
 
   sweep = new HoldExpirySweep(bookings, environment());

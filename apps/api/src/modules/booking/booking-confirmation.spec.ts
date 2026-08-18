@@ -49,6 +49,7 @@ import { guestUser } from "../../database/schema/index.js";
 import * as schema from "../../database/schema/index.js";
 import { roomType } from "../../database/schema/inventory.js";
 import { BookingTokenService } from "../auth/booking-token/booking-token.service.js";
+import type { BookingCancellationService } from "../notification/booking-cancellation.service.js";
 import { BookingConfirmationService } from "../notification/booking-confirmation.service.js";
 import type { MailQueue } from "../notification/mail-queue.service.js";
 import type { MailerService, OutgoingEmail } from "../notification/mailer.service.js";
@@ -113,6 +114,8 @@ function confirmerOver(enqueue: MailQueue["enqueue"]): BookingService {
     ),
     // Unreached: no case here sells a stay, so no tier is derived.
     undefined as unknown as TierDerivationService,
+    // Unreached: this file confirms stays and cancels none.
+    undefined as unknown as BookingCancellationService,
   );
 }
 
