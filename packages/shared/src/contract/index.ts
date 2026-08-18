@@ -102,7 +102,18 @@ export {
 } from "./housekeeping.js";
 export { closeRoomInput, roomClosureSchema } from "./inventory.js";
 export { jobRunSchema, triggerJobInput } from "./jobs.js";
-export { openedPaymentSchema, openPaymentAttemptInput } from "./payment.js";
+export {
+  listedPaymentSchema,
+  listPaymentsInput,
+  LONGEST_PAYMENT_PAGE,
+  openedPaymentSchema,
+  openPaymentAttemptInput,
+  PAYMENT_PAGE_SIZE,
+  paymentDiscrepancyKindSchema,
+  paymentMethodSchema,
+  paymentPageSchema,
+  paymentStatusSchema,
+} from "./payment.js";
 export {
   isUnrestricted,
   pricingRangeQuery,
