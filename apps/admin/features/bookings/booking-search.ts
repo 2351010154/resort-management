@@ -265,8 +265,9 @@ export interface NewBookingFields {
   adults: string;
   childAges: string;
   /* Who to write to, and what to call them. Two fields on the form because the
-   * contract takes two, and read together because it takes them together —
-   * {@link newBookingInput} refuses one without the other. */
+   * contract takes two, and read together because one constrains the other —
+   * {@link newBookingInput} refuses an address with no name against it, and asks
+   * a telephone booking for both. */
   contactName: string;
   contactEmail: string;
 }
@@ -319,7 +320,7 @@ export function defaultStay(businessDate: string): {
  *
  * **The contact is required of a telephone booking and optional for a walk-in,
  * and this file is the only place that distinction can be made.** The contract
- * takes the pair optionally on the desk's door and nothing on the wire says
+ * takes both halves optionally on the desk's door and nothing on the wire says
  * which of the two conversations the operator is in — a `kind` field would be a
  * claim a caller makes freely, so the requirement it governed could be escaped
  * by making the other claim. The screen knows: a walk-in is somebody at the
@@ -327,6 +328,13 @@ export function defaultStay(businessDate: string): {
  * while a telephone booking with none is a stay the property cannot write to
  * about its own cancellation or its arrival. So the refusal lives here, in
  * words naming the field, before a request leaves the browser.
+ *
+ * That screen rule is the stricter of the two and stays stricter. The contract
+ * refuses only an address with no name against it, because a name on its own is
+ * what a call sometimes leaves behind and is worth keeping; this form still asks
+ * a telephone booking for both, because an operator with the guest on the line
+ * can ask for the address and a stay the property cannot write to is one it
+ * cannot send a cancellation or an arrival reminder about.
  */
 export function newBookingInput(
   fields: NewBookingFields,
@@ -374,10 +382,14 @@ export function newBookingInput(
     };
   }
 
-  if ((contactName === "") !== (contactEmail === "")) {
+  // An address with nobody's name against it, on either path. The name alone is
+  // taken — it is what a telephone call leaves behind, and the property can
+  // still say whose stay it is — but nothing can compose a message to a mailbox
+  // it cannot address, so this is the half that is refused.
+  if (contactName === "" && contactEmail !== "") {
     return {
       problem:
-        "A contact is a name and an email address together. Give both, or leave both empty.",
+        "An email address needs a name to go with it — that is who the confirmation is addressed to.",
     };
   }
 
@@ -390,8 +402,12 @@ export function newBookingInput(
     childAges,
     // Omitted rather than sent empty when the desk has nobody to write to: the
     // contract refuses an empty name and an address that is not one, and a
-    // walk-in genuinely has neither.
-    ...(contactName === "" ? {} : { contactName, contactEmail }),
+    // walk-in genuinely has neither. Spread apart rather than as a pair, because
+    // the two halves no longer travel together — a name taken over the telephone
+    // with no address behind it is a contact the contract accepts, and an empty
+    // string sent beside it would be refused as an address that is not one.
+    ...(contactName === "" ? {} : { contactName }),
+    ...(contactEmail === "" ? {} : { contactEmail }),
   };
 
   const checked = createBookingSchema.safeParse(input);

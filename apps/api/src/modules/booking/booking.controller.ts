@@ -219,6 +219,12 @@ export class BookingController {
    * cancellation and pre-arrival messages would have nowhere to go.
    * `contract/booking.ts` argues why the funnel's door still does not take it.
    *
+   * **A name may arrive without an address, and it is kept.** That is the
+   * telephone call the desk cannot always get a mailbox out of, and the property
+   * can still say whose stay it is. The reverse is refused before this handler
+   * runs, because nothing can address a message to a mailbox with nobody's name
+   * against it.
+   *
    * It is an address and not an authority. Nothing is granted by naming one —
    * the stay is filed under nobody, exactly as a walk-in is, and
    * {@link attachToAccount} is the only route that gives a booking an owner.
@@ -232,13 +238,19 @@ export class BookingController {
           await this.transactions.run((exec) =>
             this.bookings.createConfirmed(exec, {
               ...asCreateInput(input),
-              // Whole or absent, which the schema has already held the body to
-              // — so one half being present is enough to know both are.
+              // The name is what makes a contact, and the schema has already
+              // held the body to that: no address reaches here without one, so a
+              // missing name means nobody was named at all. A name with no
+              // address behind it is the telephone booking and is recorded as it
+              // arrived — `contract/booking.ts` argues why that is worth keeping
+              // rather than refusing.
               contact:
-                input.contactEmail === undefined ||
                 input.contactName === undefined
                   ? null
-                  : { email: input.contactEmail, name: input.contactName },
+                  : {
+                      email: input.contactEmail ?? null,
+                      name: input.contactName,
+                    },
             }),
           ),
         ),
