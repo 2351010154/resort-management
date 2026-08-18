@@ -67,13 +67,12 @@ export function StayFeedbackPanel({
   useEffect(() => {
     let live = true;
 
-    // Tagged with nothing and re-run per reference: this component survives a
-    // change of route parameter, and a read left over from the last booking
-    // would show one stay's words under another's.
-    setOffered(false);
-    setLeft(null);
-    setRefusal(undefined);
-
+    // Nothing is reset here, because nothing survives to need it: the route
+    // keys this panel on the reference, so a change of stay is a fresh panel
+    // rather than this one being talked out of the last stay's answer, draft
+    // and in-flight write one setter at a time. The flag is still needed —
+    // a read started before the unmount must not write into the tree it was
+    // started from.
     void readFeedback(reference).then((outcome) => {
       if (!live) {
         return;

@@ -47,7 +47,14 @@ export default async function BookingPage({
         <StayScreen reference={reference} />
       </Suspense>
 
-      <StayFeedbackPanel reference={reference} />
+      {/* Keyed by the stay, so moving to another booking takes the whole of
+          this one's panel with it — the answer already read, a rating and a
+          comment typed and not sent, and a write still in flight. A stay is
+          spoken about once and cannot be edited afterwards, so a draft that
+          survived onto the next booking is a sentence filed against the wrong
+          stay for good. Structural rather than a list of resets the panel has
+          to remember to keep in step with its own state. */}
+      <StayFeedbackPanel key={reference} reference={reference} />
     </div>
   );
 }
