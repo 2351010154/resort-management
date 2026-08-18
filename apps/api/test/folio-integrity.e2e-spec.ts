@@ -77,7 +77,11 @@ import { InventoryService } from "../src/modules/inventory/inventory.service.js"
 import { CatalogService } from "../src/modules/operations/catalog.service.js";
 import { SystemConfigService } from "../src/modules/system-config/system-config.service.js";
 import { accrualOn } from "./accrual.js";
-import { noConfirmations, noStayLinks } from "./no-announcement.js";
+import {
+  noCancellations,
+  noConfirmations,
+  noStayLinks,
+} from "./no-announcement.js";
 import { tiersAt } from "./tiers.js";
 
 /** Raised by `folio_posting_refuse_rewrite()` — `migrations/0011`. */
@@ -734,6 +738,8 @@ function deskAt(today: StayDate): BookingService {
     noConfirmations,
     // §7's ladder, reached only where a stay is sold to a signed-in guest.
     tiersAt(clock),
+    // Nothing here cancels a confirmed stay that names somebody to write to.
+    noCancellations,
   );
 }
 

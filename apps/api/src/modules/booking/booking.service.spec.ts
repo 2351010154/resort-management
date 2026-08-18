@@ -68,6 +68,7 @@ import type { TierDerivationService } from "../guest/tier-derivation.service.js"
 import type { FolioPort } from "./ports/folio.port.js";
 import type { StayQuoteService } from "./stay-quote.service.js";
 import type { BookingTokenService } from "../auth/booking-token/booking-token.service.js";
+import type { BookingCancellationService } from "../notification/booking-cancellation.service.js";
 import type { BookingConfirmationService } from "../notification/booking-confirmation.service.js";
 
 const CHECK_VIOLATION = "23514";
@@ -263,6 +264,9 @@ beforeAll(async () => {
     undefined as unknown as BookingConfirmationService,
     // Unreached: no case here sells a stay, so no tier is derived.
     undefined as unknown as TierDerivationService,
+    // Unreached: no case here cancels a confirmed stay that names somebody to
+    // write to.
+    undefined as unknown as BookingCancellationService,
   );
 
   await migrate(db, { migrationsFolder: "./src/database/migrations" });

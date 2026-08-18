@@ -10,6 +10,30 @@ import type { OutgoingEmail } from "../mailer.service.js";
 
 export const PROPERTY = "Mariva";
 
+/**
+ * Where the property is, as a guest would write it on an envelope or read it to
+ * a taxi driver.
+ *
+ * Here beside the name rather than in the one template that prints it, because
+ * it is the same kind of fact and the two would otherwise be edited in different
+ * files on the day the property moves. `property-and-tariff.md` §1 is the
+ * authority — the whole of that section is the developer's call until there is a
+ * building, and this line is no more settled than the rest of it.
+ */
+export const PROPERTY_ADDRESS = "12 Trần Phú, Lộc Thọ, Nha Trang, Khánh Hòa";
+
+/**
+ * When the property opens a room to an arriving guest —
+ * `property-and-tariff.md` §2's operating clock.
+ *
+ * Printed in a mail and read by nothing: it is the published time the desk
+ * honours, not a guard. Early arrival is `BOOKING_EARLY_CHECK_IN_ENABLED` and
+ * the arrival window is a comparison of business dates, so no code path decides
+ * anything by this string — which is exactly why it may be a constant here
+ * rather than configuration.
+ */
+export const CHECK_IN_TIME = "14:00";
+
 /** Minimal escaping for the two values these templates interpolate. Neither is
  *  attacker-free: a display name comes from a sign-up form.
  *

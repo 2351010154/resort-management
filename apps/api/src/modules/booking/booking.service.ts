@@ -67,6 +67,7 @@ import { BookingTokenService } from "../auth/booking-token/booking-token.service
 import { accountForAddress } from "../auth/guest/registered-address.js";
 import { GuestService, type NewGuest } from "../guest/guest.service.js";
 import { TierDerivationService } from "../guest/tier-derivation.service.js";
+import { BookingCancellationService } from "../notification/booking-cancellation.service.js";
 import { BookingConfirmationService } from "../notification/booking-confirmation.service.js";
 import { HousekeepingService } from "../housekeeping/housekeeping.service.js";
 import { InventoryService } from "../inventory/inventory.service.js";
@@ -411,6 +412,12 @@ export class BookingService {
     // applies, and this is the only place in the booking path that knows which
     // guest — if any — is buying.
     private readonly tiers: TierDerivationService,
+    // The message that closes a stay, and last for the reason the confirmation's
+    // two arrived last: adding it moved no existing argument. Separate from the
+    // confirmation rather than a second method on it —
+    // `notification.module.ts` argues that a caller which could reach for
+    // either would eventually reach for the wrong one.
+    private readonly cancellations: BookingCancellationService,
   ) {}
 
   /**
@@ -1177,6 +1184,11 @@ export class BookingService {
    * all is a manager's decision, and this is the only moment it can be written
    * down — `booking.controller.ts` says why a capability guard cannot stand in
    * for the column.
+   *
+   * The guest is written to from here rather than from either route above it, so
+   * that both of them say the same thing — {@link announceCancellation}, which
+   * also says which of this method's callers are not a cancellation the guest was
+   * ever told about.
    */
   async cancel(
     exec: DbExecutor,
@@ -1252,9 +1264,115 @@ export class BookingService {
       .where(eq(booking.id, bookingId))
       .returning();
 
+    await this.announceCancellation(exec, {
+      row: cancelled!,
+      was: current.booking.state,
+      reason,
+    });
+
     return this.asBooking({
       booking: cancelled!,
       roomTypeCode: current.roomTypeCode,
+    });
+  }
+
+  /**
+   * Telling the guest their stay is off — `FR-NTF-01`'s cancellation mail.
+   *
+   * **Both of the guest-facing cancellation paths reach this**, because both
+   * reach {@link cancel}: the desk's route and {@link cancelOwn}, which is the
+   * same method with `waivedBy` null. One place to send from rather than two, so
+   * a stay cancelled by its guest and the same stay cancelled at the counter
+   * cannot come to say different things about what it cost.
+   *
+   * **Only a stay that had reached `CONFIRMED`.** The third caller of
+   * {@link cancel} is the hold-expiry sweep, and a fourth is the funnel releasing
+   * the room a guest moved off — `HOLD_EXPIRED` and `HOLD_REPLACED`. Neither is a
+   * cancellation as far as the guest is concerned: nothing was confirmed, nothing
+   * was paid, and the property never told them they had a stay. Announcing those
+   * would mail a guest about a booking they do not believe they made, once a
+   * minute, from a sweep. The gate is the previous state rather than a list of
+   * reasons, because it is one sentence that stays true as reasons are added —
+   * `booking-state.ts` adds them without changing any price.
+   *
+   * **No address, no message**, exactly as {@link announce} has it: the pair is
+   * null together on every stay the desk took from somebody standing at the
+   * counter.
+   *
+   * **The penalty is §4's, priced through the one calculator.**
+   * `cancellation-calculator.ts` is asked with the instant Postgres just wrote
+   * to the row, which is the same instant `folio.service.ts` will price the
+   * charge from when the desk posts it — so the figure in the mail is the figure
+   * on the account rather than a second reading of the deadline. A waived stay
+   * skips the grid and is priced at nothing, which is what that file does with
+   * the same two columns and for the reason it gives: §4's table has no waiver
+   * cell.
+   *
+   * **The refund is read after the commit, and so is the balance it comes
+   * from.** What goes back to the guest is what the account is over-paid by once
+   * the penalty stands — the folio's own arithmetic, not a subtraction invented
+   * here — and asking for it out here has two properties worth the odd shape. It
+   * cannot fail the cancellation: `TransactionRunner` logs a post-commit failure
+   * and the commit stands, whereas a refused balance read inside the transaction
+   * would put the room back off the shelf because a mail could not be composed.
+   * And it is the balance as it stands once this cancellation is durable, which
+   * is the state the desk's later posting will read.
+   */
+  private async announceCancellation(
+    exec: DbExecutor,
+    cancellation: {
+      readonly row: BookingRow;
+      /** The state the stay was in before it was cancelled. */
+      readonly was: BookingState;
+      readonly reason: CancellationReason;
+    },
+  ): Promise<void> {
+    const { row, was, reason } = cancellation;
+    const to = row.contactEmail;
+    const guestName = row.contactName;
+
+    if (was !== "CONFIRMED" || to === null || guestName === null) {
+      return;
+    }
+
+    // `booking_records_a_cancellation_instant_exactly_when_cancelled` puts the
+    // instant on every cancelled row, so this is narrowing rather than a
+    // possibility. Narrowed and not asserted: a caller that ever arrives here
+    // with a live booking sends nothing, instead of pricing §4's deadline
+    // against this process's clock.
+    const cancelledAt = row.cancelledAt;
+
+    if (cancelledAt === null) {
+      return;
+    }
+
+    const charge: PolicyCharge | null = row.penaltyWaivedAt
+      ? { amount: 0n, basis: "NONE" }
+      : await this.priceCancellation(exec, row, cancelledAt);
+
+    // A stay with no stored night prices is one §4 cannot be applied to at all.
+    // `cancellationQuote` answers that with a refusal because a guest asked it a
+    // question; here it is a message that cannot state what it exists to state,
+    // so nothing is sent and the cancellation itself is untouched.
+    if (charge === null) {
+      return;
+    }
+
+    await afterCommit(exec, async () => {
+      const settled = (await this.folio.getBalance(row.id)) + charge.amount;
+
+      await this.cancellations.enqueue({
+        to,
+        guestName,
+        reference: row.reference,
+        reason,
+        penalty: charge.amount,
+        // Negative is the property holding money that is not its own —
+        // `schema/folio.ts` on the sign convention — and that figure, exactly,
+        // is what goes back. Zero or positive is a stay that still owes, and
+        // there is nothing to hand back.
+        refund: settled < 0n ? -settled : null,
+      });
     });
   }
 
@@ -2205,16 +2323,9 @@ export class BookingService {
       });
     }
 
-    // Every night the stay sold, in stay order, which is the basis §4 charges
-    // against — "the first night" is `booking_night`'s first row and never the
-    // total over the count, because a weekend night costs more than a Tuesday.
-    const nights = await exec
-      .select({ gross: bookingNight.standardGross })
-      .from(bookingNight)
-      .where(eq(bookingNight.bookingId, row.id))
-      .orderBy(asc(bookingNight.stayDate));
+    const charge = await this.priceCancellation(exec, row, new Date());
 
-    if (nights.length === 0) {
+    if (charge === null) {
       // `folio.service.ts` answers this the same way and says why: the
       // calculator's `RangeError` is right about the input being malformed, and
       // from a route it is a stay whose stored prices are missing, which a 500
@@ -2226,11 +2337,52 @@ export class BookingService {
       });
     }
 
+    return charge;
+  }
+
+  /**
+   * §4's price for calling this stay off at that instant, or `null` when the
+   * stay has no stored night prices to scale.
+   *
+   * One reader of the grid for the two callers that need one — the quote a guest
+   * asks for before deciding, and the mail they are sent afterwards. Written once
+   * so those two cannot disagree: a quote that said the cancellation was free and
+   * a mail that charged the first night would both be right about their own
+   * arithmetic and wrong about the property.
+   *
+   * `null` rather than a refusal, because the two callers owe the guest different
+   * answers for the same missing rows. A question gets a 409 naming what is
+   * missing; a message that cannot state the figure it exists to state is simply
+   * not sent, and must not take a cancellation down with it.
+   *
+   * The instant is the caller's, and it is the whole of what they differ on. A
+   * quote is asked at `new Date()` because that is what the guest is deciding at;
+   * the mail is priced at the `cancelled_at` Postgres wrote, because that is when
+   * the stay actually ended and it is the instant the folio will read.
+   */
+  private async priceCancellation(
+    exec: DbExecutor,
+    stay: Pick<BookingRow, "id" | "ratePlanCode" | "checkInDate">,
+    cancelledAt: Date,
+  ): Promise<PolicyCharge | null> {
+    // Every night the stay sold, in stay order, which is the basis §4 charges
+    // against — "the first night" is `booking_night`'s first row and never the
+    // total over the count, because a weekend night costs more than a Tuesday.
+    const nights = await exec
+      .select({ gross: bookingNight.standardGross })
+      .from(bookingNight)
+      .where(eq(bookingNight.bookingId, stay.id))
+      .orderBy(asc(bookingNight.stayDate));
+
+    if (nights.length === 0) {
+      return null;
+    }
+
     return policyCharge({
-      plan: row.ratePlanCode,
-      checkInDate: parseDate(row.checkInDate),
+      plan: stay.ratePlanCode,
+      checkInDate: parseDate(stay.checkInDate),
       nights: nights.map((night) => night.gross),
-      event: { kind: "CANCELLATION", cancelledAt: new Date() },
+      event: { kind: "CANCELLATION", cancelledAt },
     });
   }
 
