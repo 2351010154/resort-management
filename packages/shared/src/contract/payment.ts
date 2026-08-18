@@ -3,7 +3,7 @@
 // Between them, the acts in the payment module that have a caller on this side
 // of the wire.
 //
-// **Three routes, and the two beside them are deliberately not here.** The IPN
+// **Four routes, and the two beside them are deliberately not here.** The IPN
 // and the payer's return are VNPay's own addresses: their paths, their methods
 // and the shapes they answer with belong to a specification this property does
 // not own, and `payment.controller.ts` argues at length why a contract written
@@ -72,6 +72,32 @@
 // by the run's own id — it has none, the date is its primary key — and not by a
 // discrepancy's id either: a person handed a page asks "what happened on the
 // 14th", and the answer is the whole day rather than the one row that woke them.
+//
+// **The fourth route is the payments themselves, and it is not a third
+// reconciliation read.** The two above answer "what did last night's comparison
+// find", and their subject is a trading day. This one answers "what has this
+// property been paid", and its subject is the row — the money as the payer's
+// side reported it, which `schema/payment.ts` keeps in a table of its own
+// precisely because the ledger says the same thing in its own words and the two
+// are compared rather than merged. Nothing could read that table until this
+// route: the desk sees a folio's postings and the accountant sees the nights
+// that disagreed, and neither of those is the payment, the gateway it moved
+// through, or the transaction id an operator matches against a merchant screen.
+//
+// It is governed by `payment.reconcile` — the same row as the two above — and no
+// key was added for it. That row is "Gateway reconciliation", `ACCOUNTANT` and
+// up, and what it governs is this property's money as the payer's side reports
+// it. A payment row is strictly less than what {@link reconciledDaySchema}
+// already hands the same caller about the same attempt, so nothing is reachable
+// here that the key did not already open. What `rbac-matrix.md` §2 forbids is a
+// single route whose authority turns on its body, and a read with no body is
+// not that.
+//
+// **It restates no discrepancy.** {@link listedPaymentSchema} carries a
+// disagreement's *id* and never its figures: the two amounts, the
+// classification and the instant it was observed are `readReconciliation`'s
+// answer, and a second copy of them here would be a row that could disagree
+// with the day it came from. The id is the whole of what a link needs.
 
 import { oc } from "@orpc/contract";
 import { z } from "zod";
@@ -271,6 +297,170 @@ export const readReconciledDayInput = z.object({
   businessDate: stayDateSchema,
 });
 
+/**
+ * How the money reached the property, as the wire spells it.
+ *
+ * A method and not a provider list, which is `schema/payment.ts`'s own word for
+ * the column: cash and a bank transfer are ways of paying, and `VNPAY` is the
+ * one gateway the property has an adapter for. `FR-PAY-06`'s second gateway is a
+ * fourth member here and a second implementation behind the port — never a
+ * gateway's own vocabulary, which is what `FR-PAY-01` keeps inside the adapter.
+ * A member is a payment method the property accepts, and that is all a reader of
+ * this list learns.
+ *
+ * The same three members `payment_method` holds, stated here and built into a
+ * Postgres enum there from a tuple of its own — the arrangement
+ * {@link paymentDiscrepancyKindSchema} uses, and nothing has to remember to keep
+ * the two level: the handler returns rows whose `method` is the database's
+ * union, so a member this schema lacks stops the API compiling rather than
+ * failing output validation at run time.
+ */
+export const paymentMethodSchema = z.enum(["VNPAY", "CASH", "BANK_TRANSFER"]);
+
+export type PaymentMethod = z.infer<typeof paymentMethodSchema>;
+
+/**
+ * What became of the money — the four states `payment_status` holds.
+ *
+ * `PENDING` is an attempt opened and not yet resolved, `FAILED` one the gateway
+ * refused, and both are kept rather than deleted: a guest asking why they were
+ * not charged is asking about a `FAILED` row, and a comparison against the
+ * gateway's report needs two reports rather than one report and an absence.
+ * `REFUNDED` is money that was taken and later handed back — what was handed
+ * back, when, and on whose authority is a posting on the ledger and not this
+ * row.
+ */
+export const paymentStatusSchema = z.enum([
+  "PENDING",
+  "SUCCESS",
+  "FAILED",
+  "REFUNDED",
+]);
+
+export type PaymentStatus = z.infer<typeof paymentStatusSchema>;
+
+/**
+ * The most payments one page of the collection will answer with.
+ *
+ * The same figure and the same argument as `folio.ts`'s ceiling on its own list:
+ * this is a worklist rather than a search, so the tail is reached by `offset`
+ * instead of being dropped and the caller told to ask a narrower question. Two
+ * hundred because a screen that paints more rows than this in one go is an
+ * export wearing a table's clothes.
+ */
+export const LONGEST_PAYMENT_PAGE = 200;
+
+/** The page a caller gets for not naming one. Enough to fill a screen. */
+export const PAYMENT_PAGE_SIZE = 50;
+
+/**
+ * Which payments to list — the four dimensions somebody chasing a payment
+ * actually has.
+ *
+ * **The stay and not the folio**, because a booking is what a person holds when
+ * they ask. There is exactly one account per stay — `schema/folio.ts` makes that
+ * a unique key — so the two narrow to the same rows, and only one of them is an
+ * id anybody outside this API has ever seen.
+ *
+ * **`businessDate` is a single day and not a range**, and it is the day the
+ * money moved on rather than the day the row was written. §2's rollover decides
+ * which trading day an instant belongs to, so the day is derived from the
+ * gateway's own `paidAt` through the property's configured hour — the same rule
+ * `FR-PAY-05`'s sweep partitions on, which is what makes a day's payments here
+ * and that day's reconciliation the same set of money. A single day rather than
+ * a range because the question this filter answers is the one a reconciliation
+ * raises, and that is always about one night; a wider window is the folio list's
+ * question about accounts rather than about payments.
+ *
+ * A payment that never moved money — an attempt still `PENDING`, one the gateway
+ * refused — belongs to no trading day at all, so naming a date excludes it. That
+ * is not a filter dropping rows it should have kept: an unresolved attempt has
+ * no instant of payment to be dated by, and dating it by the moment the row was
+ * written would put it on a day the property was never paid on.
+ *
+ * **`method` and `status` are separate dimensions**, because they answer
+ * different questions and one does not imply the other. "Everything that came
+ * through the gateway" and "everything that failed" are two lists, and their
+ * intersection — the gateway's failures — is the one a person triaging a payment
+ * asks for.
+ */
+export const listPaymentsInput = z.object({
+  bookingId: z.uuid().optional(),
+  businessDate: stayDateSchema.optional(),
+  method: paymentMethodSchema.optional(),
+  status: paymentStatusSchema.optional(),
+  limit: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(LONGEST_PAYMENT_PAGE)
+    .default(PAYMENT_PAGE_SIZE),
+  // Rows to skip, not a page number — `folio.ts` says why, and the order this
+  // route promises is total for the same reason: newest row first with the id
+  // breaking a tie, so a caller stepping by `limit` sees each payment once.
+  offset: z.coerce.number().int().min(0).default(0),
+});
+
+/**
+ * One movement of money as the payer's side reported it.
+ *
+ * **The amount is a magnitude and carries no sign.** `schema/payment.ts` keeps
+ * the sign convention on the ledger, where a payment is stored negative so a
+ * balance is a plain sum; repeating it here would be one convention in two
+ * places, on the two tables whose whole purpose is to be compared. Đồng and
+ * whole — decimal text on the wire, which `money.ts` argues is the only crossing
+ * that cannot quietly lose the last digits of a figure.
+ *
+ * **Both gateway columns are nullable and null means the same thing on each:**
+ * the property collected this money itself. Cash counted at the desk and a bank
+ * transfer moved no gateway, so there is no transaction id for one — the row's
+ * `method` is what says which case it is.
+ *
+ * `businessDate` is derived on every read from `paidAt` and the property's
+ * rollover hour, and it is null on exactly the rows that have no `paidAt`:
+ * money that has not moved belongs to no trading day. It travels because a
+ * screen filtering on a day has to be able to show which day a row is on, and
+ * because the instant alone does not answer that — 01:00 belongs to the day that
+ * has not rolled yet.
+ *
+ * `discrepancyId` points at the disagreement `FR-PAY-05`'s sweep filed against
+ * this payment, and null is the ordinary case of money nobody has had to
+ * explain. A reference and not the row: `readReconciliation` serves the figures,
+ * and restating them beside a payment would be a second copy of an observation
+ * that is supposed to be the record of what a night looked like.
+ */
+export const listedPaymentSchema = z.object({
+  id: z.uuid(),
+  /** The stay the money was collected for. */
+  bookingId: z.uuid(),
+  /** The account it was posted to — one per stay. */
+  folioId: z.uuid(),
+  method: paymentMethodSchema,
+  status: paymentStatusSchema,
+  amount: vndAmountSchema,
+  /** The gateway's own id for the money it took. Null on what the desk took. */
+  gatewayTransactionId: z.string().nullable(),
+  /** The payer's clock, never this property's. Null until money has moved. */
+  paidAt: z.iso.datetime().nullable(),
+  /** The trading day the money moved on. Null while none has. */
+  businessDate: isoStayDateSchema.nullable(),
+  /** The disagreement filed against this payment, if a night found one. */
+  discrepancyId: z.uuid().nullable(),
+});
+
+/**
+ * A page of payments, and how many the filters matched behind it.
+ *
+ * `total` is counted under the same predicate the page was cut from, on every
+ * read — the figure a count card is asking for, and the one a pager needs to
+ * offer a last page at all. A page shorter than its limit says nothing once an
+ * offset was given, and a full page says nothing ever.
+ */
+export const paymentPageSchema = z.object({
+  payments: z.array(listedPaymentSchema),
+  total: z.number().int().min(0),
+});
+
 export const payment = {
   openAttempt: oc
     .route({ method: "POST", path: "/bookings/{bookingId}/payment-attempts" })
@@ -294,4 +484,19 @@ export const payment = {
     .route({ method: "GET", path: "/payments/reconciliations/{businessDate}" })
     .input(readReconciledDayInput)
     .output(reconciledDaySchema),
+
+  list: oc
+    // The root itself, because the payments are what `/payments` is a
+    // collection of — the two routes above are a sub-collection of the nights
+    // somebody held them against, and `/payments/vnpay/…` is the gateway's own
+    // half of the conversation under the same root. Nothing here is addressed
+    // by a stay: a booking is one of the filters, and the question this answers
+    // is what the property has been paid across all of them.
+    //
+    // GET with the narrowing in the query string, so a person triaging a
+    // payment has a link rather than a procedure — and so that the reads a
+    // screen makes repeatedly are cacheable and safe to retry.
+    .route({ method: "GET", path: "/payments" })
+    .input(listPaymentsInput)
+    .output(paymentPageSchema),
 };

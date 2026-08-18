@@ -157,21 +157,35 @@
 // keep ignoring.
 
 import { randomUUID } from "node:crypto";
-import type { VndAmount } from "@mariva/shared";
+import type { StayDate, VndAmount } from "@mariva/shared";
 import { Inject, Injectable } from "@nestjs/common";
 import { ORPCError } from "@orpc/nest";
-import { and, eq, isNull } from "drizzle-orm";
+import {
+  and,
+  count,
+  desc,
+  eq,
+  gte,
+  isNull,
+  lt,
+  type SQL,
+  sql,
+} from "drizzle-orm";
 import type { DbExecutor } from "../../database/database.module.js";
 import { booking } from "../../database/schema/booking.js";
 import { folio } from "../../database/schema/folio.js";
 import { payment, type PaymentRow } from "../../database/schema/payment.js";
+import { paymentDiscrepancy } from "../../database/schema/reconciliation.js";
 import { sqlStateOf } from "../../database/sql-state.js";
 import {
   afterCommit,
   TransactionRunner,
 } from "../../database/transaction-runner.js";
 import { BookingService, type PaidStay } from "../booking/booking.service.js";
-import { BusinessDateService } from "../booking/business-date.service.js";
+import {
+  type BusinessDateRule,
+  BusinessDateService,
+} from "../booking/business-date.service.js";
 import { FolioService } from "../folio/folio.service.js";
 import { OpsAlertService } from "../notification/ops-alert.service.js";
 import {
@@ -179,6 +193,11 @@ import {
   PAYMENT_GATEWAY,
   type PaymentGateway,
 } from "./ports/payment-gateway.port.js";
+// The coarse day bound the reconciliation reads its own ledger side with. One
+// definition rather than two, so a payment listed under a trading day and the
+// same payment compared against the gateway's report of that day are drawn from
+// the same range.
+import { startOfDayUtc } from "./reconciliation.service.js";
 
 const UNIQUE_VIOLATION = "23505";
 
@@ -367,6 +386,56 @@ export type CallbackDisagreement =
  * arrived the same way.
  */
 class AlreadyResolved extends Error {}
+
+/**
+ * Which payments are being asked about, and how much of the answer is wanted.
+ *
+ * Every dimension is optional except the two that bound the answer, and each
+ * narrows on a fact of the row itself — the contract argues why the trading day
+ * is nonetheless the odd one out, being the only one no column holds.
+ */
+export interface PaymentListQuery {
+  readonly bookingId?: string;
+  readonly businessDate?: StayDate;
+  readonly method?: PaymentRow["method"];
+  readonly status?: PaymentRow["status"];
+  readonly limit: number;
+  readonly offset: number;
+}
+
+/**
+ * One payment as the list answers it: the row, the stay behind it, and the
+ * disagreement filed against it if a night found one.
+ *
+ * `businessDate` is the nine characters the wire spells a date with rather than
+ * a `StayDate`. It is derived here and read nowhere else — nothing compares or
+ * does arithmetic on it — so a `CalendarDate` would be an object made only to be
+ * turned back into the string it came from.
+ */
+export interface ListedPayment {
+  readonly id: string;
+  readonly bookingId: string;
+  readonly folioId: string;
+  readonly method: PaymentRow["method"];
+  readonly status: PaymentRow["status"];
+  readonly amount: VndAmount;
+  readonly gatewayTransactionId: string | null;
+  readonly paidAt: Date | null;
+  readonly businessDate: string | null;
+  readonly discrepancyId: string | null;
+}
+
+/**
+ * A page of payments, and how many the filters matched behind it.
+ *
+ * `total` is counted under the same predicate the page was cut from. It is not
+ * the page's length: a page shorter than its limit says nothing once an offset
+ * was given, and a full one says nothing at all.
+ */
+export interface PaymentPage {
+  readonly payments: readonly ListedPayment[];
+  readonly total: number;
+}
 
 @Injectable()
 export class PaymentService {
@@ -686,6 +755,147 @@ export class PaymentService {
           "is opened for what the stay was quoted and not for part of it",
       });
     }
+  }
+
+  /**
+   * What the property has been paid, narrowed and paged — the money as the
+   * payer's side reported it.
+   *
+   * **A read of `payment` and never of the ledger.** The two say the same thing
+   * in different words on purpose — `schema/payment.ts` explains why they are
+   * written under different rules and compared rather than merged — and a list
+   * assembled from `folio_posting` would be this property's own account of the
+   * money, which is exactly the side a person triaging a gateway payment is not
+   * asking about. Nothing here is aggregated: every column comes off one row.
+   *
+   * **The stay is joined and not stored.** A payment names an account and an
+   * account names a stay, so the booking a caller filters on and the booking a
+   * row carries are one join rather than a column that could fall out of step.
+   * Inner, because `payment.folio_id` is `not null` behind a foreign key and
+   * there is no payment belonging to no account.
+   *
+   * **The trading day is derived from `paid_at`, and that is why one filter
+   * takes a different route through this method than the other three.** §2's
+   * rollover is a configured hour in the property's own zone, so no column holds
+   * the day and no `where` clause can name it. The rule is read once and applied
+   * to every row — `reconciliation.service.ts`'s own arrangement for the same
+   * question, so that one boundary classifies everything this answers with.
+   *
+   * A request naming a day therefore narrows in the statement to the coarse
+   * range that contains it whatever the hour is, and finishes the narrowing in
+   * memory. The page and the total are cut after that, because a `limit` applied
+   * before the classification would be wrong rather than merely different: it
+   * would hand back the newest rows *near* the day and call them the day's, with
+   * a count beside them that was the range's. The cost is bounded by what it
+   * reads — three days of one property's payments — and reading less would take
+   * a stored business date, which is a second place for §2's rule to live.
+   *
+   * A row whose money never moved has no `paid_at`, so the range excludes it on
+   * its own: no predicate is needed to say an unresolved attempt belongs to no
+   * trading day.
+   *
+   * **Two statements when no day is named**, because the total is not inferable
+   * from the page — a short page says nothing once an offset was given and a
+   * full page says nothing ever. The caller holds both inside one transaction,
+   * so the table and the figure over it are one moment.
+   */
+  async list(exec: DbExecutor, query: PaymentListQuery): Promise<PaymentPage> {
+    // One reading of the rollover hour for every row this answers with, so the
+    // day a payment is reported on and the day the filter tested are the same
+    // boundary.
+    const dates = await this.businessDates.rule(exec);
+
+    const narrowed: SQL[] = [];
+
+    if (query.bookingId) {
+      narrowed.push(eq(folio.bookingId, query.bookingId));
+    }
+
+    if (query.method) {
+      narrowed.push(eq(payment.method, query.method));
+    }
+
+    if (query.status) {
+      narrowed.push(eq(payment.status, query.status));
+    }
+
+    if (query.businessDate) {
+      // A day out on either side, which contains the business date whatever
+      // hour the property rolls at. Each row is then asked the real question
+      // below.
+      narrowed.push(
+        gte(
+          payment.paidAt,
+          startOfDayUtc(query.businessDate.subtract({ days: 1 })),
+        ),
+        lt(payment.paidAt, startOfDayUtc(query.businessDate.add({ days: 2 }))),
+      );
+    }
+
+    const where = narrowed.length === 0 ? undefined : and(...narrowed);
+
+    // Built afresh on each call rather than held in a variable, because a
+    // Drizzle builder carries the clauses added to it: a second use would
+    // inherit the first one's `limit`.
+    const matching = () =>
+      exec
+        .select({
+          id: payment.id,
+          bookingId: folio.bookingId,
+          folioId: payment.folioId,
+          method: payment.method,
+          status: payment.status,
+          amount: payment.amount,
+          gatewayTransactionId: payment.gatewayTransactionId,
+          paidAt: payment.paidAt,
+          // The disagreement filed against this row, and never its figures —
+          // `contract/payment.ts` says why a payment references a discrepancy
+          // rather than restating one. A correlated read and not a join, so a
+          // payment carrying two observations cannot double the row it hangs
+          // off; the newest stands, and the id breaks a tie so that two reads
+          // answer alike.
+          discrepancyId: sql<
+            string | null
+          >`(select ${paymentDiscrepancy.id} from ${paymentDiscrepancy}
+             where ${paymentDiscrepancy.paymentId} = ${payment.id}
+             order by ${paymentDiscrepancy.observedAt} desc, ${paymentDiscrepancy.id} desc
+             limit 1)`,
+        })
+        .from(payment)
+        .innerJoin(folio, eq(folio.id, payment.folioId))
+        .where(where)
+        // Newest row first, the id breaking a tie, so the order is total. An
+        // offset over a partial order is a page that shows one payment twice
+        // and another never. `created_at` and not `paid_at`: the latter is null
+        // on everything unresolved, so ordering by it would be ordering on
+        // whether money had moved.
+        .orderBy(desc(payment.createdAt), desc(payment.id));
+
+    if (query.businessDate) {
+      const day = query.businessDate.toString();
+
+      const onTheDay = (await matching())
+        .map((row) => dated(row, dates))
+        .filter((row) => row.businessDate === day);
+
+      return {
+        payments: onTheDay.slice(query.offset, query.offset + query.limit),
+        total: onTheDay.length,
+      };
+    }
+
+    const page = await matching().limit(query.limit).offset(query.offset);
+
+    const [counted] = await exec
+      .select({ total: count() })
+      .from(payment)
+      .innerJoin(folio, eq(folio.id, payment.folioId))
+      .where(where);
+
+    return {
+      payments: page.map((row) => dated(row, dates)),
+      total: counted?.total ?? 0,
+    };
   }
 
   /**
@@ -1125,6 +1335,28 @@ export class PaymentService {
 
     return held;
   }
+}
+
+/**
+ * One selected row with the trading day its money moved on written onto it.
+ *
+ * The rule is passed in rather than read here, which is what keeps a whole
+ * answer classified against a single rollover hour: a helper that fetched its
+ * own would date the first row and the last one under two readings of a
+ * configuration an `ADMIN` can change while a page is being assembled.
+ *
+ * Null in and null out. Money that has not moved has no instant to be dated by,
+ * and dating it by the moment the row was written would put an unresolved
+ * attempt on a day the property was never paid on.
+ */
+function dated(
+  row: Omit<ListedPayment, "businessDate">,
+  dates: BusinessDateRule,
+): ListedPayment {
+  return {
+    ...row,
+    businessDate: row.paidAt ? dates.on(row.paidAt).toString() : null,
+  };
 }
 
 /** The `data` a `CONFLICT` from {@link PaymentService.handleIpn} carries. */

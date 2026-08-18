@@ -1,9 +1,10 @@
 // One payment's whole conversation: where the property asks for the money —
 // `FR-PAY-02` — where the gateway reports what became of it and where the payer
-// lands, which is `FR-PAY-03`, and where somebody reads back the nights on which
-// the gateway's report and this property's ledger did not agree, `FR-PAY-05`.
+// lands, which is `FR-PAY-03`, where somebody reads back the nights on which the
+// gateway's report and this property's ledger did not agree, `FR-PAY-05`, and
+// where they read the payments themselves.
 //
-// **Two of the five are VNPay's routes, and the file is shaped by that.**
+// **Two of the six are VNPay's routes, and the file is shaped by that.**
 // Everything else under `modules/` answers through `contract` in
 // `@mariva/shared`, because the caller on the other end is this property's own
 // web app and the contract is what makes the two agree at compile time. The IPN
@@ -14,11 +15,13 @@
 // `guest-auth.controller.ts` mounts Better Auth's own surface for the same
 // reason, and gives it.
 //
-// **The other three are the property's own, and they are the ones that hold a
+// **The other four are the property's own, and they are the ones that hold a
 // capability.** Opening an attempt is asking a gateway to collect against a
 // stay; listing the nights that were reconciled and reading one of them is the
-// accountant asking what the sweep found. In all three the caller is on this
-// property's side of the wire, the shape is this property's to choose, and
+// accountant asking what the sweep found; listing the payments is the same
+// person asking what the property was actually paid, which until that route
+// existed nothing outside this module could see. In all four the caller is on
+// this property's side of the wire, the shape is this property's to choose, and
 // `rbac-matrix.md` §2 governs them. So they are declared in
 // `contract/payment.ts` and guarded by `payment.open-attempt` and
 // `payment.reconcile`. They are answered here rather than beside the folio
@@ -37,15 +40,22 @@
 // no account, and a receptionist taking their card is the ordinary use of this
 // route.
 //
-// **The two reconciliation routes are declared as reads**, which is the second
-// argument to `@RequiresCapability` and not a comment. The row grants `full` to
-// the three roles that hold it, so nothing is refused today that would otherwise
-// be admitted; it is declared anyway, because the day the matrix hands somebody
-// a 👁 over gateway reconciliation — an auditor, a night manager — these must be
-// the routes that let them look, and not the routes that refuse them.
-// `folio.controller.ts` makes the same argument about its own read.
+// **The three routes under `payment.reconcile` are declared as reads**, which
+// is the second argument to `@RequiresCapability` and not a comment. The row
+// grants `full` to the three roles that hold it, so nothing is refused today
+// that would otherwise be admitted; it is declared anyway, because the day the
+// matrix hands somebody a 👁 over gateway reconciliation — an auditor, a night
+// manager — these must be the routes that let them look, and not the routes
+// that refuse them. `folio.controller.ts` makes the same argument about its own
+// read.
 //
-// Neither of them writes, and there is deliberately no third route that does.
+// The payment list is the third of them and takes no key of its own. The row is
+// this property's money as the payer's side reports it, and a payment row is
+// less than the disagreement the day's read already hands the same caller about
+// the same attempt — `contract/payment.ts` argues that where the route is
+// declared.
+//
+// None of the three writes, and there is deliberately no route here that does.
 // `schema/reconciliation.ts` keeps the table append-only because a row is an
 // observation of what a day looked like when it was looked at; a route that
 // acknowledged, resolved or corrected one would be editing the evidence. Sweeping
@@ -53,7 +63,7 @@
 // a sweep.
 //
 // **VNPay's two paths are written on their handlers rather than on the class**,
-// which is what lets the three live together. A `@Controller` prefix is
+// which is what lets the four live together. A `@Controller` prefix is
 // prepended to a contract route as well as to a plain one, and `FR-PAY-02`'s
 // address belongs to a stay rather than to a gateway. Spelling the segments out
 // twice buys something worth more than it costs: {@link GATEWAY_RETURN_PATH} is
@@ -128,6 +138,7 @@ import { TransactionRunner } from "../../database/transaction-runner.js";
 import {
   type CallbackOutcome,
   disagreementOf,
+  type ListedPayment,
   PaymentService,
 } from "./payment.service.js";
 import {
@@ -380,6 +391,54 @@ export class PaymentController {
         return dayOnWire(day);
       },
     );
+  }
+
+  /**
+   * What the property has been paid, narrowed and paged.
+   *
+   * **The same `payment.reconcile` row as the two reads above, declared as a
+   * read for the same reason and adding no key.** That row governs this
+   * property's money as the payer's side reports it, which is what a payment row
+   * is; and a row here is strictly less than what `readReconciliation` already
+   * hands the same caller about the same attempt — both figures, the
+   * classification and the payment it names. So nothing is reachable through
+   * this route that the key did not already open. What `rbac-matrix.md` §2
+   * forbids is one route whose authority turns on its body, and this one has
+   * none.
+   *
+   * **No realm check below it, unlike `folio.controller.ts`'s collection.** That
+   * one owes a check because `folio.read` grants the guest realm a conditional
+   * scope the guard cannot finish; this row is `denied` for that realm outright,
+   * so a guest is refused by the guard before the handler exists to them. A copy
+   * of that refusal here would be a second decision about a question the matrix
+   * has already answered — and the two would agree until the row moved.
+   *
+   * **Wrapped in a transaction**, for the argument the folio list makes: the
+   * page and the count over it are two statements printed side by side, and on
+   * two connections they would be two moments — a table of nineteen rows under a
+   * heading that says twenty. The rollover hour the days are derived from is
+   * read on the same connection for the same reason.
+   */
+  @RequiresCapability("payment.reconcile", "read")
+  @Implement(contract.payment.list)
+  listPayments() {
+    return implement(contract.payment.list).handler(async ({ input }) => {
+      const page = await this.transactions.run((exec) =>
+        this.payments.list(exec, {
+          bookingId: input.bookingId,
+          businessDate: input.businessDate,
+          method: input.method,
+          status: input.status,
+          limit: input.limit,
+          offset: input.offset,
+        }),
+      );
+
+      return {
+        payments: page.payments.map(paymentOnWire),
+        total: page.total,
+      };
+    });
   }
 
   /**
@@ -758,6 +817,20 @@ function dayOnWire(day: ReconciledDay) {
 
 function discrepancyOnWire(discrepancy: ObservedDiscrepancy) {
   return { ...discrepancy, observedAt: discrepancy.observedAt.toISOString() };
+}
+
+/**
+ * One payment as the wire carries it — the instant into ISO-8601, and null
+ * kept as null.
+ *
+ * The đồng stay `bigint`: the serialiser under the contract writes one out as
+ * decimal text on its own, which is what `money.ts` says a response declares and
+ * the one crossing that cannot round a figure. The business date is already the
+ * nine characters a date is spelled with, because the service derived it into
+ * them.
+ */
+function paymentOnWire(row: ListedPayment) {
+  return { ...row, paidAt: row.paidAt?.toISOString() ?? null };
 }
 
 /**
