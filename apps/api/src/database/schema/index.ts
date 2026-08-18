@@ -82,6 +82,10 @@ export * from "./loyalty.js";
 // derivation is the only thing that answers what tier a guest holds.
 export * from "./guest-tier.js";
 
+// What a guest thought of a stay they have finished — one row per booking, and
+// no row at all for a stay that has not ended. Owned by `modules/feedback`.
+export * from "./feedback.js";
+
 // The change log every state-changing action writes to — who changed which row
 // of which table, when, and what it looked like on either side. Owned by
 // `modules/audit`; written by the module that owns the row being changed.

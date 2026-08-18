@@ -13,6 +13,7 @@ import { JobsModule } from "./jobs/jobs.module.js";
 import { AuditModule } from "./modules/audit/audit.module.js";
 import { AuthModule } from "./modules/auth/auth.module.js";
 import { BookingModule } from "./modules/booking/booking.module.js";
+import { FeedbackModule } from "./modules/feedback/feedback.module.js";
 import { GuestModule } from "./modules/guest/guest.module.js";
 import { HousekeepingModule } from "./modules/housekeeping/housekeeping.module.js";
 import { IdentityModule } from "./modules/identity/identity.module.js";
@@ -152,6 +153,12 @@ const CORRELATION_HEADER = "x-request-id";
     BookingModule,
     HousekeepingModule,
     GuestModule,
+
+    // M7, and after `BookingModule` because that is where the question it asks
+    // first is answered: whether the stay being rated is the caller's. It reads
+    // a booking and writes a row of its own; no transition anywhere consults it
+    // back.
+    FeedbackModule,
 
     // M6, and after both of the modules it reaches into: `FolioModule` for the
     // account a verified callback posts to, `BookingModule` for the rollover
