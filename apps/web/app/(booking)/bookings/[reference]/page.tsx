@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
 import { StayScreen } from "@/features/booking/components/stay-screen/stay-screen";
+import { StayFeedbackPanel } from "@/features/feedback/components/stay-feedback/stay-feedback";
+import styles from "./stay-route.module.css";
 
 export const metadata: Metadata = {
   title: "Your booking — Mariva",
@@ -17,6 +19,21 @@ export const metadata: Metadata = {
 // guest holds from here on and what `booking.readOwn` answers to. The screen
 // reads `?booked` to decide whether to greet, so it needs the same Suspense
 // boundary every route whose state is the query string does.
+//
+// **The feedback panel sits under it, on the same route and by the same rule.**
+// `screens.md` §Account puts every act a stay allows on the stay's own surface —
+// cancelling it, providing the identity document, saying how it went — each
+// shown only when the booking's state allows. It is a sibling rather than
+// something inside the screen above because the two answer to different
+// credentials: the stay reads with whatever opens the booking, including the
+// link out of a confirmation email, and feedback is an account's statement,
+// which the API refuses to anything else. The panel asks and draws nothing when
+// the answer is no, so a stay that is not over — or not this browser's — shows
+// exactly what it showed before.
+//
+// It stands outside the Suspense boundary because it reads no search parameter:
+// its whole input is the reference in the path, which this component already
+// has.
 export default async function BookingPage({
   params,
 }: {
@@ -25,8 +42,19 @@ export default async function BookingPage({
   const { reference } = await params;
 
   return (
-    <Suspense fallback={null}>
-      <StayScreen reference={reference} />
-    </Suspense>
+    <div className={styles.route}>
+      <Suspense fallback={null}>
+        <StayScreen reference={reference} />
+      </Suspense>
+
+      {/* Keyed by the stay, so moving to another booking takes the whole of
+          this one's panel with it — the answer already read, a rating and a
+          comment typed and not sent, and a write still in flight. A stay is
+          spoken about once and cannot be edited afterwards, so a draft that
+          survived onto the next booking is a sentence filed against the wrong
+          stay for good. Structural rather than a list of resets the panel has
+          to remember to keep in step with its own state. */}
+      <StayFeedbackPanel key={reference} reference={reference} />
+    </div>
   );
 }

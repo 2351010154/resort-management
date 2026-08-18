@@ -253,6 +253,13 @@
       "when": 1786975923736,
       "tag": "0035_booking_pre_arrival_reminder",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1787028674278,
+      "tag": "0036_feedback_on_a_finished_stay",
+      "breakpoints": true
     }
   ]
 }

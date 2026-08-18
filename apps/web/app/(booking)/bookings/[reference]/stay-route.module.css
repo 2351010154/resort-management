@@ -1,0 +1,17 @@
+/* The composition of this one route: the stay panel, and the feedback panel
+ * under it.
+ *
+ * The stay screen sets a viewport floor on itself, because on every other route
+ * that draws it — the funnel's payment step, the waiting screen, the refusal —
+ * it is the whole of the page. Here it is not: a stay that has been checked out
+ * has a second panel below, and a full empty viewport between the two would put
+ * the only remaining act of the page below the fold. The floor is released here,
+ * on the route that composes them, rather than in the shell, so the screens that
+ * are still the whole of their route keep it.
+ *
+ * The ground beneath is `body`'s, which is the same ivory the shell paints, so
+ * releasing the height changes what is measured and nothing that is seen.
+ */
+.route > :first-child {
+  min-height: auto;
+}

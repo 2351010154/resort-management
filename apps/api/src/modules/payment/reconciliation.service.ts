@@ -722,7 +722,13 @@ function moneyTaken(
  * starts at a configured hour in its own zone; this is a plain instant a
  * timestamp column can be compared against, chosen a day out on either side so
  * that the range contains the business date whatever that hour is.
+ *
+ * Exported for `payment.service.ts`, which narrows its list of payments to one
+ * trading day the same way this file's ledger read does: a coarse range in the
+ * statement, then `BusinessDateService`'s rule asked about each row. Two copies
+ * of the bound would be two answers to how wide "a day out on either side" is,
+ * and the two reads are supposed to see the same money.
  */
-function startOfDayUtc(date: StayDate): Date {
+export function startOfDayUtc(date: StayDate): Date {
   return new Date(`${date.toString()}T00:00:00Z`);
 }
