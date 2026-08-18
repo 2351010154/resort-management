@@ -10,6 +10,7 @@
 import { availability } from "./availability.js";
 import { booking } from "./booking.js";
 import { businessDate } from "./business-date.js";
+import { feedback } from "./feedback.js";
 import { folio } from "./folio.js";
 import { guest } from "./guest.js";
 import { health } from "./health.js";
@@ -37,6 +38,7 @@ export const contract = {
   search,
   systemConfig,
   businessDate,
+  feedback,
 };
 
 export type Contract = typeof contract;
@@ -62,6 +64,13 @@ export {
   shortenedStaySchema,
 } from "./booking.js";
 export { businessDateSchema } from "./business-date.js";
+export {
+  feedbackRatingSchema,
+  feedbackSchema,
+  HIGHEST_RATING,
+  LONGEST_FEEDBACK_COMMENT,
+  submitFeedbackInput,
+} from "./feedback.js";
 export {
   closeFolioInput,
   FOLIO_PAGE_SIZE,
