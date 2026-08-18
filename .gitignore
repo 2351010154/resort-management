@@ -36,8 +36,10 @@ __pycache__/
 test-results/
 playwright-report/
 
-# Logs and temp files
+# Logs and temp files. The `.err` sidecar is the stderr half of a backgrounded
+# dev server, written beside the `*.log` the same run produces.
 *.log
+*.log.err
 *.tmp
 .tmp/
 .cache/

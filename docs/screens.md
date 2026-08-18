@@ -119,8 +119,10 @@ belong in
 [`architecture/repository-structure.md`](architecture/repository-structure.md).
 
 The profile lets the guest edit the fields the next stay will consume: name,
-phone, date of birth, nationality and identity-document number — the same set
-the legal registration record needs at check-in. Profile edits feed forward
+phone, date of birth and nationality. The identity-document number is not among
+them — the profile carries it masked and takes no new value, because that number
+is confirmed against the physical document at the desk rather than asserted by
+its subject. Profile edits feed forward
 only: they prefill the guest's next booking and next check-in, and never
 rewrite a past registration record, booking, folio or invoice — those are
 point-in-time snapshots. The front desk remains the point of truth, confirming

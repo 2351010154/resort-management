@@ -3,6 +3,8 @@ import { BusinessDateService } from "../booking/business-date.service.js";
 import { OpsAlertService } from "../notification/ops-alert.service.js";
 import { SystemConfigService } from "../system-config/system-config.service.js";
 import { GuestController } from "./guest.controller.js";
+import { GuestProfileController } from "./guest-profile.controller.js";
+import { GuestProfileService } from "./guest-profile.service.js";
 import { GuestService } from "./guest.service.js";
 import { LoyaltyService } from "./loyalty.service.js";
 import { TierDerivationService } from "./tier-derivation.service.js";
@@ -54,10 +56,26 @@ import { TierDerivationService } from "./tier-derivation.service.js";
 // already imports this one for check-in's guest writes, so importing it back
 // would be a cycle broken with `forwardRef` for one stateless reader over a
 // configuration row this module already reads.
+//
+// `GuestProfileService` is the fourth and it is `FR-GST-01`'s: the guest's own
+// record of themselves, which is the only writable half of a profile and reaches
+// exactly one table. It composes the two above it rather than repeating them —
+// the tier is derived and the balance is summed, neither is stored, and a
+// profile screen holding its own copy of either rule would be a second answer
+// that could disagree. It is deliberately *not* exported: nothing outside this
+// module has any business reading a guest's account of themselves, and the
+// second controller is the only caller.
+//
+// `GuestProfileController` sits beside `GuestController` and never inside it.
+// The two carry opposite requirements over the same domain — one is staff
+// reading a named guest, the other is a guest reading themselves — and
+// `guest-profile.controller.ts` argues why one class holding both capabilities
+// is the shape `rbac-matrix.md` §2 declines.
 @Module({
-  controllers: [GuestController],
+  controllers: [GuestController, GuestProfileController],
   providers: [
     GuestService,
+    GuestProfileService,
     LoyaltyService,
     TierDerivationService,
     BusinessDateService,
