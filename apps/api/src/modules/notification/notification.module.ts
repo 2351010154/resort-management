@@ -6,6 +6,7 @@ import { BookingConfirmationService } from "./booking-confirmation.service.js";
 import { MailQueue } from "./mail-queue.service.js";
 import { MailerService } from "./mailer.service.js";
 import { OpsAlertService } from "./ops-alert.service.js";
+import { PreArrivalReminderService } from "./pre-arrival-reminder.service.js";
 
 // How anything leaves this process on its way to a person —
 // docs/architecture/repository-structure.md §"Domain modules". A caller composes
@@ -39,6 +40,13 @@ import { OpsAlertService } from "./ops-alert.service.js";
 // that creates an account — and a caller that could reach for either would
 // eventually reach for the wrong one.
 //
+// `BookingCancellationService` and `PreArrivalReminderService` are the other two
+// of `FR-NTF-01`'s four transactional mails, and they are named services beside
+// the confirmation for the reason the account link is: a caller injects the
+// message it means to send. Both differ from the confirmation in one way worth
+// stating here — neither body carries a signed link, so each may be queued whole
+// rather than reduced to facts, and each file says so.
+//
 // `BookingTokenModule` is imported for one thing `MailQueue` does with it: sign
 // a booking link's row id back into the address it belongs in, at the moment of
 // delivery. That is why a confirmation can sit on the queue without its
@@ -53,6 +61,7 @@ import { OpsAlertService } from "./ops-alert.service.js";
     OpsAlertService,
     BookingConfirmationService,
     BookingCancellationService,
+    PreArrivalReminderService,
     AccountLinkMailService,
   ],
   exports: [
@@ -61,6 +70,7 @@ import { OpsAlertService } from "./ops-alert.service.js";
     OpsAlertService,
     BookingConfirmationService,
     BookingCancellationService,
+    PreArrivalReminderService,
     AccountLinkMailService,
   ],
 })

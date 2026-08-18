@@ -33,7 +33,17 @@ and `D7`.
 | Rooms per floor | 10 |
 | Numbering | `<floor><nn>` — 201–210, 301–310, 401–410, 501–510 |
 | Room types | 5 |
+| Address | 12 Trần Phú, Lộc Thọ, Nha Trang, Khánh Hòa |
 | Timezone | `Asia/Ho_Chi_Minh`, UTC+7, no DST — a `StayDate` is never a timestamp |
+
+**The address is read by the pre-arrival reminder and by nothing else.** It is
+`PROPERTY_ADDRESS` in `apps/api/src/modules/notification/templates/guest-auth-emails.ts`,
+beside the property's name, because a guest travelling tomorrow needs to know
+where they are going. Like every value in §1 it is ⚑ — there is no building — and
+it is a constant rather than configuration for that reason: nothing decides
+anything by it, so the day the property is real this is one line to change and not
+a migration. An invoice or a statutory record that needs a registered address is a
+different fact with a different authority, and neither exists yet.
 
 ### Type mix
 
@@ -150,6 +160,12 @@ source of off-by-one-night reporting errors, which is why `StayDate` is
 
 Rollover is a config value, not a constant: a property that runs its audit at
 06:00 changes one row, not a deploy.
+
+The check-in time is the opposite: a constant, `CHECK_IN_TIME` beside the address
+in `guest-auth-emails.ts`, because no code path decides anything by it. The
+pre-arrival reminder prints it so a guest does not arrive at 09:00 expecting a
+room; early arrival is `BOOKING_EARLY_CHECK_IN_ENABLED` and §4's arrival window is
+a comparison of business dates, neither of which reads a clock time.
 
 ## 3. Rate structure
 
