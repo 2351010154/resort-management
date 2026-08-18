@@ -295,7 +295,7 @@ function Form({ businessDate, rooms, onCancel, onDone }: NewBookingFormProps) {
           hint={
             fields.kind === "phone"
               ? "Where the confirmation and any cancellation go."
-              : "Leave both empty for a guest with nothing to write to."
+              : "Optional. A name on its own is taken; an address needs one beside it."
           }
           onChange={(contactEmail) => {
             change({ contactEmail });

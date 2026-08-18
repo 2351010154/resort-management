@@ -191,8 +191,13 @@ export interface CreateBookingInput {
    * sends, and it is not authority — it is an address to write to, claimed by
    * whoever booked, and nothing is granted by holding it. `schema/booking.ts`
    * says why it is not a `registration` row.
+   *
+   * A {@link ClaimedBookingContact} and not a {@link BookingContact}, because
+   * the address is the half a telephone call does not always produce. A name on
+   * its own is recorded as it arrived; what cannot arrive is an address with
+   * nobody's name against it, which `contract/booking.ts` refuses at the door.
    */
-  readonly contact?: BookingContact | null;
+  readonly contact?: ClaimedBookingContact | null;
 }
 
 /**
@@ -238,6 +243,30 @@ export interface CreateHoldInput extends CreateBookingInput {
  *  document at check-in, where the desk already asks for it. */
 export interface BookingContact {
   readonly email: string;
+  readonly name: string;
+}
+
+/**
+ * Somebody the desk was told about, which is not always somebody it can write
+ * to.
+ *
+ * A second shape rather than a widened {@link BookingContact}, because the two
+ * doors are genuinely asking different questions and only one of them can insist
+ * on an answer. The funnel names its guest on the review screen, one press before
+ * the money, so {@link SetHoldContact} can require an address and does — keeping
+ * that rule in the type means no future caller of
+ * {@link BookingService.setHoldContact} can pass half a contact, whatever a
+ * comment asks them to remember. The desk's creating door is the telephone: a
+ * call produces a name reliably and an address only when the guest has one to
+ * give, and `contract/booking.ts` argues why a name alone is worth recording
+ * rather than refusing — the property can still say whose stay it is.
+ *
+ * The name is what is required here. An address with nobody's name against it is
+ * the half nothing can compose a message from, and the contract refuses it before
+ * anything reaches this module.
+ */
+export interface ClaimedBookingContact {
+  readonly email?: string | null;
   readonly name: string;
 }
 
@@ -2527,12 +2556,17 @@ export class BookingService {
             // nobody can be shown.
             userId: input.userId ?? null,
             // Null unless a caller named somebody. The desk's door takes the
-            // pair optionally — a telephone booking has an address and a
-            // walk-in has none — and the funnel's takes it not at all, naming
-            // it on the review screen instead through
-            // {@link BookingService.setHoldContact}. Both halves or neither,
-            // held to that by `contract/booking.ts` before anything reaches
-            // here.
+            // contact optionally — a walk-in is handed their confirmation at the
+            // counter and has none — and the funnel's takes it not at all,
+            // naming it on the review screen instead through
+            // {@link BookingService.setHoldContact}.
+            //
+            // The two columns are independent here and that is deliberate: a
+            // telephone booking often produces a name and no address, and
+            // `contract/booking.ts` records why that is kept rather than
+            // refused. What cannot happen is the other way round — an address
+            // with nobody's name against it is refused at the door, so a row
+            // with an email and no name is not a shape this writes.
             contactEmail: input.contact?.email ?? null,
             contactName: input.contact?.name ?? null,
             roomTypeId: quote.roomTypeId,
