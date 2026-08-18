@@ -118,6 +118,7 @@ import type {
   PaymentGateway,
 } from "../src/modules/payment/ports/payment-gateway.port.js";
 import { SystemConfigService } from "../src/modules/system-config/system-config.service.js";
+import { noCancellations } from "./no-announcement.js";
 import { tiersAt } from "./tiers.js";
 
 /** `FR-PAY-03`'s number. */
@@ -1654,6 +1655,10 @@ function realBookings(): BookingService {
     ),
     // §7's ladder, reached only where a stay is sold to a signed-in guest.
     tiersAt(businessDate),
+    // Nothing here cancels a confirmed stay that names somebody to write to, so
+    // a cancellation reaching this stub is a gate that moved rather than a
+    // message this file meant to send.
+    noCancellations,
   );
 }
 

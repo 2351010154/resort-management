@@ -263,6 +263,37 @@ export const booking = pgTable(
       mode: "date",
     }),
 
+    // When the guest was reminded that they arrive tomorrow, and nothing else —
+    // `FR-NTF-01`'s third mail, written by `pre-arrival-reminder-sweep.ts`.
+    //
+    // **It is the whole of that sweep's idempotency, which is why it is a column
+    // and not a log line.** `job-runner.service.ts` establishes idempotency by
+    // running a sweep twice inside one transaction and requiring the second pass
+    // to be empty, and the sweep runs hourly against a set — the stays arriving
+    // on the business date plus one — that does not change for a whole day. So
+    // there is nothing in the state of a booking that distinguishes "reminded"
+    // from "not reminded yet" except this instant, and without it every tick
+    // would mail the same guest again. An in-process set would forget at the next
+    // deploy and would be one set per process.
+    //
+    // **Written only when a message was actually handed over.** A stay with
+    // nobody to write to is never selected and never marked, so the column reads
+    // as "the reminder for this stay went out at this instant" rather than "this
+    // stay has been looked at" — the second would be indistinguishable from a
+    // send that never happened.
+    //
+    // Deliberately tied to no state by a check. The columns above that are —
+    // the hold's expiry, the cancellation's instant — describe something that is
+    // *outstanding* or that a later read prices, and a stale value in either is
+    // a decision waiting to be taken wrongly. This one records something the
+    // property already did; it survives the arrival, the check-in and the
+    // check-out that follow it, and it is read by exactly one predicate, which
+    // reads `CONFIRMED` beside it.
+    preArrivalReminderSentAt: timestamp("pre_arrival_reminder_sent_at", {
+      withTimezone: true,
+      mode: "date",
+    }),
+
     // ── How the stay ended, and on whose authority ───────────────────────────
     // The moment the cancellation arrived. §4's free window turns on an instant
     // — "by 18:00, three days before arrival" — so the grid prices a
