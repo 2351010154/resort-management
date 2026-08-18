@@ -2,6 +2,7 @@ export {
   type ConfigEditAttempt,
   type ConfigFields,
   configEdit,
+  configFingerprint,
   type ConfigurationEdit,
   dongLabel,
   fieldsFrom,
