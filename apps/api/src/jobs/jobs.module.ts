@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { BookingModule } from "../modules/booking/booking.module.js";
 import { HoldExpirySweep } from "../modules/booking/hold-expiry-sweep.js";
 import { NoShowSweep } from "../modules/booking/no-show-sweep.js";
+import { PreArrivalReminderSweep } from "../modules/booking/pre-arrival-reminder-sweep.js";
 import { EInvoiceJob } from "../modules/folio/e-invoice.job.js";
 import { FolioModule } from "../modules/folio/folio.module.js";
 import { RoomChargeSweep } from "../modules/folio/room-charge-sweep.js";
@@ -63,8 +64,13 @@ import { SWEEP_JOBS, type SweepJob } from "./sweep-job.js";
 // screen that shows what it found to disagree with.
 //
 // `NotificationModule` is imported for `OpsAlertService`, which is how a
-// discrepancy reaches a person. Same reason once more — how anything leaves this
-// process is decided in one place, and `notification.module.ts` is it.
+// discrepancy reaches a person, and for `PreArrivalReminderService`, which is how
+// the guest arriving tomorrow hears from the property. Same reason once more —
+// how anything leaves this process is decided in one place, and
+// `notification.module.ts` is it. `PreArrivalReminderSweep` is the one sweep here
+// whose work is a message rather than a row, and the argument still holds in that
+// direction: it asks a booking question and hands the answer to the module that
+// owns delivery, rather than composing a body or reaching for a mail vendor.
 //
 // `GuestModule` is imported for `TierDerivationService`, which is what
 // `TierRecomputeSweep` asks where a guest is standing. Sharpest of the four:
@@ -98,6 +104,7 @@ import { SWEEP_JOBS, type SweepJob } from "./sweep-job.js";
         EInvoiceJob,
         ReconciliationJob,
         TierRecomputeSweep,
+        PreArrivalReminderSweep,
       ],
       useFactory: (...jobs: SweepJob[]): readonly SweepJob[] => jobs,
     },
@@ -106,6 +113,7 @@ import { SWEEP_JOBS, type SweepJob } from "./sweep-job.js";
     RoomChargeSweep,
     ReconciliationJob,
     TierRecomputeSweep,
+    PreArrivalReminderSweep,
     JobRunner,
     JobScheduler,
   ],

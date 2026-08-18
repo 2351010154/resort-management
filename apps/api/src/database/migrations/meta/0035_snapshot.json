@@ -1,0 +1,3891 @@
+{
+  "id": "5085da8a-f26f-4b34-9fbb-068845bd7fff",
+  "prevId": "4d10a63e-84ec-4588-9fdd-621b0d55167c",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.guest_account": {
+      "name": "guest_account",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "account_id": {
+          "name": "account_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "provider_id": {
+          "name": "provider_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "access_token": {
+          "name": "access_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "refresh_token": {
+          "name": "refresh_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "access_token_expires_at": {
+          "name": "access_token_expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "refresh_token_expires_at": {
+          "name": "refresh_token_expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scope": {
+          "name": "scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "id_token": {
+          "name": "id_token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "password": {
+          "name": "password",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "guest_account_user_id_idx": {
+          "name": "guest_account_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "guest_account_provider_key": {
+          "name": "guest_account_provider_key",
+          "columns": [
+            {
+              "expression": "provider_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "account_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "guest_account_user_id_guest_user_id_fk": {
+          "name": "guest_account_user_id_guest_user_id_fk",
+          "tableFrom": "guest_account",
+          "tableTo": "guest_user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.guest_session": {
+      "name": "guest_session",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "token": {
+          "name": "token",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ip_address": {
+          "name": "ip_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_agent": {
+          "name": "user_agent",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "guest_session_user_id_idx": {
+          "name": "guest_session_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "guest_session_user_id_guest_user_id_fk": {
+          "name": "guest_session_user_id_guest_user_id_fk",
+          "tableFrom": "guest_session",
+          "tableTo": "guest_user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "guest_session_token_unique": {
+          "name": "guest_session_token_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "token"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.guest_user": {
+      "name": "guest_user",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "email_verified": {
+          "name": "email_verified",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "image": {
+          "name": "image",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "guest_user_email_lower_key": {
+          "name": "guest_user_email_lower_key",
+          "columns": [
+            {
+              "expression": "lower(\"email\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.guest_verification": {
+      "name": "guest_verification",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "identifier": {
+          "name": "identifier",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "value": {
+          "name": "value",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "guest_verification_identifier_idx": {
+          "name": "guest_verification_identifier_idx",
+          "columns": [
+            {
+              "expression": "identifier",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.staff_session": {
+      "name": "staff_session",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "staff_user_id": {
+          "name": "staff_user_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "refresh_token_hash": {
+          "name": "refresh_token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "revoked_at": {
+          "name": "revoked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "user_agent": {
+          "name": "user_agent",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ip_address": {
+          "name": "ip_address",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "staff_session_staff_user_id_idx": {
+          "name": "staff_session_staff_user_id_idx",
+          "columns": [
+            {
+              "expression": "staff_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "staff_session_staff_user_id_staff_user_id_fk": {
+          "name": "staff_session_staff_user_id_staff_user_id_fk",
+          "tableFrom": "staff_session",
+          "tableTo": "staff_user",
+          "columnsFrom": [
+            "staff_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "staff_session_refresh_token_hash_unique": {
+          "name": "staff_session_refresh_token_hash_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "refresh_token_hash"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.staff_user": {
+      "name": "staff_user",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "full_name": {
+          "name": "full_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "staff_role",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "password_hash": {
+          "name": "password_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "last_signed_in_at": {
+          "name": "last_signed_in_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "staff_user_email_lower_key": {
+          "name": "staff_user_email_lower_key",
+          "columns": [
+            {
+              "expression": "lower(\"email\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.room": {
+      "name": "room",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "number": {
+          "name": "number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "floor": {
+          "name": "floor",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "room_type_id": {
+          "name": "room_type_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "room_room_type_id_idx": {
+          "name": "room_room_type_id_idx",
+          "columns": [
+            {
+              "expression": "room_type_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "room_room_type_id_room_type_id_fk": {
+          "name": "room_room_type_id_room_type_id_fk",
+          "tableFrom": "room",
+          "tableTo": "room_type",
+          "columnsFrom": [
+            "room_type_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "room_number_unique": {
+          "name": "room_number_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "number"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.room_assignment": {
+      "name": "room_assignment",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "room_id": {
+          "name": "room_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "booking_id": {
+          "name": "booking_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "check_in_date": {
+          "name": "check_in_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "check_out_date": {
+          "name": "check_out_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "closure_reason": {
+          "name": "closure_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "room_assignment_room_id_idx": {
+          "name": "room_assignment_room_id_idx",
+          "columns": [
+            {
+              "expression": "room_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "room_assignment_booking_id_idx": {
+          "name": "room_assignment_booking_id_idx",
+          "columns": [
+            {
+              "expression": "booking_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "room_assignment_room_id_room_id_fk": {
+          "name": "room_assignment_room_id_room_id_fk",
+          "tableFrom": "room_assignment",
+          "tableTo": "room",
+          "columnsFrom": [
+            "room_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "room_assignment_covers_at_least_one_night": {
+          "name": "room_assignment_covers_at_least_one_night",
+          "value": "\"room_assignment\".\"check_out_date\" > \"room_assignment\".\"check_in_date\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.room_type": {
+      "name": "room_type",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "code": {
+          "name": "code",
+          "type": "room_type_code",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "max_occupancy": {
+          "name": "max_occupancy",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "bedding_sleeps": {
+          "name": "bedding_sleeps",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "takes_extra_bed": {
+          "name": "takes_extra_bed",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "square_metres": {
+          "name": "square_metres",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "bedding": {
+          "name": "bedding",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "aspect": {
+          "name": "aspect",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "display_order": {
+          "name": "display_order",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "room_type_code_unique": {
+          "name": "room_type_code_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "code"
+          ]
+        },
+        "room_type_display_order_unique": {
+          "name": "room_type_display_order_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "display_order"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "room_type_max_occupancy_at_least_bedding": {
+          "name": "room_type_max_occupancy_at_least_bedding",
+          "value": "\"room_type\".\"max_occupancy\" >= \"room_type\".\"bedding_sleeps\""
+        },
+        "room_type_extra_bed_closes_the_gap": {
+          "name": "room_type_extra_bed_closes_the_gap",
+          "value": "\"room_type\".\"takes_extra_bed\" OR \"room_type\".\"max_occupancy\" = \"room_type\".\"bedding_sleeps\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.type_inventory": {
+      "name": "type_inventory",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "room_type_id": {
+          "name": "room_type_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stay_date": {
+          "name": "stay_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "total_rooms": {
+          "name": "total_rooms",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sold_rooms": {
+          "name": "sold_rooms",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        }
+      },
+      "indexes": {
+        "type_inventory_room_type_date_key": {
+          "name": "type_inventory_room_type_date_key",
+          "columns": [
+            {
+              "expression": "room_type_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "stay_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "type_inventory_stay_date_idx": {
+          "name": "type_inventory_stay_date_idx",
+          "columns": [
+            {
+              "expression": "stay_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "type_inventory_room_type_id_room_type_id_fk": {
+          "name": "type_inventory_room_type_id_room_type_id_fk",
+          "tableFrom": "type_inventory",
+          "tableTo": "room_type",
+          "columnsFrom": [
+            "room_type_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "type_inventory_sold_at_most_total": {
+          "name": "type_inventory_sold_at_most_total",
+          "value": "\"type_inventory\".\"sold_rooms\" <= \"type_inventory\".\"total_rooms\""
+        },
+        "type_inventory_sold_not_negative": {
+          "name": "type_inventory_sold_not_negative",
+          "value": "\"type_inventory\".\"sold_rooms\" >= 0"
+        },
+        "type_inventory_total_not_negative": {
+          "name": "type_inventory_total_not_negative",
+          "value": "\"type_inventory\".\"total_rooms\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.promotion": {
+      "name": "promotion",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "type": {
+          "name": "type",
+          "type": "promotion_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "value": {
+          "name": "value",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "valid_from": {
+          "name": "valid_from",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "valid_to": {
+          "name": "valid_to",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "min_nights": {
+          "name": "min_nights",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "requires_loyalty_tier": {
+          "name": "requires_loyalty_tier",
+          "type": "loyalty_tier",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "promotion_code_unique": {
+          "name": "promotion_code_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "code"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "promotion_value_reduces_within_its_scale": {
+          "name": "promotion_value_reduces_within_its_scale",
+          "value": "(\"promotion\".\"type\" = 'PERCENTAGE' and \"promotion\".\"value\" between -99 and -1)\n        or (\"promotion\".\"type\" = 'FIXED_AMOUNT' and \"promotion\".\"value\" < 0)"
+        },
+        "promotion_window_opens_before_it_closes": {
+          "name": "promotion_window_opens_before_it_closes",
+          "value": "\"promotion\".\"valid_from\" is null or \"promotion\".\"valid_to\" is null\n        or \"promotion\".\"valid_to\" >= \"promotion\".\"valid_from\""
+        },
+        "promotion_minimum_at_least_one_night": {
+          "name": "promotion_minimum_at_least_one_night",
+          "value": "\"promotion\".\"min_nights\" is null or \"promotion\".\"min_nights\" >= 1"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.property_tariff": {
+      "name": "property_tariff",
+      "schema": "",
+      "columns": {
+        "is_the_property": {
+          "name": "is_the_property",
+          "type": "boolean",
+          "primaryKey": true,
+          "notNull": true,
+          "default": true
+        },
+        "extra_person_per_night_gross": {
+          "name": "extra_person_per_night_gross",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "property_tariff_holds_exactly_one_row": {
+          "name": "property_tariff_holds_exactly_one_row",
+          "value": "\"property_tariff\".\"is_the_property\""
+        },
+        "property_tariff_extra_person_positive": {
+          "name": "property_tariff_extra_person_positive",
+          "value": "\"property_tariff\".\"extra_person_per_night_gross\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.rate_calendar": {
+      "name": "rate_calendar",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "room_type_id": {
+          "name": "room_type_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stay_date": {
+          "name": "stay_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gross_per_night": {
+          "name": "gross_per_night",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "rate_calendar_room_type_date_key": {
+          "name": "rate_calendar_room_type_date_key",
+          "columns": [
+            {
+              "expression": "room_type_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "stay_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "rate_calendar_stay_date_idx": {
+          "name": "rate_calendar_stay_date_idx",
+          "columns": [
+            {
+              "expression": "stay_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "rate_calendar_room_type_id_room_type_id_fk": {
+          "name": "rate_calendar_room_type_id_room_type_id_fk",
+          "tableFrom": "rate_calendar",
+          "tableTo": "room_type",
+          "columnsFrom": [
+            "room_type_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "rate_calendar_gross_positive": {
+          "name": "rate_calendar_gross_positive",
+          "value": "\"rate_calendar\".\"gross_per_night\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.rate_plan": {
+      "name": "rate_plan",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "code": {
+          "name": "code",
+          "type": "rate_plan_code",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "percent_adjustment": {
+          "name": "percent_adjustment",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "breakfast_per_person_gross": {
+          "name": "breakfast_per_person_gross",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "display_order": {
+          "name": "display_order",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "rate_plan_code_unique": {
+          "name": "rate_plan_code_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "code"
+          ]
+        },
+        "rate_plan_display_order_unique": {
+          "name": "rate_plan_display_order_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "display_order"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "rate_plan_adjustment_within_bounds": {
+          "name": "rate_plan_adjustment_within_bounds",
+          "value": "\"rate_plan\".\"percent_adjustment\" between -100 and 100"
+        },
+        "rate_plan_breakfast_positive_when_set": {
+          "name": "rate_plan_breakfast_positive_when_set",
+          "value": "\"rate_plan\".\"breakfast_per_person_gross\" is null or \"rate_plan\".\"breakfast_per_person_gross\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.stay_restriction": {
+      "name": "stay_restriction",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "room_type_id": {
+          "name": "room_type_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stay_date": {
+          "name": "stay_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "minimum_stay": {
+          "name": "minimum_stay",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "maximum_stay": {
+          "name": "maximum_stay",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "closed_to_arrival": {
+          "name": "closed_to_arrival",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "closed_to_departure": {
+          "name": "closed_to_departure",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        }
+      },
+      "indexes": {
+        "stay_restriction_room_type_date_key": {
+          "name": "stay_restriction_room_type_date_key",
+          "columns": [
+            {
+              "expression": "room_type_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "stay_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "stay_restriction_stay_date_idx": {
+          "name": "stay_restriction_stay_date_idx",
+          "columns": [
+            {
+              "expression": "stay_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "stay_restriction_room_type_id_room_type_id_fk": {
+          "name": "stay_restriction_room_type_id_room_type_id_fk",
+          "tableFrom": "stay_restriction",
+          "tableTo": "room_type",
+          "columnsFrom": [
+            "room_type_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "stay_restriction_minimum_at_least_one_night": {
+          "name": "stay_restriction_minimum_at_least_one_night",
+          "value": "\"stay_restriction\".\"minimum_stay\" >= 1"
+        },
+        "stay_restriction_maximum_at_least_minimum": {
+          "name": "stay_restriction_maximum_at_least_minimum",
+          "value": "\"stay_restriction\".\"maximum_stay\" is null or \"stay_restriction\".\"maximum_stay\" >= \"stay_restriction\".\"minimum_stay\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.booking": {
+      "name": "booking",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "reference": {
+          "name": "reference",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "anon_access_revoked_at": {
+          "name": "anon_access_revoked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contact_email": {
+          "name": "contact_email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "contact_name": {
+          "name": "contact_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "state": {
+          "name": "state",
+          "type": "booking_state",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cancellation_reason": {
+          "name": "cancellation_reason",
+          "type": "cancellation_reason",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "room_type_id": {
+          "name": "room_type_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "check_in_date": {
+          "name": "check_in_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "check_out_date": {
+          "name": "check_out_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "rate_plan_code": {
+          "name": "rate_plan_code",
+          "type": "rate_plan_code",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "adults": {
+          "name": "adults",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "child_ages": {
+          "name": "child_ages",
+          "type": "smallint[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'"
+        },
+        "quoted_stay_total_gross": {
+          "name": "quoted_stay_total_gross",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quoted_percent_adjustment": {
+          "name": "quoted_percent_adjustment",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quoted_breakfast_per_person_gross": {
+          "name": "quoted_breakfast_per_person_gross",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "quoted_extra_person_per_night_gross": {
+          "name": "quoted_extra_person_per_night_gross",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quoted_promotion_code": {
+          "name": "quoted_promotion_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "quoted_promotion_type": {
+          "name": "quoted_promotion_type",
+          "type": "promotion_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "quoted_promotion_value": {
+          "name": "quoted_promotion_value",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hold_expires_at": {
+          "name": "hold_expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "held_by": {
+          "name": "held_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "last_seen_at": {
+          "name": "last_seen_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "pre_arrival_reminder_sent_at": {
+          "name": "pre_arrival_reminder_sent_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cancelled_at": {
+          "name": "cancelled_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "penalty_waived_at": {
+          "name": "penalty_waived_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "penalty_waived_by": {
+          "name": "penalty_waived_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "booking_state_check_in_date_idx": {
+          "name": "booking_state_check_in_date_idx",
+          "columns": [
+            {
+              "expression": "state",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "check_in_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "booking_hold_expires_at_idx": {
+          "name": "booking_hold_expires_at_idx",
+          "columns": [
+            {
+              "expression": "hold_expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"booking\".\"hold_expires_at\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "booking_user_id_idx": {
+          "name": "booking_user_id_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"booking\".\"user_id\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "booking_held_by_idx": {
+          "name": "booking_held_by_idx",
+          "columns": [
+            {
+              "expression": "held_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"booking\".\"state\" = 'HELD'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "booking_last_seen_at_idx": {
+          "name": "booking_last_seen_at_idx",
+          "columns": [
+            {
+              "expression": "last_seen_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"booking\".\"state\" = 'HELD'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "booking_user_id_guest_user_id_fk": {
+          "name": "booking_user_id_guest_user_id_fk",
+          "tableFrom": "booking",
+          "tableTo": "guest_user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "booking_room_type_id_room_type_id_fk": {
+          "name": "booking_room_type_id_room_type_id_fk",
+          "tableFrom": "booking",
+          "tableTo": "room_type",
+          "columnsFrom": [
+            "room_type_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "booking_penalty_waived_by_staff_user_id_fk": {
+          "name": "booking_penalty_waived_by_staff_user_id_fk",
+          "tableFrom": "booking",
+          "tableTo": "staff_user",
+          "columnsFrom": [
+            "penalty_waived_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "booking_reference_unique": {
+          "name": "booking_reference_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "reference"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "booking_covers_at_least_one_night": {
+          "name": "booking_covers_at_least_one_night",
+          "value": "\"booking\".\"check_out_date\" > \"booking\".\"check_in_date\""
+        },
+        "booking_reason_exactly_when_cancelled": {
+          "name": "booking_reason_exactly_when_cancelled",
+          "value": "(\"booking\".\"state\" = 'CANCELLED') = (\"booking\".\"cancellation_reason\" is not null)"
+        },
+        "booking_records_a_cancellation_instant_exactly_when_cancelled": {
+          "name": "booking_records_a_cancellation_instant_exactly_when_cancelled",
+          "value": "(\"booking\".\"state\" = 'CANCELLED') = (\"booking\".\"cancelled_at\" is not null)"
+        },
+        "booking_names_a_waiver_authority_exactly_when_waived": {
+          "name": "booking_names_a_waiver_authority_exactly_when_waived",
+          "value": "(\"booking\".\"penalty_waived_at\" is null) = (\"booking\".\"penalty_waived_by\" is null)"
+        },
+        "booking_hold_expiry_exactly_when_held": {
+          "name": "booking_hold_expiry_exactly_when_held",
+          "value": "(\"booking\".\"state\" = 'HELD') = (\"booking\".\"hold_expires_at\" is not null)"
+        },
+        "booking_held_by_only_while_held": {
+          "name": "booking_held_by_only_while_held",
+          "value": "\"booking\".\"held_by\" is null or \"booking\".\"state\" = 'HELD'"
+        },
+        "booking_revokes_anonymous_access_only_with_an_account": {
+          "name": "booking_revokes_anonymous_access_only_with_an_account",
+          "value": "\"booking\".\"anon_access_revoked_at\" is null or \"booking\".\"user_id\" is not null"
+        },
+        "booking_has_an_adult": {
+          "name": "booking_has_an_adult",
+          "value": "\"booking\".\"adults\" >= 1"
+        },
+        "booking_child_ages_are_ages": {
+          "name": "booking_child_ages_are_ages",
+          "value": "0 <= all(\"booking\".\"child_ages\")"
+        },
+        "booking_quoted_total_positive": {
+          "name": "booking_quoted_total_positive",
+          "value": "\"booking\".\"quoted_stay_total_gross\" > 0"
+        },
+        "booking_quoted_adjustment_within_bounds": {
+          "name": "booking_quoted_adjustment_within_bounds",
+          "value": "\"booking\".\"quoted_percent_adjustment\" between -100 and 100"
+        },
+        "booking_quoted_breakfast_positive_when_set": {
+          "name": "booking_quoted_breakfast_positive_when_set",
+          "value": "\"booking\".\"quoted_breakfast_per_person_gross\" is null or \"booking\".\"quoted_breakfast_per_person_gross\" > 0"
+        },
+        "booking_quoted_extra_person_positive": {
+          "name": "booking_quoted_extra_person_positive",
+          "value": "\"booking\".\"quoted_extra_person_per_night_gross\" > 0"
+        },
+        "booking_quoted_promotion_is_whole_or_absent": {
+          "name": "booking_quoted_promotion_is_whole_or_absent",
+          "value": "num_nonnulls(\"booking\".\"quoted_promotion_code\", \"booking\".\"quoted_promotion_type\", \"booking\".\"quoted_promotion_value\") in (0, 3)"
+        },
+        "booking_quoted_promotion_reduces_within_its_scale": {
+          "name": "booking_quoted_promotion_reduces_within_its_scale",
+          "value": "\"booking\".\"quoted_promotion_type\" is null\n        or (\"booking\".\"quoted_promotion_type\" = 'PERCENTAGE' and \"booking\".\"quoted_promotion_value\" between -99 and -1)\n        or (\"booking\".\"quoted_promotion_type\" = 'FIXED_AMOUNT' and \"booking\".\"quoted_promotion_value\" < 0)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.booking_night": {
+      "name": "booking_night",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "booking_id": {
+          "name": "booking_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stay_date": {
+          "name": "stay_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "standard_gross": {
+          "name": "standard_gross",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "booking_night_booking_date_key": {
+          "name": "booking_night_booking_date_key",
+          "columns": [
+            {
+              "expression": "booking_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "stay_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "booking_night_booking_id_booking_id_fk": {
+          "name": "booking_night_booking_id_booking_id_fk",
+          "tableFrom": "booking_night",
+          "tableTo": "booking",
+          "columnsFrom": [
+            "booking_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "booking_night_gross_positive": {
+          "name": "booking_night_gross_positive",
+          "value": "\"booking_night\".\"standard_gross\" > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.booking_link": {
+      "name": "booking_link",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "booking_id": {
+          "name": "booking_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "purpose": {
+          "name": "purpose",
+          "type": "booking_link_purpose",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "consumed_at": {
+          "name": "consumed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "booking_link_booking_id_booking_id_fk": {
+          "name": "booking_link_booking_id_booking_id_fk",
+          "tableFrom": "booking_link",
+          "tableTo": "booking",
+          "columnsFrom": [
+            "booking_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "booking_link_outlives_the_mail_that_carried_it": {
+          "name": "booking_link_outlives_the_mail_that_carried_it",
+          "value": "\"booking_link\".\"expires_at\" > \"booking_link\".\"created_at\""
+        },
+        "booking_link_consumed_while_it_was_live": {
+          "name": "booking_link_consumed_while_it_was_live",
+          "value": "\"booking_link\".\"consumed_at\" is null or \"booking_link\".\"consumed_at\" <= \"booking_link\".\"expires_at\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.cccd_unmask_audit": {
+      "name": "cccd_unmask_audit",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "guest_id": {
+          "name": "guest_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unmasked_by": {
+          "name": "unmasked_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unmasked_at": {
+          "name": "unmasked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "cccd_unmask_audit_guest_id_idx": {
+          "name": "cccd_unmask_audit_guest_id_idx",
+          "columns": [
+            {
+              "expression": "guest_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "unmasked_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "cccd_unmask_audit_unmasked_by_idx": {
+          "name": "cccd_unmask_audit_unmasked_by_idx",
+          "columns": [
+            {
+              "expression": "unmasked_by",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "unmasked_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "cccd_unmask_audit_guest_id_guest_id_fk": {
+          "name": "cccd_unmask_audit_guest_id_guest_id_fk",
+          "tableFrom": "cccd_unmask_audit",
+          "tableTo": "guest",
+          "columnsFrom": [
+            "guest_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "cccd_unmask_audit_unmasked_by_staff_user_id_fk": {
+          "name": "cccd_unmask_audit_unmasked_by_staff_user_id_fk",
+          "tableFrom": "cccd_unmask_audit",
+          "tableTo": "staff_user",
+          "columnsFrom": [
+            "unmasked_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.guest": {
+      "name": "guest",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "full_name": {
+          "name": "full_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "phone": {
+          "name": "phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cccd_number": {
+          "name": "cccd_number",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_of_birth": {
+          "name": "date_of_birth",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nationality": {
+          "name": "nationality",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "guest_cccd_number_key": {
+          "name": "guest_cccd_number_key",
+          "columns": [
+            {
+              "expression": "cccd_number",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"guest\".\"cccd_number\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "guest_phone_idx": {
+          "name": "guest_phone_idx",
+          "columns": [
+            {
+              "expression": "phone",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"guest\".\"phone\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "guest_has_a_name": {
+          "name": "guest_has_a_name",
+          "value": "length(trim(\"guest\".\"full_name\")) > 0"
+        },
+        "guest_cccd_present_when_set": {
+          "name": "guest_cccd_present_when_set",
+          "value": "\"guest\".\"cccd_number\" is null or length(trim(\"guest\".\"cccd_number\")) > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.registration": {
+      "name": "registration",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "booking_id": {
+          "name": "booking_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "guest_id": {
+          "name": "guest_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_primary": {
+          "name": "is_primary",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "registered_at": {
+          "name": "registered_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "registration_booking_guest_key": {
+          "name": "registration_booking_guest_key",
+          "columns": [
+            {
+              "expression": "booking_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "guest_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "registration_one_primary_per_booking_key": {
+          "name": "registration_one_primary_per_booking_key",
+          "columns": [
+            {
+              "expression": "booking_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"registration\".\"is_primary\"",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "registration_guest_id_idx": {
+          "name": "registration_guest_id_idx",
+          "columns": [
+            {
+              "expression": "guest_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "registration_booking_id_booking_id_fk": {
+          "name": "registration_booking_id_booking_id_fk",
+          "tableFrom": "registration",
+          "tableTo": "booking",
+          "columnsFrom": [
+            "booking_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "registration_guest_id_guest_id_fk": {
+          "name": "registration_guest_id_guest_id_fk",
+          "tableFrom": "registration",
+          "tableTo": "guest",
+          "columnsFrom": [
+            "guest_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.guest_user_profile": {
+      "name": "guest_user_profile",
+      "schema": "",
+      "columns": {
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "full_name": {
+          "name": "full_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "phone": {
+          "name": "phone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "date_of_birth": {
+          "name": "date_of_birth",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nationality": {
+          "name": "nationality",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "guest_user_profile_user_id_guest_user_id_fk": {
+          "name": "guest_user_profile_user_id_guest_user_id_fk",
+          "tableFrom": "guest_user_profile",
+          "tableTo": "guest_user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "guest_user_profile_full_name_present_when_set": {
+          "name": "guest_user_profile_full_name_present_when_set",
+          "value": "\"guest_user_profile\".\"full_name\" is null or length(trim(\"guest_user_profile\".\"full_name\")) > 0"
+        },
+        "guest_user_profile_phone_present_when_set": {
+          "name": "guest_user_profile_phone_present_when_set",
+          "value": "\"guest_user_profile\".\"phone\" is null or length(trim(\"guest_user_profile\".\"phone\")) > 0"
+        },
+        "guest_user_profile_nationality_present_when_set": {
+          "name": "guest_user_profile_nationality_present_when_set",
+          "value": "\"guest_user_profile\".\"nationality\" is null or length(trim(\"guest_user_profile\".\"nationality\")) > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.room_condition": {
+      "name": "room_condition",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "room_id": {
+          "name": "room_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "housekeeping_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'CLEAN'"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "room_condition_room_id_key": {
+          "name": "room_condition_room_id_key",
+          "columns": [
+            {
+              "expression": "room_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "room_condition_status_idx": {
+          "name": "room_condition_status_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "room_condition_room_id_room_id_fk": {
+          "name": "room_condition_room_id_room_id_fk",
+          "tableFrom": "room_condition",
+          "tableTo": "room",
+          "columnsFrom": [
+            "room_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "room_condition_updated_by_staff_user_id_fk": {
+          "name": "room_condition_updated_by_staff_user_id_fk",
+          "tableFrom": "room_condition",
+          "tableTo": "staff_user",
+          "columnsFrom": [
+            "updated_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "room_condition_note_present_when_set": {
+          "name": "room_condition_note_present_when_set",
+          "value": "\"room_condition\".\"note\" is null or length(trim(\"room_condition\".\"note\")) > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.system_config": {
+      "name": "system_config",
+      "schema": "",
+      "columns": {
+        "is_the_configuration": {
+          "name": "is_the_configuration",
+          "type": "boolean",
+          "primaryKey": true,
+          "notNull": true,
+          "default": true
+        },
+        "standard_vat_rate_bps": {
+          "name": "standard_vat_rate_bps",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reduced_vat_rate_bps": {
+          "name": "reduced_vat_rate_bps",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reduced_vat_from": {
+          "name": "reduced_vat_from",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reduced_vat_to": {
+          "name": "reduced_vat_to",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "vat_includes_service_charge": {
+          "name": "vat_includes_service_charge",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "service_charge_rate_bps": {
+          "name": "service_charge_rate_bps",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "business_date_rollover_hour": {
+          "name": "business_date_rollover_hour",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "loyalty_points_per_unit": {
+          "name": "loyalty_points_per_unit",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "loyalty_earn_unit_vnd": {
+          "name": "loyalty_earn_unit_vnd",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "10000"
+        },
+        "tier_silver_stays": {
+          "name": "tier_silver_stays",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 2
+        },
+        "tier_silver_revenue_vnd": {
+          "name": "tier_silver_revenue_vnd",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "15000000"
+        },
+        "tier_gold_stays": {
+          "name": "tier_gold_stays",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 4
+        },
+        "tier_gold_revenue_vnd": {
+          "name": "tier_gold_revenue_vnd",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "40000000"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "system_config_holds_exactly_one_row": {
+          "name": "system_config_holds_exactly_one_row",
+          "value": "\"system_config\".\"is_the_configuration\""
+        },
+        "system_config_standard_vat_rate_within_bounds": {
+          "name": "system_config_standard_vat_rate_within_bounds",
+          "value": "\"system_config\".\"standard_vat_rate_bps\" between 0 and 10000"
+        },
+        "system_config_reduced_vat_rate_within_bounds": {
+          "name": "system_config_reduced_vat_rate_within_bounds",
+          "value": "\"system_config\".\"reduced_vat_rate_bps\" between 0 and 10000"
+        },
+        "system_config_service_charge_rate_within_bounds": {
+          "name": "system_config_service_charge_rate_within_bounds",
+          "value": "\"system_config\".\"service_charge_rate_bps\" between 0 and 10000"
+        },
+        "system_config_rollover_hour_is_an_hour": {
+          "name": "system_config_rollover_hour_is_an_hour",
+          "value": "\"system_config\".\"business_date_rollover_hour\" between 0 and 23"
+        },
+        "system_config_reduced_vat_window_opens_before_it_closes": {
+          "name": "system_config_reduced_vat_window_opens_before_it_closes",
+          "value": "\"system_config\".\"reduced_vat_from\" is null or \"system_config\".\"reduced_vat_to\" is null\n        or \"system_config\".\"reduced_vat_to\" >= \"system_config\".\"reduced_vat_from\""
+        },
+        "system_config_loyalty_earns_at_least_a_point": {
+          "name": "system_config_loyalty_earns_at_least_a_point",
+          "value": "\"system_config\".\"loyalty_points_per_unit\" >= 1"
+        },
+        "system_config_loyalty_earn_unit_is_money": {
+          "name": "system_config_loyalty_earn_unit_is_money",
+          "value": "\"system_config\".\"loyalty_earn_unit_vnd\" > 0"
+        },
+        "system_config_silver_takes_at_least_one_stay": {
+          "name": "system_config_silver_takes_at_least_one_stay",
+          "value": "\"system_config\".\"tier_silver_stays\" >= 1"
+        },
+        "system_config_silver_revenue_is_money": {
+          "name": "system_config_silver_revenue_is_money",
+          "value": "\"system_config\".\"tier_silver_revenue_vnd\" > 0"
+        },
+        "system_config_gold_stays_not_below_silver": {
+          "name": "system_config_gold_stays_not_below_silver",
+          "value": "\"system_config\".\"tier_gold_stays\" >= \"system_config\".\"tier_silver_stays\""
+        },
+        "system_config_gold_revenue_not_below_silver": {
+          "name": "system_config_gold_revenue_not_below_silver",
+          "value": "\"system_config\".\"tier_gold_revenue_vnd\" >= \"system_config\".\"tier_silver_revenue_vnd\""
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.service_catalog": {
+      "name": "service_catalog",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unit_price_gross": {
+          "name": "unit_price_gross",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "tax_class": {
+          "name": "tax_class",
+          "type": "tax_class",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "is_active": {
+          "name": "is_active",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "service_catalog_code_unique": {
+          "name": "service_catalog_code_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "code"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "service_catalog_price_positive_when_set": {
+          "name": "service_catalog_price_positive_when_set",
+          "value": "\"service_catalog\".\"unit_price_gross\" is null or \"service_catalog\".\"unit_price_gross\" > 0"
+        },
+        "service_catalog_code_is_a_handle": {
+          "name": "service_catalog_code_is_a_handle",
+          "value": "\"service_catalog\".\"code\" ~ '^[A-Z][A-Z0-9_]*$' and length(\"service_catalog\".\"code\") <= 64"
+        },
+        "service_catalog_name_is_not_blank": {
+          "name": "service_catalog_name_is_not_blank",
+          "value": "length(trim(\"service_catalog\".\"name\")) > 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.folio": {
+      "name": "folio",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "booking_id": {
+          "name": "booking_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "state": {
+          "name": "state",
+          "type": "folio_state",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'OPEN'"
+        },
+        "closed_at": {
+          "name": "closed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "invoice_reference": {
+          "name": "invoice_reference",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "folio_awaiting_invoice_idx": {
+          "name": "folio_awaiting_invoice_idx",
+          "columns": [
+            {
+              "expression": "closed_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"folio\".\"state\" = 'CLOSED' and \"folio\".\"invoice_reference\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "folio_booking_id_booking_id_fk": {
+          "name": "folio_booking_id_booking_id_fk",
+          "tableFrom": "folio",
+          "tableTo": "booking",
+          "columnsFrom": [
+            "booking_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "folio_booking_id_unique": {
+          "name": "folio_booking_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "booking_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "folio_closed_at_exactly_when_closed": {
+          "name": "folio_closed_at_exactly_when_closed",
+          "value": "(\"folio\".\"state\" = 'CLOSED') = (\"folio\".\"closed_at\" is not null)"
+        },
+        "folio_invoice_reference_only_when_closed": {
+          "name": "folio_invoice_reference_only_when_closed",
+          "value": "\"folio\".\"invoice_reference\" is null or \"folio\".\"state\" = 'CLOSED'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.folio_posting": {
+      "name": "folio_posting",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "folio_id": {
+          "name": "folio_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "posting_type",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount": {
+          "name": "amount",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reverses_posting_id": {
+          "name": "reverses_posting_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "parent_posting_id": {
+          "name": "parent_posting_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "service_catalog_id": {
+          "name": "service_catalog_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "charge_basis": {
+          "name": "charge_basis",
+          "type": "charge_basis",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "business_date": {
+          "name": "business_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "posted_at": {
+          "name": "posted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "posted_by": {
+          "name": "posted_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "folio_posting_folio_idx": {
+          "name": "folio_posting_folio_idx",
+          "columns": [
+            {
+              "expression": "folio_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "folio_posting_reversal_unique_key": {
+          "name": "folio_posting_reversal_unique_key",
+          "columns": [
+            {
+              "expression": "reverses_posting_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"folio_posting\".\"reverses_posting_id\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "folio_posting_folio_id_folio_id_fk": {
+          "name": "folio_posting_folio_id_folio_id_fk",
+          "tableFrom": "folio_posting",
+          "tableTo": "folio",
+          "columnsFrom": [
+            "folio_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "folio_posting_service_catalog_id_service_catalog_id_fk": {
+          "name": "folio_posting_service_catalog_id_service_catalog_id_fk",
+          "tableFrom": "folio_posting",
+          "tableTo": "service_catalog",
+          "columnsFrom": [
+            "service_catalog_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "folio_posting_posted_by_staff_user_id_fk": {
+          "name": "folio_posting_posted_by_staff_user_id_fk",
+          "tableFrom": "folio_posting",
+          "tableTo": "staff_user",
+          "columnsFrom": [
+            "posted_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "folio_posting_reverses_a_line_on_the_same_folio": {
+          "name": "folio_posting_reverses_a_line_on_the_same_folio",
+          "tableFrom": "folio_posting",
+          "tableTo": "folio_posting",
+          "columnsFrom": [
+            "reverses_posting_id",
+            "folio_id"
+          ],
+          "columnsTo": [
+            "id",
+            "folio_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "folio_posting_derives_from_a_line_on_the_same_folio": {
+          "name": "folio_posting_derives_from_a_line_on_the_same_folio",
+          "tableFrom": "folio_posting",
+          "tableTo": "folio_posting",
+          "columnsFrom": [
+            "parent_posting_id",
+            "folio_id"
+          ],
+          "columnsTo": [
+            "id",
+            "folio_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "folio_posting_id_folio_key": {
+          "name": "folio_posting_id_folio_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "folio_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "folio_posting_reverses_exactly_when_reversal": {
+          "name": "folio_posting_reverses_exactly_when_reversal",
+          "value": "(\"folio_posting\".\"type\" = 'REVERSAL') = (\"folio_posting\".\"reverses_posting_id\" is not null)"
+        },
+        "folio_posting_does_not_reverse_itself": {
+          "name": "folio_posting_does_not_reverse_itself",
+          "value": "\"folio_posting\".\"reverses_posting_id\" is distinct from \"folio_posting\".\"id\""
+        },
+        "folio_posting_derives_exactly_when_a_tax_line": {
+          "name": "folio_posting_derives_exactly_when_a_tax_line",
+          "value": "(\"folio_posting\".\"type\" in ('SERVICE_CHARGE_FEE', 'VAT')) = (\"folio_posting\".\"parent_posting_id\" is not null)"
+        },
+        "folio_posting_does_not_derive_from_itself": {
+          "name": "folio_posting_does_not_derive_from_itself",
+          "value": "\"folio_posting\".\"parent_posting_id\" is distinct from \"folio_posting\".\"id\""
+        },
+        "folio_posting_names_a_service_item_exactly_when_it_is_one": {
+          "name": "folio_posting_names_a_service_item_exactly_when_it_is_one",
+          "value": "(\"folio_posting\".\"type\" = 'SERVICE_ITEM') = (\"folio_posting\".\"service_catalog_id\" is not null)"
+        },
+        "folio_posting_names_a_basis_exactly_when_a_policy_charge": {
+          "name": "folio_posting_names_a_basis_exactly_when_a_policy_charge",
+          "value": "(\"folio_posting\".\"type\" = 'POLICY_CHARGE') = (\"folio_posting\".\"charge_basis\" is not null)"
+        },
+        "folio_posting_sign_matches_type": {
+          "name": "folio_posting_sign_matches_type",
+          "value": "case \"folio_posting\".\"type\"\n        when 'PAYMENT' then \"folio_posting\".\"amount\" <= 0\n        when 'REVERSAL' then true\n        else \"folio_posting\".\"amount\" >= 0\n      end"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.payment": {
+      "name": "payment",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "folio_id": {
+          "name": "folio_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "method": {
+          "name": "method",
+          "type": "payment_method",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attempt_reference": {
+          "name": "attempt_reference",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "gateway_transaction_id": {
+          "name": "gateway_transaction_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "amount": {
+          "name": "amount",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "payment_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "paid_at": {
+          "name": "paid_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "posted_by": {
+          "name": "posted_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "payment_gateway_transaction_unique_key": {
+          "name": "payment_gateway_transaction_unique_key",
+          "columns": [
+            {
+              "expression": "gateway_transaction_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"payment\".\"gateway_transaction_id\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payment_attempt_reference_unique_key": {
+          "name": "payment_attempt_reference_unique_key",
+          "columns": [
+            {
+              "expression": "attempt_reference",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"payment\".\"attempt_reference\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "payment_folio_idx": {
+          "name": "payment_folio_idx",
+          "columns": [
+            {
+              "expression": "folio_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "payment_folio_id_folio_id_fk": {
+          "name": "payment_folio_id_folio_id_fk",
+          "tableFrom": "payment",
+          "tableTo": "folio",
+          "columnsFrom": [
+            "folio_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "payment_posted_by_staff_user_id_fk": {
+          "name": "payment_posted_by_staff_user_id_fk",
+          "tableFrom": "payment",
+          "tableTo": "staff_user",
+          "columnsFrom": [
+            "posted_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "payment_amount_is_positive": {
+          "name": "payment_amount_is_positive",
+          "value": "\"payment\".\"amount\" > 0"
+        },
+        "payment_paid_at_exactly_when_money_moved": {
+          "name": "payment_paid_at_exactly_when_money_moved",
+          "value": "(\"payment\".\"status\" in ('SUCCESS', 'REFUNDED')) = (\"payment\".\"paid_at\" is not null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.payment_discrepancy": {
+      "name": "payment_discrepancy",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "business_date": {
+          "name": "business_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attempt_reference": {
+          "name": "attempt_reference",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "payment_discrepancy_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gateway_amount": {
+          "name": "gateway_amount",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ledger_amount": {
+          "name": "ledger_amount",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "payment_id": {
+          "name": "payment_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "observed_at": {
+          "name": "observed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "payment_discrepancy_business_date_attempt_unique_key": {
+          "name": "payment_discrepancy_business_date_attempt_unique_key",
+          "columns": [
+            {
+              "expression": "business_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "attempt_reference",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "payment_discrepancy_payment_id_payment_id_fk": {
+          "name": "payment_discrepancy_payment_id_payment_id_fk",
+          "tableFrom": "payment_discrepancy",
+          "tableTo": "payment",
+          "columnsFrom": [
+            "payment_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "payment_discrepancy_amounts_are_positive": {
+          "name": "payment_discrepancy_amounts_are_positive",
+          "value": "(\"payment_discrepancy\".\"gateway_amount\" is null or \"payment_discrepancy\".\"gateway_amount\" > 0)\n        and (\"payment_discrepancy\".\"ledger_amount\" is null or \"payment_discrepancy\".\"ledger_amount\" > 0)"
+        },
+        "payment_discrepancy_kind_matches_the_sides": {
+          "name": "payment_discrepancy_kind_matches_the_sides",
+          "value": "case \"payment_discrepancy\".\"kind\"\n        when 'MISSING_LOCALLY' then\n          \"payment_discrepancy\".\"gateway_amount\" is not null\n            and \"payment_discrepancy\".\"ledger_amount\" is null\n            and \"payment_discrepancy\".\"payment_id\" is null\n        when 'MISSING_AT_GATEWAY' then\n          \"payment_discrepancy\".\"gateway_amount\" is null\n            and \"payment_discrepancy\".\"ledger_amount\" is not null\n            and \"payment_discrepancy\".\"payment_id\" is not null\n        when 'AMOUNT_MISMATCH' then\n          \"payment_discrepancy\".\"gateway_amount\" is not null\n            and \"payment_discrepancy\".\"ledger_amount\" is not null\n            and \"payment_discrepancy\".\"payment_id\" is not null\n            and \"payment_discrepancy\".\"gateway_amount\" <> \"payment_discrepancy\".\"ledger_amount\"\n      end"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.payment_reconciliation_run": {
+      "name": "payment_reconciliation_run",
+      "schema": "",
+      "columns": {
+        "business_date": {
+          "name": "business_date",
+          "type": "date",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "reconciled_at": {
+          "name": "reconciled_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.loyalty_ledger": {
+      "name": "loyalty_ledger",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "folio_id": {
+          "name": "folio_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "points_earned": {
+          "name": "points_earned",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "earned_at": {
+          "name": "earned_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "loyalty_ledger_user_expires_at_idx": {
+          "name": "loyalty_ledger_user_expires_at_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "loyalty_ledger_user_id_guest_user_id_fk": {
+          "name": "loyalty_ledger_user_id_guest_user_id_fk",
+          "tableFrom": "loyalty_ledger",
+          "tableTo": "guest_user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "loyalty_ledger_folio_id_folio_id_fk": {
+          "name": "loyalty_ledger_folio_id_folio_id_fk",
+          "tableFrom": "loyalty_ledger",
+          "tableTo": "folio",
+          "columnsFrom": [
+            "folio_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "loyalty_ledger_folio_id_unique": {
+          "name": "loyalty_ledger_folio_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "folio_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "loyalty_ledger_accrues_only": {
+          "name": "loyalty_ledger_accrues_only",
+          "value": "\"loyalty_ledger\".\"points_earned\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.guest_tier_change": {
+      "name": "guest_tier_change",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "from_tier": {
+          "name": "from_tier",
+          "type": "derived_tier",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "to_tier": {
+          "name": "to_tier",
+          "type": "derived_tier",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "observed_at": {
+          "name": "observed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "guest_tier_change_user_observed_at_idx": {
+          "name": "guest_tier_change_user_observed_at_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "observed_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "guest_tier_change_user_id_guest_user_id_fk": {
+          "name": "guest_tier_change_user_id_guest_user_id_fk",
+          "tableFrom": "guest_tier_change",
+          "tableTo": "guest_user",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "guest_tier_change_from_member_is_the_absence": {
+          "name": "guest_tier_change_from_member_is_the_absence",
+          "value": "\"guest_tier_change\".\"from_tier\" is distinct from 'MEMBER'"
+        },
+        "guest_tier_change_records_a_change": {
+          "name": "guest_tier_change_records_a_change",
+          "value": "\"guest_tier_change\".\"to_tier\" <> coalesce(\"guest_tier_change\".\"from_tier\", 'MEMBER')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.audit_entry": {
+      "name": "audit_entry",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "actor_id": {
+          "name": "actor_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "table_name": {
+          "name": "table_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "row_id": {
+          "name": "row_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "action": {
+          "name": "action",
+          "type": "audit_action",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "before": {
+          "name": "before",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "after": {
+          "name": "after",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "audit_entry_row_idx": {
+          "name": "audit_entry_row_idx",
+          "columns": [
+            {
+              "expression": "table_name",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "row_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "occurred_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "audit_entry_actor_idx": {
+          "name": "audit_entry_actor_idx",
+          "columns": [
+            {
+              "expression": "actor_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "occurred_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "audit_entry_actor_id_staff_user_id_fk": {
+          "name": "audit_entry_actor_id_staff_user_id_fk",
+          "tableFrom": "audit_entry",
+          "tableTo": "staff_user",
+          "columnsFrom": [
+            "actor_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "audit_entry_states_present": {
+          "name": "audit_entry_states_present",
+          "value": "\"audit_entry\".\"before\" is not null or \"audit_entry\".\"after\" is not null"
+        },
+        "audit_entry_action_matches_states": {
+          "name": "audit_entry_action_matches_states",
+          "value": "(\n        \"audit_entry\".\"action\" = 'INSERT' and \"audit_entry\".\"before\" is null and \"audit_entry\".\"after\" is not null\n      ) or (\n        \"audit_entry\".\"action\" = 'UPDATE' and \"audit_entry\".\"before\" is not null and \"audit_entry\".\"after\" is not null\n      ) or (\n        \"audit_entry\".\"action\" = 'DELETE' and \"audit_entry\".\"before\" is not null and \"audit_entry\".\"after\" is null\n      )"
+        }
+      },
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.staff_role": {
+      "name": "staff_role",
+      "schema": "public",
+      "values": [
+        "HOUSEKEEPING",
+        "RECEPTIONIST",
+        "ACCOUNTANT",
+        "MANAGER",
+        "ADMIN"
+      ]
+    },
+    "public.room_type_code": {
+      "name": "room_type_code",
+      "schema": "public",
+      "values": [
+        "SUPERIOR",
+        "DELUXE",
+        "PREMIER",
+        "JUNIOR_SUITE",
+        "PANORAMA_SUITE"
+      ]
+    },
+    "public.loyalty_tier": {
+      "name": "loyalty_tier",
+      "schema": "public",
+      "values": [
+        "SILVER",
+        "GOLD"
+      ]
+    },
+    "public.promotion_type": {
+      "name": "promotion_type",
+      "schema": "public",
+      "values": [
+        "PERCENTAGE",
+        "FIXED_AMOUNT"
+      ]
+    },
+    "public.rate_plan_code": {
+      "name": "rate_plan_code",
+      "schema": "public",
+      "values": [
+        "STANDARD",
+        "BB",
+        "NONREF"
+      ]
+    },
+    "public.booking_state": {
+      "name": "booking_state",
+      "schema": "public",
+      "values": [
+        "HELD",
+        "CONFIRMED",
+        "CHECKED_IN",
+        "CHECKED_OUT",
+        "CANCELLED",
+        "NO_SHOW"
+      ]
+    },
+    "public.cancellation_reason": {
+      "name": "cancellation_reason",
+      "schema": "public",
+      "values": [
+        "HOLD_EXPIRED",
+        "GUEST_REQUEST",
+        "STAFF_ERROR",
+        "PAYMENT_FAILED",
+        "OVERBOOK_WALK",
+        "FORCE_MAJEURE",
+        "HOLD_REPLACED"
+      ]
+    },
+    "public.booking_link_purpose": {
+      "name": "booking_link_purpose",
+      "schema": "public",
+      "values": [
+        "STAY_REISSUE",
+        "ACCOUNT_CREATE"
+      ]
+    },
+    "public.housekeeping_status": {
+      "name": "housekeeping_status",
+      "schema": "public",
+      "values": [
+        "CLEAN",
+        "DIRTY",
+        "INSPECTED",
+        "OUT_OF_ORDER"
+      ]
+    },
+    "public.tax_class": {
+      "name": "tax_class",
+      "schema": "public",
+      "values": [
+        "STANDARD"
+      ]
+    },
+    "public.charge_basis": {
+      "name": "charge_basis",
+      "schema": "public",
+      "values": [
+        "NONE",
+        "FIRST_NIGHT",
+        "FULL_STAY",
+        "REMAINING_NIGHTS_HALF",
+        "REMAINING_NIGHTS_FULL"
+      ]
+    },
+    "public.folio_state": {
+      "name": "folio_state",
+      "schema": "public",
+      "values": [
+        "OPEN",
+        "CLOSED"
+      ]
+    },
+    "public.posting_type": {
+      "name": "posting_type",
+      "schema": "public",
+      "values": [
+        "ROOM_CHARGE",
+        "SERVICE_ITEM",
+        "SERVICE_CHARGE_FEE",
+        "VAT",
+        "POLICY_CHARGE",
+        "PAYMENT",
+        "REFUND",
+        "REVERSAL"
+      ]
+    },
+    "public.payment_method": {
+      "name": "payment_method",
+      "schema": "public",
+      "values": [
+        "VNPAY",
+        "CASH",
+        "BANK_TRANSFER"
+      ]
+    },
+    "public.payment_status": {
+      "name": "payment_status",
+      "schema": "public",
+      "values": [
+        "PENDING",
+        "SUCCESS",
+        "FAILED",
+        "REFUNDED"
+      ]
+    },
+    "public.payment_discrepancy_kind": {
+      "name": "payment_discrepancy_kind",
+      "schema": "public",
+      "values": [
+        "MISSING_LOCALLY",
+        "MISSING_AT_GATEWAY",
+        "AMOUNT_MISMATCH"
+      ]
+    },
+    "public.derived_tier": {
+      "name": "derived_tier",
+      "schema": "public",
+      "values": [
+        "MEMBER",
+        "SILVER",
+        "GOLD"
+      ]
+    },
+    "public.audit_action": {
+      "name": "audit_action",
+      "schema": "public",
+      "values": [
+        "INSERT",
+        "UPDATE",
+        "DELETE"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}
