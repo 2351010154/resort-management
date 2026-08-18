@@ -1,6 +1,7 @@
 import { Module } from "@nestjs/common";
 import { BookingTokenModule } from "../auth/booking-token/booking-token.module.js";
 import { AccountLinkMailService } from "./account-link-mail.service.js";
+import { BookingCancellationService } from "./booking-cancellation.service.js";
 import { BookingConfirmationService } from "./booking-confirmation.service.js";
 import { MailQueue } from "./mail-queue.service.js";
 import { MailerService } from "./mailer.service.js";
@@ -51,6 +52,7 @@ import { OpsAlertService } from "./ops-alert.service.js";
     MailQueue,
     OpsAlertService,
     BookingConfirmationService,
+    BookingCancellationService,
     AccountLinkMailService,
   ],
   exports: [
@@ -58,6 +60,7 @@ import { OpsAlertService } from "./ops-alert.service.js";
     MailQueue,
     OpsAlertService,
     BookingConfirmationService,
+    BookingCancellationService,
     AccountLinkMailService,
   ],
 })

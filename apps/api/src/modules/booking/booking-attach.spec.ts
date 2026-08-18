@@ -36,6 +36,7 @@ import * as schema from "../../database/schema/index.js";
 import { roomType } from "../../database/schema/inventory.js";
 import { sqlStateOf } from "../../database/sql-state.js";
 import type { BookingTokenService } from "../auth/booking-token/booking-token.service.js";
+import type { BookingCancellationService } from "../notification/booking-cancellation.service.js";
 import type { BookingConfirmationService } from "../notification/booking-confirmation.service.js";
 import type { AssignmentService } from "./assignment.service.js";
 import { BookingService } from "./booking.service.js";
@@ -123,6 +124,9 @@ beforeAll(async () => {
     undefined as unknown as BookingConfirmationService,
     // Unreached: no case here sells a stay, so no tier is derived.
     undefined as unknown as TierDerivationService,
+    // Unreached: no case here cancels a confirmed stay that names somebody to
+    // write to.
+    undefined as unknown as BookingCancellationService,
   );
 
   await migrate(db, { migrationsFolder: "./src/database/migrations" });

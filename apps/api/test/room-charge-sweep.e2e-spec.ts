@@ -85,7 +85,11 @@ import { HousekeepingService } from "../src/modules/housekeeping/housekeeping.se
 import { InventoryService } from "../src/modules/inventory/inventory.service.js";
 import { SystemConfigService } from "../src/modules/system-config/system-config.service.js";
 import { noAccrual } from "./accrual.js";
-import { noConfirmations, noStayLinks } from "./no-announcement.js";
+import {
+  noCancellations,
+  noConfirmations,
+  noStayLinks,
+} from "./no-announcement.js";
 import { tiersAt } from "./tiers.js";
 
 const SEED_FROM = parseDate("2027-06-01");
@@ -228,6 +232,8 @@ function deskAt(today: StayDate): BookingService {
     noConfirmations,
     // §7's ladder, reached only where a stay is sold to a signed-in guest.
     tiersAt(clock),
+    // Nothing here cancels a confirmed stay that names somebody to write to.
+    noCancellations,
   );
 }
 

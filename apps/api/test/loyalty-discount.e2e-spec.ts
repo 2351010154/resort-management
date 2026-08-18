@@ -64,7 +64,11 @@ import {
 import { StayQuoteService } from "../src/modules/booking/stay-quote.service.js";
 import { SystemConfigService } from "../src/modules/system-config/system-config.service.js";
 import { accrualOn } from "./accrual.js";
-import { noConfirmations, noStayLinks } from "./no-announcement.js";
+import {
+  noCancellations,
+  noConfirmations,
+  noStayLinks,
+} from "./no-announcement.js";
 import { tiersAt } from "./tiers.js";
 
 /** The seeded calendar opens here, and every stay below is priced out of it. */
@@ -168,6 +172,8 @@ beforeAll(async () => {
     noStayLinks,
     noConfirmations,
     tiersAt(clock),
+    // Nothing here cancels a confirmed stay that names somebody to write to.
+    noCancellations,
   );
 
   sweep = new RoomChargeSweep(folios, silentLogger);
