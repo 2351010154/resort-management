@@ -3,9 +3,9 @@
  * Pure, and separate from the hooks and the markup beside it, for the reason
  * `features/arrivals/arrival-queue.ts` gives about its own queue: everything
  * below is a judgement the API does not make for the console — how the rooms are
- * grouped, which of the two kinds of "unavailable" an operator is offered, how
- * many nights a closure actually withdraws, and what the board will read like
- * the instant after a write lands.
+ * grouped, which of them answer what an operator typed, which of the two kinds
+ * of "unavailable" an operator is offered, how many nights a closure actually
+ * withdraws, and what the board will read like the instant after a write lands.
  *
  * Three rules hold throughout, and `room-list.spec.ts` holds this file to them:
  *
@@ -232,9 +232,18 @@ export function outOfOrderAttempt(
   const checked = outOfOrderSchema.safeParse(input);
 
   if (!checked.success) {
+    // The missing reason is the one refusal an operator can act on — it is the
+    // only field they typed — so it is answered in the property's own words.
+    // Anything else the schema refuses is about the room number this screen
+    // supplied, and reporting *that* as a missing reason would send the operator
+    // to fix a field which is already correct; the schema's own sentence is the
+    // honest answer there.
     return {
       problem:
-        "A room going out of order needs a reason. The desk will be asked why it is shut.",
+        outOfOrder && trimmed === ""
+          ? "A room going out of order needs a reason. The desk will be asked why it is shut."
+          : (checked.error.issues[0]?.message ??
+            "That is not a room-state write the API takes."),
     };
   }
 
@@ -271,4 +280,57 @@ export function withOutOfOrder(
         : room,
     ),
   };
+}
+
+/**
+ * Whether one room answers what the operator typed — number, type or condition.
+ *
+ * Three fields and no more, because those are the three an operator at the desk
+ * has in their head when they reach for this screen: a number somebody read them
+ * over the telephone, a type they are looking for a spare of, and a condition
+ * they are chasing ("out of order", "dirty"). The condition is matched through
+ * {@link roomStateLabel}, so what is typed is matched against the words the row
+ * actually prints — a search that answered "dirty" while the row said something
+ * else would be a second vocabulary for the same fact.
+ *
+ * The type is matched with its underscore spelled as a space as well as as
+ * itself, so "junior suite" finds `JUNIOR_SUITE` — the code is what the row
+ * prints and it is not how anybody says it out loud.
+ *
+ * Substring rather than prefix, and case-insensitive: "02" finds 402 and 502,
+ * which is what somebody halfway through a number wants.
+ */
+export function roomMatches(room: BoardRoom, query: string): boolean {
+  const wanted = query.trim().toLowerCase();
+
+  if (wanted === "") {
+    return true;
+  }
+
+  return [
+    room.roomNumber,
+    room.roomType,
+    room.roomType.replaceAll("_", " "),
+    roomStateLabel(room),
+  ].some((field) => field.toLowerCase().includes(wanted));
+}
+
+/**
+ * The groups with every room the query does not answer taken out of them.
+ *
+ * A type left with no rooms disappears with them, for {@link roomsByType}'s own
+ * reason: a heading over nothing says the property has none of that type, which
+ * is a different sentence from "none of them match what you typed". The screen
+ * says the second one once, under the whole list.
+ */
+export function narrowRooms(
+  groups: readonly RoomTypeGroup[],
+  query: string,
+): RoomTypeGroup[] {
+  return groups
+    .map((group) => ({
+      roomType: group.roomType,
+      rooms: group.rooms.filter((one) => roomMatches(one, query)),
+    }))
+    .filter((group) => group.rooms.length > 0);
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import type { StaffRole } from "@mariva/shared";
-import { useId, useState } from "react";
+import { useId, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,9 @@ import {
   mayCloseRooms,
   mayMarkOutOfOrder,
   NO_CLOSURE_FIELDS,
+  narrowRooms,
   outOfOrderAttempt,
+  type RoomTypeGroup,
   roomStateLabel,
 } from "./room-list";
 import { useCloseRoom, useRoomList, useSetOutOfOrder } from "./rooms-queries";
@@ -50,6 +52,14 @@ import { useCloseRoom, useRoomList, useSetOutOfOrder } from "./rooms-queries";
  * detail. The detail follows the list in the document, so Tab from a room falls
  * into its controls rather than into the next room.
  *
+ * The list is searched by typing rather than by opening a filter: forty rooms is
+ * a list an operator scrolls, and what they arrive with is a number read to them
+ * over the telephone, a type they want a spare of, or a condition they are
+ * chasing. {@link narrowRooms} decides what answers a query and is specified on
+ * its own; the field only holds what was typed. A narrowed list does not close
+ * the detail beside it — a reason half-typed for 402 must survive the operator
+ * searching for 403 to check something.
+ *
  * `g r` is not bound here. `features/shell/nav-inventory.ts` carries this family
  * and `nav-shortcuts.tsx` binds the whole inventory's sequence from the shell.
  *
@@ -58,10 +68,15 @@ import { useCloseRoom, useRoomList, useSetOutOfOrder } from "./rooms-queries";
  * *offered* an act that would answer 403.
  */
 
+/* One array rather than a fresh `[]` per render, so the memo below only
+ * recomputes when the board or the query actually moved. */
+const EMPTY_GROUPS: readonly RoomTypeGroup[] = [];
+
 export function RoomsScreen() {
   const session = useStaffSession();
   const { businessDate, list } = useRoomList();
   const [selected, setSelected] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
 
   // The guard above this renders nothing until the session is authenticated, so
   // `null` is unreachable in the shell. It is here because the narrowing is real
@@ -70,9 +85,19 @@ export function RoomsScreen() {
   const role: StaffRole | null =
     session.status === "authenticated" ? session.user.role : null;
 
-  const rooms =
-    list.status === "ready" ? list.groups.flatMap((group) => group.rooms) : [];
-  const room = rooms.find((one) => one.roomNumber === selected) ?? null;
+  const groups = list.status === "ready" ? list.groups : EMPTY_GROUPS;
+
+  // Memoized on the groups and the query for `rooms-queries.ts`'s reason: the
+  // roving list is drawn from this, and a fresh array on every render is a list
+  // rebuilt underneath the operator's arrow keys.
+  const shown = useMemo(() => narrowRooms(groups, query), [groups, query]);
+
+  // Looked up in the whole property rather than in what the search left, so
+  // typing does not shut the detail an operator is working in.
+  const room =
+    groups
+      .flatMap((group) => group.rooms)
+      .find((one) => one.roomNumber === selected) ?? null;
 
   return (
     <div className="p-rhythm-3">
@@ -104,32 +129,50 @@ export function RoomsScreen() {
 
       {list.status === "ready" ? (
         <div className="mt-rhythm-2 grid gap-rhythm-2 lg:grid-cols-[16rem_1fr]">
-          <RovingFocusGroup aria-label="Rooms" className="flex flex-col gap-4">
-            {list.groups.map((group) => (
-              <section key={group.roomType}>
-                <h2 className="text-muted-foreground text-xs tracking-caps uppercase">
-                  {/* The code as the contract spells it. The console names room
+          <div className="flex flex-col gap-4">
+            <Field
+              label="Find a room"
+              value={query}
+              hint="A number, a type, or a condition — 402, deluxe, out of order."
+              onChange={setQuery}
+            />
+
+            {shown.length === 0 ? (
+              <p className="text-muted-foreground text-sm">
+                No room answers that. Clear the field to see the property again.
+              </p>
+            ) : null}
+
+            <RovingFocusGroup
+              aria-label="Rooms"
+              className="flex flex-col gap-4"
+            >
+              {shown.map((group) => (
+                <section key={group.roomType}>
+                  <h2 className="text-muted-foreground text-xs tracking-caps uppercase">
+                    {/* The code as the contract spells it. The console names room
                       types this way on every other screen — arrivals' "Sold as"
                       column, the new booking form's choices — and a second
                       spelling here would be a second opinion about the
                       catalogue. */}
-                  {group.roomType}
-                </h2>
-                <ul className="mt-1">
-                  {group.rooms.map((one) => (
-                    <RoomRow
-                      key={one.roomNumber}
-                      room={one}
-                      selected={one.roomNumber === selected}
-                      onSelect={() => {
-                        setSelected(one.roomNumber);
-                      }}
-                    />
-                  ))}
-                </ul>
-              </section>
-            ))}
-          </RovingFocusGroup>
+                    {group.roomType}
+                  </h2>
+                  <ul className="mt-1">
+                    {group.rooms.map((one) => (
+                      <RoomRow
+                        key={one.roomNumber}
+                        room={one}
+                        selected={one.roomNumber === selected}
+                        onSelect={() => {
+                          setSelected(one.roomNumber);
+                        }}
+                      />
+                    ))}
+                  </ul>
+                </section>
+              ))}
+            </RovingFocusGroup>
+          </div>
 
           {room === null || role === null ? (
             <p className="text-muted-foreground text-sm">
