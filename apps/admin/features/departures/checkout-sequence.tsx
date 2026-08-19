@@ -8,22 +8,24 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { formatShortDate } from "@/lib/business-date";
+import {
+  type DeskPaymentFields,
+  type DeskPaymentMethod,
+  deskPaymentAttempt,
+  METHOD_LABELS,
+  OFFERED_PAYMENT_METHODS,
+} from "@/lib/desk-payment";
 import { KeyboardLayer, useHotkeys } from "@/lib/keyboard";
 
 import {
   balanceDue,
   type CheckoutStep,
   checkOutRefusal,
-  DESK_PAYMENT_METHODS,
   type Departure,
-  type DeskPaymentMethod,
   type Folio,
   type FolioPosting,
   isClosed,
-  METHOD_LABELS,
   overpayment,
-  type PaymentFields,
-  paymentAttempt,
   refusalSentence,
   refusalStep,
   type SequenceFacts,
@@ -108,7 +110,7 @@ function Sequence({
   onCheckedOut,
 }: CheckoutSequenceProps) {
   const [step, setStep] = useState<CheckoutStep>("account");
-  const [payment, setPayment] = useState<PaymentFields>({
+  const [payment, setPayment] = useState<DeskPaymentFields>({
     amount: "",
     // Unanswered, and it stays unanswered until the operator says. The desk is
     // the only party that knows whether the notes were counted or the transfer
@@ -216,7 +218,11 @@ function Sequence({
   }
 
   async function submitPayment() {
-    const attempt = paymentAttempt(departure.id, payment);
+    const attempt = deskPaymentAttempt(
+      departure.id,
+      payment,
+      "A payment is money received, so it is a figure above nothing.",
+    );
 
     if ("problem" in attempt) {
       setProblem(attempt.problem);
@@ -587,7 +593,7 @@ function Field({
  * A radio group and not a select, because the whole list is two rows: a select
  * hides both behind a press that opens a listbox, and the choice a desk makes
  * every time it takes money is not worth a second control's worth of keys. The
- * options are {@link DESK_PAYMENT_METHODS}, which is the contract's own list
+ * options are {@link OFFERED_PAYMENT_METHODS}, which is the contract's own list
  * with the gateway excluded — this screen cannot offer a method the API would
  * refuse, and cannot invent the one only the IPN handler may write.
  *
@@ -635,7 +641,7 @@ function MethodChoice({
           }
         }}
       >
-        {DESK_PAYMENT_METHODS.map((method) => (
+        {OFFERED_PAYMENT_METHODS.map((method) => (
           <MethodOption key={method} method={method} />
         ))}
       </RadioGroup>

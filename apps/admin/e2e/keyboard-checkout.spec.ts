@@ -165,35 +165,41 @@ test("a stay with a balance is checked out without a single mouse event", async 
  * append-only ledger cannot be told afterwards which of the two a line was, so
  * the step asks and this run answers.
  *
- * Both methods are worked, not just the one the payment ends up carrying. A
- * group whose second option the arrows never reach is a desk that can only ever
- * record cash, and a run that pressed Space on whatever had focus would not
- * notice.
+ * One method is offered today. `lib/desk-payment.ts` withholds cash while
+ * `folio.postPayment` has no shift to count it into, so the group has a single
+ * radio and there is no second option for the arrows to reach. What is still
+ * worked is everything that made the group worth a run of its own: Tab arrives
+ * on it, nothing is chosen when it does, and a key the operator presses on
+ * purpose is what chooses. The arrow walk comes back with cash.
  */
 async function settleTheBalance(page: Page): Promise<void> {
   await page.keyboard.press("Tab");
   await page.keyboard.press("Tab");
 
-  const cash = page.getByRole("radio", { name: "Cash" });
   const transfer = page.getByRole("radio", { name: "Bank transfer" });
 
   await expect(
-    cash,
+    transfer,
     "Tab from the balance step's fields never reached how the money arrived.",
   ).toBeFocused();
   await expect(
-    cash,
+    transfer,
     "The method arrived already chosen, which is a default wearing a radio button.",
   ).not.toBeChecked();
 
-  await page.keyboard.press("ArrowRight");
+  // Cash is not on offer while the route cannot count it into a drawer, and a
+  // radio the desk can pick and the API always refuses is worse than one that
+  // is not there.
+  await expect(
+    page.getByRole("radio", { name: "Cash" }),
+    "Cash was offered while the route still refuses it.",
+  ).toHaveCount(0);
+
+  await page.keyboard.press("Space");
   await expect(
     transfer,
-    "The arrow keys did not reach the second method.",
+    "Space did not choose the focused method.",
   ).toBeChecked();
-
-  await page.keyboard.press("ArrowLeft");
-  await expect(cash, "The arrow keys did not come back.").toBeChecked();
 
   // Enter finishes the step from the method group as it does from every field
   // of every other step — WAI-ARIA leaves a radio group inert to Enter, and the

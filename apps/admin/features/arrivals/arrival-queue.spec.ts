@@ -1,4 +1,4 @@
-import { postPaymentInput, SEARCH_RESULT_LIMIT } from "@mariva/shared";
+import { SEARCH_RESULT_LIMIT } from "@mariva/shared";
 import { describe, expect, it } from "vitest";
 
 import type { BoardRoom } from "@/features/housekeeping";
@@ -9,13 +9,8 @@ import {
   assignableRooms,
   CHECK_IN_STEPS,
   checkInRefusal,
-  DESK_PAYMENT_METHODS,
-  type DepositFields,
-  depositAttempt,
   depositDue,
   type Folio,
-  METHOD_LABELS,
-  parseAmount,
   parseBirthDate,
   refusalSentence,
   refusalStep,
@@ -379,22 +374,6 @@ describe("reading a refused check-in", () => {
 });
 
 describe("what an operator types", () => {
-  it("reads an amount with the separators the screen printed", () => {
-    expect(parseAmount("1500000")).toBe(1_500_000n);
-    expect(parseAmount("1.500.000")).toBe(1_500_000n);
-    expect(parseAmount(" 1 500 000 ")).toBe(1_500_000n);
-  });
-
-  it("refuses an amount that is not money handed over", () => {
-    expect(parseAmount("0")).toBeNull();
-    expect(parseAmount("-1000")).toBeNull();
-    // A comma is vi-VN's decimal mark, and đồng has no minor unit — reading it
-    // as a grouping mark would post a hundredfold of what was typed.
-    expect(parseAmount("1500,50")).toBeNull();
-    expect(parseAmount("")).toBeNull();
-    expect(parseAmount("a lot")).toBeNull();
-  });
-
   it("reads a birth date only in the unambiguous spelling", () => {
     expect(parseBirthDate("1985-03-15")).toBe("1985-03-15");
     expect(parseBirthDate(" 1985-03-15 ")).toBe("1985-03-15");
@@ -406,122 +385,5 @@ describe("what an operator types", () => {
     expect(parseBirthDate("1990-02-30")).toBeNull();
     expect(parseBirthDate("1990-13-01")).toBeNull();
     expect(parseBirthDate("1992-02-29")).toBe("1992-02-29");
-  });
-});
-
-const STAY = "11111111-1111-4111-8111-111111111111";
-
-function typed(over: Partial<DepositFields> = {}): DepositFields {
-  return {
-    amount: "500000",
-    method: "CASH",
-    description: "Deposit taken at check-in",
-    ...over,
-  };
-}
-
-describe("how the money arrived", () => {
-  it("offers the two ways a desk can be paid and no gateway", () => {
-    expect([...DESK_PAYMENT_METHODS]).toStrictEqual(["CASH", "BANK_TRANSFER"]);
-  });
-
-  it("cannot reach the gateway's method, which only the IPN handler writes", () => {
-    // Both halves of the boundary. The console has no `VNPAY` to offer, and the
-    // route would refuse it if something here invented one — a desk posting able
-    // to claim the gateway's method would credit the property with money the
-    // gateway never confirmed.
-    expect([...DESK_PAYMENT_METHODS]).not.toContain("VNPAY");
-    expect(
-      postPaymentInput.safeParse({
-        bookingId: STAY,
-        amount: "500000",
-        method: "VNPAY",
-        description: "Deposit taken at check-in",
-      }).success,
-    ).toBe(false);
-  });
-
-  it("has words on screen for every method it offers", () => {
-    for (const method of DESK_PAYMENT_METHODS) {
-      expect(METHOD_LABELS[method]).not.toBe("");
-    }
-  });
-});
-
-describe("the deposit the check-in sends", () => {
-  it("carries the method the desk picked", () => {
-    expect(depositAttempt(STAY, typed({ method: "CASH" }))).toStrictEqual({
-      deposit: {
-        bookingId: STAY,
-        amount: "500000",
-        method: "CASH",
-        description: "Deposit taken at check-in",
-      },
-    });
-
-    expect(
-      depositAttempt(STAY, typed({ method: "BANK_TRANSFER" })),
-    ).toStrictEqual({
-      deposit: {
-        bookingId: STAY,
-        amount: "500000",
-        method: "BANK_TRANSFER",
-        description: "Deposit taken at check-in",
-      },
-    });
-  });
-
-  it("is a body the route accepts", () => {
-    const attempt = depositAttempt(STAY, typed());
-
-    expect("deposit" in attempt).toBe(true);
-    expect(
-      postPaymentInput.safeParse("deposit" in attempt ? attempt.deposit : null)
-        .success,
-    ).toBe(true);
-  });
-
-  it("refuses to guess a method nobody stated", () => {
-    const attempt = depositAttempt(STAY, typed({ method: null }));
-
-    // Not a default, not the likelier of the two. The ledger is append-only, so
-    // a line posted without a method can never be told which it was, and the
-    // drawer the day's report asks about is counted from that distinction.
-    expect("deposit" in attempt).toBe(false);
-    expect("problem" in attempt && attempt.problem).toContain(
-      "how the money arrived",
-    );
-  });
-
-  it("reads the amount the way the screen printed it, as text on the wire", () => {
-    expect(depositAttempt(STAY, typed({ amount: "1.500.000" }))).toStrictEqual({
-      deposit: {
-        bookingId: STAY,
-        amount: "1500000",
-        method: "CASH",
-        description: "Deposit taken at check-in",
-      },
-    });
-  });
-
-  it("names the first thing wrong and only that", () => {
-    expect(
-      depositAttempt(STAY, typed({ amount: "0", method: null })),
-    ).toStrictEqual({
-      problem:
-        "A deposit is money handed over, so it is a figure above nothing.",
-    });
-
-    expect(
-      depositAttempt(STAY, typed({ description: "   ", method: null })),
-    ).toStrictEqual({
-      problem: "The line needs a description — it is what the guest reads.",
-    });
-  });
-
-  it("trims the line the guest reads", () => {
-    const attempt = depositAttempt(STAY, typed({ description: "  Cash  " }));
-
-    expect("deposit" in attempt && attempt.deposit.description).toBe("Cash");
   });
 });
