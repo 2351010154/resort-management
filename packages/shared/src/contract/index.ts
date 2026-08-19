@@ -96,6 +96,7 @@ export {
   cccdRevealSchema,
   guestProfileSchema,
   guestRecordSchema,
+  transcribeDocumentInput,
   unmaskCccdInput,
   updateProfileInput,
   vipTierSchema,

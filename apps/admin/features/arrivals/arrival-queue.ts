@@ -277,14 +277,6 @@ export type CheckInStep = (typeof CHECK_IN_STEPS)[number];
 
 /** What decides how many steps this particular arrival has. */
 export interface SequenceFacts {
-  /**
-   * True when the desk picked somebody the property already has a record for.
-   * Their particulars were taken the last time they stayed, and asking for the
-   * document again would create a second record for one person — the CCCD is
-   * unique, so the API refuses that rather than storing it, and the refusal
-   * lands in the middle of a check-in.
-   */
-  readonly knownGuest: boolean;
   /** True when the account is short — see {@link depositDue}. */
   readonly depositDue: boolean;
 }
@@ -293,17 +285,151 @@ export interface SequenceFacts {
  * The steps this arrival actually has.
  *
  * A sequence with a fixed five steps would make the desk press Enter through
- * two that have nothing on them, which at ten guests is twenty presses spent on
- * nothing. The guest step and the room step are always there: somebody has to
- * be named on the residence record, and the check-in route refuses a stay with
- * no room.
+ * one that has nothing on it, which at ten guests is ten presses spent on
+ * nothing. The deposit is the step that can honestly have nothing on it: a stay
+ * booked through the funnel arrived paid, and asking a receptionist for money
+ * the guest has already handed over is worse than a wasted press.
+ *
+ * The other three are always there, the document step included — and it did not
+ * used to be. It was dropped for a guest the property already held, on the
+ * reasoning that their particulars were taken the last time they stayed. That
+ * is true of a guest whose document was read and false of the rest: a second
+ * occupant registered on the first guest's word has a name and nothing else,
+ * and check-in names a returning guest by id ever after, so the step being
+ * skipped was the only place their record could ever have been filled in.
+ * Nghị định 96/2016/NĐ-CP Điều 44 wants the particulars before *this* room
+ * changes hands, not before some earlier one. What the step costs a guest whose
+ * record is complete is one press on a form that shows what is already on file
+ * and asks for nothing — {@link documentTranscription} is what makes that press
+ * cost no request.
  */
 export function sequenceSteps(facts: SequenceFacts): CheckInStep[] {
   return CHECK_IN_STEPS.filter(
-    (step) =>
-      (step !== "identity" || !facts.knownGuest) &&
-      (step !== "deposit" || facts.depositDue),
+    (step) => step !== "deposit" || facts.depositDue,
   );
+}
+
+/** Which guest is going on the residence record. */
+export type ChosenGuest =
+  | {
+      readonly kind: "known";
+      readonly id: string;
+      readonly name: string;
+      /**
+       * The property's number for them, masked, as the search answered it —
+       * `FR-GST-03` allows a queue no more than this. It is what the document
+       * step shows so that a receptionist is not retyping a number already on
+       * file; there is no reveal control here, because that is a route with its
+       * own capability and its own audit row, and the Guests screen has it.
+       */
+      readonly cccdMasked: string | null;
+    }
+  | { readonly kind: "new"; readonly name: string };
+
+/** What the document step collects, before any of it is trimmed or read. */
+export interface Particulars {
+  fullName: string;
+  cccdNumber: string;
+  dateOfBirth: string;
+  nationality: string;
+  phone: string;
+}
+
+/** The particulars of one document, for one guest the property already holds. */
+export interface DocumentTranscription {
+  readonly guestId: string;
+  readonly cccdNumber?: string;
+  readonly dateOfBirth?: string;
+  readonly nationality?: string;
+}
+
+/**
+ * What the document step owes `guest.transcribeDocument`, or nothing.
+ *
+ * Nothing for a guest being registered now: their particulars travel with the
+ * check-in that creates the record, in that transition's transaction, and there
+ * is no id yet for a separate call to name.
+ *
+ * Nothing when the desk typed nothing either — which is the ordinary case for a
+ * returning guest whose record is already complete, and is why the step costs
+ * that arrival a press and not a request. A body naming no particular is a
+ * transcription nobody performed and the contract refuses it, so the honest
+ * place to decide there is nothing to send is here, before anything is sent.
+ *
+ * Every blank box is left out rather than sent as null. The route reads absent
+ * as "this document was not read for that fact" and has no spelling for
+ * clearing one, which is the whole difference between a desk recording what a
+ * card says and a guest editing their own profile.
+ */
+export function documentTranscription(
+  guest: ChosenGuest | null,
+  typed: Particulars,
+): DocumentTranscription | null {
+  if (guest === null || guest.kind === "new") {
+    return null;
+  }
+
+  const cccdNumber = orNothing(typed.cccdNumber);
+  // Already known to parse: the step refuses to advance past a birth date it
+  // cannot read, so an unreadable one never reaches here and a null is a box
+  // nobody filled in.
+  const dateOfBirth = parseBirthDate(typed.dateOfBirth);
+  const nationality = orNothing(typed.nationality);
+
+  if (cccdNumber === null && dateOfBirth === null && nationality === null) {
+    return null;
+  }
+
+  return {
+    guestId: guest.id,
+    ...(cccdNumber === null ? {} : { cccdNumber }),
+    ...(dateOfBirth === null ? {} : { dateOfBirth }),
+    ...(nationality === null ? {} : { nationality }),
+  };
+}
+
+/** The HTTP answer behind `guest_cccd_number_key`, the one index this write
+ *  can collide with. */
+const NUMBER_IS_ON_ANOTHER_RECORD = 409;
+
+/**
+ * What a refused transcription costs the operator, in words that name the next
+ * act.
+ *
+ * The status and not a code, for {@link roomRefusal}'s reason: the route
+ * declares no errors in the contract, so the conflict arrives undefined and
+ * there is no `data` to read a name off. A 409 from this route is the unique
+ * index over the CCCD and nothing else, which makes the status the honest
+ * structural reading.
+ *
+ * The conflict is not a fault and the sentence says so — the property has met
+ * this person before, so either the digits are wrong or the guest standing
+ * there is the other record. Anything else is worth pressing again for, which
+ * is safe: the same three facts sent twice leave the same record.
+ */
+export function transcriptionRefusal(error: unknown): string {
+  const status =
+    typeof error === "object" && error !== null
+      ? (error as { status?: unknown }).status
+      : null;
+
+  return status === NUMBER_IS_ON_ANOTHER_RECORD
+    ? "That number is already on another guest's record. Check the digits, or go back and pick the guest it belongs to."
+    : "The particulars could not be recorded. Try again — sending them twice records them once.";
+}
+
+/**
+ * An optional detail as it should be sent, or nothing.
+ *
+ * The empty string is the dishonest one. Every optional field on the contract
+ * takes both, and `guest.service.ts` writes a blank straight into a column the
+ * partial unique index over the CCCD then treats as a value — while a
+ * registration carrying `""` for a telephone number claims a fact nobody gave.
+ */
+export function orNothing(value: string): string | null {
+  const trimmed = value.trim();
+
+  return trimmed === "" ? null : trimmed;
 }
 
 /**

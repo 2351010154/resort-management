@@ -282,17 +282,15 @@ describe("the deposit the sequence offers", () => {
 });
 
 describe("the steps this arrival has", () => {
-  it("asks for the document only when the guest is new to the property", () => {
-    expect(sequenceSteps({ knownGuest: false, depositDue: true })).toEqual([
+  it("asks for the document at every arrival, whoever is standing there", () => {
+    // It used to be dropped for a guest the property already held, on the
+    // reasoning that their particulars were taken last time. A second occupant
+    // registered on somebody else's word has a name and nothing else, and
+    // check-in names them by id ever after — so the step being skipped was the
+    // only place their record could have been filled in.
+    expect(sequenceSteps({ depositDue: true })).toEqual([
       "guest",
       "identity",
-      "room",
-      "deposit",
-      "review",
-    ]);
-
-    expect(sequenceSteps({ knownGuest: true, depositDue: true })).toEqual([
-      "guest",
       "room",
       "deposit",
       "review",
@@ -300,54 +298,41 @@ describe("the steps this arrival has", () => {
   });
 
   it("drops the deposit step on a settled stay", () => {
-    expect(sequenceSteps({ knownGuest: true, depositDue: false })).toEqual([
+    expect(sequenceSteps({ depositDue: false })).toEqual([
       "guest",
+      "identity",
       "room",
       "review",
     ]);
   });
 
   it("always names somebody and always assigns a room", () => {
-    for (const knownGuest of [true, false]) {
-      for (const dueDeposit of [true, false]) {
-        const steps = sequenceSteps({ knownGuest, depositDue: dueDeposit });
+    for (const dueDeposit of [true, false]) {
+      const steps = sequenceSteps({ depositDue: dueDeposit });
 
-        expect(steps).toContain("guest");
-        expect(steps).toContain("room");
-        expect(steps.at(-1)).toBe("review");
-      }
+      expect(steps).toContain("guest");
+      expect(steps).toContain("room");
+      expect(steps.at(-1)).toBe("review");
     }
   });
 
   it("walks the steps in the order they are declared", () => {
-    const steps = sequenceSteps({ knownGuest: false, depositDue: true });
+    const steps = sequenceSteps({ depositDue: true });
 
     expect(steps).toEqual([...CHECK_IN_STEPS]);
     expect(stepAfter(steps, "guest")).toBe("identity");
     expect(stepAfter(steps, "review")).toBeNull();
-    expect(
-      stepAfter(
-        sequenceSteps({ knownGuest: true, depositDue: false }),
-        "guest",
-      ),
-    ).toBe("room");
+    expect(stepAfter(sequenceSteps({ depositDue: false }), "room")).toBe(
+      "review",
+    );
   });
 
   it("goes on past a step the answer to it removed", () => {
     // The deposit is posted, which settles the account and drops the step that
     // was just answered. What follows it is still the review.
-    expect(
-      stepAfter(
-        sequenceSteps({ knownGuest: false, depositDue: false }),
-        "deposit",
-      ),
-    ).toBe("review");
-    expect(
-      stepAfter(
-        sequenceSteps({ knownGuest: true, depositDue: false }),
-        "deposit",
-      ),
-    ).toBe("review");
+    expect(stepAfter(sequenceSteps({ depositDue: false }), "deposit")).toBe(
+      "review",
+    );
   });
 });
 
