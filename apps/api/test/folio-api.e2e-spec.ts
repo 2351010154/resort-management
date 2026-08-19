@@ -65,6 +65,8 @@ import {
   folio as folioTable,
   folioPosting,
 } from "../src/database/schema/folio.js";
+import { staffUser } from "../src/database/schema/identity.js";
+import { payment as paymentTable } from "../src/database/schema/payment.js";
 import {
   BREAKFAST_PER_PERSON_GROSS,
   SERVICE_CATALOG,
@@ -131,6 +133,9 @@ const A_STAY = {
   adults: 2,
   childAges: [],
 } as const;
+
+/** How many nights {@link A_STAY} runs for — the span every stay here books. */
+const A_STAY_NIGHTS = 3;
 
 const GUEST_EMAIL = "khach@example.test";
 const GUEST_PASSWORD = "correct-horse-battery";
@@ -415,9 +420,31 @@ function as(
   return method === "get" ? call.query(body) : call.send(body);
 }
 
-/** A stay the desk has taken, through the real route. */
+/**
+ * A stay the desk has taken, through the real route.
+ *
+ * Each call books its own three nights, moving on from the last. Booked over
+ * one another they would compete for the same rooms, and the property has
+ * twelve of this type — the file would then pass or fail on how many stays the
+ * tests above it happened to open, and adding a case anywhere would starve a
+ * case at the end. The dates are never asserted on: a posting's business date
+ * comes from the stopped clock in `system_config` and not from the stay, so
+ * moving the nights along costs the assertions nothing.
+ *
+ * The window stays well inside the twelve months {@link SEED_FROM} opens, so
+ * every night a stay books is one the seed has priced.
+ */
+let staysTaken = 0;
+
 async function aStay(): Promise<string> {
-  const created = await as("RECEPTIONIST", "post", "/bookings", A_STAY);
+  const checkIn = parseDate(ARRIVAL).add({ days: staysTaken * A_STAY_NIGHTS });
+  staysTaken += 1;
+
+  const created = await as("RECEPTIONIST", "post", "/bookings", {
+    ...A_STAY,
+    checkIn: checkIn.toString(),
+    checkOut: checkIn.add({ days: A_STAY_NIGHTS }).toString(),
+  });
 
   if (created.status !== 201) {
     throw new Error(`the stay was refused: ${JSON.stringify(created.body)}`);
@@ -454,18 +481,36 @@ async function postCharge(
   return response.body;
 }
 
+/**
+ * Money taken at the desk, by the method the desk took it by.
+ *
+ * The default is the transfer, because it is the one method this route can
+ * carry through on its own: cash belongs to an open shift and no handler here
+ * resolves one, so a body naming it is refused before anything is written.
+ */
 async function postPayment(
   bookingId: string,
   amount: bigint,
   description: string,
   role: StaffRole = "RECEPTIONIST",
+  method: "CASH" | "BANK_TRANSFER" = "BANK_TRANSFER",
 ): Promise<{ posted: string[]; folio: Folio }> {
   const response = await as(role, "post", `${folioPath(bookingId)}/payments`, {
     amount: amount.toString(),
     description,
+    method,
   }).expect(200);
 
   return response.body;
+}
+
+/** What the property recorded as taken against one stay, as the payer's side of
+ *  the ledger holds it. */
+async function paymentsOn(bookingId: string) {
+  return await db
+    .select()
+    .from(paymentTable)
+    .where(eq(paymentTable.folioId, (await folioRowOf(bookingId)).id));
 }
 
 /** A stay charged for its night and paid for in full, so its account comes to
@@ -475,7 +520,7 @@ async function aSettledStay(): Promise<string> {
   const bookingId = await aStay();
 
   await postCharge(bookingId, A_CHARGE, "One night, to be settled and agreed");
-  await postPayment(bookingId, A_CHARGE, "Card, ****4242");
+  await postPayment(bookingId, A_CHARGE, "Bank transfer, settling the account");
 
   return bookingId;
 }
@@ -501,6 +546,17 @@ async function folioRowOf(bookingId: string) {
     .where(eq(folioTable.bookingId, bookingId));
 
   return row;
+}
+
+/** The staff account behind a role, which is what `payment.posted_by` holds
+ *  where a folio line carries the name. */
+async function staffIdOf(role: StaffRole): Promise<string> {
+  const [row] = await db
+    .select({ id: staffUser.id })
+    .from(staffUser)
+    .where(eq(staffUser.email, STAFF[role].email));
+
+  return row!.id;
 }
 
 /** The catalog row a posted line names, which the wire deliberately omits. */
@@ -834,7 +890,7 @@ describe("the balance, derived", () => {
     const { posted, folio } = await postPayment(
       stayId,
       A_PAYMENT,
-      "Cash at the desk",
+      "Bank transfer, taken at the desk",
       "ACCOUNTANT",
     );
 
@@ -868,6 +924,90 @@ describe("the balance, derived", () => {
     expect(
       folio.postings.some((posting) => BigInt(posting.amount) < 0n),
     ).toBe(true);
+  });
+});
+
+describe("the payer's side of the money the desk took", () => {
+  // `schema/payment.ts`: the guest's account and the payer's report are two
+  // records of one movement, and `NFR-02` is the comparison that needs both.
+  // What the route has to prove is that the desk's money reaches the second one
+  // — until it did, a stay could be paid in full with nothing on the side the
+  // reconciliation sums.
+  it("records a transfer as a payment beside the line on the account", async () => {
+    const bookingId = await aStay();
+
+    const { posted } = await postPayment(
+      bookingId,
+      A_PAYMENT,
+      "Bank transfer, received at the desk",
+    );
+
+    expect(posted).toHaveLength(1);
+
+    const [taken] = await paymentsOn(bookingId);
+
+    expect(taken).toMatchObject({
+      method: "BANK_TRANSFER",
+      // Money in hand. There is no attempt to be pending against and nothing
+      // further to wait for.
+      status: "SUCCESS",
+      // The magnitude, where the posting beside it carries the negation — the
+      // sign convention is the ledger's and does not travel to this table.
+      amount: A_PAYMENT,
+      // Neither is a gateway's, which is exactly what makes this row desk money
+      // to `reconciliation.service.ts`: its gateway side is
+      // `attempt_reference is not null`, so nothing here is compared against a
+      // report no gateway ever issued.
+      attemptReference: null,
+      gatewayTransactionId: null,
+      // A transfer lands in the bank and never in the till, so it names no
+      // drawer — `payment_shift_binding` in the direction that is not cash.
+      shiftId: null,
+    });
+
+    // `FR-AUD-01` asks who took it, and the answer is the session's rather than
+    // the body's.
+    expect(taken?.postedBy).toBe(await staffIdOf("RECEPTIONIST"));
+    expect(taken?.paidAt).toBeInstanceOf(Date);
+  });
+
+  it("refuses cash while there is no drawer to count it into", async () => {
+    // `FR-OPS-01` puts every cash payment inside an open shift and this route
+    // resolves none, so the refusal is a sentence the desk can act on rather
+    // than the `23514` the biconditional would raise a moment later.
+    const bookingId = await aStay();
+
+    await postCharge(bookingId, A_CHARGE, "One night, about to be paid for");
+
+    const refusal = await as(
+      "RECEPTIONIST",
+      "post",
+      `${folioPath(bookingId)}/payments`,
+      {
+        amount: A_PAYMENT.toString(),
+        description: "Cash, counted at the counter",
+        method: "CASH",
+      },
+    ).expect(400);
+
+    expect(refusal.body.message).toContain("shift");
+
+    // Neither side moved. The charge is still the whole of the account, and the
+    // payment table holds nothing against it.
+    const folio = await readFolio(bookingId);
+
+    expect(folio.postings.some((line) => line.type === "PAYMENT")).toBe(false);
+    expect(await paymentsOn(bookingId)).toHaveLength(0);
+  });
+
+  it("refuses a payment that will not say how it was taken", async () => {
+    // The method has no default, and `contract/folio.ts` says why: the ledger is
+    // append-only, so a payment whose method went unsaid cannot be told
+    // afterwards.
+    await as("RECEPTIONIST", "post", `${folioPath(stayId)}/payments`, {
+      amount: A_PAYMENT.toString(),
+      description: "Money, somehow",
+    }).expect(400);
   });
 });
 
@@ -1112,6 +1252,7 @@ describe("an amount the routes refuse", () => {
       await as("RECEPTIONIST", "post", `${folioPath(stayId)}/payments`, {
         amount,
         description: "A receipt nobody issued",
+        method: "BANK_TRANSFER",
       }).expect(400);
     }
   });

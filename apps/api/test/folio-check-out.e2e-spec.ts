@@ -179,6 +179,9 @@ describe("a departure against the ledger", () => {
       amount: 200_000n,
       businessDate: ARRIVAL,
       description: "Deposit taken at the desk",
+      // The desk took it, so this posting writes the payer's side too — a
+      // transfer, which reaches the bank rather than the drawer.
+      method: "BANK_TRANSFER",
     });
 
     const refusal = await refused(
@@ -205,6 +208,8 @@ describe("a departure against the ledger", () => {
       amount: A_NIGHT,
       businessDate: ARRIVAL,
       description: "Card payment",
+      // A card is the gateway's, and the gateway writes its own row.
+      method: null,
     });
 
     expect(await folios.getBalance(bookingId)).toBe(0n);
