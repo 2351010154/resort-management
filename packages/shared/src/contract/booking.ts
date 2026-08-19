@@ -131,11 +131,15 @@ const stayFields = {
 /**
  * Who to write to about the stay, and what to call them.
  *
- * **One fact and not two.** Every door below that takes this takes both halves
- * or neither: an address with no name to put at the top of it is not half a
- * contact, it is an unusable one, and a name with no address is somebody the
- * property still cannot write to. {@link createBookingInput} makes the pair
- * optional and keeps it whole; {@link setHoldContactInput} requires it outright.
+ * **The name is the half that can stand alone.** No door below takes an address
+ * with nobody's name on it: that is not half a contact, it is an unusable one —
+ * a message needs somebody at the top of it. A name with no address is the
+ * opposite, and it is the ordinary telephone booking: somebody rang, the desk
+ * wrote down who was on the other end, and there is no mailbox to send anything
+ * to. Refusing that pair threw away the only thing the desk had been given.
+ * {@link createBookingInput} makes both halves optional and holds that
+ * asymmetry; {@link setHoldContactInput} requires both outright, because a
+ * funnel one press from taking money is asking where the confirmation goes.
  *
  * **On the booking and not on `registration`.** A registration row is the legal
  * check-in record — `schema/guest.ts` gives it `is_primary` and `registered_at`,
@@ -176,17 +180,26 @@ const partyFitsARoom = (stay: {
 }) => stay.adults + stay.childAges.length <= LARGEST_PLAUSIBLE_PARTY;
 
 /**
- * Both halves of {@link contactFields}, or neither of them.
+ * An address never travels without a name.
  *
- * Structural like the two above, and stated once because both places a contact
- * may arrive optionally have to refuse the same half-filled pair — a form that
- * collected a name and lost the address would otherwise write a booking the
- * property can name and cannot reach.
+ * Structural like the two above, and asymmetric on purpose — it used to refuse
+ * either half on its own, and half of that rule was wrong. A name with no
+ * address is the ordinary telephone booking: the guest is on the line, the desk
+ * has written down who they are, and {@link contactFields} says why there is no
+ * number to keep beside it. The property can still say whose stay it is and can
+ * still hand the confirmation over at the counter, so refusing the pair
+ * discarded the one fact the call had produced.
+ *
+ * An address with no name is the half the original rule was written about, and
+ * it stays refused. Nothing composes a message from it: `booking.service.ts`
+ * puts a name at the top of the confirmation, the cancellation and the
+ * pre-arrival reminder, and a mailbox with nobody's name against it is a
+ * recipient the property cannot address rather than a contact it has half of.
  */
-const contactIsWholeOrAbsent = (stay: {
+const addressIsNeverNameless = (stay: {
   contactEmail?: string;
   contactName?: string;
-}) => (stay.contactEmail === undefined) === (stay.contactName === undefined);
+}) => stay.contactEmail === undefined || stay.contactName !== undefined;
 
 const DEPARTURE_MESSAGE = {
   message: "checkOut must fall after checkIn",
@@ -199,8 +212,12 @@ const PARTY_MESSAGE = {
 };
 
 const CONTACT_MESSAGE = {
-  message: "a contact is a name and an address together, or neither",
-  path: ["contactEmail"],
+  // Against the name and not the address, because the name is the field that is
+  // missing: an address arrived, and what it needs is somebody to put at the top
+  // of the message. A name on its own is a complete answer and is refused
+  // nowhere below.
+  message: "an address needs a name to put at the top of the message",
+  path: ["contactName"],
 };
 
 /**
@@ -227,7 +244,9 @@ const CONTACT_MESSAGE = {
  * conversation the operator is in is known at the screen and nowhere else, so
  * the desk's own form is where the telephone path insists — `new-booking-form.tsx`.
  *
- * What is *not* optional is either half on its own — {@link contactIsWholeOrAbsent}.
+ * What is *not* optional is a name beside an address —
+ * {@link addressIsNeverNameless}. A name on its own is taken, because that is
+ * what the telephone leaves behind.
  */
 export const createBookingInput = z
   .object({
@@ -237,7 +256,7 @@ export const createBookingInput = z
   })
   .refine(departsAfterArrival, DEPARTURE_MESSAGE)
   .refine(partyFitsARoom, PARTY_MESSAGE)
-  .refine(contactIsWholeOrAbsent, CONTACT_MESSAGE);
+  .refine(addressIsNeverNameless, CONTACT_MESSAGE);
 
 /**
  * The same stay, from a funnel — §2's *(new)* → `HELD`.

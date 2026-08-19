@@ -776,6 +776,11 @@ describe("a stay taken at the desk and walked to check-out", () => {
  * a telephone booking that missed it would be a stay the property could not
  * write to about its own cancellation or its arrival. The funnel keeps the
  * other arrangement, and the last case here is what holds it there.
+ *
+ * The two halves are not symmetric and both directions are asserted. A name
+ * without an address is a booking taken over the telephone and is recorded as it
+ * arrived; an address without a name is refused, because nothing can address a
+ * message to a mailbox it has no name for.
  */
 describe("the contact a booking taken at the desk carries", () => {
   it("records the pair the desk was given, and answers with it", async () => {
@@ -824,21 +829,47 @@ describe("the contact a booking taken at the desk carries", () => {
     });
   });
 
-  it("refuses half a contact, because half of one is unusable", async () => {
-    // An address with no name at the top of it, and a name nothing can be sent
-    // to. Both are 400s from the schema, before any night is priced.
+  it("records a name with no address, which is what a telephone call leaves", async () => {
+    // The desk took a call, wrote down who was on the other end, and was never
+    // given a mailbox — there is nowhere on a booking for the number they rang
+    // from. The name is the whole of what the call produced, so it is kept: the
+    // property can still say whose stay it is, and nothing is emailed to a stay
+    // that named no address.
+    const response = await as("RECEPTIONIST", "post", "/bookings", {
+      ...A_STAY,
+      checkIn: "2027-10-13",
+      checkOut: "2027-10-15",
+      contactName: "Phạm Minh Đức",
+    }).expect(201);
+
+    expect(response.body).toMatchObject({
+      state: "CONFIRMED",
+      contactName: "Phạm Minh Đức",
+      contactEmail: null,
+    });
+
+    // On the row and not merely in the answer. The controller used to build the
+    // service's contact only when both halves arrived, so a name sent alone
+    // reached a `201` and no column.
+    const [row] = await db
+      .select({
+        email: booking.contactEmail,
+        name: booking.contactName,
+      })
+      .from(booking)
+      .where(eq(booking.id, response.body.id));
+
+    expect(row).toEqual({ email: null, name: "Phạm Minh Đức" });
+  });
+
+  it("refuses an address with nobody's name against it", async () => {
+    // The half that is genuinely unusable: a mailbox with no name to put at the
+    // top of the message. A 400 from the schema, before any night is priced.
     await as("RECEPTIONIST", "post", "/bookings", {
       ...A_STAY,
       checkIn: "2027-10-10",
       checkOut: "2027-10-12",
       contactEmail: "half@example.test",
-    }).expect(400);
-
-    await as("RECEPTIONIST", "post", "/bookings", {
-      ...A_STAY,
-      checkIn: "2027-10-10",
-      checkOut: "2027-10-12",
-      contactName: "Half A Contact",
     }).expect(400);
   });
 
