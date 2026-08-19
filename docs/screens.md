@@ -140,23 +140,27 @@ so the screen states them and promises nothing more.
 
 `/account/stays` lists upcoming stays first — they are the ones a guest can
 still act on — then past stays in reverse order. The list only navigates:
-cancelling an upcoming stay, providing the identity document and leaving
-post-stay feedback all happen on `/bookings/<reference>`, the one surface that
+cancelling an upcoming stay and leaving post-stay feedback both happen on
+`/bookings/<reference>`, the one surface that
 owns a stay's full context. This places the guest's cancel and feedback
 capabilities ([`architecture/rbac-matrix.md`](architecture/rbac-matrix.md) §3):
 each appears on the stay detail only when the booking's state allows it —
 cancellation while the policy window is open, feedback once the stay is
 checked out.
 
-Identity documents deliberately do not get an account screen, and the reason is
-stronger than layout: there is nothing to show. A scan is read once to fill in
-the declaration and then discarded, never stored
-([`architecture/rbac-matrix.md`](architecture/rbac-matrix.md) §3,
-`FR-GST-02`), so the guest side is write-only in the literal sense — upload,
-and nothing comes back. It belongs to a specific arrival rather than to the
-account, so it lives on the stay detail of an upcoming booking as a pre-check-in
-convenience. The account area shows at most that the arrival's declaration is
-complete, never a document on file.
+Identity documents get no guest surface at all — not an account screen, and not
+a panel on the stay detail either. Two reasons, and the second is the load
+bearing one. There is nothing to show: a scan is read once to fill in the
+declaration and then discarded, never stored
+([`architecture/rbac-matrix.md`](architecture/rbac-matrix.md) §3, `FR-GST-02`),
+so anything the guest sent would be write-only in the literal sense — upload,
+and nothing comes back. And there is nothing owed: recording the particulars
+before the room changes hands is the property's obligation, discharged at the
+desk, where check-in transcribes the document into the registration record by
+keyboard. A pre-arrival panel would have been a convenience rather than a
+second route to compliance, and it would have bought that convenience by
+opening a second surface where document bytes arrive. So the guest is asked for
+their document once, in person, and the account area says nothing about one.
 
 ## Staff surfaces
 
