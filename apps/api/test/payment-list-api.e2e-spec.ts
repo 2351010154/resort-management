@@ -66,7 +66,9 @@ import { type Database, DRIZZLE } from "../src/database/database.module.js";
 import { booking } from "../src/database/schema/booking.js";
 import { folio } from "../src/database/schema/folio.js";
 import { roomType } from "../src/database/schema/inventory.js";
+import { staffUser } from "../src/database/schema/identity.js";
 import { payment } from "../src/database/schema/payment.js";
+import { shift } from "../src/database/schema/shift.js";
 import {
   paymentDiscrepancy,
   paymentReconciliationRun,
@@ -244,6 +246,16 @@ let refused: OnFile;
 /** The disagreement filed against {@link disputed}. */
 let disagreementId: string;
 
+/**
+ * The drawer every cash row below belongs to.
+ *
+ * `payment_shift_binding` will not let a cash payment exist without one, so it
+ * is scaffolding rather than subject: this file is about what the list route
+ * returns and how it filters, and the shift is only what has to be true before
+ * a cash row can be written at all.
+ */
+let drawerId: string;
+
 beforeAll(async () => {
   mailer = new RecordingMailer();
 
@@ -280,6 +292,8 @@ beforeAll(async () => {
     await staff.create({ ...account });
     tokens.set(account.role, await signIn(account.email, account.password));
   }
+
+  drawerId = await anOpenDrawer();
 
   await moneyOnFile();
 }, 120_000);
@@ -856,7 +870,13 @@ async function aPayment(
 ): Promise<OnFile> {
   const [written] = await db
     .insert(payment)
-    .values(values)
+    // The drawer, supplied here so that no case below has to name one: cash
+    // belongs to a shift and nothing else may, which is `payment_shift_binding`
+    // in both directions. A caller that has already said which shift keeps it.
+    .values({
+      shiftId: values.method === "CASH" ? drawerId : null,
+      ...values,
+    })
     .returning({ id: payment.id, folioId: payment.folioId });
 
   const [stay] = await db
@@ -865,6 +885,25 @@ async function aPayment(
     .where(eq(folio.id, written!.folioId));
 
   return { ...written!, bookingId: stay!.bookingId };
+}
+
+/** A shift somebody has open, for the cash rows to have been counted into. */
+async function anOpenDrawer(): Promise<string> {
+  const [operator] = await db
+    .select({ id: staffUser.id })
+    .from(staffUser)
+    .where(eq(staffUser.email, STAFF.RECEPTIONIST.email));
+
+  const [opened] = await db
+    .insert(shift)
+    .values({
+      operatorId: operator!.id,
+      openingFloat: 0n,
+      openingBusinessDate: EARLIER_DAY,
+    })
+    .returning({ id: shift.id });
+
+  return opened!.id;
 }
 
 /** The payments, the disagreements filed against them and the ledger under
