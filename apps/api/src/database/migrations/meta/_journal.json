@@ -267,6 +267,13 @@
       "when": 1787118714079,
       "tag": "0037_shift_and_the_drawer_a_payment_belongs_to",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1787119105997,
+      "tag": "0038_audit_entry_actor_kind_a_change_with_nobody_behind_it",
+      "breakpoints": true
     }
   ]
 }
