@@ -69,15 +69,19 @@ describe("the RBAC matrix", () => {
   // is read for its particulars and never stored, so there is no object for a
   // role to reach. Asserting the absence keeps somebody from restoring the rows
   // as though the matrix had simply forgotten them.
+  //
+  // One row survives, and it is the desk's. Recording the particulars before
+  // the room changes hands is the property's obligation and check-in discharges
+  // it by transcription, so a guest-side upload row would have named a
+  // convenience rather than a second route to compliance — asserted here so it
+  // is not restored as an omission either.
   it("carries no capability over a stored scan image", () => {
     const scanRows = CAPABILITIES.filter((row) =>
       row.key.startsWith("guest.id-scan."),
     );
 
-    expect(scanRows.map((row) => row.key)).toEqual([
-      "guest.id-scan.upload-own",
-      "guest.id-scan.upload",
-    ]);
+    expect(scanRows.map((row) => row.key)).toEqual(["guest.id-scan.upload"]);
+    expect(scanRows.map((row) => row.guest)).toEqual(["denied"]);
   });
 
   it("refuses to look up a capability that does not exist", () => {
