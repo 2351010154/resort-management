@@ -418,6 +418,10 @@ describe("newBookingInput", () => {
   });
 
   it("refuses a telephone booking with nobody to write to", () => {
+    // The screen's rule is the stricter of the two and stays stricter: the
+    // contract would take the name on its own, and an operator with the guest on
+    // the line can ask for the address a cancellation or an arrival reminder
+    // needs.
     expect(newBookingInput(form({ kind: "phone" }), TODAY)).toHaveProperty(
       "problem",
     );
@@ -426,12 +430,32 @@ describe("newBookingInput", () => {
     ).toHaveProperty("problem");
   });
 
-  it("refuses half a contact on either path, because half of one is unusable", () => {
-    expect(newBookingInput(form({ contactName: "Lan" }), TODAY)).toHaveProperty(
-      "problem",
+  it("takes a walk-in's name with no address behind it", () => {
+    // The half that can stand alone. A guest at the counter who gives a name and
+    // no mailbox is somebody the property can still identify, and the name is
+    // sent on its own rather than beside an empty string the contract would read
+    // as an address that is not one.
+    const attempt = newBookingInput(form({ contactName: "Lan" }), TODAY);
+
+    expect(attempt).toEqual({
+      input: expect.objectContaining({ contactName: "Lan" }),
+    });
+    expect("input" in attempt && attempt.input).not.toHaveProperty(
+      "contactEmail",
     );
+  });
+
+  it("refuses an address with nobody's name against it, on either path", () => {
+    // The half that is genuinely unusable: nothing can address a message to a
+    // mailbox it has no name for.
     expect(
       newBookingInput(form({ contactEmail: "lan@example.test" }), TODAY),
+    ).toHaveProperty("problem");
+    expect(
+      newBookingInput(
+        form({ kind: "phone", contactEmail: "lan@example.test" }),
+        TODAY,
+      ),
     ).toHaveProperty("problem");
   });
 
