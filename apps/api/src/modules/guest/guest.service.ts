@@ -1,8 +1,10 @@
-// The guest record, and who has looked at the number on it — `FR-GST-03`.
+// The guest record, and who has looked at the number on it — `FR-GST-03`, with
+// `FR-GST-02`'s transcription beside it.
 //
-// Three operations, and the reason there are three rather than two is the whole
-// requirement. A guest is created, a guest is read with the CCCD masked, and a
-// guest's CCCD is *revealed* by a separate call that leaves a row behind saying
+// Four operations, and the reason the last two are not one is the whole
+// requirement. A guest is created, a guest is read with the CCCD masked, what a
+// document says is written onto a record that already exists, and a guest's
+// CCCD is *revealed* by a separate call that leaves a row behind saying
 // who did it. Folding the reveal into a flag on the read — `getGuest(id, {
 // unmasked: true })` — would put the audited path and the ordinary one behind
 // one name, and the first caller to pass the flag by habit would be reading
@@ -35,7 +37,9 @@
 // carry on from — the connection is in `25P02` until it rolls back. Finding a
 // returning guest is therefore a lookup that happens *before* the insert, or an
 // `on conflict` clause, and not a caught exception. That belongs to the check-in
-// path, which is the one that has a returning guest to find.
+// path, which is the one that has a returning guest to find. The same holds for
+// the `CONFLICT` a transcription can raise: the desk retypes and calls again,
+// which is a second request, and not something the first one recovers inside.
 
 import { parseDate } from "@internationalized/date";
 import type { StayDate } from "@mariva/shared";
@@ -96,6 +100,26 @@ export interface CccdReveal {
   readonly cccdNumber: string;
   readonly unmaskedBy: string;
   readonly unmaskedAt: Date;
+}
+
+/**
+ * What one identity document said, for one guest the property already holds.
+ *
+ * Optional and never nullable, unlike {@link NewGuest} beside it, and the
+ * difference is the operation rather than an inconsistency: creating a record
+ * states everything the desk knows including what it does not have, while this
+ * records what a card carries. An absent field is a fact this document was not
+ * read for and the column keeps whatever it holds; there is no value here that
+ * means "take the number off the record", because `FR-GST-02` gives the desk no
+ * such act — Nghị định 96/2016/NĐ-CP Điều 44 obliges the property to have the
+ * particulars before the room changes hands, and nothing obliges it to forget
+ * them afterwards.
+ */
+export interface DocumentParticulars {
+  readonly guestId: string;
+  readonly cccdNumber?: string;
+  readonly dateOfBirth?: StayDate;
+  readonly nationality?: string;
 }
 
 export interface UnmaskRequest {
@@ -162,6 +186,82 @@ export class GuestService {
     }
 
     return this.asRecord(found);
+  }
+
+  /**
+   * What a document said about somebody the property already has — `FR-GST-02`.
+   *
+   * The gap this closes is the one check-in leaves behind. A returning guest is
+   * named at the desk by id, which is what stops a second record of one person
+   * being created, and it also means the particulars typed beside that id have
+   * nowhere to go: {@link createGuest} is the only other writer of these three
+   * columns and it only ever inserts. So a guest first registered from a
+   * companion's word — no card, no number — could never gain one, and the stay
+   * could not discharge Điều 44.
+   *
+   * **Only the columns the caller named.** An absent field is not a null: the
+   * document was read for what it carries, and a passport that gives a
+   * nationality says nothing about a CCCD. {@link DocumentParticulars} argues
+   * why there is no clearing at all.
+   *
+   * The guest is resolved before the update for `unmaskCccd`'s reason one
+   * method down, arrived at from the other side: an update naming nobody
+   * changes no rows and returns an empty array, which is indistinguishable
+   * here from a row that could not be read back. Looked up first, "no such
+   * guest" is a `404` stated once, and the lookup and the write are the
+   * caller's one transaction so nothing can slip between them.
+   *
+   * `updatedAt` is set rather than left to the column, which carries a default
+   * and no `$onUpdate`. `schema/guest.ts` keeps the timestamp precisely because
+   * guest details are corrected — a transposed digit put right — and a
+   * correction that left the row looking untouched since check-in would hide
+   * exactly the edit the column exists to show.
+   *
+   * A number already on another guest's record is a `CONFLICT`, translated by
+   * {@link asRefusal} and meaning what it means for a creation: the property
+   * has met this person before, under a record it should be using. A number the
+   * row already holds is not a conflict — the partial unique index compares
+   * rows, and a row does not collide with itself — so a desk that pressed twice
+   * on a lost connection ends with the record the card describes.
+   */
+  async transcribeDocument(
+    exec: DbExecutor,
+    input: DocumentParticulars,
+  ): Promise<GuestRecord> {
+    const [found] = await exec
+      .select({ id: guest.id })
+      .from(guest)
+      .where(eq(guest.id, input.guestId))
+      .limit(1);
+
+    if (!found) {
+      throw new ORPCError("NOT_FOUND", {
+        message: "No guest with that id",
+      });
+    }
+
+    try {
+      const [recorded] = await exec
+        .update(guest)
+        .set({
+          ...(input.cccdNumber === undefined
+            ? {}
+            : { cccdNumber: written(input.cccdNumber) }),
+          ...(input.dateOfBirth === undefined
+            ? {}
+            : { dateOfBirth: input.dateOfBirth.toString() }),
+          ...(input.nationality === undefined
+            ? {}
+            : { nationality: written(input.nationality) }),
+          updatedAt: new Date(),
+        })
+        .where(eq(guest.id, found.id))
+        .returning();
+
+      return this.asRecord(recorded!);
+    } catch (error) {
+      throw this.asRefusal(error);
+    }
   }
 
   /**

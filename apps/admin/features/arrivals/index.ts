@@ -6,10 +6,15 @@ export {
   CHECK_IN_STEPS,
   type CheckInStep,
   checkInRefusal,
+  type ChosenGuest,
   depositDue,
+  type DocumentTranscription,
+  documentTranscription,
   type Folio,
   type GuestHit,
+  orNothing,
   parseAmount,
+  type Particulars,
   parseBirthDate,
   refusalSentence,
   refusalStep,
@@ -20,6 +25,7 @@ export {
   sequenceSteps,
   stepAfter,
   todaysArrivals,
+  transcriptionRefusal,
 } from "./arrival-queue";
 export {
   type ArrivalsData,
@@ -30,6 +36,7 @@ export {
   useCheckIn,
   useGuestMatches,
   usePostDeposit,
+  useTranscribeDocument,
 } from "./arrivals-queries";
 export { ArrivalsScreen } from "./arrivals-screen";
 export {
