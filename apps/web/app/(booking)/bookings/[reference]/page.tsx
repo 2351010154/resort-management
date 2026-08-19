@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import { Suspense } from "react";
-import { StayScreen } from "@/features/booking/components/stay-screen/stay-screen";
+import { CancellableStay } from "@/features/booking/components/stay-cancellation/cancellable-stay";
 import { StayFeedbackPanel } from "@/features/feedback/components/stay-feedback/stay-feedback";
 import styles from "./stay-route.module.css";
 
@@ -16,11 +15,16 @@ export const metadata: Metadata = {
 // freshly-booked state is a banner, not a second page to keep in step.
 //
 // Addressed by the reference rather than the hold id, because that is what the
-// guest holds from here on and what `booking.readOwn` answers to. The screen
-// reads `?booked` to decide whether to greet, so it needs the same Suspense
-// boundary every route whose state is the query string does.
+// guest holds from here on and what `booking.readOwn` answers to.
 //
-// **The feedback panel sits under it, on the same route and by the same rule.**
+// **The cancellation travels with the stay rather than beside it.** The screen
+// and the panel that calls the stay off read and write one row on one
+// credential, and the screen states the very thing the panel changes — so
+// `cancellable-stay.tsx` composes the two and makes the screen read again once
+// the stay has moved. It also owns the Suspense boundary the screen needs for
+// reading `?booked` off the query.
+//
+// **The feedback panel sits under both, on the same route and by another rule.**
 // `screens.md` §Account puts every act a stay allows on the stay's own surface —
 // cancelling it, providing the identity document, saying how it went — each
 // shown only when the booking's state allows. It is a sibling rather than
@@ -31,9 +35,10 @@ export const metadata: Metadata = {
 // the answer is no, so a stay that is not over — or not this browser's — shows
 // exactly what it showed before.
 //
-// It stands outside the Suspense boundary because it reads no search parameter:
-// its whole input is the reference in the path, which this component already
-// has.
+// It stands outside that boundary because it reads no search parameter: its
+// whole input is the reference in the path, which this component already has.
+// It is untouched by a cancellation for the same reason — a stay that can still
+// be called off has not been left yet, so there is nothing there to say.
 export default async function BookingPage({
   params,
 }: {
@@ -43,9 +48,7 @@ export default async function BookingPage({
 
   return (
     <div className={styles.route}>
-      <Suspense fallback={null}>
-        <StayScreen reference={reference} />
-      </Suspense>
+      <CancellableStay reference={reference} />
 
       {/* Keyed by the stay, so moving to another booking takes the whole of
           this one's panel with it — the answer already read, a rating and a
