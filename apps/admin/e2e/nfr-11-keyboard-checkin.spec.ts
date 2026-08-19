@@ -299,15 +299,22 @@ async function postTheDeposit(page: Page): Promise<void> {
   await page.keyboard.press("Tab");
   await page.keyboard.press("Tab");
 
-  const cash = page.getByRole("radio", { name: "Cash" });
+  const transfer = page.getByRole("radio", { name: "Bank transfer" });
 
   await expect(
-    cash,
+    transfer,
     "Tab from the deposit step's fields never reached how the money arrived.",
   ).toBeFocused();
+  await expect(
+    transfer,
+    "The method arrived already chosen, which is a default wearing a radio button.",
+  ).not.toBeChecked();
 
   await page.keyboard.press("Space");
-  await expect(cash, "Space did not choose the focused method.").toBeChecked();
+  await expect(
+    transfer,
+    "Space did not choose the focused method.",
+  ).toBeChecked();
 
   // Enter finishes the step from the method group as it does from every field
   // of every other step — WAI-ARIA leaves a radio group inert to Enter, and the

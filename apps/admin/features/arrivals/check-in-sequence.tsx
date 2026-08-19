@@ -8,6 +8,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import type { BoardRoom } from "@/features/housekeeping";
+import {
+  type DeskPaymentFields,
+  type DeskPaymentMethod,
+  deskPaymentAttempt,
+  METHOD_LABELS,
+  OFFERED_PAYMENT_METHODS,
+} from "@/lib/desk-payment";
 import { KeyboardLayer, useHotkeys } from "@/lib/keyboard";
 
 import {
@@ -16,14 +23,9 @@ import {
   type CheckInStep,
   type ChosenGuest,
   checkInRefusal,
-  DESK_PAYMENT_METHODS,
-  type DepositFields,
-  type DeskPaymentMethod,
-  depositAttempt,
   depositDue,
   documentTranscription,
   type GuestHit,
-  METHOD_LABELS,
   orNothing,
   type Particulars,
   parseBirthDate,
@@ -170,7 +172,7 @@ function Sequence({
   const [refusedRooms, setRefusedRooms] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
-  const [deposit, setDeposit] = useState<DepositFields>({
+  const [deposit, setDeposit] = useState<DeskPaymentFields>({
     amount: "",
     // Unanswered, and it stays unanswered until the operator says so. The desk
     // is the only party that knows whether the notes were counted or the
@@ -365,7 +367,11 @@ function Sequence({
   }
 
   async function submitDeposit() {
-    const attempt = depositAttempt(arrival.id, deposit);
+    const attempt = deskPaymentAttempt(
+      arrival.id,
+      deposit,
+      "A deposit is money handed over, so it is a figure above nothing.",
+    );
 
     if ("problem" in attempt) {
       setProblem(attempt.problem);
@@ -373,12 +379,12 @@ function Sequence({
     }
 
     try {
-      await postDeposit.mutateAsync(attempt.deposit);
+      await postDeposit.mutateAsync(attempt.payment);
     } catch {
       return;
     }
 
-    setPosted(BigInt(attempt.deposit.amount));
+    setPosted(BigInt(attempt.payment.amount));
     advance("deposit", { depositDue: false });
   }
 
@@ -720,7 +726,7 @@ function Field({
  * A radio group and not a select, because the whole list is two rows: a select
  * hides both behind a press that opens a listbox, and the answer a desk gives
  * every time it takes money is not worth a second control's worth of keys. The
- * options are {@link DESK_PAYMENT_METHODS}, which is the contract's own list
+ * options are {@link OFFERED_PAYMENT_METHODS}, which is the contract's own list
  * with the gateway excluded — this step cannot offer a method the API would
  * refuse, and cannot invent the one only the IPN handler may write.
  *
@@ -769,7 +775,7 @@ function MethodChoice({
           }
         }}
       >
-        {DESK_PAYMENT_METHODS.map((method) => (
+        {OFFERED_PAYMENT_METHODS.map((method) => (
           <MethodOption key={method} method={method} />
         ))}
       </RadioGroup>
