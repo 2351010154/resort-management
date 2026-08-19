@@ -6,6 +6,7 @@ import { useEffect, useId, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { formatShortDate } from "@/lib/business-date";
 import { KeyboardLayer, useHotkeys } from "@/lib/keyboard";
 
@@ -13,12 +14,16 @@ import {
   balanceDue,
   type CheckoutStep,
   checkOutRefusal,
+  DESK_PAYMENT_METHODS,
   type Departure,
+  type DeskPaymentMethod,
   type Folio,
   type FolioPosting,
   isClosed,
+  METHOD_LABELS,
   overpayment,
-  parseAmount,
+  type PaymentFields,
+  paymentAttempt,
   refusalSentence,
   refusalStep,
   type SequenceFacts,
@@ -103,8 +108,13 @@ function Sequence({
   onCheckedOut,
 }: CheckoutSequenceProps) {
   const [step, setStep] = useState<CheckoutStep>("account");
-  const [payment, setPayment] = useState({
+  const [payment, setPayment] = useState<PaymentFields>({
     amount: "",
+    // Unanswered, and it stays unanswered until the operator says. The desk is
+    // the only party that knows whether the notes were counted or the transfer
+    // landed, and this form opening on an answer would be the console making
+    // one up in the one moment somebody could have stated it.
+    method: null,
     description: "Balance settled at checkout",
   });
   // Whether this sequence has already agreed the account. A second press after
@@ -206,30 +216,17 @@ function Sequence({
   }
 
   async function submitPayment() {
-    const amount = parseAmount(payment.amount);
+    const attempt = paymentAttempt(departure.id, payment);
 
-    if (amount === null) {
-      setProblem(
-        "A payment is money received, so it is a figure above nothing.",
-      );
-      return;
-    }
-
-    if (payment.description.trim() === "") {
-      setProblem("The line needs a description — it is what the guest reads.");
+    if ("problem" in attempt) {
+      setProblem(attempt.problem);
       return;
     }
 
     let settled: bigint;
 
     try {
-      const receipt = await postPayment.mutateAsync({
-        bookingId: departure.id,
-        // Text on the way in, per `money.ts`: the contract decodes it back into
-        // the `bigint` the ledger is counted in.
-        amount: amount.toString(),
-        description: payment.description.trim(),
-      });
+      const receipt = await postPayment.mutateAsync(attempt.payment);
 
       // The balance the write itself came back with, and not the one this
       // component was holding. A part payment leaves the stay short and an
@@ -243,7 +240,16 @@ function Sequence({
     }
 
     if (settled > 0n) {
-      setPayment((current) => ({ ...current, amount: settled.toString() }));
+      // What is left, and the method asked again. A desk taking part of it in
+      // cash and the rest by transfer is an ordinary morning, and a second line
+      // posted under the first one's method would put money in the drawer that
+      // never reached it — the ledger is append-only, so nothing could correct
+      // that afterwards except a reversal.
+      setPayment((current) => ({
+        ...current,
+        amount: settled.toString(),
+        method: null,
+      }));
       setProblem(
         `${formatVnd(settled)} is still outstanding. The stay cannot be checked out until the account balances.`,
       );
@@ -353,6 +359,13 @@ function Sequence({
               required
             />
           </div>
+
+          <MethodChoice
+            value={payment.method}
+            onChange={(method) => {
+              setPayment((current) => ({ ...current, method }));
+            }}
+          />
         </Step>
       ) : null}
 
@@ -564,6 +577,84 @@ function Field({
           onChange(event.target.value);
         }}
       />
+    </div>
+  );
+}
+
+/**
+ * How the money reached the desk, asked rather than assumed.
+ *
+ * A radio group and not a select, because the whole list is two rows: a select
+ * hides both behind a press that opens a listbox, and the choice a desk makes
+ * every time it takes money is not worth a second control's worth of keys. The
+ * options are {@link DESK_PAYMENT_METHODS}, which is the contract's own list
+ * with the gateway excluded — this screen cannot offer a method the API would
+ * refuse, and cannot invent the one only the IPN handler may write.
+ *
+ * Nothing is selected when the step opens. That is the requirement rather than
+ * an oversight: a group arriving with `CASH` highlighted is a default wearing a
+ * radio button, and the operator who presses Enter past it has recorded an
+ * answer they never gave.
+ *
+ * ## Enter, restored
+ *
+ * The rest of this sequence promises that Enter finishes the step from
+ * wherever the operator is standing, and a radio is the one control where that
+ * is not free: WAI-ARIA says a radio group is not activated by Enter, so Radix
+ * suppresses the key, and a desk that chose a method and pressed Enter would be
+ * met with nothing happening. The group asks its own form to submit instead,
+ * which is what every field of every other step already does.
+ */
+function MethodChoice({
+  value,
+  onChange,
+}: {
+  value: DeskPaymentMethod | null;
+  onChange(method: DeskPaymentMethod): void;
+}) {
+  const groupId = useId();
+
+  return (
+    <fieldset className="mt-rhythm-1">
+      <legend
+        id={groupId}
+        className="text-muted-foreground text-xs tracking-caps uppercase"
+      >
+        Method
+      </legend>
+      <RadioGroup
+        aria-labelledby={groupId}
+        className="mt-1 grid-flow-col justify-start gap-6"
+        value={value ?? ""}
+        onValueChange={(method) => {
+          onChange(method as DeskPaymentMethod);
+        }}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.currentTarget.closest("form")?.requestSubmit();
+          }
+        }}
+      >
+        {DESK_PAYMENT_METHODS.map((method) => (
+          <MethodOption key={method} method={method} />
+        ))}
+      </RadioGroup>
+    </fieldset>
+  );
+}
+
+/** One way of paying, in the words the desk reads. */
+function MethodOption({ method }: { method: DeskPaymentMethod }) {
+  // Associated by id rather than by nesting, for `Field`'s reason: the control
+  // is a component, and a label has no way to prove what it wraps.
+  const choiceId = useId();
+
+  return (
+    <div className="flex items-center gap-2">
+      <RadioGroupItem id={choiceId} value={method} />
+      <label htmlFor={choiceId} className="text-sm">
+        {METHOD_LABELS[method]}
+      </label>
     </div>
   );
 }

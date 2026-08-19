@@ -242,9 +242,7 @@ async function workTheSequence(
         break;
       }
       case "Deposit":
-        // Both fields arrive filled — the amount with what the account is short
-        // — so the step is already answered and Enter posts it.
-        await page.keyboard.press("Enter");
+        await postTheDeposit(page);
         break;
       case "Check in":
         // The review step has no field of its own — what it asks for is the
@@ -282,6 +280,39 @@ async function workTheSequence(
   throw new Error(
     `The sequence did not finish in ${SEQUENCE_LIMIT} steps: ${taken.join(" → ")}`,
   );
+}
+
+/**
+ * The deposit step: the two text fields arrive filled, the method does not.
+ *
+ * How the money arrived is the one thing on this step no default may answer, so
+ * the step cannot be finished by a bare Enter and this run proves the operator
+ * can still finish it with nothing but keys: Tab past the amount and the line,
+ * Space on the method the desk was paid by, Enter to post it. The radio is
+ * asserted focused rather than pressed at blindly — a group Tab does not reach
+ * is a step a keyboard-only desk cannot answer at all, and a bare Space would
+ * report that as a mysterious stall.
+ */
+async function postTheDeposit(page: Page): Promise<void> {
+  // The amount arrives filled with what the account is short and focused, and
+  // the line beside it is filled too. Two Tabs is the way past both.
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Tab");
+
+  const cash = page.getByRole("radio", { name: "Cash" });
+
+  await expect(
+    cash,
+    "Tab from the deposit step's fields never reached how the money arrived.",
+  ).toBeFocused();
+
+  await page.keyboard.press("Space");
+  await expect(cash, "Space did not choose the focused method.").toBeChecked();
+
+  // Enter finishes the step from the method group as it does from every field
+  // of every other step — WAI-ARIA leaves a radio group inert to Enter, and the
+  // sequence puts the press back.
+  await page.keyboard.press("Enter");
 }
 
 /**

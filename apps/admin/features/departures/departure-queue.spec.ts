@@ -1,16 +1,20 @@
-import { SEARCH_RESULT_LIMIT } from "@mariva/shared";
+import { postPaymentInput, SEARCH_RESULT_LIMIT } from "@mariva/shared";
 import { describe, expect, it } from "vitest";
 
 import {
   balanceDue,
   CHECKOUT_STEPS,
   checkOutRefusal,
+  DESK_PAYMENT_METHODS,
   type Departure,
   departureAfter,
   type Folio,
   isClosed,
+  METHOD_LABELS,
   overpayment,
+  type PaymentFields,
   parseAmount,
+  paymentAttempt,
   refusalSentence,
   refusalStep,
   type SearchResults,
@@ -325,5 +329,121 @@ describe("an amount an operator typed", () => {
     expect(parseAmount("-450000")).toBeNull();
     expect(parseAmount("")).toBeNull();
     expect(parseAmount("cash")).toBeNull();
+  });
+});
+
+const STAY = "11111111-1111-4111-8111-111111111111";
+
+function typed(over: Partial<PaymentFields> = {}): PaymentFields {
+  return {
+    amount: "450000",
+    method: "CASH",
+    description: "Balance settled at checkout",
+    ...over,
+  };
+}
+
+describe("how the money arrived", () => {
+  it("offers the two ways a desk can be paid and no gateway", () => {
+    expect([...DESK_PAYMENT_METHODS]).toStrictEqual(["CASH", "BANK_TRANSFER"]);
+  });
+
+  it("cannot reach the gateway's method, which only the IPN handler writes", () => {
+    // Both halves of the boundary. The console has no `VNPAY` to offer, and the
+    // route would refuse it if something here invented one — a desk posting able
+    // to claim the gateway's method would credit the property with money the
+    // gateway never confirmed.
+    expect([...DESK_PAYMENT_METHODS]).not.toContain("VNPAY");
+    expect(
+      postPaymentInput.safeParse({
+        bookingId: STAY,
+        amount: "450000",
+        method: "VNPAY",
+        description: "Balance settled at checkout",
+      }).success,
+    ).toBe(false);
+  });
+
+  it("has words on screen for every method it offers", () => {
+    for (const method of DESK_PAYMENT_METHODS) {
+      expect(METHOD_LABELS[method]).not.toBe("");
+    }
+  });
+});
+
+describe("the payment the checkout sends", () => {
+  it("carries the method the desk picked", () => {
+    expect(paymentAttempt(STAY, typed({ method: "CASH" }))).toStrictEqual({
+      payment: {
+        bookingId: STAY,
+        amount: "450000",
+        method: "CASH",
+        description: "Balance settled at checkout",
+      },
+    });
+
+    expect(
+      paymentAttempt(STAY, typed({ method: "BANK_TRANSFER" })),
+    ).toStrictEqual({
+      payment: {
+        bookingId: STAY,
+        amount: "450000",
+        method: "BANK_TRANSFER",
+        description: "Balance settled at checkout",
+      },
+    });
+  });
+
+  it("is a body the route accepts", () => {
+    const attempt = paymentAttempt(STAY, typed());
+
+    expect("payment" in attempt).toBe(true);
+    expect(
+      postPaymentInput.safeParse("payment" in attempt ? attempt.payment : null)
+        .success,
+    ).toBe(true);
+  });
+
+  it("refuses to guess a method nobody stated", () => {
+    const attempt = paymentAttempt(STAY, typed({ method: null }));
+
+    // Not a default, not the likelier of the two. The ledger is append-only, so
+    // a line posted without a method can never be told which it was, and the
+    // drawer the day's report asks about is counted from that distinction.
+    expect("payment" in attempt).toBe(false);
+    expect("problem" in attempt && attempt.problem).toContain(
+      "how the money arrived",
+    );
+  });
+
+  it("reads the amount the way the screen printed it, as text on the wire", () => {
+    expect(paymentAttempt(STAY, typed({ amount: "1.500.000" }))).toStrictEqual({
+      payment: {
+        bookingId: STAY,
+        amount: "1500000",
+        method: "CASH",
+        description: "Balance settled at checkout",
+      },
+    });
+  });
+
+  it("names the first thing wrong and only that", () => {
+    expect(
+      paymentAttempt(STAY, typed({ amount: "0", method: null })),
+    ).toStrictEqual({
+      problem: "A payment is money received, so it is a figure above nothing.",
+    });
+
+    expect(
+      paymentAttempt(STAY, typed({ description: "   ", method: null })),
+    ).toStrictEqual({
+      problem: "The line needs a description — it is what the guest reads.",
+    });
+  });
+
+  it("trims the line the guest reads", () => {
+    const attempt = paymentAttempt(STAY, typed({ description: "  Cash  " }));
+
+    expect("payment" in attempt && attempt.payment.description).toBe("Cash");
   });
 });

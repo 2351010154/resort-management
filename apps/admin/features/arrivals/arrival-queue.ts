@@ -31,6 +31,7 @@ import type { ApiClient } from "@mariva/api-client";
 import {
   CHECK_IN_REFUSALS,
   type CheckInRefusal,
+  postPaymentInput,
   SEARCH_RESULT_LIMIT,
 } from "@mariva/shared";
 
@@ -570,4 +571,115 @@ export function parseBirthDate(typed: string): string | null {
     walked.getUTCDate() === day;
 
   return real ? trimmed : null;
+}
+
+/**
+ * The ways a desk may say the money arrived — `postPaymentInput`'s own list.
+ *
+ * Read off the contract rather than written out beside it, which is the
+ * arrangement `features/payments/payment-day.ts` uses for the filter's version
+ * of the same question. What is derived here is the *desk's* list, and the
+ * gateway's absence from it is the point rather than an omission: a `VNPAY` row
+ * exists because the gateway confirmed it to the IPN handler, so a console able
+ * to construct one would credit the property with money nobody confirmed. There
+ * is no third string to type here, because there is no string typed here at all.
+ */
+export const DESK_PAYMENT_METHODS = postPaymentInput.shape.method.options;
+
+/** One way the desk was paid, as the contract spells it. */
+export type DeskPaymentMethod = (typeof DESK_PAYMENT_METHODS)[number];
+
+/**
+ * What each way of paying is called on screen.
+ *
+ * A `Record` over the union rather than a lookup with a fallback: a fourth
+ * counter method added to the contract stops this file compiling, where a
+ * `?? method` would quietly print a database enum at a guest.
+ */
+export const METHOD_LABELS: Record<DeskPaymentMethod, string> = {
+  CASH: "Cash",
+  BANK_TRANSFER: "Bank transfer",
+};
+
+/**
+ * What the operator typed into the deposit step, before any of it is read.
+ *
+ * `method` is one value or none. None is a real state of this form and the one
+ * the step opens in: how the money arrived is a fact only the person at the
+ * counter holds, so the field starts unanswered and stays that way until they
+ * answer it.
+ */
+export interface DepositFields {
+  amount: string;
+  method: DeskPaymentMethod | null;
+  description: string;
+}
+
+/** The body `folio.postPayment` takes — a stay, a figure, how it arrived, and
+ *  the line the guest reads. */
+export interface DeskDeposit {
+  readonly bookingId: string;
+  readonly amount: string;
+  readonly method: DeskPaymentMethod;
+  readonly description: string;
+}
+
+/** Either a deposit the API will take, or the sentence that says why it is not
+ *  one yet. */
+export type DepositAttempt =
+  | { readonly deposit: DeskDeposit }
+  | { readonly problem: string };
+
+/**
+ * The deposit as the contract takes it, or the first thing wrong with it.
+ *
+ * The amount travels as text, per `money.ts`: the contract decodes it back into
+ * the `bigint` the ledger is counted in, and a number on the way would round a
+ * figure in đồng that has no minor unit to round into.
+ *
+ * The method has no default here and none anywhere above. The ledger is
+ * append-only, so a line posted without one cannot be told later which it was —
+ * and the drawer the day's report asks about is counted from exactly that
+ * distinction. Guessing "cash" because a desk usually takes cash would put a
+ * transfer in the till on the one day somebody actually knew the difference.
+ *
+ * One refusal at a time, in the order the step reads, like every other form in
+ * this console: a form with one message beside it is one thing to fix.
+ */
+export function depositAttempt(
+  bookingId: string,
+  fields: DepositFields,
+): DepositAttempt {
+  const amount = parseAmount(fields.amount);
+
+  if (amount === null) {
+    return {
+      problem:
+        "A deposit is money handed over, so it is a figure above nothing.",
+    };
+  }
+
+  const description = fields.description.trim();
+
+  if (description === "") {
+    return {
+      problem: "The line needs a description — it is what the guest reads.",
+    };
+  }
+
+  if (fields.method === null) {
+    return {
+      problem:
+        "Say how the money arrived. Cash counted at the desk and a transfer that landed in the bank are the same figure and not the same fact, and an append-only ledger cannot be told afterwards which one this was.",
+    };
+  }
+
+  return {
+    deposit: {
+      bookingId,
+      amount: amount.toString(),
+      method: fields.method,
+      description,
+    },
+  };
 }
