@@ -14,7 +14,6 @@ export {
   type FolioPosting,
   isClosed,
   overpayment,
-  parseAmount,
   refusalSentence,
   refusalStep,
   type SearchResults,

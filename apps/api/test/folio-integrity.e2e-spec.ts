@@ -287,6 +287,7 @@ describe("one stay, from the desk taking it to the desk agreeing it", () => {
       amount: A_PART_PAYMENT,
       businessDate: FIRST_NIGHT,
       description: "Card, ****4242",
+      method: null,
       postedBy: deskId,
     });
 
@@ -360,6 +361,7 @@ describe("one stay, from the desk taking it to the desk agreeing it", () => {
       amount: owed,
       businessDate: FIRST_NIGHT,
       description: "Card, ****4242, settling the account",
+      method: null,
       postedBy: deskId,
     });
 
@@ -557,6 +559,10 @@ describe("three lines that sum to the figure the guest agreed to", () => {
       amount: gross,
       businessDate: FIRST_NIGHT,
       description: "Settled in full",
+      // Desk money, so both sides of it are written — the identity is over the
+      // postings, and this is the case where the payment table has a row beside
+      // them.
+      method: "BANK_TRANSFER",
       postedBy: deskId,
     });
 

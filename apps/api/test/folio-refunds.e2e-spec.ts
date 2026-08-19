@@ -352,7 +352,8 @@ async function aPaidCancellation(
 
   await as("RECEPTIONIST", `${folioPath(bookingId)}/payments`, {
     amount: stayTotalGross.toString(),
-    description: "Prepayment, card ****4242",
+    description: "Prepayment, by bank transfer",
+    method: "BANK_TRANSFER",
   }).expect(200);
 
   const [path, role] = waived

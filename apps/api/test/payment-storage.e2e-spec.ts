@@ -44,6 +44,7 @@ import { staffUser } from "../src/database/schema/identity.js";
 import * as schema from "../src/database/schema/index.js";
 import { roomType } from "../src/database/schema/inventory.js";
 import { payment } from "../src/database/schema/payment.js";
+import { shift } from "../src/database/schema/shift.js";
 
 const CHECK_VIOLATION = "23514";
 const UNIQUE_VIOLATION = "23505";
@@ -72,6 +73,16 @@ let bookingId: string;
 /** Somebody to have counted the cash. Removed with everything else. */
 let receptionistId: string;
 
+/**
+ * The drawer the cash below was counted into.
+ *
+ * `payment_shift_binding` makes this the only way a cash row exists at all, so
+ * it is fixture rather than subject: what these tests are about is the payment
+ * table's own rules, and a shift is what the constraint requires before any of
+ * them can be reached.
+ */
+let shiftId: string;
+
 // References are unique and this file opens more than one stay. Counted rather
 // than drawn, so a failing run reproduces.
 let bookingOrdinal = 0;
@@ -91,15 +102,18 @@ beforeAll(async () => {
   bookingId = await aBooking(db);
   folioId = await anOpenFolio(db, bookingId);
   receptionistId = await aReceptionist(db);
+  shiftId = await anOpenShift(db, receptionistId);
 });
 
 afterAll(async () => {
-  // In key order: the payments name the folio, the folio names the booking, and
-  // the staff account is named by whichever payments the desk took.
+  // In key order: the payments name the folio and the shift, the folio names
+  // the booking, and the staff account is named by both the shift it belongs to
+  // and whichever payments the desk took.
   if (db) {
     await db.delete(payment).where(eq(payment.folioId, folioId));
     await db.delete(folio).where(eq(folio.id, folioId));
     await db.delete(booking).where(eq(booking.id, bookingId));
+    await db.delete(shift).where(eq(shift.id, shiftId));
     await db.delete(staffUser).where(eq(staffUser.id, receptionistId));
   }
 
@@ -419,7 +433,28 @@ function aDeskPayment(
     status: "SUCCESS",
     paidAt: PAID_AT,
     postedBy: receptionistId,
+    // Cash only, which is `payment_shift_binding` in both directions: money the
+    // desk counted belongs to a drawer, and a transfer that never reached one
+    // may not name a shift.
+    shiftId: method === "CASH" ? shiftId : null,
   };
+}
+
+/** A drawer somebody has open, for the cash above to belong to. */
+async function anOpenShift(
+  database: typeof db,
+  operatorId: string,
+): Promise<string> {
+  const [opened] = await database
+    .insert(shift)
+    .values({
+      operatorId,
+      openingFloat: 0n,
+      openingBusinessDate: "2027-11-02",
+    })
+    .returning({ id: shift.id });
+
+  return opened!.id;
 }
 
 /** Every payment written under one gateway id. */

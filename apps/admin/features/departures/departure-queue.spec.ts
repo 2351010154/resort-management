@@ -10,7 +10,6 @@ import {
   type Folio,
   isClosed,
   overpayment,
-  parseAmount,
   refusalSentence,
   refusalStep,
   type SearchResults,
@@ -302,28 +301,5 @@ describe("reading a refused check-out", () => {
 
   it("says what happened in words that name the next act", () => {
     expect(refusalSentence("FOLIO_NOT_SETTLED")).toContain("charges again");
-  });
-});
-
-describe("an amount an operator typed", () => {
-  it("reads a plain figure", () => {
-    expect(parseAmount("450000")).toBe(450_000n);
-  });
-
-  it("reads the grouping a receptionist can see on the screen", () => {
-    expect(parseAmount("1.500.000")).toBe(1_500_000n);
-    expect(parseAmount(" 1 500 000 ")).toBe(1_500_000n);
-  });
-
-  it("refuses a comma, which is the decimal mark đồng has no use for", () => {
-    // Reading it as a grouping mark would post a hundredfold of what was meant.
-    expect(parseAmount("1,500")).toBeNull();
-  });
-
-  it("refuses nothing, less than nothing, and what is not a figure", () => {
-    expect(parseAmount("0")).toBeNull();
-    expect(parseAmount("-450000")).toBeNull();
-    expect(parseAmount("")).toBeNull();
-    expect(parseAmount("cash")).toBeNull();
   });
 });

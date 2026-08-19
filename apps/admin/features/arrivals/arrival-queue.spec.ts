@@ -11,7 +11,6 @@ import {
   checkInRefusal,
   depositDue,
   type Folio,
-  parseAmount,
   parseBirthDate,
   refusalSentence,
   refusalStep,
@@ -375,22 +374,6 @@ describe("reading a refused check-in", () => {
 });
 
 describe("what an operator types", () => {
-  it("reads an amount with the separators the screen printed", () => {
-    expect(parseAmount("1500000")).toBe(1_500_000n);
-    expect(parseAmount("1.500.000")).toBe(1_500_000n);
-    expect(parseAmount(" 1 500 000 ")).toBe(1_500_000n);
-  });
-
-  it("refuses an amount that is not money handed over", () => {
-    expect(parseAmount("0")).toBeNull();
-    expect(parseAmount("-1000")).toBeNull();
-    // A comma is vi-VN's decimal mark, and đồng has no minor unit — reading it
-    // as a grouping mark would post a hundredfold of what was typed.
-    expect(parseAmount("1500,50")).toBeNull();
-    expect(parseAmount("")).toBeNull();
-    expect(parseAmount("a lot")).toBeNull();
-  });
-
   it("reads a birth date only in the unambiguous spelling", () => {
     expect(parseBirthDate("1985-03-15")).toBe("1985-03-15");
     expect(parseBirthDate(" 1985-03-15 ")).toBe("1985-03-15");

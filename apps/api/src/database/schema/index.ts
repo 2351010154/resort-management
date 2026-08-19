@@ -82,6 +82,12 @@ export * from "./loyalty.js";
 // derivation is the only thing that answers what tier a guest holds.
 export * from "./guest-tier.js";
 
+// The desk's working day: who has the drawer open, what was counted into it and
+// out of it, and what the outgoing shift could not finish. Every cash payment
+// names one of these rows and no gateway payment does, which is what keeps a
+// handover variance computable. Owned by `modules/operations`.
+export * from "./shift.js";
+
 // What a guest thought of a stay they have finished — one row per booking, and
 // no row at all for a stay that has not ended. Owned by `modules/feedback`.
 export * from "./feedback.js";
