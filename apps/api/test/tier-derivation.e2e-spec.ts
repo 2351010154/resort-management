@@ -791,6 +791,7 @@ async function aFinishedStay(
       amount: BigInt(owed?.balance ?? "0"),
       businessDate: departedOn,
       description: "Card, ****4242",
+      method: null,
       postedBy: null,
     });
 

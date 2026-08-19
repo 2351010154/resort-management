@@ -240,7 +240,20 @@ export class FolioController {
     );
   }
 
-  /** Money in, stored as the negation of what the guest handed over. */
+  /**
+   * Money in, stored as the negation of what the guest handed over, and
+   * recorded as the payer's side of the same movement.
+   *
+   * The method is carried through rather than read off the description: the
+   * ledger is append-only, so a payment whose method went unsaid cannot be told
+   * afterwards, and `contract/folio.ts` says why the answer is asked for at the
+   * counter while somebody still knows it.
+   *
+   * No drawer is named here, so this route takes bank transfers and refuses
+   * cash — the service says so in a sentence. The shift a cash payment belongs
+   * to is the operator's open one, and resolving it is a read this handler does
+   * not yet have a service to make.
+   */
   @RequiresCapability("folio.post-payment")
   @Implement(contract.folio.postPayment)
   postPayment(@CurrentPrincipal() principal: Principal | null) {
@@ -253,6 +266,7 @@ export class FolioController {
           businessDate: await this.businessDates.current(exec),
           description: input.description,
           amount: input.amount,
+          method: input.method,
           postedBy: staffId(principal),
         });
 

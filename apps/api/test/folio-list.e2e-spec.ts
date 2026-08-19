@@ -279,15 +279,15 @@ beforeAll(async () => {
 
   settled = await aStay("2027-06-12");
   await postCharge(settled, A_CHARGE, "A night, to be paid in full");
-  await postPayment(settled, A_CHARGE, "Card, ****4242");
+  await postPayment(settled, A_CHARGE, "Bank transfer, in full");
 
   overpaid = await aStay("2027-06-13");
   await postCharge(overpaid, A_CHARGE, "A night, about to be over-paid");
-  await postPayment(overpaid, A_LARGER_PAYMENT, "Cash, one đồng too many");
+  await postPayment(overpaid, A_LARGER_PAYMENT, "Transfer, one đồng too many");
 
   closed = await aStay("2027-06-14");
   await postCharge(closed, A_CHARGE, "A night, to be settled and agreed");
-  await postPayment(closed, A_CHARGE, "Card, ****1881");
+  await postPayment(closed, A_CHARGE, "Bank transfer, settling the account");
   await as("RECEPTIONIST", "post", `/bookings/${closed}/folio/closure`).expect(
     200,
   );
@@ -370,6 +370,9 @@ async function postPayment(
   await as("RECEPTIONIST", "post", `/bookings/${bookingId}/folio/payments`, {
     amount: amount.toString(),
     description,
+    // The one method this route carries on its own: cash belongs to an open
+    // shift, and no handler here has one to name.
+    method: "BANK_TRANSFER",
   }).expect(200);
 }
 

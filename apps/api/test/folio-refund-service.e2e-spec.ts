@@ -687,6 +687,7 @@ async function paid(bookingId: string, amount: VndAmount): Promise<void> {
     amount,
     businessDate: BUSINESS_DATE,
     description: "Prepayment, card",
+    method: null,
     postedBy: deskId,
   });
 }

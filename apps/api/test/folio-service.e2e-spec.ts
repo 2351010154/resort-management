@@ -49,6 +49,8 @@ import { folio, folioPosting } from "../src/database/schema/folio.js";
 import { staffUser } from "../src/database/schema/identity.js";
 import * as schema from "../src/database/schema/index.js";
 import { roomType } from "../src/database/schema/inventory.js";
+import { payment as paymentTable } from "../src/database/schema/payment.js";
+import { shift } from "../src/database/schema/shift.js";
 import { FolioService } from "../src/modules/folio/folio.service.js";
 import { SystemConfigService } from "../src/modules/system-config/system-config.service.js";
 
@@ -246,6 +248,7 @@ describe("the balance is the postings and nothing else", () => {
       amount: 400_000n,
       businessDate: BUSINESS_DATE,
       description: "Card payment",
+      method: null,
       postedBy: deskId,
     });
 
@@ -273,6 +276,7 @@ describe("the balance is the postings and nothing else", () => {
       amount: 1_200_000n,
       businessDate: BUSINESS_DATE,
       description: "Card payment",
+      method: null,
       postedBy: deskId,
     });
 
@@ -495,6 +499,7 @@ describe("money the property has received", () => {
       amount: 900_000n,
       businessDate: BUSINESS_DATE,
       description: "Card payment",
+      method: null,
       postedBy: deskId,
     });
 
@@ -512,6 +517,7 @@ describe("money the property has received", () => {
         amount: 0n,
         businessDate: BUSINESS_DATE,
         description: "A receipt nobody issued",
+        method: "BANK_TRANSFER",
       }),
     );
 
@@ -528,10 +534,141 @@ describe("money the property has received", () => {
         amount: -900_000n,
         businessDate: BUSINESS_DATE,
         description: "Money going the other way",
+        method: "BANK_TRANSFER",
       }),
     );
 
     expect(refusal.code).toBe("BAD_REQUEST");
+  });
+
+  it("records a transfer on the payer's side as well as the guest's", async () => {
+    // `schema/payment.ts`: the two are not one fact written twice, and `NFR-02`
+    // is the comparison that has nothing to hold the account against when only
+    // the guest's half is written.
+    const folioId = await folios.ensureFolio(db, await aBooking());
+
+    await folios.postPayment(db, {
+      folioId,
+      amount: 900_000n,
+      businessDate: BUSINESS_DATE,
+      description: "Bank transfer, received at the desk",
+      method: "BANK_TRANSFER",
+      postedBy: deskId,
+    });
+
+    const [taken] = await paymentsOn(folioId);
+
+    expect(taken).toMatchObject({
+      method: "BANK_TRANSFER",
+      // Money in hand: there is no attempt to be pending against.
+      status: "SUCCESS",
+      // The magnitude. The negation belongs to the line beside it and to
+      // nothing in this table.
+      amount: 900_000n,
+      // Neither is a gateway's, which is what makes this row desk money to the
+      // reconciliation — its gateway side is `attempt_reference is not null`.
+      attemptReference: null,
+      gatewayTransactionId: null,
+      // A transfer reaches the bank and never the till.
+      shiftId: null,
+      postedBy: deskId,
+    });
+
+    expect(taken?.paidAt).toBeInstanceOf(Date);
+
+    // And the guest's account reads exactly as it did before there was a second
+    // side to write.
+    expect(byType(await linesOf(folioId), "PAYMENT").amount).toBe(-900_000n);
+  });
+
+  it("binds cash to the drawer it was counted into", async () => {
+    // `FR-OPS-01`: the variance a receptionist explains at handover is the
+    // opening float plus the cash bound to that shift, so đồng in the till under
+    // no shift is đồng nobody is answerable for.
+    const folioId = await folios.ensureFolio(db, await aBooking());
+    const shiftId = await anOpenShift();
+
+    await folios.postPayment(db, {
+      folioId,
+      amount: 500_000n,
+      businessDate: BUSINESS_DATE,
+      description: "Cash, counted at the counter",
+      method: "CASH",
+      shiftId,
+      postedBy: deskId,
+    });
+
+    const [taken] = await paymentsOn(folioId);
+
+    expect(taken).toMatchObject({
+      method: "CASH",
+      status: "SUCCESS",
+      amount: 500_000n,
+      shiftId,
+    });
+  });
+
+  it("refuses cash that names no drawer, and writes neither row", async () => {
+    // Refused here rather than at `payment_shift_binding`, because the
+    // constraint is one biconditional and cannot tell the desk which half it
+    // got wrong.
+    const folioId = await folios.ensureFolio(db, await aBooking());
+
+    const refusal = await refused(
+      folios.postPayment(db, {
+        folioId,
+        amount: 500_000n,
+        businessDate: BUSINESS_DATE,
+        description: "Cash nobody is answerable for",
+        method: "CASH",
+        postedBy: deskId,
+      }),
+    );
+
+    expect(refusal.code).toBe("BAD_REQUEST");
+    expect(refusal.message).toContain("shift");
+    expect(await linesOf(folioId)).toHaveLength(0);
+    expect(await paymentsOn(folioId)).toHaveLength(0);
+  });
+
+  it("refuses a drawer named for money that never reached one", async () => {
+    // The other direction of the same biconditional: a transfer counted into a
+    // shift would leave the handover short by the whole of it.
+    const folioId = await folios.ensureFolio(db, await aBooking());
+
+    const refusal = await refused(
+      folios.postPayment(db, {
+        folioId,
+        amount: 500_000n,
+        businessDate: BUSINESS_DATE,
+        description: "A transfer, counted into the till",
+        method: "BANK_TRANSFER",
+        shiftId: ABSENT_ID,
+        postedBy: deskId,
+      }),
+    );
+
+    expect(refusal.code).toBe("BAD_REQUEST");
+    expect(await linesOf(folioId)).toHaveLength(0);
+    expect(await paymentsOn(folioId)).toHaveLength(0);
+  });
+
+  it("writes no second payment for money a gateway has already recorded", async () => {
+    // The callback's own row was written when the attempt was opened and
+    // resolved when the money landed, so a row here would double what `NFR-02`
+    // sums. The caller says so by naming no method.
+    const folioId = await folios.ensureFolio(db, await aBooking());
+
+    await folios.postPayment(db, {
+      folioId,
+      amount: 900_000n,
+      businessDate: BUSINESS_DATE,
+      description: "Card payment 8123456",
+      method: null,
+    });
+
+    expect(await linesOf(folioId)).toHaveLength(1);
+    expect(await paymentsOn(folioId)).toHaveLength(0);
   });
 });
 
@@ -632,6 +769,7 @@ describe("a correction is a new line", () => {
       amount: 200_000n,
       businessDate: BUSINESS_DATE,
       description: "Deposit taken against the wrong stay",
+      method: "BANK_TRANSFER",
       postedBy: deskId,
     });
 
@@ -721,6 +859,7 @@ describe("the ledger balances after every step", () => {
       amount: 1_500_000n,
       businessDate: BUSINESS_DATE,
       description: "Card payment",
+      method: null,
       postedBy: deskId,
     });
 
@@ -796,6 +935,32 @@ async function linesOf(
     .orderBy(folioPosting.postedAt, folioPosting.id);
 }
 
+/** What the property recorded as taken against one account — the payer's side
+ *  of the same money. */
+async function paymentsOn(
+  folioId: string,
+): Promise<readonly (typeof paymentTable.$inferSelect)[]> {
+  return await db
+    .select()
+    .from(paymentTable)
+    .where(eq(paymentTable.folioId, folioId));
+}
+
+/** A drawer the desk has open, written directly: nothing opens one through a
+ *  service yet, and what is under test here is the payment's binding to it. */
+async function anOpenShift(): Promise<string> {
+  const [opened] = await db
+    .insert(shift)
+    .values({
+      operatorId: deskId,
+      openingFloat: 2_000_000n,
+      openingBusinessDate: BUSINESS_DATE.toString(),
+    })
+    .returning({ id: shift.id });
+
+  return opened!.id;
+}
+
 /** The one line of a type this case posted. */
 function byType(
   lines: readonly (typeof folioPosting.$inferSelect)[],
@@ -858,9 +1023,15 @@ async function store(values: typeof systemConfig.$inferInsert): Promise<void> {
 
 /** Both ledger tables, emptied. A posting cannot be deleted, so `truncate` is
  *  the only way back — it needs rights over the table rather than over its rows,
- *  which is the distinction `schema/folio.ts` draws. */
+ *  which is the distinction `schema/folio.ts` draws.
+ *
+ *  The payer's side goes with them, and so does the drawer it names: the money
+ *  the desk takes is two rows, and a shift left standing would outlive the
+ *  staff account the next file truncates. */
 async function clearTheLedger(): Promise<void> {
-  await db.execute(sql`truncate folio_posting, folio restart identity cascade`);
+  await db.execute(
+    sql`truncate folio_posting, folio, payment, shift restart identity cascade`,
+  );
 }
 
 /** The refusal a call provoked. Fails the case if the service accepted it. */
