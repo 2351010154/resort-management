@@ -186,14 +186,6 @@ export const CAPABILITIES = [
     staff: staff({ RECEPTIONIST: "read", MANAGER: "read", ADMIN: "read" }),
   },
   {
-    key: "guest.id-scan.upload-own",
-    section: "Public and guest realm",
-    row: "Upload own ID scan",
-    unauthenticated: false,
-    guest: "conditional",
-    staff: staff({}),
-  },
-  {
     key: "feedback.submit",
     section: "Public and guest realm",
     row: "Post-stay feedback",
@@ -671,14 +663,23 @@ export const CAPABILITIES = [
   // No viewing row and no deletion row, mirroring §3: both would be permissions
   // over an object that does not exist, because the scan is read for its
   // particulars and never stored.
+  //
+  // Denied to the guest, and no guest-side row stands beside this one. The
+  // obligation `FR-GST-02` carries is the property's — Nghị định 96/2016/NĐ-CP
+  // Điều 44 wants the particulars recorded before the room changes hands — and
+  // check-in discharges it by transcribing the document into the registration
+  // record, typed, with no image required. A guest-side channel would have been
+  // a convenience ahead of arrival rather than a second way to satisfy the
+  // rule, so it earns nothing and adds a second surface where document bytes
+  // arrive.
   {
     key: "guest.id-scan.upload",
     section: "Guest personal data",
     row: "Upload ID scan",
     unauthenticated: false,
-    guest: "conditional",
+    guest: "denied",
     staff: staff({ RECEPTIONIST: "full", MANAGER: "full", ADMIN: "full" }),
-    note: "Own, for guest. Transcribe-and-discard — the image is never stored (FR-GST-02)",
+    note: "Transcribe-and-discard — the image is never stored (FR-GST-02)",
   },
 
   // ── Reports and audit ────────────────────────────────────────────────────

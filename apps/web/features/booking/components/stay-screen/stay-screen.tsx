@@ -30,22 +30,29 @@
 // not a failure: `openStay` says why, and the guest sees their booking.
 //
 // The link arrives in the fragment, which only a browser can read, so the
-// arrival below waits for the address to have been consulted. Starting it before
-// that would read the stay without the credential the guest is holding — and the
-// arrival is remembered per booking, so the read would never be retried.
+// arrival is not started until the address has been consulted. Starting it
+// before that would read the stay without the credential the guest is holding.
+//
+// **The arrival is the route's rather than this screen's**, and that is what
+// `arriveAtStay` is: the cancellation panel beside this screen needs the same
+// cookie the exchange issues, and the credential it is bought with is spent
+// once for the whole route rather than once per component. Kept private here
+// it was a thing only this component could wait for, which left the panel
+// asking its own question too early on exactly the arrival that needs it
+// most — `cancellable-stay.tsx` is where the composer now announces it before
+// either of its children has had a chance to run at all.
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   StayShell,
   stayStyles as styles,
 } from "@/features/booking/components/stay-shell/stay-shell";
 import {
   ATTACHING_BOOKING_PARAM,
+  arriveAtStay,
   isUnattached,
-  openStay,
   STAY_LINK_PARAM,
-  type StayArrival,
 } from "@/lib/booking-links";
 import { usePresentedLink } from "@/lib/use-presented-link";
 import type { HeldStay } from "@/features/booking/lib/stay-funnel";
@@ -59,33 +66,22 @@ export function StayScreen({ reference }: { readonly reference: string }) {
   const [refusal, setRefusal] = useState<string>();
   const [loading, setLoading] = useState(true);
 
-  // The arrival, started once per booking and remembered. The link is good for a
-  // single use, so a second run of the effect below — React's strict
-  // double-invoke in development, a re-render while the exchange is in flight —
-  // must join the arrival already happening rather than spend the credential
-  // again and find it gone. It is tagged with the stay it was started for
-  // because this component survives a change of route parameter, and an untagged
-  // one would answer the next booking with the last one's.
-  const arrival = useRef<{
-    readonly reference: string;
-    readonly answer: Promise<StayArrival>;
-  } | null>(null);
-
+  // Every pass of this effect asks for the same arrival and gets it. The first
+  // one runs before the address has been consulted and only announces that this
+  // booking is being opened, which is what the panel beside this screen waits
+  // on; the pass after it hands the credential over and starts the exchange. A
+  // second run of either — React's strict double-invoke in development, a
+  // re-render while the exchange is in flight — joins what is already happening
+  // rather than spending the single-use link again and finding it gone.
+  //
+  // The answer is dropped on the way in rather than at the arrival, because this
+  // component survives a change of route parameter: the arrival for the booking
+  // that was just left settles after the reference has moved on, and rendering
+  // it would put the last stay's details under this one's reference.
   useEffect(() => {
     let live = true;
 
-    if (!presented.read) {
-      return;
-    }
-
-    if (arrival.current?.reference !== reference) {
-      arrival.current = {
-        reference,
-        answer: openStay(reference, presented.link),
-      };
-    }
-
-    void arrival.current.answer.then((answer) => {
+    void arriveAtStay(reference, presented).then((answer) => {
       if (!live) {
         return;
       }

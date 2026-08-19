@@ -199,9 +199,11 @@ async function currentStep(page: Page): Promise<string | null> {
  * Enter, Tab and typing, until the guest is in the room.
  *
  * Driven by which step is showing rather than by a fixed script, because the
- * sequence's own length is decided by its answers: naming a guest the property
- * already knows drops the document step, and a folio with nothing outstanding
- * drops the deposit one.
+ * sequence's own length is decided by its answers: a folio with nothing
+ * outstanding drops the deposit step. The document step is always shown — a
+ * returning guest's card is read onto the record they already have, which is
+ * `FR-GST-02`'s transcription — so this run answers it whether the guest was
+ * registered here or found.
  */
 async function workTheSequence(
   page: Page,

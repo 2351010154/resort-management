@@ -1,9 +1,14 @@
 // The two routes `FR-GST-03` asks for — the record with the number masked, and
-// the separate, audited call that reveals it.
+// the separate, audited call that reveals it — and the desk's transcription
+// `FR-GST-02` asks for, which writes the number a stay could not otherwise
+// record.
 //
-// **Two capabilities, two routes, and no branch between them.**
+// **Three capabilities, three routes, and no branch between them.**
 // `guest.read-record` is every staff role but housekeeping; `guest.unmask-cccd`
-// is `MANAGER`, `ADMIN` and a conditional `RECEPTIONIST`. The service already
+// is `MANAGER`, `ADMIN` and a conditional `RECEPTIONIST`; `guest.id-scan.upload`
+// is the desk's — `RECEPTIONIST`, `MANAGER`, `ADMIN` — because writing down
+// what a card says is the arrival's work and reading the digits back is not.
+// The service already
 // refuses to hand the plain number to the first path — `GuestRecord` has no
 // field to carry it — so the split here is not a second line of defence but the
 // same line stated where a routing table can be read: which authority a call
@@ -52,6 +57,40 @@ export class GuestController {
           this.guests.getGuest(exec, input.guestId),
         ),
       ),
+    );
+  }
+
+  /**
+   * What the desk read off a document, onto the record it belongs to.
+   *
+   * `guest.id-scan.upload` is the row, and this route is the only thing that
+   * has ever declared it — the matrix has carried it since M4 with the note
+   * "Transcribe-and-discard — the image is never stored", describing a desk
+   * flow no route reached. What arrives is three typed facts: the capability
+   * names the act the desk performs, and the request carries no document, no
+   * bytes and nothing to keep, which is `NFR-08` holding by the shape of the
+   * contract rather than by a rule anybody remembers.
+   *
+   * The transaction is opened here like the two above, though this handler
+   * makes one call: the boundary is `database.module.ts`'s and not an
+   * optimisation, and a controller that reached for the client because its
+   * write happened to be single is the arrangement that file exists to refuse.
+   */
+  @RequiresCapability("guest.id-scan.upload")
+  @Implement(contract.guest.transcribeDocument)
+  transcribeDocument() {
+    return implement(contract.guest.transcribeDocument).handler(
+      async ({ input }) =>
+        onWire(
+          await this.transactions.run((exec) =>
+            this.guests.transcribeDocument(exec, {
+              guestId: input.guestId,
+              cccdNumber: input.cccdNumber,
+              dateOfBirth: input.dateOfBirth,
+              nationality: input.nationality,
+            }),
+          ),
+        ),
     );
   }
 

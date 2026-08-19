@@ -1,4 +1,4 @@
-/* The arrivals screen's reads and its four writes.
+/* The arrivals screen's reads and its five writes.
  *
  * **Two requests draw the whole queue.** The housekeeping board answers the
  * property's day *and* the rooms a guest can be walked into, and the operational
@@ -252,6 +252,39 @@ export function usePostDeposit() {
       } satisfies ConsoleMeta,
       onSuccess: () => {
         void queryClient.invalidateQueries({ queryKey: orpc.folio.key() });
+      },
+    }),
+  );
+}
+
+/**
+ * The particulars the desk read off a returning guest's document — `FR-GST-02`.
+ *
+ * The other half of the lookup above. Picking the record the property already
+ * has is what stops a second one being created, and it is also what leaves the
+ * typed particulars nowhere to go: check-in names a known guest by id and
+ * carries nothing else about them. This is where they go instead, and it is a
+ * write onto the guest rather than onto the stay — which is why it is not the
+ * check-in's business and does not wait for it.
+ *
+ * Sending the same three facts again writes the same record, so the retry a
+ * desk performs after a connection it never saw answer costs nothing.
+ *
+ * The search is invalidated after it, because the search is what the lookup
+ * draws its masked number from: a desk that transcribed a number and then
+ * opened the next arrival for the same guest would otherwise be told the
+ * property still has nothing on file.
+ */
+export function useTranscribeDocument() {
+  const queryClient = useQueryClient();
+
+  return useMutation(
+    orpc.guest.transcribeDocument.mutationOptions({
+      meta: {
+        errorMessage: "The document particulars could not be recorded.",
+      } satisfies ConsoleMeta,
+      onSuccess: () => {
+        void queryClient.invalidateQueries({ queryKey: orpc.search.key() });
       },
     }),
   );

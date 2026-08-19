@@ -2,17 +2,24 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   ACCOUNT_LINK_PARAM,
   addressWithoutLink,
+  announceArrival,
+  arriveAtStay,
   attachStay,
   createAccountFrom,
   exchangeStayLink,
+  forgetArrival,
   isUnattached,
   linkInFragment,
   openStay,
   STAY_LINK_PARAM,
+  whenArrived,
 } from "./booking-links";
 
 const STAY = "0f8fad5b-d9cb-469f-a165-70867728950e";
 const REFERENCE = "MRV4K2QX";
+
+/** A second booking, for the stay a guest moves on to. */
+const OTHER_REFERENCE = "MRV7T1ZP";
 
 /**
  * The credential as the API mints it — opaque, signed, and the one thing on this
@@ -79,7 +86,12 @@ function serving(answers: Answers): Request[] {
 const REDEMPTION = "/bookings/stay-links/redemption";
 const ACCOUNT = "/bookings/account-links/redemption";
 const READ = `/bookings/mine/${REFERENCE}`;
+const OTHER_READ = `/bookings/mine/${OTHER_REFERENCE}`;
 const ATTACHMENT = `/bookings/${STAY}/attachment`;
+
+/** Where each caught request went. */
+const paths = (sent: readonly Request[]) =>
+  sent.map((request) => new URL(request.url).pathname);
 
 const redeemed = {
   status: 200,
@@ -186,10 +198,7 @@ describe("opening a stay from the confirmation email", () => {
 
     expect(arrival.refusal).toBeUndefined();
     expect(arrival.stay?.reference).toBe(REFERENCE);
-    expect(sent.map((request) => new URL(request.url).pathname)).toEqual([
-      REDEMPTION,
-      READ,
-    ]);
+    expect(paths(sent)).toEqual([REDEMPTION, READ]);
   });
 
   it("still shows the stay when the link has already been spent", async () => {
@@ -220,6 +229,197 @@ describe("opening a stay from the confirmation email", () => {
 
     expect(arrival.stay?.reference).toBe(REFERENCE);
     expect(sent).toHaveLength(1);
+  });
+});
+
+/**
+ * The arrival as the whole stay route shares it.
+ *
+ * **The credential is good once and more than one component needs the cookie it
+ * buys.** The screen renders the booking and the cancellation panel asks what
+ * calling it off would cost; they mount together, so the panel's question would
+ * otherwise go out before the exchange has answered and be refused for want of
+ * a credential — and a refused quote draws nothing, which hides the cancel
+ * affordance from the guest reading the confirmation email on a second device.
+ * What is asserted here is the ordering that replaced the waiting.
+ */
+describe("arriving at a stay once for the whole route", () => {
+  /** A turn of the loop, for asserting that something has *not* happened yet. */
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  afterEach(() => {
+    forgetArrival(REFERENCE);
+    forgetArrival(OTHER_REFERENCE);
+  });
+
+  it("spends the credential once however many callers join the arrival", async () => {
+    const sent = serving({
+      [REDEMPTION]: redeemed,
+      [READ]: { status: 200, body: BOOKING },
+    });
+
+    const presented = { read: true, link: LINK };
+
+    const [joined, joining] = await Promise.all([
+      arriveAtStay(REFERENCE, presented),
+      arriveAtStay(REFERENCE, presented),
+    ]);
+
+    expect(joined).toBe(joining);
+    expect(joined.stay?.reference).toBe(REFERENCE);
+    expect(paths(sent)).toEqual([REDEMPTION, READ]);
+  });
+
+  // A component survives a change of route parameter, so the arrival it asks
+  // for next is about another booking entirely. Answering it with the last
+  // one's would put one stay's details under another one's reference.
+  it("gives a second stay its own arrival rather than the first one's", async () => {
+    const sent = serving({
+      [REDEMPTION]: redeemed,
+      [READ]: { status: 200, body: BOOKING },
+      [OTHER_READ]: {
+        status: 200,
+        body: { ...BOOKING, reference: OTHER_REFERENCE },
+      },
+    });
+
+    const first = await arriveAtStay(REFERENCE, { read: true, link: LINK });
+    const second = await arriveAtStay(OTHER_REFERENCE, {
+      read: true,
+      link: null,
+    });
+
+    expect(first.stay?.reference).toBe(REFERENCE);
+    expect(second.stay?.reference).toBe(OTHER_REFERENCE);
+    expect(paths(sent)).toEqual([REDEMPTION, READ, OTHER_READ]);
+  });
+
+  // The screen's first pass runs before the address has been consulted, so it
+  // has no link to spend yet — but the panel beside it asks its question in
+  // that same commit. Announcing the arrival there is what gives the panel
+  // something to wait on rather than a refusal to interpret.
+  it("holds a reader from before the address has been read until the link is spent", async () => {
+    const sent = serving({
+      [REDEMPTION]: redeemed,
+      [READ]: { status: 200, body: BOOKING },
+    });
+
+    void arriveAtStay(REFERENCE, { read: false, link: null });
+
+    let arrived = false;
+
+    void whenArrived(REFERENCE).then(() => {
+      arrived = true;
+    });
+
+    await settle();
+
+    expect(arrived).toBe(false);
+    expect(sent).toHaveLength(0);
+
+    await arriveAtStay(REFERENCE, { read: true, link: LINK });
+    await settle();
+
+    expect(arrived).toBe(true);
+    expect(paths(sent)).toEqual([REDEMPTION, READ]);
+  });
+
+  // The composer announces during its own render, before either child has run
+  // — this is that announcement on its own, with nothing yet driving it.
+  it("holds a reader announced alone until the credential is spent", async () => {
+    const sent = serving({
+      [REDEMPTION]: redeemed,
+      [READ]: { status: 200, body: BOOKING },
+    });
+
+    announceArrival(REFERENCE);
+
+    let arrived = false;
+
+    void whenArrived(REFERENCE).then(() => {
+      arrived = true;
+    });
+
+    await settle();
+
+    expect(arrived).toBe(false);
+    expect(sent).toHaveLength(0);
+
+    await arriveAtStay(REFERENCE, { read: true, link: LINK });
+    await settle();
+
+    expect(arrived).toBe(true);
+    expect(paths(sent)).toEqual([REDEMPTION, READ]);
+  });
+
+  // The composer re-renders for reasons that have nothing to do with the
+  // arrival, so it announces on every one of them — the second announcement
+  // must find the first rather than starting a competing arrival.
+  it("makes one arrival however many times it is announced", async () => {
+    const sent = serving({
+      [REDEMPTION]: redeemed,
+      [READ]: { status: 200, body: BOOKING },
+    });
+
+    announceArrival(REFERENCE);
+    announceArrival(REFERENCE);
+
+    await arriveAtStay(REFERENCE, { read: true, link: LINK });
+
+    expect(paths(sent)).toEqual([REDEMPTION, READ]);
+  });
+
+  // The ordinary signed-in read. There is no exchange coming, so there is
+  // nothing to wait behind — a request that never answers stands here for the
+  // round trip a reader must not be queued behind.
+  it("lets a guest who presented no link through without waiting for the read", async () => {
+    vi.stubGlobal("fetch", () => new Promise(() => {}));
+
+    void arriveAtStay(REFERENCE, { read: false, link: null });
+
+    let arrived = false;
+
+    void whenArrived(REFERENCE).then(() => {
+      arrived = true;
+    });
+
+    void arriveAtStay(REFERENCE, { read: true, link: null });
+    await settle();
+
+    expect(arrived).toBe(true);
+  });
+
+  // A reader spends nothing and starts nothing, so a component asking about a
+  // stay no screen is opening carries on exactly as it did before any of this.
+  it("does not make a reader wait on a stay nobody is opening", async () => {
+    let arrived = false;
+
+    void whenArrived(REFERENCE).then(() => {
+      arrived = true;
+    });
+
+    await settle();
+
+    expect(arrived).toBe(true);
+  });
+
+  // An arrival is remembered so it is not made twice, which stops being right
+  // the moment the booking moves: a cancellation changes the very row the
+  // arrival answered with.
+  it("reads the stay again once the arrival has been forgotten", async () => {
+    const sent = serving({ [READ]: { status: 200, body: BOOKING } });
+
+    const presented = { read: true, link: null };
+
+    await arriveAtStay(REFERENCE, presented);
+    await arriveAtStay(REFERENCE, presented);
+
+    expect(paths(sent)).toEqual([READ]);
+
+    forgetArrival(REFERENCE);
+    await arriveAtStay(REFERENCE, presented);
+
+    expect(paths(sent)).toEqual([READ, READ]);
   });
 });
 

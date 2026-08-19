@@ -14,9 +14,13 @@ import {
   assignableRooms,
   type CheckInStep,
   checkInRefusal,
+  type ChosenGuest,
   depositDue,
+  documentTranscription,
   type GuestHit,
+  orNothing,
   parseAmount,
+  type Particulars,
   parseBirthDate,
   refusalSentence,
   refusalStep,
@@ -24,6 +28,7 @@ import {
   type SequenceFacts,
   sequenceSteps,
   stepAfter,
+  transcriptionRefusal,
 } from "./arrival-queue";
 import {
   useAssignRoom,
@@ -31,6 +36,7 @@ import {
   useCheckIn,
   useGuestMatches,
   usePostDeposit,
+  useTranscribeDocument,
 } from "./arrivals-queries";
 import { FilterList, type FilterOption } from "./filter-list";
 
@@ -72,9 +78,21 @@ import { FilterList, type FilterOption } from "./filter-list";
  * does not offer the alternative — `booking.check-in` refuses a stay holding no
  * room, so the assignment is a separate call whatever this screen does with it.
  *
- * Both are idempotent in the way that matters here: assigning the same room
- * twice leaves the booking holding that room, and the deposit step is left
- * behind once it is answered.
+ * A returning guest's document particulars are written on the same rule and for
+ * the same first reason — a number the property already holds on somebody else
+ * has to be refused where the digits were typed. `FR-GST-02` adds one of its
+ * own: Nghị định 96/2016/NĐ-CP Điều 44 wants the particulars recorded *before*
+ * the room changes hands, and a write ordered after the transition would be a
+ * stay that began without them every time the second call failed. A guest being
+ * registered now is the exception that proves the shape — they have no id yet,
+ * so their particulars travel inside the check-in that creates the record.
+ *
+ * All three are idempotent in the way that matters here: assigning the same
+ * room twice leaves the booking holding that room, the deposit step is left
+ * behind once it is answered, and the same three particulars sent twice leave
+ * the guest record saying exactly what the card said. So a step that refuses is
+ * a step the operator presses again, and Escape after any of them abandons the
+ * check-in without unsaying what was already true.
  *
  * ## Landing the room refusal
  *
@@ -104,20 +122,6 @@ export interface CheckInSequenceProps {
   onCancel(): void;
   /** The stay is in the building. The queue moves to the next arrival. */
   onCheckedIn(): void;
-}
-
-/** Which guest is going on the residence record. */
-type ChosenGuest =
-  | { readonly kind: "known"; readonly id: string; readonly name: string }
-  | { readonly kind: "new"; readonly name: string };
-
-/** What the document step collects, before any of it is trimmed or read. */
-interface Particulars {
-  fullName: string;
-  cccdNumber: string;
-  dateOfBirth: string;
-  nationality: string;
-  phone: string;
 }
 
 /** The synthetic row that registers whoever is being typed. */
@@ -174,10 +178,10 @@ function Sequence({
   const matches = useGuestMatches(guestQuery);
   const assignRoom = useAssignRoom();
   const postDeposit = usePostDeposit();
+  const transcribe = useTranscribeDocument();
   const checkIn = useCheckIn();
 
   const facts: SequenceFacts = {
-    knownGuest: guest?.kind === "known",
     // A deposit already posted inside this sequence is not a second one to
     // collect: the account is re-read after the posting, but the step is
     // finished either way.
@@ -185,6 +189,9 @@ function Sequence({
   };
 
   const steps = sequenceSteps(facts);
+
+  /** The guest as a record that already exists, or null while there is none. */
+  const known = guest?.kind === "known" ? guest : null;
 
   // The first control of whichever step is showing, re-focused on every step
   // change so the operator's hands never leave the keys to find out where the
@@ -205,17 +212,19 @@ function Sequence({
   useHotkeys("escape", onCancel, { enableInFormField: true });
 
   const busy =
-    assignRoom.isPending || postDeposit.isPending || checkIn.isPending;
+    assignRoom.isPending ||
+    postDeposit.isPending ||
+    transcribe.isPending ||
+    checkIn.isPending;
 
   /**
    * On to whatever the next step is, given what this one just settled.
    *
    * `learned` is not a convenience. State set in this handler is not readable
    * until the next render, so a step that decided how many steps there are —
-   * the guest step, which drops the document step by naming somebody the
-   * property already knows — would otherwise be routed against the answer that
-   * was true before the operator pressed Enter, and send them to a form for a
-   * record that already exists.
+   * the deposit step, which the posting it takes removes — would otherwise be
+   * routed against the answer that was true before the operator pressed Enter,
+   * and send them back to a step they have just finished.
    */
   function advance(from: CheckInStep, learned: Partial<SequenceFacts> = {}) {
     setProblem(null);
@@ -241,18 +250,25 @@ function Sequence({
     if (id === REGISTER_NEW) {
       setGuest({ kind: "new", name: typed });
       setParticulars((current) => ({ ...current, fullName: typed }));
-      advance("guest", { knownGuest: false });
+      advance("guest");
       return;
     }
 
-    const known = matches.find((one) => one.id === id);
+    const hit = matches.find((one) => one.id === id);
 
-    if (known === undefined) {
+    if (hit === undefined) {
       return;
     }
 
-    setGuest({ kind: "known", id: known.id, name: known.fullName });
-    advance("guest", { knownGuest: true });
+    setGuest({
+      kind: "known",
+      id: hit.id,
+      name: hit.fullName,
+      // Carried forward so the document step can show what the property
+      // already holds. Masked, because a queue is not `guest.unmask-cccd`.
+      cccdMasked: hit.cccdMasked,
+    });
+    advance("guest");
   }
 
   async function chooseRoom(number: string) {
@@ -284,10 +300,31 @@ function Sequence({
     advance("room");
   }
 
-  function submitParticulars() {
-    const name = particulars.fullName.trim();
+  /**
+   * The document step, answered — and for a returning guest, recorded.
+   *
+   * The write happens here rather than being held back to the check-in, which
+   * is the order the room and the deposit are written in and is that argument
+   * applied to a third write: a number the property already has on another
+   * record must be refused at the field the digits were typed into, where the
+   * operator can read them again, and not inside a check-in that has already
+   * assigned a room and posted money. It is also the order Điều 44 asks for —
+   * the particulars are on the record before the room changes hands, not
+   * after — and the one that survives an abandoned sequence honestly: what was
+   * read off the card is true of that person whether or not this stay goes on,
+   * which is what the step's own footnote says about a posted deposit.
+   *
+   * Safe to repeat, because the route is. A refusal leaves the sequence on this
+   * step with the fields as they were, so Enter sends the same three facts
+   * again and the record ends up saying what the card says.
+   *
+   * A guest being registered now writes nothing here: their particulars travel
+   * with the check-in that creates them, in that transition's transaction.
+   */
+  async function submitParticulars() {
+    const newGuest = guest?.kind !== "known";
 
-    if (name === "") {
+    if (newGuest && particulars.fullName.trim() === "") {
       setProblem("The residence record needs the guest's name.");
       return;
     }
@@ -298,6 +335,20 @@ function Sequence({
     ) {
       setProblem("Write the date of birth as YYYY-MM-DD.");
       return;
+    }
+
+    const read = documentTranscription(guest, particulars);
+
+    if (read !== null) {
+      try {
+        await transcribe.mutateAsync(read);
+      } catch (error) {
+        // Beside the field, for `chooseRoom`'s reason: the central toast says
+        // it once and briefly, and an operator who looked away is left with a
+        // press that did nothing and no account of why.
+        setProblem(transcriptionRefusal(error));
+        return;
+      }
     }
 
     advance("identity");
@@ -393,22 +444,31 @@ function Sequence({
                 input first for that reason. `FR-GST-02`: the particulars are
                 transcribed and the image is never stored, which is why there
                 is nothing to upload on this step. */}
-            Read from the guest's document. Nothing is stored but these
-            particulars.
+            {known === null
+              ? "Read from the guest's document. Nothing is stored but these particulars."
+              : whatIsOnFile(known)}
           </p>
 
           <div className="mt-rhythm-1 grid gap-3 sm:grid-cols-2">
-            <Field
-              label="Full name"
-              inputRef={firstControl}
-              value={particulars.fullName}
-              onChange={(fullName) => {
-                setParticulars((current) => ({ ...current, fullName }));
-              }}
-              required
-            />
+            {/* The name is the new guest's to give and the returning guest's
+                already: their record was found by it, and the transcription
+                route takes no name — a box that writes nothing is worse than
+                no box, because a desk that corrects a misspelling in it would
+                be told the correction landed. */}
+            {known === null ? (
+              <Field
+                label="Full name"
+                inputRef={firstControl}
+                value={particulars.fullName}
+                onChange={(fullName) => {
+                  setParticulars((current) => ({ ...current, fullName }));
+                }}
+                required
+              />
+            ) : null}
             <Field
               label="CCCD number"
+              inputRef={known === null ? undefined : firstControl}
               value={particulars.cccdNumber}
               onChange={(cccdNumber) => {
                 setParticulars((current) => ({ ...current, cccdNumber }));
@@ -429,13 +489,18 @@ function Sequence({
                 setParticulars((current) => ({ ...current, nationality }));
               }}
             />
-            <Field
-              label="Telephone"
-              value={particulars.phone}
-              onChange={(phone) => {
-                setParticulars((current) => ({ ...current, phone }));
-              }}
-            />
+            {/* The telephone is not a particular of a document and the
+                transcription route does not take one. It stays on the new
+                guest's form, where it travels with the record being created. */}
+            {known === null ? (
+              <Field
+                label="Telephone"
+                value={particulars.phone}
+                onChange={(phone) => {
+                  setParticulars((current) => ({ ...current, phone }));
+                }}
+              />
+            ) : null}
           </div>
         </Step>
       ) : null}
@@ -496,6 +561,7 @@ function Sequence({
           <dl className="grid gap-2 text-sm sm:grid-cols-2">
             <Fact label="Stay" value={arrival.reference} />
             <Fact label="Guest" value={guest?.name ?? "Nobody named"} />
+            <Fact label="Document" value={documentFact(guest, particulars)} />
             <Fact label="Room" value={roomNumber ?? "None held"} />
             <Fact
               label="Deposit"
@@ -720,6 +786,53 @@ function nothingToOffer(
     : `Every ready ${arrival.roomType} is held by another stay across these nights. The stay needs a different type or different dates.`;
 }
 
+/**
+ * What the property already holds about this guest's document, said on the step
+ * that would otherwise ask for it again.
+ *
+ * The masked number and never the digits — `FR-GST-03` puts the reveal behind
+ * its own capability and its own audit row, and the Guests screen is where that
+ * control lives. Masked is enough for what this step is for: a receptionist
+ * looking at the last four on the card in their hand can see the property has
+ * this person's number and leave the box alone.
+ */
+function whatIsOnFile(known: Extract<ChosenGuest, { kind: "known" }>): string {
+  return known.cccdMasked === null
+    ? `The property has no identity number for ${known.name}. Read one off their document — an empty box records nothing.`
+    : `The property holds ${known.cccdMasked} for ${known.name}. Leave a box empty to keep what is on file; type to correct it.`;
+}
+
+/**
+ * What the review says about the residence record's identity particulars.
+ *
+ * Three different afternoons. A guest being registered now carries their
+ * document into the check-in itself, so nothing has been written yet and the
+ * line says so. A returning guest whose document was read at this desk has
+ * already had it recorded — the step wrote it — and one whose box was left
+ * empty is shown what the property had before they arrived, which is the fact
+ * the operator is confirming.
+ */
+function documentFact(
+  guest: ChosenGuest | null,
+  particulars: Particulars,
+): string {
+  if (guest === null) {
+    return "Nobody named";
+  }
+
+  if (guest.kind === "new") {
+    return orNothing(particulars.cccdNumber) === null
+      ? "No number taken"
+      : "Taken with the registration";
+  }
+
+  if (documentTranscription(guest, particulars) !== null) {
+    return "Recorded from the document";
+  }
+
+  return guest.cccdMasked ?? "Nothing on file";
+}
+
 function roomHint(arrival: Arrival, held: string | null): string {
   const sold = `Ready ${arrival.roomType} rooms with nobody in them.`;
 
@@ -731,7 +844,10 @@ function roomHint(arrival: Arrival, held: string | null): string {
  *
  * A guest the property already has is named by id and nothing else: the union's
  * first branch drops any details beside it, and sending them would either be
- * ignored or create the duplicate record the CCCD's unique key refuses.
+ * ignored or create the duplicate record the CCCD's unique key refuses. What
+ * the desk typed about them went to `guest.transcribeDocument` at the document
+ * step instead — {@link documentTranscription} — which is a write onto the
+ * person and not onto the stay.
  *
  * A blank optional field travels as `null` rather than as `""`. The contract
  * takes both — every one of them is `nullish` — and the empty string is the
@@ -753,10 +869,4 @@ function asCheckInGuest(guest: ChosenGuest, particulars: Particulars) {
     // date it cannot read, so `null` here is a field left blank.
     dateOfBirth: parseBirthDate(particulars.dateOfBirth),
   };
-}
-
-function orNothing(value: string): string | null {
-  const trimmed = value.trim();
-
-  return trimmed === "" ? null : trimmed;
 }

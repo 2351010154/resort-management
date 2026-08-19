@@ -120,7 +120,6 @@ Legend: ✅ full · 👁 read-only · ⚠ conditional, see notes · — denied
 | Keep own hold alive | ⚠ | — | — | — | — | — | Own hold only; session or booking token. The funnel saying the guest is still there, so a hold dies at the earlier of its TTL and a grace after the last sighting. Cooperative and never a defence — it can only shorten a hold, and no cap was relaxed for it: `booking-state-machine.md` §3 |
 | Cancel own booking | ⚠ | — | — | — | — | — | Own, penalty per policy; session or booking token |
 | Own profile, loyalty, VIP tier | ⚠ | 👁 | — | — | 👁 | 👁 | Also governs adding a stay to the account that is reading it (`POST /bookings/{bookingId}/attachment`). Session **and** booking token: the row is not one a booking token opens, so the guard requires the session and the handler requires the cookie to name the stay in the path |
-| Upload own ID scan | ⚠ | — | — | — | — | — | |
 | Post-stay feedback | ⚠ | — | — | — | 👁 | 👁 | Tied to a `CHECKED_OUT` booking |
 
 ### Bookings and front desk
@@ -185,7 +184,7 @@ Legend: ✅ full · 👁 read-only · ⚠ conditional, see notes · — denied
 |---|:-:|:-:|:-:|:-:|:-:|:-:|---|
 | Read guest record, CCCD masked | — | ✅ | — | ✅ | ✅ | ✅ | |
 | Unmask CCCD number | — | ⚠ | — | — | ✅ | ✅ | Audit-logged per call |
-| Upload ID scan | ⚠ | ✅ | — | — | ✅ | ✅ | Own, for guest. Transcribe-and-discard — the image is never stored (`FR-GST-02`) |
+| Upload ID scan | — | ✅ | — | — | ✅ | ✅ | Transcribe-and-discard — the image is never stored (`FR-GST-02`) |
 
 No row views a scan image and no row deletes one. Neither is a permission this
 matrix withholds; both are permissions over an object that does not exist,
@@ -193,6 +192,18 @@ because `FR-GST-02` checks the document, records its particulars on the
 registration and keeps no picture. A row granting `MANAGER` a look at a file
 nothing writes would read as an oversight the first time somebody built the
 screen.
+
+The guest column is denied here, and there is no separate guest row beside it.
+`FR-GST-02` names one obligation — the particulars are recorded before the room
+changes hands — and Nghị định 96/2016/NĐ-CP Điều 44 lays it on the property, not
+on the arriving guest. The desk discharges it: check-in transcribes the document
+into the registration record, typed, with the scanner emulating a keyboard and
+no image needed at all. A guest-side channel would have been a convenience
+ahead of arrival rather than a second way to satisfy the rule, so it buys
+nothing the desk does not already deliver and costs the one thing this section
+is built to avoid — a second surface where document bytes arrive, each needing
+its own account of where they go. Nothing is withheld from the guest by this,
+because there was never a guest-held obligation for the row to serve.
 
 ### Reports and audit
 

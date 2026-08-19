@@ -1,0 +1,172 @@
+/* The cancellation panel under an upcoming stay.
+ *
+ * The column, the rule above the heading and the caps label are the feedback
+ * panel's — the two are siblings on one route, and a panel that set its own
+ * width or its own heading treatment would read as a second page pasted under
+ * the first. The charge row is the stay summary's total row, deliberately: the
+ * guest has just read one figure in that shape a few centimetres above, and the
+ * one they are being asked to weigh against it should be read the same way.
+ *
+ * **The destructive press is not the loudest thing here.** The filled umber
+ * button belongs to the act a screen is asking for, and this screen is not
+ * asking for a cancellation — it is answering a guest who went looking for one.
+ * So the offer is quiet, and the fill appears only on the second press, once
+ * the guest has said which of the two they mean.
+ *
+ * Everything reads from @mariva/tokens — design-foundations.md §2. Motion is CSS
+ * only, on the permitted properties, at 0.4s on --ease-ui: §5.
+ */
+
+.panel {
+  width: 100%;
+  max-width: 34rem;
+  margin: 0 auto;
+  padding: 0 var(--space-2) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  background: var(--ivory);
+  color: var(--ink);
+}
+
+.heading {
+  padding-top: var(--space-3);
+  border-top: 1px solid rgb(var(--umber-rgb) / 0.15);
+  color: var(--stone-deep);
+}
+
+/* A headline states, a caption qualifies — design-foundations.md §6. */
+.cost,
+.refund {
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--stone-deep);
+}
+
+/* The act, once it has happened. Set in the ink the stay itself is set in
+   rather than in the muted caption colour: it is the fact of the page now. */
+.done {
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--ink);
+}
+
+.done:focus-visible {
+  outline: 2px solid var(--dusk-amber);
+  outline-offset: 4px;
+}
+
+.charge {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) 0;
+  border-top: 1px solid rgb(var(--umber-rgb) / 0.15);
+  border-bottom: 1px solid rgb(var(--umber-rgb) / 0.15);
+}
+
+.chargeLabel {
+  font-family: var(--font-ui), sans-serif;
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--stone-deep);
+}
+
+/* `--text-lg` and not a display step, for the stay total's reason: it sits
+   beside its own label in a row, and a display size would out-shout the
+   question the panel is asking. */
+.chargeAmount {
+  font-size: var(--text-lg);
+  font-weight: 400;
+  font-variant-numeric: tabular-nums;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+/* Underlined rather than boxed, like the stay screen's own secondary control.
+   Cancelling is something a guest goes looking for; a button competing with the
+   page would be the property suggesting it. */
+.arm,
+.keep {
+  align-self: flex-start;
+  padding: 0;
+  color: var(--stone-deep);
+  background: none;
+  border: none;
+  border-bottom: 1px solid transparent;
+  cursor: pointer;
+  transition:
+    color 0.4s var(--ease-ui),
+    border-color 0.4s var(--ease-ui);
+}
+
+.arm:hover,
+.keep:hover {
+  color: var(--umber);
+  border-bottom-color: var(--umber);
+}
+
+.arm:focus-visible,
+.keep:focus-visible,
+.confirm:focus-visible {
+  outline: 2px solid var(--dusk-amber);
+  outline-offset: 4px;
+}
+
+/* The second press. Set apart from everything above it, because a rule and a
+   paragraph of consequence sit between the guest and this. */
+.confirming {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding-top: var(--space-1);
+}
+
+.prompt {
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  padding-left: var(--space-1);
+  border-left: 2px solid var(--umber);
+  color: var(--ink);
+}
+
+/* Announced when it arrives, because it arrives after a round trip. */
+.error {
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  padding-left: var(--space-1);
+  border-left: 2px solid var(--umber);
+  color: var(--umber);
+}
+
+.confirm {
+  padding: 0.9rem var(--space-3);
+  color: var(--ivory);
+  background: var(--umber);
+  border: 1px solid var(--umber);
+  cursor: pointer;
+  transition:
+    background-color 0.4s var(--ease-ui),
+    color 0.4s var(--ease-ui),
+    border-color 0.4s var(--ease-ui);
+}
+
+.confirm:hover:not(:disabled) {
+  color: var(--umber);
+  background: transparent;
+}
+
+.confirm:disabled {
+  cursor: default;
+  color: rgb(var(--ivory-rgb) / 0.6);
+  background: var(--stone);
+  border-color: var(--stone);
+}

@@ -28,6 +28,23 @@
 // which is the other half of this file, is a different subject entirely and
 // {@link guestProfileSchema} says why.
 //
+// ## What the document said — `FR-GST-02`
+//
+// One more staff route, and it is not the edit path the paragraph above
+// refuses. A returning guest is named at check-in by id, which is what stops
+// the desk creating a second record of one person — and it also means the
+// particulars typed beside the id go nowhere, so a guest whose document was
+// never transcribed could never gain one afterwards. Nghị định 96/2016/NĐ-CP
+// Điều 44 obliges the property to have them before the room changes hands, so
+// the desk needs somewhere to put them, and {@link transcribeDocumentInput} is
+// that place: the three facts a card carries, typed, for one named guest.
+//
+// It is the staff realm's route and there is no guest-side counterpart, which
+// `rbac-matrix.md` §3 argues at length — the obligation is the property's, the
+// desk discharges it by transcription, and a second surface would be a
+// convenience that buys nothing and costs an account of where document bytes
+// went.
+//
 // ## The guest's own profile — `FR-GST-01`
 //
 // The second half of the file is the same domain read from the other side: two
@@ -96,6 +113,65 @@ export const cccdRevealSchema = z.object({
   unmaskedBy: z.uuid(),
   unmaskedAt: z.iso.datetime(),
 });
+
+/**
+ * The particulars read off an identity document at the desk — `FR-GST-02`'s
+ * transcription, stated as an input.
+ *
+ * **Nothing here is a document.** The desk reads the card, types what it says
+ * and hands it back; what crosses the wire is three facts and no bytes, which
+ * is why the route below is named after the particulars and not after the thing
+ * they were read from. `NFR-08` counts identity-document images at rest and
+ * calls the count structural — an input shaped like an upload is where that
+ * erodes first, because bytes that arrive have to be somewhere before anybody
+ * can claim they were dropped. These never arrive.
+ *
+ * **Three fields, and the name is deliberately not a fourth.** The name is what
+ * the desk identified the guest by before it reached this route, and a route
+ * that could rewrite it would be the general edit path over a guest record that
+ * this file's header says does not exist. What is missing from the record after
+ * a check-in that named a returning guest is the document's own particulars,
+ * and that is exactly what this takes.
+ *
+ * **Absent leaves a field alone; `null` is refused.** `.optional()` and not
+ * `.nullish()`, deliberately unlike {@link updateProfileInput} in the same
+ * file: a guest clearing their own nationality is saying something true about a
+ * profile, while an identity number cleared at a desk is the statutory record
+ * losing the fact Nghị định 96/2016/NĐ-CP Điều 44 obliged the property to take
+ * before the room changed hands. This route records what a document said. It
+ * has no vocabulary for taking one back, so there is no spelling for clearing
+ * and a caller who means to change nothing sends nothing.
+ *
+ * At least one particular, because a body naming none is a transcription
+ * nobody performed. It is a `400` rather than a `200` from a handler that wrote
+ * nothing — that reply is the one which tells a desk its typing landed when it
+ * did not, which is {@link updateProfileInput}'s argument for being strict,
+ * applied to the empty body instead of to the unknown key.
+ *
+ * Bounded where `checkInGuestSchema` bounds the same three facts, so a value
+ * the desk may type into a check-in is never refused by the route that exists
+ * to record it afterwards. The minimum is this schema's own addition: check-in
+ * reads a blank field as nothing given, and a blank here would be the clearing
+ * that has no spelling — `guest_cccd_present_when_set` refuses to store the
+ * difference in any case.
+ *
+ * `dateOfBirth` decodes `YYYY-MM-DD` into a `CalendarDate`, per `stay-date.ts`
+ * and `NFR-12`: a request carries the codec and the response carries the text.
+ */
+export const transcribeDocumentInput = z
+  .strictObject({
+    ...guestIdFields,
+    cccdNumber: z.string().trim().min(1).max(20).optional(),
+    dateOfBirth: stayDateSchema.optional(),
+    nationality: z.string().trim().min(1).max(60).optional(),
+  })
+  .refine(
+    (read) =>
+      read.cccdNumber !== undefined ||
+      read.dateOfBirth !== undefined ||
+      read.nationality !== undefined,
+    { message: "a transcription records at least one particular" },
+  );
 
 /**
  * The three rungs of `property-and-tariff.md` §7's ladder, as a guest is shown
@@ -210,6 +286,29 @@ export const guest = {
     .route({ method: "POST", path: "/guests/{guestId}/cccd-reveals" })
     .input(unmaskCccdInput)
     .output(cccdRevealSchema),
+
+  transcribeDocument: oc
+    // The noun in the path is the whole naming argument. What the desk performs
+    // is a reading of a card, so the path names the facts read off it — never
+    // the card, the picture, or the act of handing one over. "Upload" and
+    // "scan" both describe a request carrying bytes, and `NFR-08` is the
+    // promise that no request in this tree ever does; a path that said either
+    // would invite the storage nobody built and would read, to the next person,
+    // as the place to put it.
+    //
+    // POST rather than PATCH, for the reason one route above: the call is an
+    // act performed at a moment — this document, read at this desk — and not a
+    // field-level edit of a record, which is why {@link updateProfileInput}'s
+    // `PATCH` is next door and this is not one. Sending it twice writes the
+    // same three facts, so a desk that pressed again after a lost connection
+    // ends with the record the card describes rather than a second anything.
+    .route({ method: "POST", path: "/guests/{guestId}/document-particulars" })
+    .input(transcribeDocumentInput)
+    // The masked record, never the digits. Writing a number down is not being
+    // shown one: `guest.unmask-cccd` stays the only audited way to read them,
+    // and a route that echoed back what it had just stored would be a second,
+    // unaudited way that looks like a receipt.
+    .output(guestRecordSchema),
 
   // ── The guest's own record of themselves — `FR-GST-01` ─────────────────────
 

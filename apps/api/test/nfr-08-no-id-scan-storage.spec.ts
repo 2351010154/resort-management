@@ -449,9 +449,15 @@ describe("identity-document images are never stored (FR-GST-02, NFR-08)", () => 
     });
 
     // The counterpart to the case above, and the reason the bare nouns are not
-    // tokens: these two capability keys are in the tree today and are the
-    // requirement working — a scan may be handed *in*, never handed back.
-    it("passes the upload capabilities the matrix already carries", () => {
+    // tokens: handing a scan *in* is the requirement working, and only handing
+    // one back breaks it.
+    //
+    // `guest.id-scan.upload` is the matrix's surviving row. `-own` is not in
+    // the tree — the guest-side channel was dropped, because recording the
+    // particulars is the property's obligation and check-in discharges it by
+    // transcription — and it stays in this fixture as a spelling the detector
+    // must not trip on, so a suffix cannot start matching unnoticed.
+    it("passes an upload capability, with or without the -own suffix", () => {
       const findings = scanSource(
         "synthetic.ts",
         '{ key: "guest.id-scan.upload-own" },\n{ key: "guest.id-scan.upload" },',

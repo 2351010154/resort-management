@@ -20,6 +20,12 @@
 // naming a victim's address. What a redemption answers is a booking id and a
 // reference, and both are facts about the stay the caller already proved.
 //
+// **And a link is spent once, so arriving at a stay is one shared act rather
+// than one per component.** Everything on the stay route reads through the
+// cookie that exchange issues, and those components mount together;
+// `arriveAtStay` is where the arrival is begun, and `whenArrived` is how the
+// rest of the route waits for it instead of asking early and being refused.
+//
 // Every call resolves rather than throws, in `sign-in.ts`'s shape: each outcome
 // is something a screen has a sentence for, and the API's own sentence is
 // preferred over anything invented here — `booking.controller.ts` and
@@ -27,6 +33,7 @@
 // and only that side knows how long a link lives.
 
 import { api, apiMessage } from "@/lib/api";
+import type { PresentedLink } from "./use-presented-link";
 
 /**
  * A stay as the API answers it, inferred from the client rather than written
@@ -202,6 +209,153 @@ export async function openStay(
   } catch (error) {
     return { refusal: refused ?? apiMessage(error, MESSAGES.stay) };
   }
+}
+
+/**
+ * The arrivals this document has begun, one per stay, joined by everyone who
+ * asks about the same one.
+ *
+ * **The mailed credential is good once, and more than one component needs the
+ * cookie it buys.** The screen renders the booking and the cancellation panel
+ * asks what calling it off would cost, and a link spent twice would be a link
+ * found gone the second time — so the exchange has to be one shared act rather
+ * than one per component, whatever order the two components start in. Without
+ * something shared, the panel's question could go out before the exchange has
+ * issued the cookie that answers it, refused for want of a credential. A
+ * refused quote means the panel draws nothing, so the guest who most needs the
+ * cancel affordance — the one opening the confirmation email on a second
+ * device — is the one who would never see it. Waiting on the arrival is that
+ * fixed by ordering rather than by guessing how long a network takes.
+ *
+ * Keyed by the reference, because a component survives a change of route
+ * parameter and must never be answered about the booking before last. At module
+ * scope rather than in a ref, because the components joining are siblings and
+ * have nowhere else to meet.
+ *
+ * It lasts as long as the document: a settled arrival is remembered for the rest
+ * of the visit, and nothing evicts it, which is why {@link forgetArrival} exists
+ * for the one moment its answer stops being true.
+ */
+const arrivals = new Map<string, Arrival>();
+
+interface Arrival {
+  /** The stay this arrival came for, read once and handed to every asker. */
+  readonly answer: Promise<StayArrival>;
+  /**
+   * Resolved once the credential has been dealt with, which is the thing a
+   * reader of the arrival is actually waiting for: after it, the booking cookie
+   * is as good as this arrival is going to make it.
+   */
+  readonly admitted: Promise<void>;
+  /** Both of the above, settled — by whoever holds the link, and only once. */
+  readonly open: (answer: Promise<StayArrival>) => void;
+  readonly admit: () => void;
+  /** Whether the credential has been handed over. Not whether it existed. */
+  started: boolean;
+}
+
+/** The arrival for this stay, announced if this is the first anyone has heard
+ *  of it. Announcing is not starting: an arrival exists as something to wait
+ *  for from the moment a screen says it is coming. */
+function arrivalFor(reference: string): Arrival {
+  const waiting = arrivals.get(reference);
+
+  if (waiting !== undefined) {
+    return waiting;
+  }
+
+  let open!: (answer: Promise<StayArrival>) => void;
+  let admit!: () => void;
+
+  const answer = new Promise<StayArrival>((resolve) => {
+    open = resolve;
+  });
+  const admitted = new Promise<void>((resolve) => {
+    admit = resolve;
+  });
+
+  const arrival: Arrival = { answer, admitted, open, admit, started: false };
+
+  arrivals.set(reference, arrival);
+
+  return arrival;
+}
+
+/**
+ * This stay, said to be coming, by whoever knows a screen is about to open it.
+ *
+ * Announcing is not starting: it spends nothing, asks nothing, and reads no
+ * address. What it makes is something for the rest of the route to wait on —
+ * {@link whenArrived} answers at once for a stay nobody has announced, which is
+ * right for a component asking about a booking no screen is opening, and wrong
+ * for one asking a beat before the screen beside it has said anything.
+ *
+ * Idempotent, and meant to be called on every render for that reason: the
+ * second announcement of a stay finds the first and is the same arrival.
+ */
+export function announceArrival(reference: string): void {
+  arrivalFor(reference);
+}
+
+/**
+ * Arriving at a stay, once, however many times this is called.
+ *
+ * Called by the screen that holds the credential, on every pass of its effect:
+ * the first announces the arrival, before the address has been consulted and so
+ * before there is a link to spend, and the pass after that hands the credential
+ * over and starts it. A second run of the same effect — React's development
+ * double-invoke, a re-render while the exchange is in flight — finds the arrival
+ * already begun and joins it, which is what keeps the single-use link from being
+ * spent twice and found gone the second time.
+ *
+ * **A guest who presented no link is admitted straight away**, rather than at
+ * the end of a read they are already signed in for. There is no exchange coming,
+ * so there is nothing for a reader of this arrival to wait behind, and making
+ * one wait would put two requests in a queue that today go out together.
+ */
+export function arriveAtStay(
+  reference: string,
+  presented: PresentedLink,
+): Promise<StayArrival> {
+  const arrival = arrivalFor(reference);
+
+  if (presented.read && !arrival.started) {
+    arrival.started = true;
+    arrival.open(openStay(reference, presented.link));
+
+    if (presented.link === null) {
+      arrival.admit();
+    } else {
+      void arrival.answer.then(arrival.admit);
+    }
+  }
+
+  return arrival.answer;
+}
+
+/**
+ * The wait a component takes on before asking anything else about this stay.
+ *
+ * For a reader rather than a driver: it spends no credential and starts no
+ * arrival, so a component that asks about a stay nobody is opening is not left
+ * waiting for something that is never going to happen — it is answered at once
+ * and carries on exactly as it did before any of this existed.
+ */
+export function whenArrived(reference: string): Promise<void> {
+  return arrivals.get(reference)?.admitted ?? Promise.resolve();
+}
+
+/**
+ * The arrival forgotten, for a stay that is no longer what it said.
+ *
+ * An arrival is remembered so it is not made twice, which is right up to the
+ * moment the booking moves — a cancellation is the one act on this route that
+ * changes the very row the arrival answered with. Whoever moved it says so here,
+ * and the next arrival reads the stay again instead of repeating what was true
+ * before the press.
+ */
+export function forgetArrival(reference: string): void {
+  arrivals.delete(reference);
 }
 
 /**
