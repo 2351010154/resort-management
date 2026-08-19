@@ -57,9 +57,11 @@ export class AuditService {
    * established and is not a parameter, which is the point:
    * `common/audit/audit-actor.ts` argues that an actor a caller could pass is an
    * attribution a caller could choose. A write that reaches here with no actor
-   * is refused rather than filed anonymously — `audit_entry.actor_id` is
-   * `NOT NULL` and the schema says why, and the honest answer to an
-   * unattributable change is that it does not happen.
+   * is refused rather than filed anonymously — every row this service writes
+   * is a `staff` row, and `audit_entry_actor_check` demands an actor for one.
+   * The honest answer to an unattributable change made by a person is that it
+   * does not happen; the unattended writers file their own rows and name no
+   * account at all.
    *
    * An empty list is a no-op and not an error. A manager clearing a fortnight
    * that carried no rules changed nothing, and a log that recorded the gesture
@@ -86,6 +88,7 @@ export class AuditService {
 
     const values = entries.map(
       (entry) => sql`(
+        'staff'::audit_actor_kind,
         ${actor.staffUserId}::uuid,
         ${tableName},
         ${entry.rowId}::uuid,
@@ -100,7 +103,7 @@ export class AuditService {
     // the edit it describes.
     await exec.execute(sql`
       insert into audit_entry
-        (actor_id, table_name, row_id, action, "before", "after")
+        (actor_kind, actor_id, table_name, row_id, action, "before", "after")
       values ${sql.join(values, sql`, `)}
     `);
   }

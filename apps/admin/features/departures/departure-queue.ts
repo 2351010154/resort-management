@@ -296,32 +296,3 @@ export function refusalSentence(code: CheckOutRefusal): string {
       return "The account moved while this checkout was open. Read the charges again — what is outstanding now is below.";
   }
 }
-
-/**
- * A whole number of đồng typed by an operator, or null.
- *
- * `bigint`, because that is what the ledger is counted in and what the contract
- * takes — `money.ts` chose it precisely so an amount cannot be added to a night
- * or a percentage by accident.
- *
- * Spaces and full stops are dropped and a comma is not, which is the vi-VN
- * grouping mark and the vi-VN decimal mark respectively: a receptionist reading
- * "1.500.000 ₫" off the screen types the stops they can see, while a comma in a
- * đồng figure is somebody typing a minor unit the currency does not have — and
- * silently reading it as a grouping mark would post a hundredfold of what was
- * meant.
- *
- * Zero and less are refused, which is `postPaymentInput`'s own refusal applied
- * where the operator can still fix it rather than as a `400` after the press.
- */
-export function parseAmount(typed: string): bigint | null {
-  const digits = typed.replaceAll(/[\s.]/g, "");
-
-  if (!/^\d+$/.test(digits)) {
-    return null;
-  }
-
-  const amount = BigInt(digits);
-
-  return amount > 0n ? amount : null;
-}

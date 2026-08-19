@@ -652,6 +652,7 @@ async function settle(folioId: string, amount: bigint): Promise<string> {
     amount,
     businessDate: BUSINESS_DATE,
     description: "Card, ****4242",
+    method: null,
     postedBy: null,
   });
 }

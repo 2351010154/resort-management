@@ -101,6 +101,7 @@ import {
   desc,
   eq,
   gte,
+  inArray,
   lte,
   or,
   type SQL,
@@ -114,6 +115,10 @@ import {
 import { booking, bookingNight } from "../../database/schema/booking.js";
 import { folio, folioPosting } from "../../database/schema/folio.js";
 import { staffUser } from "../../database/schema/identity.js";
+import {
+  PAYMENT_METHODS,
+  payment as paymentTable,
+} from "../../database/schema/payment.js";
 import { sqlStateOf } from "../../database/sql-state.js";
 // The grid itself, imported as the pure function it is. `booking.module.ts`
 // imports this module to bind the port and importing that module back would be
@@ -214,6 +219,20 @@ interface SaleRequest extends PostingRequest {
 }
 
 /**
+ * How money reached the property when the desk is what took it.
+ *
+ * The property's methods less the gateway's, derived from the column's own list
+ * rather than written out again: `FR-PAY-06`'s second gateway joins that list
+ * and is excluded here by the same subtraction, with nobody having to remember
+ * a second one. `contract/folio.ts` performs the same exclusion on the wire and
+ * says why the gateway's method is a forgery boundary rather than an omission.
+ */
+export type DeskPaymentMethod = Exclude<
+  (typeof PAYMENT_METHODS)[number],
+  "VNPAY"
+>;
+
+/**
  * Money the property has received.
  *
  * The amount is what the guest handed over — a positive figure — and the ledger
@@ -224,6 +243,36 @@ interface SaleRequest extends PostingRequest {
  */
 export interface PaymentRequest extends PostingRequest {
   readonly amount: VndAmount;
+
+  /**
+   * Who wrote the payer's side of this money — required and explicitly
+   * nullable, so that every caller has to say.
+   *
+   * A desk method means nobody has, and this call writes the `payment` row
+   * beside the posting. `schema/payment.ts` argues at length why the two are not
+   * one fact recorded twice; the consequence for this method is that a desk
+   * collection recording only the guest's half leaves `NFR-02` — Σ postings =
+   * Σ payments + outstanding — with nothing to hold the ledger against.
+   *
+   * Null means the row is already there. `payment.service.ts` opens a gateway
+   * attempt by writing it and resolves it to `SUCCESS` when the callback lands,
+   * so a second row written here would double Σ payments for every đồng a
+   * gateway ever confirmed. Nullable rather than optional for the reason
+   * `GatewayPaymentRequest.guestAccountId` is: a field a caller may leave off is
+   * a field a caller may forget, and forgetting it is exactly the omission this
+   * one exists to make unrepresentable.
+   */
+  readonly method: DeskPaymentMethod | null;
+
+  /**
+   * The drawer the money was counted into, for the one method that reaches one.
+   *
+   * `payment_shift_binding` is a biconditional over `CASH` and this field is the
+   * whole of what satisfies it — `schema/shift.ts` says why the variance a
+   * receptionist explains at handover is computable only when every cash payment
+   * names its shift.
+   */
+  readonly shiftId?: string | null;
 }
 
 /**
@@ -943,13 +992,27 @@ export class FolioService implements FolioPort {
   }
 
   /**
-   * Money in — the same append-only path every other line takes.
+   * Money in — the same append-only path every other line takes, and the
+   * payer's side of it when the desk is what took it.
    *
    * Stored negative, so the balance stays a plain sum and zero stays settled.
    * A non-positive amount is refused here rather than at the `CHECK`, because
    * the constraint cannot tell a caller which of the two mistakes they made: a
    * payment of nothing is a receipt nobody issued, and a negative one is a
    * refund, which is a different line with a different sign and its own route.
+   *
+   * **Both sides, or neither.** The guest's account and the payer's report are
+   * two records of one movement — `schema/payment.ts` makes that argument and
+   * `NFR-02` is the comparison it exists for — so the desk's money goes on both
+   * in the caller's transaction and the pair cannot come apart. The gateway's
+   * caller says so by naming no method: its row was written when the attempt was
+   * opened, and {@link PaymentRequest.method} says what a second one here would
+   * do to the sum.
+   *
+   * The two rows name no key between them, which is `schema/payment.ts`'s own
+   * decision and not an omission: each already names the folio, and the id that
+   * comes back is the posting's, because a posting is what every other method
+   * here returns and what a reversal is later pointed at.
    */
   async postPayment(exec: DbExecutor, payment: PaymentRequest): Promise<string> {
     if (payment.amount <= 0n) {
@@ -957,6 +1020,26 @@ export class FolioService implements FolioPort {
         message:
           "A payment is money the property has received, so the amount is what " +
           "the guest handed over — returning money is a refund",
+      });
+    }
+
+    // `payment_shift_binding` in both of its directions, refused here for the
+    // reason the amount above is: the constraint is one biconditional and a
+    // `23514` off it cannot say which half the caller got wrong, while a desk
+    // that has just taken money needs an answer it can act on.
+    if (payment.method === "CASH" && payment.shiftId == null) {
+      throw new ORPCError("BAD_REQUEST", {
+        message:
+          "Cash is counted into a drawer, so a cash payment belongs to an open " +
+          "shift — đồng in the till under no shift is đồng nobody is answerable for",
+      });
+    }
+
+    if (payment.method !== "CASH" && payment.shiftId != null) {
+      throw new ORPCError("BAD_REQUEST", {
+        message:
+          "Only cash reaches the drawer, so money that never did cannot name a " +
+          "shift — counted into one it would leave the handover short by the whole of it",
       });
     }
 
@@ -970,6 +1053,42 @@ export class FolioService implements FolioPort {
         postedBy: payment.postedBy ?? null,
       },
     ]);
+
+    if (payment.method !== null) {
+      await exec.insert(paymentTable).values({
+        folioId: payment.folioId,
+        method: payment.method,
+        // The magnitude the guest handed over. The negation above belongs to the
+        // ledger alone — `schema/payment.ts` keeps the sign convention out of
+        // this column so that the reconciliation compares two figures rather
+        // than one convention applied twice.
+        amount: payment.amount,
+        // Money the desk has in hand. There is no attempt to be pending against
+        // and nothing further to wait for: the receptionist counted it, and the
+        // row says so the moment it is written.
+        status: "SUCCESS",
+        // The desk's clock, and here that is the payer's. `schema/payment.ts`
+        // refuses a gateway payment dated by this process because the gateway
+        // dates its own transactions and the drift is what `FR-PAY-05` catches —
+        // cash over the counter has no second clock to drift from, and a
+        // transfer is dated by the moment the desk confirmed it had landed.
+        paidAt: new Date(),
+        postedBy: payment.postedBy ?? null,
+        // Both null, and together they are what makes this row desk money to
+        // every reader of the table: `reconciliation.service.ts` defines the
+        // gateway's side as `attempt_reference is not null`, so the money the
+        // property collected itself is excluded from `FR-PAY-05` by construction
+        // rather than by a method test that would need widening per gateway.
+        attemptReference: null,
+        gatewayTransactionId: null,
+        shiftId: payment.shiftId ?? null,
+        // The line this row is the payer's side of, so that a later reversal
+        // can settle both halves of the movement rather than the ledger's
+        // alone. `schema/payment.ts` says why the key runs in this direction:
+        // the posting is written first and its id is already in hand here.
+        folioPostingId: postingId!,
+      });
+    }
 
     return postingId!;
   }
@@ -1023,7 +1142,7 @@ export class FolioService implements FolioPort {
 
     const businessDate = reversal.businessDate.toString();
 
-    return await this.write(
+    const written = await this.write(
       exec,
       undone.map((line) => ({
         folioId: line.folioId,
@@ -1038,6 +1157,40 @@ export class FolioService implements FolioPort {
         postedBy: reversal.postedBy,
       })),
     );
+
+    // The payer's side of whatever of that was desk money.
+    //
+    // `NFR-02` holds the ledger against the payment table, so a reversal that
+    // moved only the ledger would break the identity in the act of restoring
+    // it: the postings net to nothing and the `payment` row still says the
+    // property received the money. `REFUNDED` is what the column already means
+    // — `schema/payment.ts` calls it what became of this payment, and
+    // `payment_paid_at_exactly_when_money_moved` keeps it on the paid side
+    // precisely because when the money was taken does not stop being true.
+    //
+    // Addressed by `folio_posting_id`, so this touches exactly the desk
+    // collections among the lines undone and nothing else: a charge names no
+    // payment row, and the gateway's rows name no posting. A gateway payment
+    // handed back is `FR-PAY-04`'s refund through the gateway rather than this,
+    // and it resolves its own row.
+    //
+    // In the caller's transaction with the postings above, for the reason
+    // `postPayment` writes both sides in one: a reversal that committed half of
+    // itself is the state neither table can be read back to.
+    await exec
+      .update(paymentTable)
+      .set({ status: "REFUNDED" })
+      .where(
+        and(
+          inArray(
+            paymentTable.folioPostingId,
+            undone.map((line) => line.id),
+          ),
+          eq(paymentTable.status, "SUCCESS"),
+        ),
+      );
+
+    return written;
   }
 
   /**

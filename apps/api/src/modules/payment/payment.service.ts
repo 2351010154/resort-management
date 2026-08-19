@@ -1001,6 +1001,11 @@ export class PaymentService {
           // it is the one string that ties an invoice back to the gateway's own
           // daily report — which is the comparison `FR-PAY-05` makes.
           description: `Card payment ${transaction.gatewayTransactionId}`,
+          // No method, because the payer's side of this money is the row `take`
+          // has just resolved. The ledger writes both sides for the money the
+          // desk collects itself, and a second `payment` row here would double
+          // `NFR-02`'s Σ payments for every đồng the gateway confirmed.
+          method: null,
           // `postedBy` is left unset. Nobody authored this: the callback writes
           // on no person's authority, and a placeholder account would make an
           // automated payment indistinguishable from one a receptionist took.

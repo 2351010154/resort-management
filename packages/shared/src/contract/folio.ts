@@ -67,6 +67,7 @@ import { vndAmountInputSchema, vndAmountSchema } from "../money.js";
 import { chargeBasisSchema } from "../policy-charge.js";
 import { serviceCodeSchema } from "../service-catalog.js";
 import { isoStayDateSchema, stayDateSchema } from "../stay-date.js";
+import { paymentMethodSchema } from "./payment.js";
 
 const bookingIdFields = { bookingId: z.uuid() };
 
@@ -376,12 +377,43 @@ export const postServiceItemInput = z.object({
 });
 
 /**
+ * How the desk took the money — the property's methods less the one no desk can
+ * take.
+ *
+ * Derived from {@link paymentMethodSchema} by naming the exclusion rather than
+ * restating two of its three members, so the property's list stays in one place:
+ * `FR-PAY-06`'s second gateway is a member there and is excluded here for the
+ * same reason `VNPAY` is, and a fourth *desk* method the property starts
+ * accepting arrives here without anyone remembering to widen a second list.
+ *
+ * **The gateway is absent, and that is a safety boundary rather than tidiness.**
+ * A `VNPAY` payment exists because the gateway confirmed it — the IPN handler
+ * writes that row against a callback nobody here can forge — and this route is a
+ * receptionist saying they took money. A desk posting able to claim the
+ * gateway's method would credit the property with money the gateway never
+ * confirmed, and `FR-PAY-05`'s reconciliation would then be comparing the
+ * gateway's report against a figure somebody typed at the counter, which is the
+ * one comparison it exists to make impossible.
+ */
+const deskPaymentMethodSchema = paymentMethodSchema.exclude(["VNPAY"]);
+
+/**
  * Money the property has received, as the guest handed it over.
  *
  * Positive here and stored negative, and the negation happens once, in the
  * service. A caller that had to remember to send a negative figure is a caller
  * that will one day forget, and the ledger's `CHECK` would refuse it as a fault
  * rather than as an answer the desk could act on.
+ *
+ * The method is required and has no default. `FR-OPS-01` asks the day's report
+ * what is in the drawer, and that is not a question about the total — cash the
+ * desk counted and a transfer that landed in the bank are the same figure and
+ * not the same fact. The ledger is append-only, so a payment whose method went
+ * unsaid cannot be told afterwards: nobody recalls a week later which of the two
+ * a line was, and a default would answer for the receptionist in the one moment
+ * somebody actually knew. So the field is asked for at the counter, where the
+ * answer is still in the room, and {@link descriptionSchema} is not where it
+ * lives — a report cannot sum free text.
  */
 export const postPaymentInput = z.object({
   ...bookingIdFields,
@@ -389,6 +421,7 @@ export const postPaymentInput = z.object({
     (amount) => amount > 0n,
     "a payment is money received, so the amount is what the guest handed over",
   ),
+  method: deskPaymentMethodSchema,
   description: descriptionSchema,
 });
 

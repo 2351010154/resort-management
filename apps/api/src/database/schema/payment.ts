@@ -61,13 +61,47 @@
 // reconciliation `NFR-02` runs holds the two tables against each other precisely
 // because they are written under different rules.
 //
-// What is deliberately *not* here:
+// **Cash belongs to a drawer, and the column that says which is not optional.**
+// `FR-OPS-01` puts every cash payment inside an open shift, so that the variance
+// a receptionist is asked to explain at handover is computable at all: đồng in
+// the till with no shift on it is đồng nobody is answerable for, and it turns
+// every count that day into a discrepancy with no name attached. Gateway money
+// is the opposite case — it never touches the drawer, so binding it to a shift
+// would inflate the count by money that is not in it.
 //
-// - **A folio posting reference.** The posting and the payment are written in
-//   one transaction and each already names the folio. A key between them would
-//   have to be written in one direction or the other, and neither is knowable
-//   before both rows exist — the payment service that writes the pair is where
-//   that question is answered, if it turns out to be one.
+// `payment_shift_binding` states that as one biconditional and not as a branch
+// per method: cash has a shift, everything else has none. Written as an
+// enumeration — "`VNPAY` and `BANK_TRANSFER` have no shift" — the constraint
+// would refuse the first row of the next method the property adds, and
+// `FR-PAY-06`'s MoMo is already named as one. A drawer rule that blocks a
+// gateway integration is a rule that has outgrown what it knows. The
+// biconditional says what is true of the drawer and nothing about the rest.
+//
+// Bank transfer sits on the gateway side of it, which is the one line worth
+// reading twice: it is money the desk takes rather than money a gateway takes,
+// but it lands in a bank account and never in the till, so counting it into the
+// drawer would produce a shortfall equal to every transfer of the shift.
+//
+// **The posting this payment is the other half of, when there is one.** This
+// column was left out while nothing needed it, on the grounds that each row
+// already names the folio and that the direction of the key was not knowable
+// until a caller had a use for it. A reversal is that use. Undoing a payment
+// posting has to say what became of the money as well as what became of the
+// line: the ledger's half reverses to nothing, and a `payment` row left at
+// `SUCCESS` beside it would leave Σ payments standing at a figure the ledger no
+// longer carries — `NFR-02` broken by the correction rather than by the
+// mistake.
+//
+// The key is written from the payment to the posting because that is the
+// direction the pair is created in: `folio.postPayment` writes the posting
+// first and has its id in hand, where a column on `folio_posting` would have to
+// be filled in by a second statement after the payment row existed. It is
+// nullable and unique-where-present, which says the two things that are true of
+// it: the gateway's rows have no posting to name — the attempt is opened before
+// any line is written, and `payment.service.ts` posts the ledger's half through
+// a different call — and no posting may be the other half of two payments.
+//
+// What is deliberately *not* here:
 // - **The instant the attempt was opened.** `PaymentAttempt` is a reference
 //   *and* a creation time, because a gateway partitions transactions by the day
 //   one was opened and a later query has to name the same instant. This column
@@ -102,8 +136,9 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import { folio } from "./folio.js";
+import { folio, folioPosting } from "./folio.js";
 import { staffUser } from "./identity.js";
+import { shift } from "./shift.js";
 
 /**
  * How the money reached the property.
@@ -193,6 +228,16 @@ export const payment = pgTable(
     status: paymentStatusEnum("status").notNull(),
     paidAt: timestamp("paid_at", { withTimezone: true, mode: "date" }),
     postedBy: uuid("posted_by").references(() => staffUser.id),
+    // The drawer this money was counted into, and null for every đồng that
+    // never reached one. The check below is what makes that sentence a rule
+    // rather than a habit, and the header says why it is written as a
+    // biconditional over `CASH` instead of a list of the methods that are
+    // exempt.
+    shiftId: uuid("shift_id").references(() => shift.id),
+    // The ledger line this row is the payer's side of, for the money the desk
+    // collected itself. Null on a gateway row, which has none — the header says
+    // why the key runs in this direction and what a reversal needs it for.
+    folioPostingId: uuid("folio_posting_id").references(() => folioPosting.id),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
       .defaultNow(),
@@ -215,6 +260,19 @@ export const payment = pgTable(
     uniqueIndex("payment_attempt_reference_unique_key")
       .on(table.attemptReference)
       .where(sql`${table.attemptReference} is not null`),
+    // One posting has at most one payer's side. A reversal reads this column to
+    // find the row it has to settle, and a second payment naming the same line
+    // would leave it settling one of them and reporting nothing about the
+    // other. Partial, because the gateway's rows all name no posting and
+    // Postgres would otherwise hold them to being distinct from each other.
+    uniqueIndex("payment_folio_posting_unique_key")
+      .on(table.folioPostingId)
+      .where(sql`${table.folioPostingId} is not null`),
+    // The variance query: sum the cash counted into one drawer. It is asked
+    // once per handover and again by every manager reading a shift back, and
+    // without it that sum is a scan of every payment the property has ever
+    // taken.
+    index("payment_shift_idx").on(table.shiftId),
     // Every read of this table is "what has this folio been paid" — the
     // reconciliation's sum, and the balance the check-out guard reads beside it.
     index("payment_folio_idx").on(table.folioId),
@@ -232,6 +290,19 @@ export const payment = pgTable(
     check(
       "payment_paid_at_exactly_when_money_moved",
       sql`(${table.status} in ('SUCCESS', 'REFUNDED')) = (${table.paidAt} is not null)`,
+    ),
+    // `FR-OPS-01` in one line, both directions: cash is in a drawer, and
+    // nothing else is. A cash payment with no shift is đồng nobody is
+    // answerable for; a gateway payment with one inflates a count by money that
+    // was never in the till.
+    //
+    // Stated over `CASH` alone rather than over the methods that are exempt,
+    // because the exempt list is not closed — `FR-PAY-06` already names MoMo —
+    // and a constraint written as that list would refuse the first payment
+    // taken through the next gateway the property adds.
+    check(
+      "payment_shift_binding",
+      sql`(${table.method} = 'CASH') = (${table.shiftId} is not null)`,
     ),
   ],
 );

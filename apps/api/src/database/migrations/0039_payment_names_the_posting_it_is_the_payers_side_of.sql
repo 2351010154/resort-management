@@ -1,0 +1,3 @@
+ALTER TABLE "payment" ADD COLUMN "folio_posting_id" uuid;--> statement-breakpoint
+ALTER TABLE "payment" ADD CONSTRAINT "payment_folio_posting_id_folio_posting_id_fk" FOREIGN KEY ("folio_posting_id") REFERENCES "public"."folio_posting"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+CREATE UNIQUE INDEX "payment_folio_posting_unique_key" ON "payment" USING btree ("folio_posting_id") WHERE "payment"."folio_posting_id" is not null;

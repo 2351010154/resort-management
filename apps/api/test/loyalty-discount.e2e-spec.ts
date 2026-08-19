@@ -758,6 +758,7 @@ async function aFinishedStay(guestUserId: string): Promise<{ net: bigint }> {
     amount: BigInt(owed?.balance ?? "0"),
     businessDate: departed,
     description: "Card, ****4242",
+    method: null,
     postedBy: null,
   });
 
