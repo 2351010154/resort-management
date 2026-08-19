@@ -673,6 +673,88 @@ describe("money the property has received", () => {
 });
 
 describe("a correction is a new line", () => {
+  it("settles the payer's side when a desk collection is undone", async () => {
+    // `NFR-02` holds the ledger against the payment table, so a reversal that
+    // moved only the ledger would break the identity in the act of restoring
+    // it: the postings net to nothing while the `payment` row still says the
+    // property received the money.
+    const bookingId = await aBooking();
+    const folioId = await folios.ensureFolio(db, bookingId);
+
+    await folios.postRoomCharge(db, {
+      folioId,
+      grossAmount: A_NIGHT,
+      businessDate: BUSINESS_DATE,
+      description: "Room 301, one night",
+    });
+
+    const paymentId = await folios.postPayment(db, {
+      folioId,
+      amount: 500_000n,
+      businessDate: BUSINESS_DATE,
+      description: "Settled by transfer, and mis-keyed",
+      method: "BANK_TRANSFER",
+      postedBy: deskId,
+    });
+
+    const [taken] = await paymentsOn(folioId);
+
+    expect(taken).toMatchObject({
+      status: "SUCCESS",
+      folioPostingId: paymentId,
+    });
+
+    await folios.reversePosting(db, {
+      postingId: paymentId,
+      businessDate: DEPARTURE_DATE,
+      postedBy: deskId,
+    });
+
+    const [settled] = await paymentsOn(folioId);
+
+    // `REFUNDED` and not deleted: the row is what the property received and
+    // later gave back, and when it was taken does not stop being true — which
+    // is why `payment_paid_at_exactly_when_money_moved` keeps the instant on it.
+    expect(settled).toMatchObject({ status: "REFUNDED", amount: 500_000n });
+    expect(settled?.paidAt).toBeInstanceOf(Date);
+
+    // Still one row. A reversal settles the payment, it does not write a second.
+    expect(await paymentsOn(folioId)).toHaveLength(1);
+  });
+
+  it("leaves the payment table alone when the line undone is a charge", async () => {
+    // A charge names no payment row, so the reversal has nothing to settle and
+    // must not reach for the collection standing beside it on the same account.
+    const bookingId = await aBooking();
+    const folioId = await folios.ensureFolio(db, bookingId);
+
+    const chargeId = await folios.postRoomCharge(db, {
+      folioId,
+      grossAmount: A_NIGHT,
+      businessDate: BUSINESS_DATE,
+      description: "Room 301, one night",
+    });
+
+    await folios.postPayment(db, {
+      folioId,
+      amount: 500_000n,
+      businessDate: BUSINESS_DATE,
+      description: "Settled by transfer",
+      method: "BANK_TRANSFER",
+      postedBy: deskId,
+    });
+
+    await folios.reversePosting(db, {
+      postingId: chargeId,
+      businessDate: DEPARTURE_DATE,
+      postedBy: deskId,
+    });
+
+    const [untouched] = await paymentsOn(folioId);
+
+    expect(untouched).toMatchObject({ status: "SUCCESS" });
+  });
+
   it("undoes a night and everything levied on it", async () => {
     // Reversing the charge alone would leave its service charge and its VAT
     // standing — tax on a night the property has agreed did not happen.

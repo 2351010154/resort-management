@@ -101,6 +101,7 @@ import {
   desc,
   eq,
   gte,
+  inArray,
   lte,
   or,
   type SQL,
@@ -1081,6 +1082,11 @@ export class FolioService implements FolioPort {
         attemptReference: null,
         gatewayTransactionId: null,
         shiftId: payment.shiftId ?? null,
+        // The line this row is the payer's side of, so that a later reversal
+        // can settle both halves of the movement rather than the ledger's
+        // alone. `schema/payment.ts` says why the key runs in this direction:
+        // the posting is written first and its id is already in hand here.
+        folioPostingId: postingId!,
       });
     }
 
@@ -1136,7 +1142,7 @@ export class FolioService implements FolioPort {
 
     const businessDate = reversal.businessDate.toString();
 
-    return await this.write(
+    const written = await this.write(
       exec,
       undone.map((line) => ({
         folioId: line.folioId,
@@ -1151,6 +1157,40 @@ export class FolioService implements FolioPort {
         postedBy: reversal.postedBy,
       })),
     );
+
+    // The payer's side of whatever of that was desk money.
+    //
+    // `NFR-02` holds the ledger against the payment table, so a reversal that
+    // moved only the ledger would break the identity in the act of restoring
+    // it: the postings net to nothing and the `payment` row still says the
+    // property received the money. `REFUNDED` is what the column already means
+    // — `schema/payment.ts` calls it what became of this payment, and
+    // `payment_paid_at_exactly_when_money_moved` keeps it on the paid side
+    // precisely because when the money was taken does not stop being true.
+    //
+    // Addressed by `folio_posting_id`, so this touches exactly the desk
+    // collections among the lines undone and nothing else: a charge names no
+    // payment row, and the gateway's rows name no posting. A gateway payment
+    // handed back is `FR-PAY-04`'s refund through the gateway rather than this,
+    // and it resolves its own row.
+    //
+    // In the caller's transaction with the postings above, for the reason
+    // `postPayment` writes both sides in one: a reversal that committed half of
+    // itself is the state neither table can be read back to.
+    await exec
+      .update(paymentTable)
+      .set({ status: "REFUNDED" })
+      .where(
+        and(
+          inArray(
+            paymentTable.folioPostingId,
+            undone.map((line) => line.id),
+          ),
+          eq(paymentTable.status, "SUCCESS"),
+        ),
+      );
+
+    return written;
   }
 
   /**
