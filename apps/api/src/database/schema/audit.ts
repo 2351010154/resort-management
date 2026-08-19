@@ -11,11 +11,31 @@
 // be added, backfilled and read twenty-two times over, and would still not hold
 // the *previous* value, which is the half an investigation actually needs.
 //
-// What a row means: at `occurred_at`, `actor_id` changed the row `row_id` of
-// `table_name`, and it looked like `before` and now looks like `after`. Both
-// snapshots are whole rows rendered by Postgres itself (`to_jsonb`), not a
-// hand-listed subset — a column added by a later migration is then audited the
-// day it exists rather than the day somebody remembers to add it here.
+// What a row means: at `occurred_at`, whoever `actor_kind` and `actor_id` name
+// between them changed the row `row_id` of `table_name`, and it looked like
+// `before` and now looks like `after`. Both snapshots are whole rows rendered
+// by Postgres itself (`to_jsonb`), not a hand-listed subset — a column added by
+// a later migration is then audited the day it exists rather than the day
+// somebody remembers to add it here.
+//
+// **Who acted is two columns, because not every act has a person behind it.**
+// `actor_kind` says whether there is somebody to name and `actor_id` names them,
+// and `audit_entry_actor_check` refuses every row where the two disagree. A
+// `staff` row without an actor is an attribution the writer lost on the way
+// here; a `system` row *with* one is worse, because the account it names did
+// nothing and the trail reads as though it did. The alternative — one
+// placeholder staff row standing for the sweeps — was declined for exactly that
+// reason: it makes an unattributable write indistinguishable from an attributed
+// one at a glance, and `payment.posted_by` and `folio_posting.posted_by` both
+// already leave the column null rather than mint such an account.
+//
+// Two kinds and not three. The question this column answers is whether an
+// investigation has anybody to ask, and the sweeps and the payment gateway
+// answer it the same way. *Which* unattended writer acted is a finer question,
+// and `table_name` with the snapshots beside it already answers it for every
+// row the system writes — a `gateway` member would restate in an enum what the
+// row states in full, and it can be added the day something reads it rather
+// than guessed at now.
 //
 // What is deliberately NOT here:
 //
@@ -26,15 +46,13 @@
 //   store it for that reason, and the same reasoning lands harder here, where a
 //   column would have to be read by an expiry job this system does not have and
 //   nobody has asked for. The rows accumulate until somebody says otherwise.
-// - **A `system` or `gateway` actor.** `actor_id` is `NOT NULL` and references
-//   a real account, which is the same choice `cccd_unmask_audit.unmasked_by`
-//   made and for the reason it states: leaving room for an unattributable write
-//   would let the interesting ones be the unattributable ones. Every write this
-//   table records today is a manager's, behind a capability the matrix denies
-//   the guest realm outright. The sweeps and the payment gateway do write state,
-//   and when they are audited this column becomes nullable beside an actor-kind
-//   column that says which of the two a null means — one migration, made with a
-//   second kind of actor actually in hand rather than guessed at now.
+// - **An anonymous actor.** `actor_id` is nullable, but only where `actor_kind`
+//   is `system`: there is no row that declines to say which of the two it was.
+//   `cccd_unmask_audit.unmasked_by` states the danger a bare nullable column
+//   carries — leaving room for an unattributable write lets the interesting
+//   ones be the unattributable ones — and the check above is what keeps that
+//   room from opening. A staff write still names a real account, and nothing
+//   unattended may borrow one.
 // - **A reason.** `cccd_unmask_audit.reason` exists because a CCCD read has one
 //   worth asking for. A reprice does not, and a mandatory reason field produces
 //   a column full of "update".
@@ -64,16 +82,33 @@ export const auditActionEnum = pgEnum("audit_action", [
   "DELETE",
 ]);
 
+/**
+ * Whether the change has a person behind it.
+ *
+ * `staff` is a member of staff, named by `actor_id`. `system` is the property's
+ * own machinery — a sweep, a scheduled job, a payment gateway's callback — and
+ * names nobody, because there is nobody. The header says why the second is not
+ * a placeholder account and why there are two members here rather than three.
+ */
+export const auditActorKindEnum = pgEnum("audit_actor_kind", [
+  "staff",
+  "system",
+]);
+
 export const auditEntry = pgTable(
   "audit_entry",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    // No `onDelete`, so Postgres restricts: an account cannot be deleted out
+    // Which of the two an investigation is looking at, and it is never left to
+    // be inferred from the null beside it: a reader holding a row with no actor
+    // would otherwise have to decide between an unattended write and a bug in
+    // whatever filed it.
+    actorKind: auditActorKindEnum("actor_kind").notNull(),
+    // Null exactly when `actor_kind` is `system` — the check below is what says
+    // so. No `onDelete`, so Postgres restricts: an account cannot be deleted out
     // from under the trail that names it. `room_assignment` states the same
     // rule about the room it points at.
-    actorId: uuid("actor_id")
-      .notNull()
-      .references(() => staffUser.id),
+    actorId: uuid("actor_id").references(() => staffUser.id),
     occurredAt: timestamp("occurred_at", { withTimezone: true, mode: "date" })
       .notNull()
       .defaultNow(),
@@ -103,6 +138,19 @@ export const auditEntry = pgTable(
     // everything this member of staff did. `cccd_unmask_audit` carries the same
     // pair for the same reason.
     index("audit_entry_actor_idx").on(table.actorId, table.occurredAt),
+    // The two halves of the attribution have to agree. A `staff` row with no
+    // actor is an attribution lost between the guard and this table, and a
+    // `system` row that names one credits an account with a change it did not
+    // make — which is the failure a placeholder staff account would produce on
+    // every unattended write rather than on a buggy one.
+    check(
+      "audit_entry_actor_check",
+      sql`(
+        ${table.actorKind} = 'staff' and ${table.actorId} is not null
+      ) or (
+        ${table.actorKind} = 'system' and ${table.actorId} is null
+      )`,
+    ),
     // A row with neither snapshot records that something happened to a row and
     // declines to say what, which is indistinguishable from a bug in whatever
     // wrote it. The three legal shapes are insert (no before), update (both)
