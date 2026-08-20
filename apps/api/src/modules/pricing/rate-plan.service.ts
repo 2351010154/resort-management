@@ -14,18 +14,17 @@
 //
 // Every method takes a `DbExecutor` — `rate-calendar.service.ts` gives the
 // reason, and it is `FR-AUD-01`: the edit and the row recording it are one
-// commit or they are worth less than either alone.
+// commit or they are worth less than either alone. That row is now written by a
+// trigger on `rate_plan`, so the commit they share is the statement itself; this
+// file files nothing, and a second entry filed here would show every plan edit
+// twice in the viewer `FR-AUD-02` asks for.
 
 import type { RatePlanCode, VndAmount } from "@mariva/shared";
 import { Injectable } from "@nestjs/common";
 import { ORPCError } from "@orpc/nest";
-import { asc, eq, sql } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import type { DbExecutor } from "../../database/database.module.js";
 import { ratePlan } from "../../database/schema/pricing.js";
-import { AuditService } from "../audit/audit.service.js";
-
-/** The table these edits are filed against. */
-const AUDITED_TABLE = "rate_plan";
 
 export interface RatePlanView {
   readonly code: RatePlanCode;
@@ -54,24 +53,8 @@ const COLUMNS = {
   displayOrder: ratePlan.displayOrder,
 };
 
-/**
- * The row as the log records it: its id, and Postgres's own rendering of the
- * whole of it.
- *
- * `to_jsonb` rather than a listing of the columns above, so a column a later
- * migration adds is audited the day it exists. Text and never parsed —
- * `audit.service.ts` on why a `bigint` that goes through a JavaScript `number`
- * is a figure that can come back different.
- */
-const SNAPSHOT = {
-  id: ratePlan.id,
-  state: sql<string>`to_jsonb(rate_plan)::text`,
-};
-
 @Injectable()
 export class RatePlanService {
-  constructor(private readonly audit: AuditService) {}
-
   /** All three, in the order the funnel offers them. */
   async list(exec: DbExecutor): Promise<RatePlanView[]> {
     return await exec
@@ -81,7 +64,7 @@ export class RatePlanService {
   }
 
   /**
-   * Edits the fields the caller named, leaves the rest alone, and records who.
+   * Edits the fields the caller named and leaves the rest alone.
    *
    * The two bounds `schema/pricing.ts` puts on the columns are checked by
    * Postgres and not re-checked here — a discount below −100% and a breakfast of
@@ -90,13 +73,13 @@ export class RatePlanService {
    * caller gets a 400 naming the field; the constraints are what makes that true
    * of every writer, including a psql session.
    *
-   * The previous values are read under `for update`, which is what makes the
-   * pre-image the one this statement actually overwrites rather than one a
-   * concurrent editor replaced in between. The calendar beside this cannot use
-   * the same device — a lock on a row its own upsert has already touched returns
-   * nothing, so it captures the pre-image inside the upsert's own statement
-   * instead. Here there is no upsert to collide with and the lock is the simpler
-   * half of the same guarantee.
+   * **One statement, and no lock taken to read the previous values first.**
+   * There used to be a `for update` select in front of this, and its whole job
+   * was to capture a pre-image the trigger is now handed by Postgres — under the
+   * update's own row lock, which is stronger than anything this file could have
+   * arranged. Two managers editing one plan at once are serialised by that lock
+   * and each files the change they actually made over the row they actually
+   * found.
    */
   async update(exec: DbExecutor, edit: RatePlanEdit): Promise<RatePlanView> {
     const changes = {
@@ -118,36 +101,21 @@ export class RatePlanService {
       return await this.read(exec, edit.code);
     }
 
-    const [before] = await exec
-      .select(SNAPSHOT)
-      .from(ratePlan)
+    const [after] = await exec
+      .update(ratePlan)
+      .set(changes)
       .where(eq(ratePlan.code, edit.code))
-      .limit(1)
-      .for("update");
+      .returning(COLUMNS);
 
-    if (!before) {
+    // An update that matched no row is a plan that does not exist, which is the
+    // same answer the read below gives and is reached without a second query.
+    if (!after) {
       throw new ORPCError("NOT_FOUND", {
         message: `No ${edit.code} plan — the property has not laid one down`,
       });
     }
 
-    const [after] = await exec
-      .update(ratePlan)
-      .set(changes)
-      .where(eq(ratePlan.code, edit.code))
-      .returning({ ...SNAPSHOT, ...COLUMNS });
-
-    await this.audit.record(exec, AUDITED_TABLE, [
-      {
-        rowId: before.id,
-        action: "UPDATE",
-        before: before.state,
-        // The row is locked above, so the update cannot have found nothing.
-        after: after!.state,
-      },
-    ]);
-
-    return after!;
+    return after;
   }
 
   private async read(

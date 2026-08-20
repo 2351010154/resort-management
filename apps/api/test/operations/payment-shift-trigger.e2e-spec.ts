@@ -34,6 +34,7 @@ import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { booking } from "../../src/database/schema/booking.js";
 import { folio } from "../../src/database/schema/folio.js";
+import { auditEntry } from "../../src/database/schema/audit.js";
 import { staffUser } from "../../src/database/schema/identity.js";
 import * as schema from "../../src/database/schema/index.js";
 import { roomType } from "../../src/database/schema/inventory.js";
@@ -134,6 +135,8 @@ afterAll(async () => {
     ]) {
       await db.delete(shift).where(eq(shift.id, drawer));
     }
+
+    await db.delete(auditEntry);
 
     for (const member of staffOpened) {
       await db.delete(staffUser).where(eq(staffUser.id, member));

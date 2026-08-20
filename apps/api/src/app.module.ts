@@ -123,8 +123,8 @@ const CORRELATION_HEADER = "x-request-id";
     // acting member of staff into scope, and it reads that from the decision
     // `AccessGuard` leaves on the request — so the module installing the guard
     // has to be registered before the module that depends on its output.
-    // Global, so every module that writes state can inject `AuditService`
-    // without an import line somebody has to remember.
+    // Global, so that interceptor reaches every route without an import line
+    // somebody has to remember in each module.
     AuditModule,
 
     // M6, and before every module that will read it. It registers no route

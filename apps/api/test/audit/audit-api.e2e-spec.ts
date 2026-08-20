@@ -35,13 +35,14 @@
 // this suite fails if `audit.module.ts` ever stops carrying the controller —
 // which is the point of booting the real graph rather than a hand-built one.
 //
-// The entries are inserted directly, with the snapshots cast from text exactly
-// as `AuditService.record` casts them. That is not a shortcut around the write
-// path: what is under test is the read, and driving five different services
-// through five different funnels to produce five rows would put every one of
-// their preconditions in the way of an assertion about a list. The one thing the
-// insert must not do is hand the driver an object to serialise, because that is
-// the crossing this whole file exists to prove nobody makes.
+// The entries are inserted directly, with the snapshots cast from text. That is
+// not a shortcut around the write path: what is under test is the read, and
+// driving five different services through five different funnels to produce five
+// rows would put every one of their preconditions in the way of an assertion
+// about a list. The one thing the insert must not do is hand the driver an
+// object to serialise, because that is the crossing this whole file exists to
+// prove nobody makes — in production the snapshots are written by a trigger and
+// never cross into this process at all.
 
 import "reflect-metadata";
 
@@ -240,7 +241,14 @@ afterAll(async () => {
 });
 
 /**
- * Everything this file wrote, in key order.
+ * The whole log, and then this file's accounts.
+ *
+ * The whole of it rather than the three rows below, because every protected
+ * table files its own entries now: a suite that has seeded a year of rates has
+ * left thousands of `rate_calendar` entries behind, and the narrowings asserted
+ * here — one `INSERT` against that table, one entry against `stay_restriction` —
+ * are counts over a log this file has to own outright. `fileParallelism: false`
+ * is what makes owning it available; nothing else is reading it while this runs.
  *
  * The entries go first, because each staff one names an account behind a foreign
  * key with no `onDelete` — an account cannot be deleted out from under the trail
@@ -248,15 +256,7 @@ afterAll(async () => {
  * inconvenience.
  */
 async function clearTheLog(): Promise<void> {
-  await db
-    .delete(auditEntry)
-    .where(
-      inArray(auditEntry.rowId, [
-        A_PRICED_NIGHT,
-        A_RESTRICTED_NIGHT,
-        A_SWEPT_ROW,
-      ]),
-    );
+  await db.execute(sql`truncate audit_entry`);
   await db.delete(staffUser).where(inArray(staffUser.email, EMAILS));
 }
 
@@ -303,8 +303,7 @@ async function staffIdOf(email: string): Promise<string> {
 /**
  * One change filed against the manager, with both snapshots cast from text.
  *
- * `::jsonb` and never a bound object, which is `AuditService.record`'s own
- * arrangement and the reason it exists: an object handed to the driver is
+ * `::jsonb` and never a bound object: an object handed to the driver is
  * serialised by `JSON.stringify` from values the driver parsed, and the đồng
  * amount above would not survive the round trip. A string that is never looked
  * at cannot lose a digit.

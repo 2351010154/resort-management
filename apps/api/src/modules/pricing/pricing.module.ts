@@ -25,9 +25,10 @@ import { StayRestrictionService } from "./stay-restriction.service.js";
 // in `inventory.module.ts` — so an export would be an interface with no
 // implementation behind the need for it.
 //
-// `DatabaseModule` and `AuditModule` are both global, so nothing is imported
-// here for the `TransactionRunner` the controllers open a boundary with or the
-// `AuditService` the three writes file their rows through.
+// `DatabaseModule` is global, so nothing is imported here for the
+// `TransactionRunner` the controllers open a boundary with. The three writes
+// file no change-log rows of their own: the triggers on `rate_plan`,
+// `rate_calendar` and `stay_restriction` file them as the rows move.
 //
 // `LoyaltyPromotionSeeder` is a provider and not a controller's collaborator: it
 // runs once at bootstrap and answers nothing. It belongs here because the rows
