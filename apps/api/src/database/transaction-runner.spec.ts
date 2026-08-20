@@ -1,4 +1,5 @@
-// What `afterCommit` promises, and the four ways it could quietly break it.
+// What `afterCommit` promises and the four ways it could quietly break it, and
+// what every transaction tells Postgres about who opened it.
 //
 // The promise is narrow: work registered inside a transaction runs once that
 // transaction has committed, in the order it was registered, and never at all
@@ -16,9 +17,23 @@
 // asserts.
 
 import { Logger } from "@nestjs/common";
+import type { SQL } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { withAuditActor } from "../common/audit/audit-actor.js";
 import type { Database, DbExecutor } from "./database.module.js";
 import { afterCommit, TransactionRunner } from "./transaction-runner.js";
+
+/**
+ * The renderer the real client would use.
+ *
+ * Statements are asserted as the text and parameters Postgres would receive
+ * rather than as the builder object, because what matters about the announcement
+ * below is that the id travels as a parameter: interpolated into the text it
+ * would be SQL assembled from a value, which is the one thing a setting carrying
+ * an account id must never be.
+ */
+const postgres = new PgDialect();
 
 /** The fallback branch's only signal. Silenced here because several cases take
  *  that branch on purpose, and read where it is the thing under test. */
@@ -28,9 +43,20 @@ beforeEach(() => {
   warned.mockClear();
 });
 
-/** The executor a transaction hands its work — an identity, nothing more. */
-function anExecutor(): DbExecutor {
-  return {} as DbExecutor;
+/**
+ * The executor a transaction hands its work.
+ *
+ * It carries `execute` because `run` calls it before the caller's work starts —
+ * that is where the acting member of staff is announced to Postgres — and
+ * everything it is given lands in `said` for a case that wants to read it back.
+ * Nothing else on a real executor is reached from this file.
+ */
+function anExecutor(said: SQL[] = []): DbExecutor {
+  return {
+    execute: async (statement: SQL) => {
+      said.push(statement);
+    },
+  } as unknown as DbExecutor;
 }
 
 /**
@@ -276,5 +302,103 @@ describe("the callers that were here before any of this", () => {
     ).rejects.toThrow("the third night is sold out");
 
     expect(log).toEqual([]);
+  });
+});
+
+/**
+ * Who Postgres is told is acting.
+ *
+ * The row-audit triggers attribute every entry they file from a
+ * transaction-local setting, and this is the only code that establishes it. What
+ * is on trial here is the announcement itself — that it happens, what it carries
+ * and when it is made — because each of the three fails silently: an actor never
+ * announced credits a manager's reprice to the property's own machinery, an
+ * actor announced after the caller's first write leaves that write attributed to
+ * nobody, and an actor left standing from a previous request accuses whoever
+ * held the connection before.
+ *
+ * The ambient scope is established by hand here because there is no request. In
+ * production `common/audit/audit.interceptor.ts` does it, off the access guard's
+ * decision.
+ */
+describe("the actor a transaction is opened by", () => {
+  const A_MANAGER = "3f1d3e4b-8b1f-4a3a-9c2e-1f6a1b2c3d4e";
+
+  it("is announced to Postgres before the caller's work runs", async () => {
+    const said: SQL[] = [];
+    const exec = anExecutor(said);
+    const runner = new TransactionRunner(aDatabase([], exec));
+
+    let saidBeforeTheWork = 0;
+
+    await withAuditActor({ staffUserId: A_MANAGER }, () =>
+      runner.run(async () => {
+        saidBeforeTheWork = said.length;
+      }),
+    );
+
+    // Not merely at some point during the transaction. A write in the caller's
+    // first line fires an audit trigger, and a trigger reading a setting that
+    // has not been made yet files the change against nobody.
+    expect(saidBeforeTheWork).toBe(1);
+
+    expect(postgres.sqlToQuery(said[0]!)).toMatchObject({
+      sql: "select set_config($1, $2, true)",
+      params: ["app.audit_actor", A_MANAGER],
+    });
+  });
+
+  it("is local to the transaction, so the next one on the connection is not it", async () => {
+    const said: SQL[] = [];
+    const exec = anExecutor(said);
+    const runner = new TransactionRunner(aDatabase([], exec));
+
+    await withAuditActor({ staffUserId: A_MANAGER }, () =>
+      runner.run(async () => undefined),
+    );
+
+    // The sweep, the job, the gateway callback — the ordinary case, and the one
+    // that shares a pooled connection with the request before it. The setting is
+    // released by Postgres when a transaction ends, and it is stated again here
+    // anyway: the cost of being wrong about the release is a change credited to
+    // somebody who did not make it.
+    await runner.run(async () => undefined);
+
+    expect(said).toHaveLength(2);
+    expect(postgres.sqlToQuery(said[1]!).params).toEqual(["app.audit_actor", ""]);
+  });
+
+  it("is stated again by an attempt that follows one that rolled back", async () => {
+    const said: SQL[] = [];
+    let attempts = 0;
+
+    // The `40001` retry the top of `transaction-runner.ts` anticipates. The
+    // second attempt is a second transaction, so it holds none of the first
+    // one's settings.
+    const retrying = {
+      transaction: async <T>(work: (exec: DbExecutor) => Promise<T>) => {
+        try {
+          return await work(anExecutor(said));
+        } catch {
+          attempts += 1;
+
+          return await work(anExecutor(said));
+        }
+      },
+    } as unknown as Database;
+
+    await withAuditActor({ staffUserId: A_MANAGER }, () =>
+      new TransactionRunner(retrying).run(async () => {
+        if (attempts === 0) {
+          throw new Error("could not serialize access due to concurrent update");
+        }
+      }),
+    );
+
+    expect(said).toHaveLength(2);
+    expect(postgres.sqlToQuery(said[1]!).params).toEqual([
+      "app.audit_actor",
+      A_MANAGER,
+    ]);
   });
 });

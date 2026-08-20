@@ -58,6 +58,7 @@ import { type Database, DRIZZLE } from "../../src/database/database.module.js";
 import { booking } from "../../src/database/schema/booking.js";
 import { systemConfig } from "../../src/database/schema/config.js";
 import { folio } from "../../src/database/schema/folio.js";
+import { auditEntry } from "../../src/database/schema/audit.js";
 import { staffUser } from "../../src/database/schema/identity.js";
 import { roomType } from "../../src/database/schema/inventory.js";
 import { payment as paymentTable } from "../../src/database/schema/payment.js";
@@ -300,6 +301,7 @@ async function clearTheDesk(): Promise<void> {
   await db
     .delete(booking)
     .where(inArray(booking.reference, [...STAY_REFERENCES]));
+  await db.delete(auditEntry);
   await db
     .delete(staffUser)
     .where(inArray(staffUser.email, [...EMAILS]));

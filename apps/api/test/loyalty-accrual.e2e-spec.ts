@@ -56,6 +56,7 @@ import {
 import { booking } from "../src/database/schema/booking.js";
 import { systemConfig } from "../src/database/schema/config.js";
 import { folio, folioPosting } from "../src/database/schema/folio.js";
+import { auditEntry } from "../src/database/schema/audit.js";
 import { staffUser } from "../src/database/schema/identity.js";
 import { guestUser } from "../src/database/schema/index.js";
 import * as schema from "../src/database/schema/index.js";
@@ -171,6 +172,7 @@ beforeAll(async () => {
     .values(A_SERVICE_ITEM)
     .onConflictDoNothing({ target: serviceCatalog.code });
 
+  await db.delete(auditEntry);
   await db.delete(staffUser).where(eq(staffUser.email, A_RECEPTIONIST.email));
 
   const [staff] = await db
@@ -211,6 +213,7 @@ afterAll(async () => {
   await db
     .delete(serviceCatalog)
     .where(eq(serviceCatalog.code, A_SERVICE_ITEM.code));
+  await db.delete(auditEntry);
   await db.delete(staffUser).where(eq(staffUser.email, A_RECEPTIONIST.email));
   await pool?.end();
 });

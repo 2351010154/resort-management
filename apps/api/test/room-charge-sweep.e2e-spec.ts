@@ -66,6 +66,7 @@ import { booking, bookingNight } from "../src/database/schema/booking.js";
 import { systemConfig } from "../src/database/schema/config.js";
 import { folio, folioPosting } from "../src/database/schema/folio.js";
 import { roomCondition } from "../src/database/schema/housekeeping.js";
+import { auditEntry } from "../src/database/schema/audit.js";
 import { staffUser } from "../src/database/schema/identity.js";
 import * as schema from "../src/database/schema/index.js";
 import { room, roomType, typeInventory } from "../src/database/schema/inventory.js";
@@ -261,6 +262,8 @@ beforeAll(async () => {
   await clearTheLedger();
   await seedDatabase(db, { from: SEED_FROM, bookings: 0 });
   await store(CONFIGURED);
+
+  await db.delete(auditEntry);
 
   // Removed first rather than upserted: the uniqueness on this table is over
   // `lower(email)`, which is an index `on conflict` cannot name.
