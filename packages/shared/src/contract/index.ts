@@ -193,6 +193,23 @@ export {
   stayRestrictionSchema,
   updateRatePlanInput,
 } from "./pricing.js";
+// The three Excel exports. Named exports only and nothing added to `contract`
+// above, because they are not oRPC routes: `reporting.ts` opens by saying why a
+// response measured in chunks of zip cannot be one, and an entry in that object
+// would be a promise `@Implement` could not keep.
+export {
+  CASH_BOOK_EXPORT_PATH,
+  CASH_BOOK_EXPORT_STEM,
+  cashBookExportInput,
+  CHANGE_LOG_EXPORT_PATH,
+  CHANGE_LOG_EXPORT_STEM,
+  changeLogExportInput,
+  EXCEL_MEDIA_TYPE,
+  excelExportFileName,
+  SHIFT_HISTORY_EXPORT_PATH,
+  SHIFT_HISTORY_EXPORT_STEM,
+  shiftHistoryExportInput,
+} from "./reporting.js";
 export {
   bookingHitSchema,
   guestHitSchema,

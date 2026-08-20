@@ -29,6 +29,7 @@
     "@orpc/server": "1.14.10",
     "better-auth": "1.6.25",
     "drizzle-orm": "0.45.2",
+    "exceljs": "4.4.0",
     "express": "5.2.1",
     "nestjs-pino": "4.6.1",
     "passport": "0.7.0",

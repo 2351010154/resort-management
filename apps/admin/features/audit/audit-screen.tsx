@@ -1,16 +1,30 @@
 "use client";
 
-import type { StaffRole } from "@mariva/shared";
+import {
+  CHANGE_LOG_EXPORT_PATH,
+  CHANGE_LOG_EXPORT_STEM,
+  type StaffRole,
+} from "@mariva/shared";
 import type * as React from "react";
 import { useId, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useCommands } from "@/features/command-palette";
 /* The console's one rendering of an instant in the property's zone — the same
  * formatter a folio attributes a posting with, so the moment a change was made
  * and the moment a payment moved are read the same way. */
 import { formatInstant } from "@/features/guests/guest-record";
 import { useStaffSession } from "@/lib/auth";
+/* The one place the console takes a list away as a spreadsheet. An accountant
+ * is offered it here and the file they get holds financial entries only — the
+ * API narrows it off the same grant it narrows this list with, so nothing on
+ * this screen decides what is financial. */
+import {
+  type ExcelExportSubject,
+  mayTakeAnExport,
+  useExcelExport,
+} from "@/lib/excel-export";
 import { useHotkeys } from "@/lib/keyboard";
 import { cn } from "@/lib/utils";
 import {
@@ -102,6 +116,14 @@ import {
  * control answers the press immediately.
  */
 
+/** Where the change log's export answers and what its file is called, from the
+ *  contract rather than typed out here. */
+const LOG_EXPORT: ExcelExportSubject = {
+  path: CHANGE_LOG_EXPORT_PATH,
+  stem: CHANGE_LOG_EXPORT_STEM,
+  failure: "The change log could not be exported.",
+};
+
 /** What the screen is currently asking the list for. */
 interface Asked {
   readonly question: ChangeQuestion;
@@ -131,8 +153,31 @@ export function AuditScreen() {
   const role: StaffRole | null =
     session.status === "authenticated" ? session.user.role : null;
   const offered = role !== null && mayReadTheLog(role);
+  /* Both rows, and neither alone. The log's row already denies a receptionist,
+   * so the conjunction is what the *Excel export* row's note "operational lists
+   * only" comes to on this screen — with nothing here having to know that. */
+  const exportsTheLog = offered && role !== null && mayTakeAnExport(role);
 
   const dayField = useRef<HTMLInputElement>(null);
+  const logExport = useExcelExport(LOG_EXPORT);
+
+  useCommands(
+    exportsTheLog
+      ? [
+          {
+            id: "audit.export",
+            label: "Export these changes to Excel",
+            group: "actions" as const,
+            keywords: ["excel", "xlsx", "spreadsheet", "audit", "download"],
+            // Shown and refused rather than hidden while the file is being
+            // written, so an operator who reaches for it twice is told why the
+            // second press did nothing.
+            disabled: logExport.isPending,
+            action: takeTheLog,
+          },
+        ]
+      : [],
+  );
 
   useHotkeys("/", () => {
     dayField.current?.focus();
@@ -162,6 +207,17 @@ export function AuditScreen() {
 
   const page = useChangeLog(question, offset);
   const change = useChange(opened);
+
+  /* The file carries the question the screen is showing, not the words
+   * currently in the fields: `question.input` is what was submitted and what the
+   * table below was drawn from, window included — a day picked here is two
+   * instants, and the export is cut on the same two. The page is dropped on the
+   * way, because an export answers with everything the filters match. */
+  function takeTheLog() {
+    if (question !== null) {
+      logExport.mutate(question.input);
+    }
+  }
 
   /* One path for every change of question, because they are the same act: the
    * filters and the page are parts of one query, and a screen that built it in
@@ -277,6 +333,20 @@ export function AuditScreen() {
 
             <div className="mt-rhythm-1 flex flex-wrap items-center gap-3">
               <Button type="submit">Show changes</Button>
+              {exportsTheLog ? (
+                /* The label changes as well as the control disabling: a file of
+                   a month of the log is one the API is still writing, and a
+                   control that only greyed out would read as broken for as long
+                   as it took. */
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={question === null || logExport.isPending}
+                  onClick={takeTheLog}
+                >
+                  {logExport.isPending ? "Writing the file" : "Export to Excel"}
+                </Button>
+              ) : null}
               <span className="text-muted-foreground text-xs">
                 {/* Said rather than implied: the pair is an address, and the
                     index behind it is on both halves. */}
