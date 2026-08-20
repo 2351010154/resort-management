@@ -21,6 +21,7 @@ import { InventoryModule } from "./modules/inventory/inventory.module.js";
 import { NotificationModule } from "./modules/notification/notification.module.js";
 import { PaymentModule } from "./modules/payment/payment.module.js";
 import { PricingModule } from "./modules/pricing/pricing.module.js";
+import { ReportingModule } from "./modules/reporting/reporting.module.js";
 import { SystemConfigModule } from "./modules/system-config/system-config.module.js";
 
 // The header a load balancer or an upstream service may already have stamped.
@@ -167,6 +168,17 @@ const CORRELATION_HEADER = "x-request-id";
     // every other route here — and the binding of `PAYMENT_GATEWAY` to the one
     // adapter that knows what VNPay is, which is the whole of `FR-PAY-01`.
     PaymentModule,
+
+    // M8. It registers three read-only routes and nothing else — the Excel
+    // exports of `FR-OPS-03` — and it is listed after every module whose list it
+    // hands to a spreadsheet, because that is all it does: it opens a
+    // transaction and reads back through `OperationsModule`'s cash book and
+    // shift history and the global `AuditModule`'s change log. Its routes are
+    // governed by the guard `AuthModule` installs like every other route here,
+    // and by a second capability each resolves for itself —
+    // `reporting/export-authority.ts` says why the two are composed rather than
+    // the matrix being copied.
+    ReportingModule,
 
     // Last, and after every module that could register a sweep. `JobsModule`
     // starts pg-boss on `onApplicationBootstrap`, so anything it is meant to

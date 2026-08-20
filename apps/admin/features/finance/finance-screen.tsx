@@ -2,6 +2,8 @@
 
 import {
   CASH_BOOK_CATEGORIES,
+  CASH_BOOK_EXPORT_PATH,
+  CASH_BOOK_EXPORT_STEM,
   CASH_BOOK_PAGE_SIZE,
   formatVnd,
   type StaffRole,
@@ -27,6 +29,15 @@ import { formatInstant } from "@/features/guests/guest-record";
 import { useShiftHistory } from "@/features/shifts";
 import { useStaffSession } from "@/lib/auth";
 import { formatShortDate } from "@/lib/business-date";
+/* The one place the console takes a list away as a spreadsheet. The act is
+ * offered here when the matrix grants both rows — the book's own and the Excel
+ * export row — which is the composition `lib/excel-export.ts` argues for and the
+ * API makes again on its side. */
+import {
+  type ExcelExportSubject,
+  mayTakeAnExport,
+  useExcelExport,
+} from "@/lib/excel-export";
 import { useHotkeys } from "@/lib/keyboard";
 
 import {
@@ -109,6 +120,15 @@ interface Asked {
  * shifts they were built from. */
 const NO_ENTRIES: readonly CashBookEntry[] = [];
 
+/** Where the book's export answers and what its file is called, from the
+ *  contract rather than typed out here — `contract/reporting.ts` holds the
+ *  address so the two ends cannot disagree about it. */
+const BOOK_EXPORT: ExcelExportSubject = {
+  path: CASH_BOOK_EXPORT_PATH,
+  stem: CASH_BOOK_EXPORT_STEM,
+  failure: "The cash book could not be exported.",
+};
+
 export function FinanceScreen() {
   const session = useStaffSession();
   const [fields, setFields] = useState<BookFields>(DEFAULT_BOOK_FIELDS);
@@ -123,6 +143,10 @@ export function FinanceScreen() {
   const role: StaffRole | null =
     session.status === "authenticated" ? session.user.role : null;
   const offered = role !== null && mayKeepTheBook(role);
+  /* Both rows, and neither alone. The book's row already denies a receptionist,
+   * so the conjunction is what the *Excel export* row's note "operational lists
+   * only" comes to on this screen — with nothing here having to know that. */
+  const exportsTheBook = offered && role !== null && mayTakeAnExport(role);
 
   const firstDayField = useRef<HTMLInputElement>(null);
   const amountField = useRef<HTMLInputElement>(null);
@@ -132,8 +156,10 @@ export function FinanceScreen() {
     firstDayField.current?.select();
   });
 
-  useCommands(
-    offered
+  const bookExport = useExcelExport(BOOK_EXPORT);
+
+  useCommands([
+    ...(offered
       ? [
           {
             id: "finance.record-entry",
@@ -146,8 +172,23 @@ export function FinanceScreen() {
             },
           },
         ]
-      : [],
-  );
+      : []),
+    ...(exportsTheBook
+      ? [
+          {
+            id: "finance.export",
+            label: "Export the book to Excel",
+            group: "actions" as const,
+            keywords: ["excel", "xlsx", "spreadsheet", "thu chi", "download"],
+            // Shown and refused rather than hidden while the file is being
+            // written, so an operator who reaches for it twice is told why the
+            // second press did nothing.
+            disabled: bookExport.isPending,
+            action: takeTheBook,
+          },
+        ]
+      : []),
+  ]);
 
   const propertyDay = useBusinessDate();
   const businessDate = propertyDay.data?.businessDate ?? null;
@@ -188,6 +229,17 @@ export function FinanceScreen() {
     () => openDrawersIn(history.data?.shifts ?? []),
     [history.data?.shifts],
   );
+
+  /* The file carries the question the screen is showing, not the words
+   * currently in the fields: `query` is what was submitted and what the table
+   * below was drawn from, so the export cannot be a wider stretch of the book
+   * than the one being read. The page is dropped on the way — an export answers
+   * with everything the filters match. */
+  function takeTheBook() {
+    if (query !== null) {
+      bookExport.mutate(query);
+    }
+  }
 
   /* One path for every change of question, because the filters and the pager
    * are parts of one query — a screen that built it in two places would
@@ -330,6 +382,23 @@ export function FinanceScreen() {
 
             <div className="mt-rhythm-1 flex flex-wrap items-center gap-3">
               <Button type="submit">Show the book</Button>
+              {exportsTheBook ? (
+                /* The label changes as well as the control disabling, which is
+                   not what the forms on this screen do and is deliberate: a
+                   recorded entry is over in a moment, and a year of the book is
+                   a file the API is still writing. A control that only greyed
+                   out would read as broken for as long as it took. */
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={query === null || bookExport.isPending}
+                  onClick={takeTheBook}
+                >
+                  {bookExport.isPending
+                    ? "Writing the file"
+                    : "Export to Excel"}
+                </Button>
+              ) : null}
               <span className="text-muted-foreground text-xs">
                 {/* Said rather than implied: both ends are the trading day the
                     money moved on and not the day somebody typed it in, which is
