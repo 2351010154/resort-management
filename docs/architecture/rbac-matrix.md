@@ -176,7 +176,7 @@ Legend: ✅ full · 👁 read-only · ⚠ conditional, see notes · — denied
 | Gateway reconciliation | — | — | — | ✅ | ✅ | ✅ | |
 | Income / expense (thu chi) | — | — | — | ✅ | ✅ | ✅ | |
 | Cash drawer open / close / count | — | ⚠ | — | 👁 | ✅ | ✅ | RCP: own shift |
-| Shift handover notes | — | ⚠ | — | 👁 | ✅ | ✅ | RCP: own shift |
+| Shift handover notes | — | ⚠ | — | 👁 | ✅ | ✅ | RCP: own shift — an item is raised against, and cleared by, the caller's own open drawer, which no request body may name. The outstanding list is narrowed for nobody: an item outlives the shift that found it, so the backlog a shift inherits is every shift's |
 
 ### Guest personal data
 

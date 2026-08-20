@@ -17,6 +17,7 @@ import { health } from "./health.js";
 import { housekeeping } from "./housekeeping.js";
 import { inventory } from "./inventory.js";
 import { jobs } from "./jobs.js";
+import { operations } from "./operations.js";
 import { payment } from "./payment.js";
 import { pricing } from "./pricing.js";
 import { search } from "./search.js";
@@ -39,6 +40,7 @@ export const contract = {
   systemConfig,
   businessDate,
   feedback,
+  operations,
 };
 
 export type Contract = typeof contract;
@@ -112,6 +114,24 @@ export {
 } from "./housekeeping.js";
 export { closeRoomInput, roomClosureSchema } from "./inventory.js";
 export { jobRunSchema, triggerJobInput } from "./jobs.js";
+export {
+  closeShiftInput,
+  listPendingItemsInput,
+  listShiftHistoryInput,
+  LONGEST_HANDOVER_NOTE,
+  LONGEST_PENDING_ITEM,
+  LONGEST_PENDING_ITEM_PAGE,
+  LONGEST_SHIFT_PAGE,
+  openShiftInput,
+  PENDING_ITEM_PAGE_SIZE,
+  pendingItemPageSchema,
+  pendingItemSchema,
+  raisePendingItemInput,
+  resolvePendingItemInput,
+  SHIFT_PAGE_SIZE,
+  shiftPageSchema,
+  shiftSchema,
+} from "./operations.js";
 export {
   listedPaymentSchema,
   listPaymentsInput,

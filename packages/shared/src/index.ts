@@ -8,6 +8,7 @@ export * from "./extra-bed.js";
 export * from "./housekeeping-status.js";
 export * from "./money.js";
 export * from "./occupancy-pricing.js";
+export * from "./payment-refusal.js";
 export * from "./policy-charge.js";
 export * from "./rate-calendar.js";
 export * from "./service-catalog.js";
