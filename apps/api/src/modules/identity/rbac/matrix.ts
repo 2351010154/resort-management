@@ -630,7 +630,7 @@ export const CAPABILITIES = [
       MANAGER: "full",
       ADMIN: "full",
     }),
-    note: "RCP: own shift",
+    note: "RCP: own shift — raised against and cleared by the caller's own open drawer. The outstanding list is narrowed for nobody: an item outlives the shift that found it",
   },
 
   // ── Guest personal data ──────────────────────────────────────────────────
