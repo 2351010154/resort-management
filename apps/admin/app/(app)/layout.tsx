@@ -17,6 +17,14 @@
 // back, and an operator without one is sent to login carrying the destination
 // they were interrupted on.
 //
+// The drawer is here too, in the two places `docs/screens.md` puts it: the shift
+// an operator is on lives in the top bar, and opening, counting, closing and
+// handing one over are palette actions available from any screen. Both are the
+// shell's rather than a screen's because shifts "never own a screen visit" —
+// what the Shifts family screen holds is the history. `features/shifts` carries
+// the argument in full; what the layout owes it is a position for the bar and a
+// registration after the children, like every other shell command.
+//
 // The navigation is here as a rail down the left, filtered by the session's
 // role, and as the `g` sequence and the palette rows that reach the same
 // places. It names fifteen families and **none of their routes exist yet** —
@@ -35,6 +43,11 @@ import {
   CommandRegistryProvider,
 } from "@/features/command-palette";
 import { AppNav, NavShortcuts } from "@/features/shell";
+import {
+  ShiftBar,
+  ShiftCommands,
+  ShiftSurfaceProvider,
+} from "@/features/shifts";
 import {
   SessionCommands,
   SessionGuard,
@@ -58,25 +71,51 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
            * screens accumulated are discarded rather than being served to
            * whoever signs in next on the same machine. */}
           <Providers>
-            <div className="flex min-h-svh">
-              {/* Before the children in the markup, which is where a landmark
-               * belongs for anything reading the page in order. Its commands are
-               * not registered here — see `NavShortcuts` below — so the shell's
-               * registration order is unaffected by where the rail is drawn. */}
-              <AppNav />
-              {/* `min-w-0`, so a wide table inside a screen scrolls within the
-               * main region instead of stretching the flex row and pushing the
-               * rail off the left of the window. */}
-              <main className="min-w-0 flex-1">{children}</main>
-            </div>
-            {/* After the children for the same reason the palette is: React
-             * flushes a child's effects first, so a screen's commands register
-             * before the shell's and a screen may override `session.sign-out` or
-             * a `nav.*` row by claiming its id. Inside the guard, so there is no
-             * sign-out command and no navigation offered on a console nobody is
-             * signed in to. */}
-            <NavShortcuts />
-            <SessionCommands />
+            {/* The provider holds one piece of state — which act of the drawer
+             * is open — and nothing else, because the two surfaces that reach it
+             * are mounted in two different places: the bar is drawn in the top
+             * bar below and the commands are registered after the children, the
+             * way every other shell command is. It renders the panel itself, so
+             * neither surface owns one the other opens. */}
+            <ShiftSurfaceProvider>
+              <div className="flex min-h-svh">
+                {/* Before the children in the markup, which is where a landmark
+                 * belongs for anything reading the page in order. Its commands are
+                 * not registered here — see `NavShortcuts` below — so the shell's
+                 * registration order is unaffected by where the rail is drawn. */}
+                <AppNav />
+                {/* `min-w-0`, so a wide table inside a screen scrolls within the
+                 * main region instead of stretching the flex row and pushing the
+                 * rail off the left of the window. */}
+                <div className="flex min-w-0 flex-1 flex-col">
+                  {/* The top bar `screens.md` puts the current shift in. It
+                   * holds one state and no navigation: the rail is the map, and
+                   * whether the operator is on a drawer is a fact they need
+                   * while working somewhere else. Slim, and drawn above every
+                   * screen's own header rather than inside one, so a
+                   * receptionist glancing up finds it in the same place on all
+                   * of them.
+                   *
+                   * A `div` and not a second `header` landmark: it holds a fact
+                   * rather than a heading, and every screen below draws a header
+                   * of its own — two of those in one document is a landmark list
+                   * nobody can navigate by. */}
+                  <div className="border-border flex h-10 shrink-0 items-center justify-end gap-3 border-b px-rhythm-2">
+                    <ShiftBar />
+                  </div>
+                  <main className="min-w-0 flex-1">{children}</main>
+                </div>
+              </div>
+              {/* After the children for the same reason the palette is: React
+               * flushes a child's effects first, so a screen's commands register
+               * before the shell's and a screen may override `session.sign-out` or
+               * a `nav.*` row by claiming its id. Inside the guard, so there is no
+               * sign-out command and no navigation offered on a console nobody is
+               * signed in to. */}
+              <NavShortcuts />
+              <ShiftCommands />
+              <SessionCommands />
+            </ShiftSurfaceProvider>
           </Providers>
         </SessionGuard>
         {/* After the children, not before: the palette portals its surface to the
