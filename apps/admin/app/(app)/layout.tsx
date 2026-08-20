@@ -96,13 +96,16 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                    * receptionist glancing up finds it in the same place on all
                    * of them.
                    *
+                   * The strip is the bar's own rather than a shell wrapper it is
+                   * poured into: a housekeeper works no till and is told about
+                   * none, and a wrapper here would rule a border across the top
+                   * of every one of their screens to hold nothing.
+                   *
                    * A `div` and not a second `header` landmark: it holds a fact
                    * rather than a heading, and every screen below draws a header
                    * of its own — two of those in one document is a landmark list
                    * nobody can navigate by. */}
-                  <div className="border-border flex h-10 shrink-0 items-center justify-end gap-3 border-b px-rhythm-2">
-                    <ShiftBar />
-                  </div>
+                  <ShiftBar />
                   <main className="min-w-0 flex-1">{children}</main>
                 </div>
               </div>

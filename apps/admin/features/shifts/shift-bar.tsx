@@ -56,12 +56,15 @@ export function ShiftBar() {
   if (!offered) {
     // The accountant's grant on this row is a read of the *history*, which is a
     // screen and is where they are offered it; the housekeeper holds neither
-    // row. Neither of them works a till, so neither is told about one.
+    // row. Neither of them works a till, so neither is told about one — and the
+    // strip goes with the fact rather than standing empty above their screens.
+    // That is why the strip is drawn here rather than by the layout: a wrapper
+    // up there would rule a border across the top of a console holding nothing.
     return null;
   }
 
   return (
-    <div className="flex items-center gap-3 text-sm">
+    <div className="border-border flex h-10 shrink-0 items-center justify-end gap-3 border-b px-rhythm-2 text-sm">
       {drawer.isPending ? (
         <span className="text-muted-foreground text-xs" aria-busy>
           Reading the drawer
