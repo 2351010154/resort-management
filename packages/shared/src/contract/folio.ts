@@ -64,6 +64,7 @@
 import { oc } from "@orpc/contract";
 import { z } from "zod";
 import { vndAmountInputSchema, vndAmountSchema } from "../money.js";
+import { cashPaymentRefusalSchema } from "../payment-refusal.js";
 import { chargeBasisSchema } from "../policy-charge.js";
 import { serviceCodeSchema } from "../service-catalog.js";
 import { isoStayDateSchema, stayDateSchema } from "../stay-date.js";
@@ -506,6 +507,25 @@ export const postOverrideRefundInput = z.object({
  */
 export const closeFolioInput = z.object({ ...bookingIdFields });
 
+/**
+ * The desk's one payment refusal, typed onto the error a client catches.
+ *
+ * `CONFLICT` and not a code of its own, because the body is a perfectly good
+ * payment and what refuses it is the state of the desk — the distinction
+ * `booking.ts` draws for a transition whose state pair is legal and whose
+ * circumstances are not. The code travels in the error's `data` for the reason
+ * `payment-refusal.ts` argues: the console has an action behind this one — the
+ * palette's offer to open a drawer in place — and a screen with an action cannot
+ * be left matching on prose.
+ *
+ * The same `CONFLICT` also carries an account already agreed, which has no code.
+ * That error is undeclared and passes through as it is — a 409 either way, and a
+ * client switching on the code simply finds none.
+ */
+const CASH_PAYMENT_ERRORS = {
+  CONFLICT: { data: z.object({ code: cashPaymentRefusalSchema }) },
+} as const;
+
 export const folio = {
   read: oc
     .route({ method: "GET", path: "/bookings/{bookingId}/folio" })
@@ -561,6 +581,7 @@ export const folio = {
 
   postPayment: oc
     .route({ method: "POST", path: "/bookings/{bookingId}/folio/payments" })
+    .errors(CASH_PAYMENT_ERRORS)
     .input(postPaymentInput)
     .output(folioPostingReceiptSchema),
 
