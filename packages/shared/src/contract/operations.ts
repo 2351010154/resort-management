@@ -89,13 +89,23 @@ export const LONGEST_PENDING_ITEM = 500;
  * about to count it needs — a shift is counted before it is closed, and a field
  * that only appeared afterwards would arrive one act too late.
  *
+ * `cashBookNet` is the property's own money moving through the same till —
+ * `FR-OPS-02`, and `finance.ts` holds the routes that write it. It is a second
+ * field rather than more đồng folded into `cashTaken` because the two are
+ * different facts about the drawer and the desk reads them differently: one is
+ * what guests paid in, the other is what the property took out for a delivery or
+ * put in from a hire, and a single figure would leave a receptionist unable to
+ * tell a shortfall from an errand. Signed, and the only figure here that
+ * ordinarily is — a shift that spent more from the till than it took into it
+ * nets below nothing, which is the usual shape of a day.
+ *
  * **`variance` is the count less what was expected**, expected being
- * `openingFloat + cashTaken`. Positive is a drawer with more đồng in it than the
- * property can account for and negative is one that is short; both are wrong,
- * and the sign says which way, which is the first thing a manager asks. The
- * expected figure itself is not restated: both of its terms are on this object,
- * and the sum of two exact integers is not somewhere a figure can go wrong,
- * where a third copy of it is.
+ * `openingFloat + cashTaken + cashBookNet`. Positive is a drawer with more đồng
+ * in it than the property can account for and negative is one that is short;
+ * both are wrong, and the sign says which way, which is the first thing a
+ * manager asks. The expected figure itself is not restated: all three of its
+ * terms are on this object, and the sum of exact integers is not somewhere a
+ * figure can go wrong, where a fourth copy of it is.
  *
  * `operatorName` travels beside the id because no route in this contract turns a
  * staff id into a person. The history exists to say who was answerable for a day
@@ -112,6 +122,10 @@ export const shiftSchema = z.object({
   openingBusinessDate: isoStayDateSchema,
   /** Cash bound to this shift so far. Zero on a drawer nothing has been paid into. */
   cashTaken: vndAmountSchema,
+  /** The property's own cash through this till: income recorded into it less
+   *  expense taken out of it. Below nothing on the ordinary day, and zero on a
+   *  drawer nobody has spent from. */
+  cashBookNet: vndAmountSchema,
   /** Counted out at the handover. Null while the shift is open. */
   closingCount: vndAmountSchema.nullable(),
   /** Counted less expected. Null while the shift is open, for want of a count. */

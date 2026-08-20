@@ -136,18 +136,24 @@ export function isOpen(shift: Shift): boolean {
 }
 
 /**
- * What the drawer should be holding: the float it was opened with plus the cash
- * bound to the shift.
+ * What the drawer should be holding: the float it was opened with, plus the cash
+ * guests paid into it, plus what the property's own book moved through it.
  *
  * The one piece of arithmetic over money this console does, and `shiftSchema`
- * asks for it here rather than sending a third figure: both terms are on the
- * shift, both are exact integers, and the sum of two exact integers is not
- * somewhere a figure can go wrong. It is what somebody about to count a till
- * needs, which is why `cashTaken` travels on an open shift as well as a closed
- * one.
+ * asks for it here rather than sending a fourth figure: all three terms are on
+ * the shift, all three are exact integers, and their sum is not somewhere a
+ * figure can go wrong. It is what somebody about to count a till needs, which is
+ * why `cashTaken` travels on an open shift as well as a closed one.
+ *
+ * `cashBookNet` is the only signed term and is usually below nothing: `FR-OPS-02`
+ * lets a manager or the accountant record what came out of this till for a
+ * delivery, and đồng handed to a supplier are đồng the count will not find.
+ * Nobody who works a drawer may record one — the matrix denies a receptionist
+ * that row outright — so from the desk's side this figure moves on its own, and
+ * the panel prints it as a term of the sum rather than folding it away.
  */
 export function expectedInDrawer(shift: Shift): bigint {
-  return shift.openingFloat + shift.cashTaken;
+  return shift.openingFloat + shift.cashTaken + shift.cashBookNet;
 }
 
 /** Which way a counted drawer was out, if it was. */
