@@ -971,6 +971,32 @@ describe("the payer's side of the money the desk took", () => {
     expect(taken?.paidAt).toBeInstanceOf(Date);
   });
 
+  it("leaves the agreed account's refusal carrying no code of its own", async () => {
+    // The route declares one typed `CONFLICT` — the drawer's `NO_OPEN_SHIFT` —
+    // and the same status also carries the account that was already agreed,
+    // which has no code. `contract/folio.ts` says the undeclared one passes
+    // through as it is, and this is the assertion behind that sentence: a
+    // console switching on `data.code` finds none rather than meeting a 500
+    // from an error shape the declaration refused.
+    const bookingId = await aSettledStay();
+
+    await as("RECEPTIONIST", "post", closurePath(bookingId)).expect(200);
+
+    const refused = await as(
+      "RECEPTIONIST",
+      "post",
+      `${folioPath(bookingId)}/payments`,
+      {
+        amount: A_PAYMENT.toString(),
+        description: "A transfer keyed after the account was agreed",
+        method: "BANK_TRANSFER",
+      },
+    ).expect(409);
+
+    expect(refused.body.message).toContain("closed");
+    expect(refused.body.data).toBeUndefined();
+  });
+
   it("refuses cash while there is no drawer to count it into", async () => {
     // `FR-OPS-01` puts every cash payment inside an open shift, and this route
     // resolves the caller's own — so a receptionist who has not opened a drawer
