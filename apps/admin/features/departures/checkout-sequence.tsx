@@ -257,7 +257,12 @@ function Sequence({
 
     let settled: bigint;
 
+    // Both cleared together, because they are one state: the sentence below is
+    // only ever written beside the form, and a press that gets a different
+    // answer would otherwise leave "count the till in below" standing over a
+    // form that is no longer there.
     setDrawerNeeded(false);
+    setProblem(null);
 
     try {
       const receipt = await postPayment.mutateAsync(attempt.payment);

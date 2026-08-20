@@ -247,6 +247,11 @@ function Sequence({
    */
   function advance(from: CheckInStep, learned: Partial<SequenceFacts> = {}) {
     setProblem(null);
+    // With the sentence that asked for it, because the form under the deposit
+    // step is offered on one refusal and nothing else. Left standing, it would
+    // reappear on a later return to that step with nothing on screen saying
+    // why.
+    setDrawerNeeded(false);
     const next = stepAfter(sequenceSteps({ ...facts, ...learned }), from);
 
     if (next === null) {
@@ -385,7 +390,12 @@ function Sequence({
       return;
     }
 
+    // Both cleared together, because they are one state: the sentence below is
+    // only ever written beside the form, and a press that gets a different
+    // answer would otherwise leave "count the till in below" standing over a
+    // form that is no longer there.
     setDrawerNeeded(false);
+    setProblem(null);
 
     try {
       await postDeposit.mutateAsync(attempt.payment);
