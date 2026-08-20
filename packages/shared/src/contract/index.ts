@@ -12,6 +12,7 @@ import { availability } from "./availability.js";
 import { booking } from "./booking.js";
 import { businessDate } from "./business-date.js";
 import { feedback } from "./feedback.js";
+import { finance } from "./finance.js";
 import { folio } from "./folio.js";
 import { guest } from "./guest.js";
 import { health } from "./health.js";
@@ -42,6 +43,7 @@ export const contract = {
   businessDate,
   feedback,
   operations,
+  finance,
   audit,
 };
 
@@ -89,6 +91,28 @@ export {
   LONGEST_FEEDBACK_COMMENT,
   submitFeedbackInput,
 } from "./feedback.js";
+export {
+  CASH_BOOK_CATEGORIES,
+  CASH_BOOK_PAGE_SIZE,
+  cashBookCategorySchema,
+  cashBookDirectionSchema,
+  cashBookEntrySchema,
+  cashBookMethodSchema,
+  cashBookPageSchema,
+  categorySuitsDirection,
+  EXPENSE_CATEGORIES,
+  INCOME_CATEGORIES,
+  listCashBookEntriesInput,
+  LONGEST_CASH_BOOK_NOTE,
+  LONGEST_CASH_BOOK_PAGE,
+  recordCashBookEntryInput,
+  reverseCashBookEntryInput,
+} from "./finance.js";
+export type {
+  CashBookCategory,
+  CashBookDirection,
+  CashBookMethod,
+} from "./finance.js";
 export {
   closeFolioInput,
   FOLIO_PAGE_SIZE,

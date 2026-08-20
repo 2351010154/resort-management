@@ -30,6 +30,23 @@
 // this figure knows about — which is the property the schema asks for, and the
 // reason {@link cashTakenOnTheDrawer} is a query rather than a column.
 //
+// **The drawer's expected figure has a third term, and it is not the desk's
+// money.** `FR-OPS-02` lets the property record its own income and expense, and
+// the cash among it physically moves through a till: đồng handed to a supplier
+// for a delivery of bottled water are đồng the count will not find, and a drawer
+// that did not know about them would report the operator short by exactly that
+// amount. So {@link cashBookOnTheDrawer} joins the sum, and expected becomes the
+// float plus the cash taken plus what the property's own book moved through the
+// same drawer. `schema/cash-book.ts` argues the binding from the other side.
+//
+// It is read here rather than through `CashBookService`, and that is deliberate.
+// The figure is a sum over a column keyed on `shift.id`, which is the same kind
+// of thing `cashTakenOnTheDrawer` already is — one scalar subquery inside the
+// statement that selects the shift. Injecting the other service would make it a
+// second round trip per shift on a route that answers pages of them, and would
+// couple a drawer's arithmetic to a class that knows about categories and
+// corrections and pages, none of which this sum has any use for.
+//
 // **Nothing here scopes a read to the caller.** `rbac-matrix.md` puts
 // "RCP: own shift" on both rows this service answers, and `contract/
 // operations.ts` states where that is enforced: the handler, which knows who is
@@ -56,6 +73,7 @@ import {
   sql,
 } from "drizzle-orm";
 import type { DbExecutor } from "../../database/database.module.js";
+import { cashBookEntry } from "../../database/schema/cash-book.js";
 import { folioPosting } from "../../database/schema/folio.js";
 import { staffUser } from "../../database/schema/identity.js";
 import { payment } from "../../database/schema/payment.js";
@@ -91,6 +109,7 @@ export interface Shift {
   readonly openedAt: Date;
   readonly openingBusinessDate: string;
   readonly cashTaken: VndAmount;
+  readonly cashBookNet: VndAmount;
   readonly closingCount: VndAmount | null;
   readonly variance: VndAmount | null;
   readonly closedAt: Date | null;
@@ -209,6 +228,44 @@ const cashTakenOnTheDrawer = sql<string>`(
 )`;
 
 /**
+ * What the property's own money did to this drawer.
+ *
+ * Income recorded into the till less expense taken out of it — `FR-OPS-02`, and
+ * the figure is signed where every other one on a shift is a magnitude. Below
+ * nothing is the ordinary day: a desk pays for a delivery far more often than
+ * anybody hires the function room in cash.
+ *
+ * The rows are found by `shift_id` alone and no method is named beside it:
+ * `cash_book_entry_shift_binding` makes that column non-null on exactly the
+ * `CASH` rows, so the binding *is* the method test and a `method = 'CASH'` here
+ * would be the biconditional restated in a second place for the two to disagree
+ * from. It is `cashTakenOnTheDrawer`'s arrangement and its reason.
+ *
+ * **There is no reversal window here, and that is the difference from the
+ * payments above.** A payment is a row whose status can change after the fact,
+ * which is why that sum has to decide whether a reversal fell before or after
+ * the count. The cash book is append-only — `migrations/0042` refuses every
+ * update and every delete — and a correction is a new row that binds to whatever
+ * drawer is open when it is made. So a closed shift's entries are a set that can
+ * never gain or lose a member, and the sum over them is the same figure today as
+ * on the morning it was signed for. That is the whole of what makes the variance
+ * reproducible, and it is why the correction names a drawer instead of
+ * inheriting one.
+ *
+ * Text on the way back, parsed to `bigint`, for the reason the sum above gives.
+ */
+const cashBookOnTheDrawer = sql<string>`(
+  select coalesce(sum(
+    case when ${cashBookEntry.direction} = 'INCOME'
+      then ${cashBookEntry.amount}
+      else -${cashBookEntry.amount}
+    end
+  ), 0)
+  from ${cashBookEntry}
+  where ${cashBookEntry.shiftId} = ${shift.id}
+)`;
+
+/**
  * Every column a reader of a shift needs, in one place.
  *
  * The name comes from `staff_user` and not from a second lookup: the history
@@ -224,6 +281,7 @@ const shiftColumns = {
   openedAt: shift.openedAt,
   openingBusinessDate: shift.openingBusinessDate,
   cashTaken: cashTakenOnTheDrawer,
+  cashBookNet: cashBookOnTheDrawer,
   closingCount: shift.closingCount,
   closedAt: shift.closedAt,
   handoverNote: shift.handoverNote,
@@ -238,6 +296,7 @@ interface CountedShiftRow {
   openedAt: Date;
   openingBusinessDate: string;
   cashTaken: string;
+  cashBookNet: string;
   closingCount: bigint | null;
   closedAt: Date | null;
   handoverNote: string | null;
@@ -247,22 +306,25 @@ interface CountedShiftRow {
  * The variance, worked out where the three nullable fields can be seen moving
  * together.
  *
- * Counted less expected, expected being the float plus what the drawer took.
- * Positive is a drawer with more đồng in it than the property can account for
- * and negative is one that is short. Two exact integers subtracted from a third:
- * there is no rounding to get wrong here, and `bigint` is what makes it
- * impossible to reach for a route where there would be.
+ * Counted less expected, expected being the float, plus what the drawer took
+ * from guests, plus what the property's own book moved through it. Positive is a
+ * drawer with more đồng in it than the property can account for and negative is
+ * one that is short. Exact integers subtracted from another: there is no
+ * rounding to get wrong here, and `bigint` is what makes it impossible to reach
+ * for a route where there would be.
  */
 function withVariance(row: CountedShiftRow): Shift {
   const cashTaken = BigInt(row.cashTaken);
+  const cashBookNet = BigInt(row.cashBookNet);
 
   return {
     ...row,
     cashTaken,
+    cashBookNet,
     variance:
       row.closingCount === null
         ? null
-        : row.closingCount - (row.openingFloat + cashTaken),
+        : row.closingCount - (row.openingFloat + cashTaken + cashBookNet),
   };
 }
 

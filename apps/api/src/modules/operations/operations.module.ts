@@ -1,6 +1,8 @@
 import { Module } from "@nestjs/common";
 import { BusinessDateService } from "../booking/business-date.service.js";
 import { SystemConfigModule } from "../system-config/system-config.module.js";
+import { CashBookController } from "./cash-book.controller.js";
+import { CashBookService } from "./cash-book.service.js";
 import { CatalogController } from "./catalog.controller.js";
 import { CatalogService } from "./catalog.service.js";
 import { ShiftController } from "./shift.controller.js";
@@ -9,12 +11,20 @@ import { ShiftService } from "./shift.service.js";
 // The back office — `repository-structure.md`'s `operations`, which it defines
 // as "shift handover, cash drawer, service catalog, income/expense".
 //
-// Two of the four now. The catalog arrived first because `FR-FOL-03` needed it;
-// the drawer and the handover are `FR-OPS-01`, and they are one service for the
+// All four now. The catalog arrived first because `FR-FOL-03` needed it; the
+// drawer and the handover are `FR-OPS-01`, and they are one service for the
 // reason `shift.service.ts` argues at length — an item a shift could not finish
-// and the drawer it could not finish it on are one person's day. Income and
-// expense is a later milestone, and this module is still named for the boundary
-// the document drew rather than for what happens to be inside it.
+// and the drawer it could not finish it on are one person's day.
+//
+// **Income and expense is a third service and not a fourth act of the shift
+// one**, though the two meet at the drawer. `cash-book.service.ts` says why they
+// are separate at the seam that matters: a shift is one person's answerability
+// for one till over one interval, and the cash book is the property's own money
+// over months — read by an accountant closing a period, with a matrix row that
+// denies a receptionist outright where both of the drawer's rows grant them
+// `conditional`. What the two share is one figure, and it travels the way a
+// figure should: `ShiftService` sums the entries bound to a drawer, from the
+// table, without either service calling the other.
 //
 // **Not inside `folio`, and the distinction is the requirement's own.** The
 // catalog is what the property sells; a folio is what one stay owes. They meet
@@ -51,8 +61,13 @@ import { ShiftService } from "./shift.service.js";
 // the `TransactionRunner` the controllers inject.
 @Module({
   imports: [SystemConfigModule],
-  controllers: [CatalogController, ShiftController],
-  providers: [BusinessDateService, CatalogService, ShiftService],
+  controllers: [CashBookController, CatalogController, ShiftController],
+  providers: [
+    BusinessDateService,
+    CashBookService,
+    CatalogService,
+    ShiftService,
+  ],
   exports: [CatalogService, ShiftService],
 })
 export class OperationsModule {}

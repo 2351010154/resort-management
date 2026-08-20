@@ -209,6 +209,15 @@ open shift prompts the receptionist to open one in place, count the drawer and
 continue. Gateway payments need no shift; they reconcile against the gateway's
 own report.
 
+The same coupling runs the other way, and it is the one thing a receptionist
+sees of Finance. A cash income or expense also names the drawer it moved
+through, so what a shift is expected to hold is its float, plus the cash guests
+paid in, less what the property spent from the till. Only the accountant and
+management may record one — the desk holds the money and does not book what left
+it — so from the receptionist's side that figure moves without them, and the
+count they sign has to agree with it. A drawer already counted out takes no
+further entry: its variance stands on the count that closed it.
+
 Bookings opens anchored on today — arriving, in-house and departing stays —
 with the full search (room number, type, status, date range, guest name and
 phone) one keystroke away; the common case is a guest calling about a current

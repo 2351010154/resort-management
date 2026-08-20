@@ -332,9 +332,9 @@ function ShiftTable({
       <table className="w-full border-collapse text-sm">
         <caption className="text-muted-foreground mb-rhythm-1 text-left text-xs">
           Every shift the filters matched, newest opening first. What the drawer
-          should have held is the opening float plus the cash taken on it; the
-          variance is the property's own figure, computed when the drawer was
-          counted out.
+          should have held is the opening float, plus the cash taken on it, plus
+          what the property recorded through it; the variance is the property's
+          own figure, computed when the drawer was counted out.
         </caption>
         <thead>
           <tr className="border-border border-b">
@@ -342,6 +342,7 @@ function ShiftTable({
             <Column>Operator</Column>
             <Column align="right">Float</Column>
             <Column align="right">Cash taken</Column>
+            <Column align="right">Thu chi</Column>
             <Column align="right">Counted out</Column>
             <Column>Variance</Column>
           </tr>
@@ -417,6 +418,14 @@ function ShiftRows({ shift }: { shift: Shift }) {
         <td className="px-3 py-1 text-right font-mono whitespace-nowrap">
           {formatVnd(shift.cashTaken)}
         </td>
+        {/* The property's own money through the same till — `FR-OPS-02`. A term
+            of what the drawer should have held, beside the guests' cash rather
+            than folded into it: one is what the desk took and the other is what
+            the property spent from the till, and a manager reading a variance
+            asks which. */}
+        <td className="px-3 py-1 text-right font-mono whitespace-nowrap">
+          {formatVnd(shift.cashBookNet)}
+        </td>
         <td className="px-3 py-1 text-right font-mono whitespace-nowrap">
           {shift.closingCount === null ? (
             <span className="text-muted-foreground">Not counted</span>
@@ -441,7 +450,7 @@ function ShiftRows({ shift }: { shift: Shift }) {
         <tr className="border-border border-b">
           <td
             className="text-muted-foreground pb-2 text-sm first:pl-0"
-            colSpan={6}
+            colSpan={7}
           >
             <span className="border-border block border-l-2 pl-3 whitespace-pre-wrap">
               {shift.handoverNote}

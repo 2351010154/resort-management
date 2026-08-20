@@ -62,6 +62,7 @@ function shift(over: Partial<Shift> = {}): Shift {
     openedAt: "2026-08-16T01:00:00.000Z",
     openingBusinessDate: TODAY,
     cashTaken: 2_500_000n,
+    cashBookNet: 0n,
     closingCount: null,
     variance: null,
     closedAt: null,
@@ -131,6 +132,20 @@ describe("what the drawer should be holding", () => {
     expect(expectedInDrawer(shift({ openingFloat: 0n, cashTaken: 0n }))).toBe(
       0n,
     );
+  });
+
+  it("takes what the property spent from the till out of the figure", () => {
+    // `FR-OPS-02`'s cash entries move this drawer, and the ordinary one is
+    // money going out: đồng handed to a supplier are đồng the count will not
+    // find, and a figure that ignored them would report the operator short by
+    // exactly that amount at the handover.
+    expect(expectedInDrawer(shift({ cashBookNet: -400_000n }))).toBe(
+      3_100_000n,
+    );
+  });
+
+  it("adds what the property took into the till the same way", () => {
+    expect(expectedInDrawer(shift({ cashBookNet: 750_000n }))).toBe(4_250_000n);
   });
 });
 
