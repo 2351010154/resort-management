@@ -1,6 +1,7 @@
 import { Global, Module } from "@nestjs/common";
 import { APP_INTERCEPTOR } from "@nestjs/core";
 import { AuditActorInterceptor } from "../../common/audit/audit.interceptor.js";
+import { AuditController } from "./audit.controller.js";
 import { AuditService } from "./audit.service.js";
 
 // The change log — docs/architecture/repository-structure.md's `audit` row,
@@ -10,6 +11,15 @@ import { AuditService } from "./audit.service.js";
 // member of staff into scope for the whole request; the service files rows
 // against them. Registering one without the other gives either an actor nothing
 // reads or a writer with nobody to name, so they are one module.
+//
+// The controller is the third half and the only one anybody outside this module
+// calls directly: `FR-AUD-01` is what the two above write, and `FR-AUD-02` is
+// the viewer that reads it back. It is a controller in a `@Global()` module,
+// which sounds like a mistake and is not — Nest mounts a module's routes once
+// whether or not anything imports it, and globality is about what the *providers*
+// are visible to. The alternative, a fourth module holding one controller that
+// injects a service from this one, would put the read and the write of one table
+// behind two boundaries for no rule either of them enforces.
 //
 // `@Global()`, and it is the same reason `DatabaseModule` is. Every module that
 // writes state will eventually inject `AuditService` — `FR-AUD-01` says every
@@ -24,6 +34,7 @@ import { AuditService } from "./audit.service.js";
 // actor is in scope before an oRPC handler starts.
 @Global()
 @Module({
+  controllers: [AuditController],
   providers: [
     AuditService,
     { provide: APP_INTERCEPTOR, useClass: AuditActorInterceptor },
