@@ -7,6 +7,7 @@
 // speculatively; an entry with no implementation is a promise the type system
 // will hold the client to and nobody can keep.
 
+import { audit } from "./audit.js";
 import { availability } from "./availability.js";
 import { booking } from "./booking.js";
 import { businessDate } from "./business-date.js";
@@ -41,12 +42,27 @@ export const contract = {
   businessDate,
   feedback,
   operations,
+  audit,
 };
 
 export type Contract = typeof contract;
 
 // The request and response shapes themselves, so a service can name what it is
 // handed without inferring it back out of the router object.
+export {
+  AUDIT_PAGE_SIZE,
+  auditActionSchema,
+  auditActorKindSchema,
+  auditEntryDetailSchema,
+  auditEntryPageSchema,
+  auditEntrySchema,
+  auditFieldSchema,
+  auditScopeSchema,
+  listAuditEntriesInput,
+  LONGEST_AUDIT_PAGE,
+  LONGEST_TABLE_NAME,
+  readAuditEntryInput,
+} from "./audit.js";
 export { rateCalendarQuery, stayOfferQuery } from "./availability.js";
 export {
   assignRoomInput,
