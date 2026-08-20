@@ -51,7 +51,7 @@
 // `principal.realm === "guest"` is a copy of the matrix in a handler, and it
 // would hand the full ledger to whichever realm the matrix conditions next.
 
-import { contract } from "@mariva/shared";
+import { type CashPaymentRefusal, contract } from "@mariva/shared";
 import { Controller } from "@nestjs/common";
 import { Implement, implement, ORPCError } from "@orpc/nest";
 import {
@@ -64,11 +64,24 @@ import type {
   Principal,
 } from "../../common/auth/principal.js";
 import type { DbExecutor } from "../../database/database.module.js";
+import { sqlStateOf } from "../../database/sql-state.js";
 import { TransactionRunner } from "../../database/transaction-runner.js";
 import { BusinessDateService } from "../booking/business-date.service.js";
 import { CatalogService } from "../operations/catalog.service.js";
-import type { FolioAccount, FolioLine, ListedFolio } from "./folio.service.js";
+import { ShiftService } from "../operations/shift.service.js";
+import type {
+  FolioAccount,
+  FolioLine,
+  ListedFolio,
+  PaymentRequest,
+} from "./folio.service.js";
 import { FolioService } from "./folio.service.js";
+
+/** The drawer's own SQLSTATE, raised by the trigger `migrations/0040` puts on
+ *  the payer's side of the ledger — five characters in a class the standard
+ *  reserves for implementations, so a drawer that cannot take this cash is told
+ *  apart from any other refusal without reading a message. */
+const DRAWER_VIOLATION = "MV006";
 
 @Controller()
 export class FolioController {
@@ -77,6 +90,7 @@ export class FolioController {
     private readonly transactions: TransactionRunner,
     private readonly businessDates: BusinessDateService,
     private readonly catalog: CatalogService,
+    private readonly shifts: ShiftService,
   ) {}
 
   /**
@@ -249,25 +263,52 @@ export class FolioController {
    * afterwards, and `contract/folio.ts` says why the answer is asked for at the
    * counter while somebody still knows it.
    *
-   * No drawer is named here, so this route takes bank transfers and refuses
-   * cash — the service says so in a sentence. The shift a cash payment belongs
-   * to is the operator's open one, and resolving it is a read this handler does
-   * not yet have a service to make.
+   * **Cash names the drawer it was counted into, and nothing else may.**
+   * `schema/payment.ts` makes `shift_id` non-null on exactly the `CASH` rows and
+   * `folio.service.ts` refuses both halves of that biconditional in a sentence,
+   * so this handler owes the column an answer on one method and a null on every
+   * other. The answer is the operator's own open shift, resolved through the
+   * posting's executor — `operations.module.ts` exports the service for this
+   * caller and says why the read cannot be made on a second connection: the
+   * trigger in `migrations/0040` locks the drawer as the payment goes in
+   * expressly so a close and a payment cannot pass each other, and a shift
+   * chosen outside that transaction is a shift that may be counted out before
+   * the money reaches it.
+   *
+   * **A receptionist on no drawer is refused rather than given one.** The server
+   * cannot invent an opening float — the figure every variance on the shift is
+   * held against is what somebody counted into it — so `screens.md` has the
+   * console prompt for a drawer in place, and the refusal carries the code that
+   * offer is keyed on. It is a conflict and not a bad request: the body is
+   * exactly what a payment looks like, and what refuses is the state of the desk
+   * at the moment it arrived.
    */
   @RequiresCapability("folio.post-payment")
   @Implement(contract.folio.postPayment)
   postPayment(@CurrentPrincipal() principal: Principal | null) {
     return implement(contract.folio.postPayment).handler(async ({ input }) =>
       this.transactions.run(async (exec) => {
+        // Resolved before the folio is opened, so a desk that cannot take the
+        // money has not opened an account on the way to being told — the
+        // ordering `postServiceItem` takes for its own resolve.
+        const shiftId =
+          input.method === "CASH"
+            ? await this.openDrawerOf(
+                exec,
+                attributedStaff(principal, "take cash at the desk"),
+              )
+            : null;
+
         const folioId = await this.folios.ensureFolio(exec, input.bookingId);
 
-        const payment = await this.folios.postPayment(exec, {
+        const payment = await this.takeMoney(exec, {
           folioId,
           businessDate: await this.businessDates.current(exec),
           description: input.description,
           amount: input.amount,
           method: input.method,
           postedBy: staffId(principal),
+          shiftId,
         });
 
         return {
@@ -456,6 +497,72 @@ export class FolioController {
   }
 
   /**
+   * The drawer this operator is on, or the refusal the console can act on.
+   *
+   * `ShiftService.current` answers null for the ordinary state of somebody who
+   * has not opened a drawer today, and that null is a refusal only here — it is
+   * the reason the shift routes hand it back as an answer and this one does not.
+   * Nothing about the money is written yet when this refuses.
+   */
+  private async openDrawerOf(
+    exec: DbExecutor,
+    operatorId: string,
+  ): Promise<string> {
+    const open = await this.shifts.current(exec, operatorId);
+
+    if (!open) {
+      throw noDrawerOpen(
+        "You are not on a shift, so there is no drawer for this cash to be " +
+          "counted into — open one with what is in the till and post the " +
+          "payment again",
+      );
+    }
+
+    return open.id;
+  }
+
+  /**
+   * The payment, with the drawer's own refusal turned into a sentence.
+   *
+   * `MV006` is the trigger in `migrations/0040` refusing cash into a drawer that
+   * cannot take it, and it is reachable from here in exactly one way: the shift
+   * chosen a statement ago was counted out while this transaction was writing.
+   * The trigger's other half — cash into a colleague's drawer — cannot happen on
+   * this route, because the shift is read for the same staff account that is
+   * written as `posted_by`.
+   *
+   * **Translated rather than left to surface.** `folio.service.ts` reads `MV002`
+   * off a closed account for the same reason, and the case for doing it here is
+   * stronger: this is a receptionist holding đồng, and an untranslated SQLSTATE
+   * is a 500 on a desk whose only remaining question is which drawer the money
+   * goes in. The code is the one the console already has an offer behind,
+   * because by the time this is read the sentence it carries is simply true —
+   * the drawer closed, and the operator is on none.
+   *
+   * The catch runs where the shift was chosen rather than inside the service.
+   * `folio.service.ts` is handed a `shiftId` and has no opinion about where it
+   * came from; this handler picked it, so this handler owns what it means for
+   * the pick to have gone stale.
+   */
+  private async takeMoney(
+    exec: DbExecutor,
+    payment: PaymentRequest,
+  ): Promise<string> {
+    try {
+      return await this.folios.postPayment(exec, payment);
+    } catch (error) {
+      if (sqlStateOf(error) === DRAWER_VIOLATION) {
+        throw noDrawerOpen(
+          "That drawer was counted out while this payment was being written, " +
+            "so the cash cannot go into it — open a shift and post it again",
+        );
+      }
+
+      throw error;
+    }
+  }
+
+  /**
    * The stay's account, or the refusal a reader can act on.
    *
    * One sentence for both absences — a booking that does not exist and a stay
@@ -527,6 +634,37 @@ function attributedStaff(principal: Principal | null, act: string): string {
   }
 
   return staff;
+}
+
+/**
+ * Refuses cash the desk has no drawer for, with the code the console branches
+ * on.
+ *
+ * `CONFLICT` and not `BAD_REQUEST`: the body is a perfectly good payment and
+ * what refuses it is the state of the desk, which is the distinction
+ * `check-out.guard.ts` draws for the same shape of answer. The code travels in
+ * the error's `data` rather than in oRPC's own — `payment-refusal.ts` argues why
+ * a screen with an action behind a refusal cannot be left matching on prose, and
+ * the action here is `screens.md`'s offer to open a drawer in place.
+ *
+ * Constructed rather than raised through the handler's `errors` helper, which is
+ * how `check-out.guard.ts` raises the conflict its own route declares: both
+ * refusals are decided away from the handler — there by a pure guard, here by
+ * two private methods that never see the helper — and the shape the contract
+ * declares is the shape being built. What the declaration in `contract/folio.ts`
+ * buys is the client's side of it: the code is typed onto the error a console
+ * catches instead of being described to it.
+ *
+ * The message differs between the two callers because the two situations do —
+ * one desk never opened a drawer and the other had one taken out from under
+ * it — while the code is the same, because by the time either is read the
+ * operator is on no shift and the way out of both is to open one.
+ */
+function noDrawerOpen(message: string): ORPCError<string, unknown> {
+  return new ORPCError("CONFLICT", {
+    message,
+    data: { code: "NO_OPEN_SHIFT" satisfies CashPaymentRefusal },
+  });
 }
 
 /** The account as the wire carries it — the instants into ISO-8601. The

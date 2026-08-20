@@ -233,6 +233,13 @@ export const payment = pgTable(
     // rather than a habit, and the header says why it is written as a
     // biconditional over `CASH` instead of a list of the methods that are
     // exempt.
+    //
+    // *Which* drawer is a fact in `shift` and so beyond what a check over one
+    // row can see. A trigger holds it — cash named into a shift that has been
+    // counted out, or into one belonging to somebody other than this row's
+    // `posted_by`, is refused with `MV006`. The reasoning, and what is
+    // deliberately left to the two foreign keys instead, is in
+    // `migrations/0040_a_payment_is_counted_into_an_open_shift_of_its_own.sql`.
     shiftId: uuid("shift_id").references(() => shift.id),
     // The ledger line this row is the payer's side of, for the money the desk
     // collected itself. Null on a gateway row, which has none — the header says

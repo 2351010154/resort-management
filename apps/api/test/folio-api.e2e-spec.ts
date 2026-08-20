@@ -971,10 +971,43 @@ describe("the payer's side of the money the desk took", () => {
     expect(taken?.paidAt).toBeInstanceOf(Date);
   });
 
+  it("leaves the agreed account's refusal carrying no code of its own", async () => {
+    // The route declares one typed `CONFLICT` — the drawer's `NO_OPEN_SHIFT` —
+    // and the same status also carries the account that was already agreed,
+    // which has no code. `contract/folio.ts` says the undeclared one passes
+    // through as it is, and this is the assertion behind that sentence: a
+    // console switching on `data.code` finds none rather than meeting a 500
+    // from an error shape the declaration refused.
+    const bookingId = await aSettledStay();
+
+    await as("RECEPTIONIST", "post", closurePath(bookingId)).expect(200);
+
+    const refused = await as(
+      "RECEPTIONIST",
+      "post",
+      `${folioPath(bookingId)}/payments`,
+      {
+        amount: A_PAYMENT.toString(),
+        description: "A transfer keyed after the account was agreed",
+        method: "BANK_TRANSFER",
+      },
+    ).expect(409);
+
+    expect(refused.body.message).toContain("closed");
+    expect(refused.body.data).toBeUndefined();
+  });
+
   it("refuses cash while there is no drawer to count it into", async () => {
-    // `FR-OPS-01` puts every cash payment inside an open shift and this route
-    // resolves none, so the refusal is a sentence the desk can act on rather
-    // than the `23514` the biconditional would raise a moment later.
+    // `FR-OPS-01` puts every cash payment inside an open shift, and this route
+    // resolves the caller's own — so a receptionist who has not opened a drawer
+    // is refused rather than having one invented for them: the opening float
+    // every variance is held against is a figure somebody counted, and no
+    // server can supply it.
+    //
+    // A conflict and not a bad request, carrying the code the console has the
+    // "open a shift" offer behind. The body is a perfectly good payment; what
+    // refuses it is the state of the desk, and a screen matching on the wording
+    // would break the afternoon somebody rewrites the sentence.
     const bookingId = await aStay();
 
     await postCharge(bookingId, A_CHARGE, "One night, about to be paid for");
@@ -988,9 +1021,10 @@ describe("the payer's side of the money the desk took", () => {
         description: "Cash, counted at the counter",
         method: "CASH",
       },
-    ).expect(400);
+    ).expect(409);
 
     expect(refusal.body.message).toContain("shift");
+    expect(refusal.body.data.code).toBe("NO_OPEN_SHIFT");
 
     // Neither side moved. The charge is still the whole of the account, and the
     // payment table holds nothing against it.

@@ -1,14 +1,20 @@
 import { Module } from "@nestjs/common";
+import { BusinessDateService } from "../booking/business-date.service.js";
+import { SystemConfigModule } from "../system-config/system-config.module.js";
 import { CatalogController } from "./catalog.controller.js";
 import { CatalogService } from "./catalog.service.js";
+import { ShiftController } from "./shift.controller.js";
+import { ShiftService } from "./shift.service.js";
 
 // The back office — `repository-structure.md`'s `operations`, which it defines
 // as "shift handover, cash drawer, service catalog, income/expense".
 //
-// The catalog is the first of the four to be built, because `FR-FOL-03` needs it
-// and the other three are later milestones. So this module holds one thing today
-// and is named for what it will hold, which is the boundary the document already
-// drew rather than one invented around a single service.
+// Two of the four now. The catalog arrived first because `FR-FOL-03` needed it;
+// the drawer and the handover are `FR-OPS-01`, and they are one service for the
+// reason `shift.service.ts` argues at length — an item a shift could not finish
+// and the drawer it could not finish it on are one person's day. Income and
+// expense is a later milestone, and this module is still named for the boundary
+// the document drew rather than for what happens to be inside it.
 //
 // **Not inside `folio`, and the distinction is the requirement's own.** The
 // catalog is what the property sells; a folio is what one stay owes. They meet
@@ -19,16 +25,34 @@ import { CatalogService } from "./catalog.service.js";
 // `schema/service.ts` calls the table `modules/folio`'s because that is where an
 // item becomes a line, and this module is what it becomes a line *from*.
 //
-// The service is exported, so the controller is not the only way in, for the
+// Both services are exported, so a controller is not the only way in, for the
 // same reason `SystemConfigModule` exports its reader: `folio.controller.ts`
-// resolves an item inside the transaction it is about to post in, and reaching
-// this over HTTP would answer from a different connection than the write.
+// resolves a catalog item inside the transaction it is about to post in, and
+// reaching this over HTTP would answer from a different connection than the
+// write. **The drawer needs that export more than the catalog does.** A catalog
+// row read on a second connection is at worst a repricing a request old; the
+// shift a cash payment names is chosen and then written into, and the trigger in
+// `migrations/0040` takes a share lock on that row as the payment goes in
+// expressly so a close and a payment cannot pass each other. Read outside the
+// writing transaction, the drawer could be counted out between being chosen and
+// being used — and the đồng would land in a handover somebody had already signed
+// for.
+//
+// `SystemConfigModule` is imported for the reader behind `BusinessDateService`,
+// which is provided here rather than imported from `BookingModule`, where it
+// lives, for the reason `folio.module.ts` gives about the same class: that
+// module imports this one, so importing it back would be a cycle broken with
+// `forwardRef` for the sake of one stateless provider. The instance is
+// duplicated and the implementation is not, and it caches no hour — it reads the
+// `system_config` row on every call — so no two instances can disagree about
+// which trading day a drawer opened on.
 //
 // `DatabaseModule` is global, so nothing is imported for the Drizzle client or
-// the `TransactionRunner` the controller injects.
+// the `TransactionRunner` the controllers inject.
 @Module({
-  controllers: [CatalogController],
-  providers: [CatalogService],
-  exports: [CatalogService],
+  imports: [SystemConfigModule],
+  controllers: [CatalogController, ShiftController],
+  providers: [BusinessDateService, CatalogService, ShiftService],
+  exports: [CatalogService, ShiftService],
 })
 export class OperationsModule {}

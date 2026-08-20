@@ -61,11 +61,16 @@ import { E_INVOICE_PORT } from "./ports/e-invoice.port.js";
 // not, and it caches no hour — it reads the `system_config` row on every call —
 // so no two instances can disagree about what day the property is on.
 // `OperationsModule` is imported for the same reason and on the same terms as
-// `SystemConfigModule` above it: `FR-FOL-03` posts a catalog item at the price
-// the catalog holds, and the row has to be read through the posting's own
-// executor so the figure the line is computed from is the figure that was there
-// when it went in. The dependency runs one way — the catalog knows nothing about
-// a folio, and a posting is the only place the two meet.
+// `SystemConfigModule` above it, and now for two of its services. `FR-FOL-03`
+// posts a catalog item at the price the catalog holds, and the row has to be
+// read through the posting's own executor so the figure the line is computed
+// from is the figure that was there when it went in. `FR-OPS-01` binds every
+// cash payment to the drawer it was counted into, and `ShiftService` is what
+// resolves the operator's open one — read on another connection it could be a
+// drawer that is counted out before the money reaches it, which is the race
+// `migrations/0040` takes a row lock against. The dependency runs one way in
+// both cases: neither the catalog nor a shift knows anything about a folio, and
+// a posting is the only place any of them meet.
 // `GuestModule` is imported for the one thing the close does after it commits:
 // `FR-GST-05` earns a guest points for the stay whose account was just agreed,
 // and `LoyaltyService` is where that lives. The edge runs this way and only
