@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import type { BoardRoom } from "@/features/housekeeping";
+import { OpenDrawerForm } from "@/features/shifts/drawer-forms";
+import { cashDrawerRefusal } from "@/features/shifts/shift-day";
 import {
   type DeskPaymentFields,
   type DeskPaymentMethod,
@@ -182,6 +184,11 @@ function Sequence({
     description: "Deposit taken at check-in",
   });
   const [posted, setPosted] = useState<bigint | null>(null);
+  // Whether the deposit step is also asking for a drawer to count the notes
+  // into. State of this sequence rather than of the shift, because the drawer
+  // itself is read by the shell's bar: what this remembers is only that a press
+  // on this step was refused for the want of one.
+  const [drawerNeeded, setDrawerNeeded] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
 
   const folio = useBookingFolio(arrival.id);
@@ -378,9 +385,22 @@ function Sequence({
       return;
     }
 
+    setDrawerNeeded(false);
+
     try {
       await postDeposit.mutateAsync(attempt.payment);
-    } catch {
+    } catch (error) {
+      // The same one refusal the checkout sequence reads, for the same reason:
+      // a deposit handed over in cash belongs to a drawer, and an operator on
+      // none is holding notes with nowhere to count them. Everything else is
+      // reported by `lib/query-client.ts`'s central toast.
+      if (cashDrawerRefusal(error) === "NO_OPEN_SHIFT") {
+        setDrawerNeeded(true);
+        setProblem(
+          "There is no cash drawer open in your name, and cash belongs to a drawer or the day's variance means nothing. Count the till in below — the same press takes the deposit.",
+        );
+      }
+
       return;
     }
 
@@ -559,6 +579,29 @@ function Sequence({
             }}
           />
         </Step>
+      ) : null}
+
+      {step === "deposit" && drawerNeeded ? (
+        /* A sibling of the step's form and under it, not over it — the amount,
+         * the description and the method the operator already chose stay on
+         * screen, because the press below re-posts them. A form nested inside
+         * another one is also not a form the browser will submit. */
+        <div className="border-border mt-rhythm-1 border-t pt-rhythm-1">
+          <p className="text-muted-foreground text-xs tracking-caps uppercase">
+            Open a drawer
+          </p>
+          <OpenDrawerForm
+            confirm="Open the drawer and post the deposit"
+            onOpened={async () => {
+              setDrawerNeeded(false);
+              // The deposit again, on the same press, with the same figure and
+              // the same method — the second half of an act the operator asked
+              // for by pressing a button that says so, not a retry the console
+              // decided on.
+              await submitDeposit();
+            }}
+          />
+        </div>
       ) : null}
 
       {step === "review" ? (
