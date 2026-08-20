@@ -7,6 +7,12 @@ import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+/* The drawer's own two pieces, reached by their own paths rather than through
+ * `features/shifts`'s barrel: a barrel is resolved as a whole, and the history
+ * screen it also exports has no business in the departures bundle. The same
+ * reach `features/payments` makes into `features/folios/folio-ledger`. */
+import { OpenDrawerForm } from "@/features/shifts/drawer-forms";
+import { cashDrawerRefusal } from "@/features/shifts/shift-day";
 import { formatShortDate } from "@/lib/business-date";
 import {
   type DeskPaymentFields,
@@ -66,6 +72,21 @@ import {
  * recovery: a close that succeeded is remembered, so a second press after a
  * failed check-out does not try to agree an account that is already agreed.
  *
+ * ## Cash with no drawer open is answered here, not by a toast
+ *
+ * Every đồng of cash belongs to an open shift or drawer variance means nothing,
+ * so the API refuses a cash payment from an operator on no drawer — a `CONFLICT`
+ * carrying `NO_OPEN_SHIFT` in its `data`, which `payment-refusal.ts` exists so
+ * that a screen can branch on rather than match on prose. `screens.md` says what
+ * the branch owes the desk: "a cash payment with no open shift prompts the
+ * receptionist to open one in place, count the drawer and continue." So the
+ * refusal opens the drawer form under the payment step and the press that
+ * finishes it posts the payment again — the guest is standing at the desk with
+ * the money in their hand, and sending the receptionist to another surface to
+ * fix it would lose the queue's place over a till that takes ten seconds to
+ * count. Every other refusal of a payment is left exactly where it was: reported
+ * centrally, with the operator on the control that caused it.
+ *
  * ## Nothing is polled for an invoice
  *
  * There is no e-invoice call after the close and no reference to wait for.
@@ -124,6 +145,10 @@ function Sequence({
   // `CONFLICT` the operator can do nothing about, over an act that succeeded.
   const [agreed, setAgreed] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
+  // Whether the last payment was refused for want of a cash drawer. Held apart
+  // from `problem` because it is not a sentence but an act: the form below is
+  // offered on exactly this refusal, and on nothing else the API can answer.
+  const [drawerNeeded, setDrawerNeeded] = useState(false);
 
   const folio = useBookingFolio(departure.id);
   const account = folio.data;
@@ -180,6 +205,7 @@ function Sequence({
    */
   function advance(from: CheckoutStep, learned: Partial<SequenceFacts> = {}) {
     setProblem(null);
+    setDrawerNeeded(false);
     const next = stepAfter(sequenceSteps({ ...facts, ...learned }), from);
 
     if (next === null) {
@@ -231,6 +257,8 @@ function Sequence({
 
     let settled: bigint;
 
+    setDrawerNeeded(false);
+
     try {
       const receipt = await postPayment.mutateAsync(attempt.payment);
 
@@ -239,9 +267,19 @@ function Sequence({
       // over-payment leaves the property owing, and the receipt is the only
       // reading of the ledger taken after the line was written.
       settled = receipt.folio.summary.outstanding;
-    } catch {
-      // Reported by `lib/query-client.ts`'s central toast. What is owed here is
-      // staying on the control the operator can fix it at.
+    } catch (error) {
+      // One refusal has an act behind it, and it is the only one this catch
+      // reads. Everything else — a figure the route would not take, an account
+      // already agreed, a network that was not there — is reported by
+      // `lib/query-client.ts`'s central toast, and what is owed here is staying
+      // on the control the operator can fix it at.
+      if (cashDrawerRefusal(error) === "NO_OPEN_SHIFT") {
+        setDrawerNeeded(true);
+        setProblem(
+          "There is no cash drawer open in your name, and cash belongs to a drawer or the day's variance means nothing. Count the till in below — the same press takes the payment.",
+        );
+      }
+
       return;
     }
 
@@ -373,6 +411,32 @@ function Sequence({
             }}
           />
         </Step>
+      ) : null}
+
+      {step === "payment" && drawerNeeded ? (
+        /* Under the step and not over it, and a sibling of its form rather than
+         * a child — the step's own fields stay on screen above, because the
+         * amount, the description and the method the operator already chose are
+         * what the press below re-posts. A form that replaced them would look
+         * like the payment had been thrown away, and a form nested inside
+         * another one is not a form the browser will submit. */
+        <div className="border-border mt-rhythm-1 border-t pt-rhythm-1">
+          <p className="text-muted-foreground text-xs tracking-caps uppercase">
+            Open a drawer
+          </p>
+          <OpenDrawerForm
+            confirm="Open the drawer and take the payment"
+            onOpened={async () => {
+              setDrawerNeeded(false);
+              // The payment again, on the same press, with the same figure and
+              // the same method. Not a retry the console decided on — a
+              // mutation is never retried automatically here, for the reason
+              // `lib/query-client.ts` gives — but the second half of an act the
+              // operator asked for by pressing a button that says so.
+              await submitPayment();
+            }}
+          />
+        </div>
       ) : null}
 
       {step === "settlement" ? (
