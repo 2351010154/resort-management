@@ -497,14 +497,6 @@ export class FolioController {
   }
 
   /**
-   * The stay's account, or the refusal a reader can act on.
-   *
-   * One sentence for both absences — a booking that does not exist and a stay
-   * nothing has been posted to — because from the folio table they are the same
-   * answer, and a route that told them apart would confirm which booking ids
-   * exist to a caller guessing at them.
-   */
-  /**
    * The drawer this operator is on, or the refusal the console can act on.
    *
    * `ShiftService.current` answers null for the ordinary state of somebody who
@@ -570,6 +562,14 @@ export class FolioController {
     }
   }
 
+  /**
+   * The stay's account, or the refusal a reader can act on.
+   *
+   * One sentence for both absences — a booking that does not exist and a stay
+   * nothing has been posted to — because from the folio table they are the same
+   * answer, and a route that told them apart would confirm which booking ids
+   * exist to a caller guessing at them.
+   */
   private async account(
     exec: DbExecutor,
     bookingId: string,
