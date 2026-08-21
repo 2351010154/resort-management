@@ -84,9 +84,10 @@ export {
   Tabs,
   TabsContent,
   TabsList,
-  tabsListVariants,
   TabsTrigger,
+  tabsListVariants,
 } from "./tabs";
+export { Textarea } from "./textarea";
 export {
   Tooltip,
   TooltipContent,

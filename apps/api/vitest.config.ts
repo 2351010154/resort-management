@@ -90,6 +90,7 @@ export default defineConfig({
         "src/modules/folio/**/*.ts",
         "src/modules/payment/**/*.ts",
         "src/modules/operations/**/*.ts",
+        "src/modules/audit/**/*.ts",
         "src/database/schema/inventory.ts",
         "src/database/schema/pricing.ts",
       ],
@@ -179,6 +180,22 @@ export default defineConfig({
         // silent in exactly the way this list exists for: a guest is charged an
         // amount that looks like a price and is not one.
         "src/modules/operations/**": {
+          lines: 85,
+          functions: 85,
+          branches: 85,
+          statements: 85,
+        },
+        // `audit` joins on the argument `guest` makes above it. The module was
+        // outside the measurement while it held only the write half, where a
+        // failure is loud — an audit row that does not get filed takes its
+        // whole transaction down with it, which is the point of handing the
+        // service its caller's executor. The read half has the opposite
+        // failure: it carries the narrowing behind `ACCOUNTANT: ⚠`, and a
+        // narrowing that stops narrowing still returns rows. Nothing about the
+        // response says the reader was shown a table nobody decided to show
+        // them, which is the same silence `guest`'s mask is held to a floor
+        // for.
+        "src/modules/audit/**": {
           lines: 85,
           functions: 85,
           branches: 85,

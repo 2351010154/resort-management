@@ -73,15 +73,17 @@ describe("how the money arrived", () => {
     }
   });
 
-  it("offers only what the route can currently take", () => {
-    // Cash belongs to the drawer it was counted into and `folio.postPayment`
-    // resolves no shift yet, so it answers every cash posting with a refusal.
-    // A radio the operator can pick and the API always rejects is the most
-    // ordinary settlement at the property put behind a control that cannot
-    // work. Cash comes back to this list when the route can read an open
-    // drawer; it stays a method the contract takes in the meantime.
-    expect([...OFFERED_PAYMENT_METHODS]).toStrictEqual(["BANK_TRANSFER"]);
-    expect([...OFFERED_PAYMENT_METHODS]).not.toContain("CASH");
+  it("offers cash, now that the route binds it to a drawer", () => {
+    // Cash belongs to the drawer it was counted into, and `folio.postPayment`
+    // resolves the operator's open shift and binds the payment to it. The one
+    // case it still refuses — an operator on no drawer — carries a code the
+    // checkout sequence acts on by opening one in place, so the radio is
+    // offered rather than withheld from the property's most ordinary
+    // settlement.
+    expect([...OFFERED_PAYMENT_METHODS]).toStrictEqual([
+      ...DESK_PAYMENT_METHODS,
+    ]);
+    expect([...OFFERED_PAYMENT_METHODS]).toContain("CASH");
     expect(
       postPaymentInput.safeParse({
         bookingId: STAY,

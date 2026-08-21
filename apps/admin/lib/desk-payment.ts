@@ -31,23 +31,25 @@ export const DESK_PAYMENT_METHODS = postPaymentInput.shape.method.options;
 export type DeskPaymentMethod = (typeof DESK_PAYMENT_METHODS)[number];
 
 /**
- * What the console actually offers today, which is not yet the whole list.
+ * What the console offers, which is now the whole of what the desk may take.
  *
- * `CASH` is a method the contract takes and the API refuses: a cash payment
- * belongs to the drawer it was counted into, and `folio.postPayment` has no
- * shift to resolve until the shift open/close route lands, so it answers every
- * cash posting with a `400`. Offering it anyway would put the property's most
- * ordinary settlement behind a control that cannot work — the operator picks
- * the first radio, presses Enter, and is told the desk has no drawer.
+ * `CASH` was withheld here for as long as `folio.postPayment` had no shift to
+ * bind it to and answered every cash posting with a refusal — the property's
+ * most ordinary settlement behind a control that could not work. That route now
+ * resolves the operator's open drawer and binds the payment to it, and the one
+ * case it still refuses — an operator on no drawer at all — travels as
+ * `NO_OPEN_SHIFT` in the error's `data` with an act behind it: the checkout
+ * sequence opens a drawer in place and posts the payment again, which is what
+ * `screens.md` asks for and what `payment-refusal.ts` types the code for.
  *
- * So the console offers what the API can take. Delete this narrowing when
- * `folio.postPayment` reads the operator's open shift; the contract already
- * carries `CASH` and {@link METHOD_LABELS} already names it, so restoring it is
- * this constant and nothing else.
+ * The constant stays because it is the question a payment step actually asks —
+ * *what may this console offer* — and the answer being the whole contract list
+ * today is a fact about the API rather than about the two steps that read it.
+ * The gateway is still absent, and not because of a filter: `postPaymentInput`
+ * carries no `VNPAY` at all, since a gateway payment exists because the gateway
+ * confirmed it to the IPN handler.
  */
-export const OFFERED_PAYMENT_METHODS = DESK_PAYMENT_METHODS.filter(
-  (method) => method !== "CASH",
-);
+export const OFFERED_PAYMENT_METHODS = DESK_PAYMENT_METHODS;
 
 /**
  * What each way of paying is called on screen.
@@ -56,9 +58,9 @@ export const OFFERED_PAYMENT_METHODS = DESK_PAYMENT_METHODS.filter(
  * counter method added to the contract stops this file compiling, where a
  * `?? method` would quietly print a database enum at a guest.
  *
- * `CASH` keeps its label while {@link OFFERED_PAYMENT_METHODS} withholds it.
  * The label is what the method is called and stays true whether or not a radio
- * offers it — a payment already taken in cash is still rendered from here.
+ * offers it — a payment already taken in cash is rendered from here whatever
+ * {@link OFFERED_PAYMENT_METHODS} currently holds.
  */
 export const METHOD_LABELS: Record<DeskPaymentMethod, string> = {
   CASH: "Cash",

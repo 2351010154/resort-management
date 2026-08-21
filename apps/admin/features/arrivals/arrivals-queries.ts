@@ -252,6 +252,14 @@ export function usePostDeposit() {
       } satisfies ConsoleMeta,
       onSuccess: () => {
         void queryClient.invalidateQueries({ queryKey: orpc.folio.key() });
+        // The drawer too, and not only the account. A deposit taken in cash is
+        // counted into the operator's open shift by the API, so the figure the
+        // shell's bar is showing became wrong in the same commit that wrote the
+        // line — and a bar that is only right until the next payment is worse
+        // than no bar, because it is trusted. Invalidated for every method
+        // rather than only for cash: whether a shift moved is the API's reading
+        // of the posting, not one this hook should keep a second opinion about.
+        void queryClient.invalidateQueries({ queryKey: orpc.operations.key() });
       },
     }),
   );
