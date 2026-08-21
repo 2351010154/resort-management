@@ -152,6 +152,12 @@ export function usePostPayment() {
       } satisfies ConsoleMeta,
       onSuccess: () => {
         void queryClient.invalidateQueries({ queryKey: orpc.folio.key() });
+        // The drawer too, and not only the account — `usePostDeposit` in
+        // `features/arrivals/arrivals-queries.ts` states the argument at
+        // length. Cash taken here is counted into the operator's open shift, so
+        // the figure the shell's bar is showing became wrong in the same commit
+        // that wrote the line.
+        void queryClient.invalidateQueries({ queryKey: orpc.operations.key() });
       },
     }),
   );
