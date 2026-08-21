@@ -245,8 +245,15 @@ describe("what the sweep writes down", () => {
   it("touches nothing but the trail", async () => {
     // The sweep reads history and writes one kind of row. A run that moved a
     // booking, a folio or the loyalty ledger would be rewriting the record it
-    // is measuring, and one that reached `audit_entry` would be the shape
-    // `schema/guest-tier.ts` says that table cannot hold.
+    // is measuring.
+    //
+    // `audit_entry` grows by exactly one, and that entry is not the tier change
+    // — it is the record that a row was written to the trail, filed by the
+    // trigger every protected table now carries. `schema/guest-tier.ts` argues
+    // that the change itself cannot live in `audit_entry`, and it still does
+    // not: what is there is one `INSERT` against `guest_tier_change`, addressed
+    // by that row's own id and attributed to nobody, because a sweep has no
+    // member of staff behind it.
     const guest = await aGuestAccount();
 
     await aFinishedStay(guest, daysAgo(10));
@@ -256,7 +263,10 @@ describe("what the sweep writes down", () => {
 
     expect(await runTheSweep()).toHaveLength(1);
 
-    expect(await whatIsStored()).toEqual(before);
+    expect(await whatIsStored()).toEqual({
+      ...before,
+      audit: before.audit! + 1,
+    });
     expect(await countOf(guestTierChange)).toBe(1);
   });
 });
