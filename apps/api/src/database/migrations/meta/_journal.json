@@ -302,6 +302,13 @@
       "when": 1787325600000,
       "tag": "0042_the_property_keeps_a_cash_book_of_its_own",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1787286646572,
+      "tag": "0043_a_closed_trading_day_is_frozen_once",
+      "breakpoints": true
     }
   ]
 }
