@@ -368,12 +368,14 @@ export const folioPosting = pgTable(
     // hung off the wrong row, leaving the guest owing tax on a sale that was
     // undone.
     //
-    // Left open rather than closed because a check cannot close it and the set
-    // to close it to is not settled. `ROOM_CHARGE` and `SERVICE_ITEM` are
-    // certain; whether a `POLICY_CHARGE` carries tax is §4's silence and
-    // `ASM-01`'s unanswered question. Closing it is a trigger, and it belongs
-    // to the service that writes the three lines together — the same reason the
-    // grouping column above was not invented ahead of that service either.
+    // Left open rather than closed because a check cannot close it, and not
+    // because the set is unknown. The set is `ROOM_CHARGE` and `SERVICE_ITEM`:
+    // §5 records the owner's decision that a charge under §4's grid carries no
+    // VAT and no service charge, so a `POLICY_CHARGE` is a principal that never
+    // has a derived line hung off it. Closing the parent's side is a trigger,
+    // and it belongs to the service that writes the three lines together — the
+    // same reason the grouping column above was not invented ahead of that
+    // service either.
     check(
       "folio_posting_derives_exactly_when_a_tax_line",
       sql`(${table.type} in ('SERVICE_CHARGE_FEE', 'VAT')) = (${table.parentPostingId} is not null)`,
