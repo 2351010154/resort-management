@@ -105,6 +105,14 @@ const NOT_PROTECTED: Readonly<Record<string, string>> = {
   payment_reconciliation_run:
     "keyed by business_date and holding no uuid; it is also a job's record " +
     "that a day was compared, carrying the instant it was compared at",
+  night_audit_snapshot:
+    "keyed by business_date and holding no uuid, so audit_entry.row_id cannot " +
+    "address it; and there is no change to file, because 0043 refuses every " +
+    "update and delete on the row outright — the insert is the only event the " +
+    "table has, and closed_at already carries when it happened",
+  night_audit_snapshot_type:
+    "one night's share of that same frozen row, keyed by the business date and " +
+    "the room type and refused every rewrite by the same trigger",
 };
 
 /** Postgres's own bits in `pg_trigger.tgtype`. */
