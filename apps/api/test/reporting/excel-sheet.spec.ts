@@ -12,6 +12,11 @@
 // are compared against the `bigint` that went in, at the exactness bound
 // `excel-sheet.ts` argues for and one đồng past it.
 //
+// **That a proportion is neither rounded, clamped nor confused with a nought.**
+// `FR-RPT-03`'s occupancy is a fraction whose denominator can be zero and whose
+// value can exceed one, and all three of those readings have to survive the trip
+// into a cell as themselves.
+//
 // No database. A workbook built from fixture rows needs none, which is the whole
 // reason these two properties can be held on every run rather than only where
 // Postgres is up.
@@ -233,6 +238,96 @@ describe("the writer under a source that is paged, as the real one is", () => {
 
     expect(bytesWhenTheLastRowWasProduced).toBeGreaterThan(0);
     expect(bytes).toBeGreaterThan(bytesWhenTheLastRowWasProduced);
+  });
+});
+
+describe("a proportion in a cell", () => {
+  // Its own sheet rather than a fifth column on the fixture above, so the
+  // header row every other test in this file compares against stays four wide.
+  interface Reading {
+    readonly night: string;
+    readonly occupancy: number | null;
+  }
+
+  const READING_COLUMNS: readonly SheetColumn<Reading>[] = [
+    { header: "Night", width: 13, text: (row) => row.night },
+    { header: "Occupancy", width: 12, fraction: (row) => row.occupancy },
+  ];
+
+  /** The title, one stamp line, the blank and the headers come first. */
+  const FIRST_READING = 5;
+
+  async function readings(
+    rows: readonly Reading[],
+  ): Promise<ExcelJS.Worksheet> {
+    const sink = new PassThrough();
+    const chunks: Buffer[] = [];
+
+    sink.on("data", (chunk: Buffer) => chunks.push(chunk));
+
+    async function* source(): AsyncGenerator<Reading> {
+      for (const row of rows) {
+        yield row;
+      }
+    }
+
+    await writeExcelSheet(
+      {
+        sheetName: "Book",
+        title: "Performance — a fixture",
+        stamp: ["Taken 2026-08-20 17:35 · Asia/Ho_Chi_Minh"],
+        columns: READING_COLUMNS,
+        rows: source(),
+      },
+      sink,
+    );
+
+    const workbook = new ExcelJS.Workbook();
+
+    await workbook.xlsx.load(Buffer.concat(chunks));
+
+    const sheet = workbook.getWorksheet("Book");
+
+    if (!sheet) {
+      throw new Error("the workbook came back without the sheet written");
+    }
+
+    return sheet;
+  }
+
+  it("holds the fraction itself under a percent format", async () => {
+    // Not the percentage: 0.42 is what the service computed and what the cell
+    // holds, and the format is what makes it read as 42.0%. A cell holding 42
+    // would be a column that charts a hundred times too high.
+    const sheet = await readings([{ night: "2026-08-20", occupancy: 0.42 }]);
+    const cell = sheet.getRow(FIRST_READING).getCell(2);
+
+    expect(cell.value).toBe(0.42);
+    expect(cell.numFmt).toBe("0.0%");
+  });
+
+  it("carries a reading above 100% uncapped", async () => {
+    // A closure that withdraws a room after the night was sold leaves a day
+    // genuinely sold above what was sellable, which `schema/night-audit.ts`
+    // declines to forbid. Nothing between the count and the cell may clamp it.
+    const sheet = await readings([{ night: "2026-08-20", occupancy: 1.2 }]);
+
+    expect(sheet.getRow(FIRST_READING).getCell(2).value).toBe(1.2);
+  });
+
+  it("leaves a null denominator blank rather than writing a nought", async () => {
+    // The distinction the whole nullable ratio exists for: a property with no
+    // room on sale has no occupancy, and a 0 in a spreadsheet is a number
+    // somebody averages.
+    const sheet = await readings([{ night: "2026-08-20", occupancy: null }]);
+
+    expect(sheet.getRow(FIRST_READING).getCell(2).value).toBeNull();
+  });
+
+  it("writes a genuine nought as a nought, so the two are told apart", async () => {
+    const sheet = await readings([{ night: "2026-08-20", occupancy: 0 }]);
+
+    expect(sheet.getRow(FIRST_READING).getCell(2).value).toBe(0);
   });
 });
 
