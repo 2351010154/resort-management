@@ -88,6 +88,11 @@ export * from "./guest-tier.js";
 // handover variance computable. Owned by `modules/operations`.
 export * from "./shift.js";
 
+// The property's own money, which the folio never sees: categorised income and
+// expense, append-only, and — where the đồng passed through a till — bound to
+// the drawer whose count has to account for them. Owned by `modules/operations`.
+export * from "./cash-book.js";
+
 // What a guest thought of a stay they have finished — one row per booking, and
 // no row at all for a stay that has not ended. Owned by `modules/feedback`.
 export * from "./feedback.js";

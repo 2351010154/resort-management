@@ -181,7 +181,7 @@ authority named in [`README.md`](README.md) and wins.
 |---|---|---|---|
 | `FR-OPS-01` | Shift open/close with cash-drawer count and variance; handover notes and pending items, including services posted during the shift. Every cash payment belongs to an open shift — taking cash with none open prompts opening one in place, so variance stays computable; gateway payments are outside the drawer | Receptionist scoped to own shift; a cash payment posted with no open shift is impossible by test; brief bullet 8 | M8 |
 | `FR-OPS-02` | Income/expense (*thu chi*) with categories | Brief bullet 11 | M8 |
-| `FR-OPS-03` | Excel export of management data, streamed | Brief bullet 10; library re-evaluated at M8 per [`architecture/tech-stack.md`](architecture/tech-stack.md) §Still open | M8 |
+| `FR-OPS-03` | Excel export of management data, streamed | Brief bullet 10; library re-evaluated at M8 and kept, per [`architecture/tech-stack.md`](architecture/tech-stack.md) §Excel export, re-evaluated | M8 |
 
 ### 4.11 `reporting` — night audit and KPIs
 

@@ -34,14 +34,15 @@
 // unaffected by the write's existence: only the edit takes a row lock, and a
 // plain `SELECT` never queues behind one.
 //
-// **The edit files a change-log row, and files it here rather than at the
-// controller.** `audit-actor.ts` states the failure it is avoiding: a mechanism
-// whose omission is silent will not reach the coverage `FR-AUD-01` asks for,
-// because a write that forgot to log still succeeds and still returns. Keeping
-// the entry inside the method that performs the write leaves nothing for a
-// later caller to remember. It also keeps the pre-image honest — it is captured
-// by the statement that takes the lock, so it is the row this update overwrote
-// and not one that was true a moment earlier.
+// **The edit files a change-log row, and nothing here writes it.**
+// `audit-actor.ts` states the failure that decides where such a write belongs:
+// a mechanism whose omission is silent will not reach the coverage `FR-AUD-01`
+// asks for, because a write that forgot to log still succeeds and still
+// returns. The end of that argument is a trigger on `system_config` itself,
+// which is handed the row this update overwrote by Postgres, in the statement
+// that overwrote it, and cannot be forgotten by a caller or bypassed by a psql
+// session. This file used to file the entry as well; doing both would show
+// every configuration change twice in the viewer.
 //
 // **The three tax values come back together, from one row, in one query.** They
 // are not three getters, and that is the same argument `schema/config.ts` makes
@@ -61,46 +62,11 @@ import {
   systemConfig,
   type SystemConfigRow,
 } from "../../database/schema/config.js";
-import { AuditService } from "../audit/audit.service.js";
 
 /** The row as it is written, which is the row as it is read minus the pin. */
 type SystemConfigValues = typeof systemConfig.$inferInsert;
 
-/** The physical table, as Postgres names it and as the log records it. */
-const AUDITED_TABLE = "system_config";
-
 const COLUMNS = getTableColumns(systemConfig);
-
-/**
- * The row as the change log addresses and records it.
- *
- * **`state` is Postgres's own rendering of the whole row, as text, never
- * parsed.** `audit.service.ts` argues it: a `to_jsonb` of the table audits a
- * column a later migration adds on the day it exists, and text that nothing
- * reads cannot lose a digit on the way through a JavaScript `number`.
- *
- * **`id` is the derived address of a table that has no surrogate key.**
- * `audit_entry.row_id` is a `uuid` because every *many-rowed* table in this
- * schema addresses its rows by one. This table has no such column on purpose —
- * `schema/config.ts` pins its primary key to a boolean precisely so that a
- * second row cannot exist — so its address is its name, and `md5` is that name
- * in the shape the column requires. Nothing joins on `row_id`; the column has
- * no foreign key, and `table_name` alone already identifies this row
- * completely, so what is asked of the value is that it be the same one every
- * time.
- *
- * It is computed by Postgres rather than written out as a literal, and that is
- * the point of choosing a derivation over a constant somebody picked. A reader
- * confirms it with `select md5('system_config')::uuid`, the other single-row
- * table gets its own address from the same rule the day it needs one, and the
- * database-side backstop `FR-AUD-01` asks for can reach the identical value
- * from `md5(TG_TABLE_NAME)::uuid` — which a number living in this file could
- * not give it.
- */
-const SNAPSHOT = {
-  id: sql<string>`md5('system_config')::uuid`,
-  state: sql<string>`to_jsonb(system_config)::text`,
-};
 
 /**
  * What a posting needs to split a gross figure — all of it, read at once.
@@ -195,27 +161,6 @@ export interface ConfigurationEdit {
 
 @Injectable()
 export class SystemConfigService {
-  /**
-   * `AuditService` is injected by the container and defaulted for everything
-   * else, which is a decision and not a convenience.
-   *
-   * The reads on this class have no dependencies at all, and a dozen suites
-   * rely on that: `BusinessDateService` and `FolioService` are constructed
-   * directly in tests that never edit a figure, and each of them hands over a
-   * `new SystemConfigService()`. Making the log a required argument would
-   * rewrite fifteen files that have nothing to do with editing configuration,
-   * to pass a collaborator none of them use.
-   *
-   * The default is not a stub. `AuditService` is stateless and takes no
-   * constructor arguments of its own, so `new AuditService()` is the same
-   * object `AuditModule` provides — and because that module is `@Global()`, the
-   * container supplies it here without this module importing anything. A
-   * missing provider would still be a boot failure rather than a silent
-   * omission: the parameter's type is what Nest resolves against, default or
-   * not.
-   */
-  constructor(private readonly audit: AuditService = new AuditService()) {}
-
   /**
    * The tax figures that apply on one business date.
    *
@@ -348,14 +293,14 @@ export class SystemConfigService {
    * `for update`, so a posting reading the rates at the same moment waits for
    * nothing.
    *
-   * **The log entry is written on this executor and therefore in this
-   * transaction.** `audit.service.ts` argues why that matters more here than
-   * anywhere: an entry that committed independently would describe a rate the
-   * property never charged if the edit then rolled back, and a rate change with
-   * no entry is a change nobody can find. Neither outcome reports itself. These
-   * figures also decline an `updated_at`/`updated_by` pair of their own — the
-   * `schema/audit.ts` header names this table as the promise made in exchange —
-   * so this row is the only attribution a configuration change ever gets.
+   * **The log entry is written by the update itself and therefore in this
+   * transaction.** That matters more here than almost anywhere: an entry that
+   * committed independently would describe a rate the property never charged if
+   * the edit then rolled back, and a rate change with no entry is a change
+   * nobody can find. Neither outcome reports itself. These figures also decline
+   * an `updated_at`/`updated_by` pair of their own — the `schema/audit.ts`
+   * header names the change log as the promise made in exchange — so that entry
+   * is the only attribution a configuration change ever gets.
    *
    * **The bounds on each figure are not re-checked here.**
    * `updateSystemConfigInput` mirrors every `CHECK` constraint
@@ -384,7 +329,7 @@ export class SystemConfigService {
     }
 
     const [before] = await exec
-      .select({ ...SNAPSHOT, ...COLUMNS })
+      .select(COLUMNS)
       .from(systemConfig)
       .limit(1)
       .for("update");
@@ -417,27 +362,10 @@ export class SystemConfigService {
     const [after] = await exec
       .update(systemConfig)
       .set(changes)
-      .returning({ ...SNAPSHOT, ...COLUMNS });
+      .returning(COLUMNS);
 
     // The row is locked above, so the update cannot have found nothing.
-    const written = after!;
-
-    await this.audit.record(exec, AUDITED_TABLE, [
-      {
-        rowId: before.id,
-        action: "UPDATE",
-        before: before.state,
-        after: written.state,
-      },
-    ]);
-
-    // The two audit-only fields are dropped rather than handed back. They are
-    // how the log addresses and stores the row, not figures the property set,
-    // and a caller that spread this object onto a response would put a whole
-    // row snapshot on the wire.
-    const { id, state, ...configured } = written;
-
-    return configured;
+    return after!;
   }
 
   /**

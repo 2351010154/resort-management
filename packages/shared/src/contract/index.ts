@@ -12,6 +12,7 @@ import { availability } from "./availability.js";
 import { booking } from "./booking.js";
 import { businessDate } from "./business-date.js";
 import { feedback } from "./feedback.js";
+import { finance } from "./finance.js";
 import { folio } from "./folio.js";
 import { guest } from "./guest.js";
 import { health } from "./health.js";
@@ -42,6 +43,7 @@ export const contract = {
   businessDate,
   feedback,
   operations,
+  finance,
   audit,
 };
 
@@ -89,6 +91,28 @@ export {
   LONGEST_FEEDBACK_COMMENT,
   submitFeedbackInput,
 } from "./feedback.js";
+export {
+  CASH_BOOK_CATEGORIES,
+  CASH_BOOK_PAGE_SIZE,
+  cashBookCategorySchema,
+  cashBookDirectionSchema,
+  cashBookEntrySchema,
+  cashBookMethodSchema,
+  cashBookPageSchema,
+  categorySuitsDirection,
+  EXPENSE_CATEGORIES,
+  INCOME_CATEGORIES,
+  listCashBookEntriesInput,
+  LONGEST_CASH_BOOK_NOTE,
+  LONGEST_CASH_BOOK_PAGE,
+  recordCashBookEntryInput,
+  reverseCashBookEntryInput,
+} from "./finance.js";
+export type {
+  CashBookCategory,
+  CashBookDirection,
+  CashBookMethod,
+} from "./finance.js";
 export {
   closeFolioInput,
   FOLIO_PAGE_SIZE,
@@ -169,6 +193,23 @@ export {
   stayRestrictionSchema,
   updateRatePlanInput,
 } from "./pricing.js";
+// The three Excel exports. Named exports only and nothing added to `contract`
+// above, because they are not oRPC routes: `reporting.ts` opens by saying why a
+// response measured in chunks of zip cannot be one, and an entry in that object
+// would be a promise `@Implement` could not keep.
+export {
+  CASH_BOOK_EXPORT_PATH,
+  CASH_BOOK_EXPORT_STEM,
+  cashBookExportInput,
+  CHANGE_LOG_EXPORT_PATH,
+  CHANGE_LOG_EXPORT_STEM,
+  changeLogExportInput,
+  EXCEL_MEDIA_TYPE,
+  excelExportFileName,
+  SHIFT_HISTORY_EXPORT_PATH,
+  SHIFT_HISTORY_EXPORT_STEM,
+  shiftHistoryExportInput,
+} from "./reporting.js";
 export {
   bookingHitSchema,
   guestHitSchema,

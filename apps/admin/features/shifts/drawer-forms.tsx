@@ -153,9 +153,10 @@ export function OpenDrawerForm({
 /**
  * Counting a drawer out, and telling the next person what they are inheriting.
  *
- * What the till should hold is stated above the field — the opening float plus
- * the cash bound to the shift — because a count taken blind is a count nobody
- * can act on, and because both terms are on the shift already. What it does
+ * What the till should hold is stated above the field — the opening float, the
+ * cash bound to the shift and what the property spent through it — because a
+ * count taken blind is a count nobody can act on, and because all three terms
+ * are on the shift already. What it does
  * *not* state is the variance the count would produce: that figure is the API's,
  * derived under the lock it takes before summing the cash, and a console
  * previewing it would be inviting the operator to type until it read zero.
@@ -253,18 +254,26 @@ export function CloseDrawerForm({
 }
 
 /**
- * What the drawer holds so far — the float, the cash taken on it, and the sum
- * somebody is about to count against.
+ * What the drawer holds so far — the float, the cash taken on it, what the
+ * property's own book moved through it, and the sum somebody is about to count
+ * against.
  *
  * The sum is the one piece of arithmetic over money this console does, and
- * `shiftSchema` asks for it here rather than sending a third figure: both terms
- * are on the shift and both are exact integers.
+ * `shiftSchema` asks for it here rather than sending a fourth figure: all three
+ * terms are on the shift and all three are exact integers.
+ *
+ * The cash-book term is printed even when it is nothing, rather than appearing
+ * the first time somebody spends from the till. Nobody working a drawer may
+ * record one of those entries — the matrix denies a receptionist the row — so
+ * this figure moves without them, and a term that only showed up once it was
+ * non-zero would be a sum that changed shape on the morning it mattered.
  */
 export function DrawerFigures({ shift }: { shift: Shift }) {
   return (
-    <dl className="grid gap-2 text-sm sm:grid-cols-3">
+    <dl className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
       <Fact label="Opening float" value={formatVnd(shift.openingFloat)} />
       <Fact label="Cash taken" value={formatVnd(shift.cashTaken)} />
+      <Fact label="Thu chi" value={formatVnd(shift.cashBookNet)} />
       <Fact
         label="Should hold"
         value={formatVnd(expectedInDrawer(shift))}

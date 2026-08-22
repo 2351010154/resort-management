@@ -793,7 +793,15 @@ describe("the change log a configuration edit leaves", () => {
 
     const before = (await read()).standardVatRateBps;
 
-    await edit({ standardVatRateBps: EDITED_RATE_BPS }).expect(200);
+    // A rate the row is definitely not already at. What is filed is a change
+    // and not a statement: an update that leaves every column where it found it
+    // moves nothing the log has anything to say about, so an edit to whatever
+    // the row happens to hold when this case runs would assert an entry that
+    // was never owed.
+    const changedTo =
+      before === EDITED_RATE_BPS ? EDITED_RATE_BPS + 1 : EDITED_RATE_BPS;
+
+    await edit({ standardVatRateBps: changedTo }).expect(200);
 
     const [entry, ...rest] = await configurationEntries();
 
@@ -820,7 +828,7 @@ describe("the change log a configuration edit leaves", () => {
     // relief-rate one without knowing what the window was that day.
     expect(entry!.before).toMatchObject({ standard_vat_rate_bps: before });
     expect(entry!.after).toMatchObject({
-      standard_vat_rate_bps: EDITED_RATE_BPS,
+      standard_vat_rate_bps: changedTo,
     });
   });
 

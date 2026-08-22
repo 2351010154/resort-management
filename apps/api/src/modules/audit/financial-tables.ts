@@ -90,6 +90,11 @@ export const FINANCIAL_TABLES: readonly string[] = [
   // close / count*, 👁 — a read-only grant elsewhere is still a grant, and this
   // viewer is a read.
   "shift",
+  // The property's own income and expense, and the drawer each entry moved
+  // through. *Income / expense (thu chi)*, ✅ — the accountant is the holder
+  // this book is kept by, so a change to it that they could not read in the
+  // viewer would be the one financial row they are refused.
+  "cash_book_entry",
   // What a night is sold at, and the discounts off it. *Rate plans, rate
   // calendar, promotions*, 👁.
   "rate_plan",

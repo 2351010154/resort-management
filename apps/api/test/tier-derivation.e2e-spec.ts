@@ -155,6 +155,7 @@ beforeAll(async () => {
     .values(A_SERVICE_ITEM)
     .onConflictDoNothing({ target: serviceCatalog.code });
 
+  await db.delete(auditEntry);
   await db.delete(staffUser).where(eq(staffUser.email, A_RECEPTIONIST.email));
 
   const [staff] = await db
@@ -196,6 +197,7 @@ afterAll(async () => {
   await db
     .delete(serviceCatalog)
     .where(eq(serviceCatalog.code, A_SERVICE_ITEM.code));
+  await db.delete(auditEntry);
   await db.delete(staffUser).where(eq(staffUser.email, A_RECEPTIONIST.email));
   await pool?.end();
 });

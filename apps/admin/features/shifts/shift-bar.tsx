@@ -108,9 +108,11 @@ export function ShiftBar() {
  * The drawer that is open, and what it should be holding.
  *
  * The expected figure rather than the float or the takings alone, because it is
- * the only one of the three that answers the question somebody glancing up asks:
- * if I counted this now, what should be in it. Its two terms are on the shift and
- * the panel prints them separately for anybody who wants them.
+ * the only one that answers the question somebody glancing up asks: if I counted
+ * this now, what should be in it. Its three terms are on the shift and the panel
+ * prints them separately for anybody who wants them — including what the
+ * property itself spent from this till, which the desk may not record and has to
+ * be able to see.
  */
 function OpenDrawer({
   shift,

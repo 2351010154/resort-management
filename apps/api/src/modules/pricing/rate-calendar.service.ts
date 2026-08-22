@@ -21,19 +21,24 @@
 // `FR-AUD-01`: the row recording a reprice and the reprice itself have to be one
 // commit, and a service holding its own client cannot be composed into the
 // caller's transaction to make them one.
+//
+// **Nothing here files that row any more, and the reprice is still audited.**
+// The change log is written by a trigger on `rate_calendar` itself, inside the
+// statement below and therefore inside the caller's transaction — the same
+// commit, reached without this file remembering. What it removes is the pre-image
+// this method used to capture by hand: an upsert destroys what it overwrites, so
+// the previous price had to be read in the statement that destroyed it, which
+// was a CTE, a left join and a mapping function held together by an argument
+// about `read committed` snapshots. Postgres has `OLD` in front of it and needs
+// none of that. Filing it here as well would put a second, identical entry in
+// the log for every night repriced, and `FR-AUD-02`'s viewer would show every
+// price change twice.
 
 import type { RoomTypeCode, StayDate, VndAmount } from "@mariva/shared";
 import { Injectable } from "@nestjs/common";
 import { sql } from "drizzle-orm";
 import type { DbExecutor } from "../../database/database.module.js";
-import {
-  type AuditEntryInput,
-  AuditService,
-} from "../audit/audit.service.js";
 import { roomTypeIdFor } from "./room-type-id.js";
-
-/** The table these edits are filed against. */
-const AUDITED_TABLE = "rate_calendar";
 
 /** One night of the range, priced or not yet published. */
 export interface CalendarNight {
@@ -52,18 +57,14 @@ interface NightRow extends Record<string, unknown> {
   readonly gross_per_night: string | null;
 }
 
-/** What one upserted night was, and is. Both snapshots are Postgres's own
- *  rendering of the row, carried as text — `audit.service.ts` on why. */
+/** One night the upsert wrote. Only the count is used; the column is there
+ *  because a statement has to return something to be counted. */
 interface PricedRow extends Record<string, unknown> {
   readonly row_id: string;
-  readonly before_state: string | null;
-  readonly after_state: string;
 }
 
 @Injectable()
 export class RateCalendarService {
-  constructor(private readonly audit: AuditService) {}
-
   /**
    * Every night of the range, including the ones with no row.
    *
@@ -104,7 +105,7 @@ export class RateCalendarService {
   }
 
   /**
-   * Sets one price across the range, over whatever was there, and records who.
+   * Sets one price across the range, over whatever was there.
    *
    * An upsert and not an insert: repricing a season the property has already
    * published is the common edit, and a caller made to delete first would have
@@ -112,23 +113,19 @@ export class RateCalendarService {
    * The same body sent twice leaves the same prices, which is what makes the
    * route a PUT.
    *
-   * **The previous price is read in the same statement that overwrites it.**
-   * `FR-AUD-01` wants the before as well as the after, and this is the only
-   * statement in which the before still exists — the `do update` at the foot of
-   * it is what destroys it. A separate `select` first would be a second
-   * statement under `read committed`, so a concurrent reprice landing between
-   * the two would be recorded as having been overwritten by this one when it was
-   * the other way round. Both branches of the `case` below are reachable and
-   * mean different things: a night nobody had priced is an `INSERT`, and a night
-   * with a price is an `UPDATE` whose `before` is the figure the property was
-   * advertising until this call.
+   * **The previous price is not read here, and it is still recorded.** It used
+   * to be, in this same statement, because the `do update` below is what
+   * destroys it and a separate `select` under `read committed` could have been
+   * overtaken by a concurrent reprice. The trigger on the table is handed `OLD`
+   * by Postgres, in the statement, under no snapshot but its own — which is the
+   * property that argument was reaching for, held by the database rather than by
+   * the shape of a query.
    *
-   * `FOR UPDATE` is deliberately absent from the `before` branch, and it is not
-   * an oversight — it was tried. Locking a row that this same statement's upsert
-   * has already touched yields no row at all, so the pre-image comes back empty
-   * and every reprice files as though the night had never been priced. The
-   * snapshot the CTE already shares with the upsert is what makes the pair
-   * consistent; the lock would only have narrowed a window it cannot see anyway.
+   * Repricing a night to the figure it already carries writes the row and files
+   * nothing, because the row it wrote is the row that was there. An entry whose
+   * two sides agree records that something happened and declines to say what,
+   * which is an edit an investigation would have to rule out before it could
+   * rule anything in.
    */
   async set(
     exec: DbExecutor,
@@ -144,44 +141,15 @@ export class RateCalendarService {
           ${range.to.toString()}::date,
           interval '1 day'
         ) as night
-      ),
-      -- What the property was charging for these nights, read under the same
-      -- snapshot the upsert below runs against.
-      before as (
-        select rc.stay_date, to_jsonb(rc)::text as state
-        from rate_calendar rc
-        join nights n on n.stay_date = rc.stay_date
-        where rc.room_type_id = ${roomTypeId}
-      ),
-      upserted as (
-        insert into rate_calendar (room_type_id, stay_date, gross_per_night)
-        select ${roomTypeId}, n.stay_date, ${range.grossPerNight.toString()}::bigint
-        from nights n
-        on conflict (room_type_id, stay_date)
-          do update set gross_per_night = excluded.gross_per_night
-        returning id, stay_date, to_jsonb(rate_calendar)::text as state
       )
-      select
-        u.id as row_id,
-        b.state as before_state,
-        u.state as after_state
-      from upserted u
-      left join before b on b.stay_date = u.stay_date
-      order by u.stay_date
+      insert into rate_calendar (room_type_id, stay_date, gross_per_night)
+      select ${roomTypeId}, n.stay_date, ${range.grossPerNight.toString()}::bigint
+      from nights n
+      on conflict (room_type_id, stay_date)
+        do update set gross_per_night = excluded.gross_per_night
+      returning id as row_id
     `);
-
-    await this.audit.record(exec, AUDITED_TABLE, rows.map(asEntry));
 
     return rows.length;
   }
-}
-
-/** One upserted night as the log records it. */
-function asEntry(row: PricedRow): AuditEntryInput {
-  return {
-    rowId: row.row_id,
-    action: row.before_state === null ? "INSERT" : "UPDATE",
-    before: row.before_state,
-    after: row.after_state,
-  };
 }

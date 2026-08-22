@@ -1,0 +1,111 @@
+/* The seam between two screens.
+ *
+ * Nine tenths of this file is about *not* being seen. A route fallback that
+ * paints the instant a link is clicked is a third screen inserted between the
+ * two the guest asked for, and on a prefetched navigation it is on screen for
+ * three frames — long enough to register as a stutter and not long enough to
+ * read. So the curtain waits 0.24s before it exists at all (`.screen`'s
+ * animation delay), which is longer than every navigation that was never going
+ * to need it and shorter than the point a still page starts to read as a broken
+ * one. That figure is the one new decision in this file; design-foundations.md
+ * §5 asks for a reason beside anything outside the 0.4–0.5s window, and the
+ * reason is that this is not a transition, it is a threshold on a timer.
+ *
+ * What it paints when it does arrive is the ground both route groups already
+ * stand on: --ivory, the warm rise auth-shell.module.css draws, and the
+ * monogram. Nothing here is chosen for this file — the point is that the guest
+ * cannot tell where the screen they left ended and the one they are waiting for
+ * begins.
+ *
+ * Everything reads from @mariva/tokens, and the only curve named is --ease-ui:
+ * design-foundations.md §2 and §5.
+ */
+
+.screen {
+  position: relative;
+  min-height: 100dvh;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-2);
+  background: var(--ivory);
+  color: var(--ink);
+
+  /* Absent, then present. The delay is the whole mechanism: an element that
+     starts at zero and is unmounted before its delay elapses never painted, so
+     a fast navigation costs nothing rather than costing a flash.
+
+     `forwards`, because the reduced-motion kill switch in globals.css cuts the
+     duration to 0.01ms and leaves the delay alone — which is exactly the right
+     reading of this animation. Somebody who has asked for less motion still
+     gets the wait, they just do not get the fade into it. Without the fill the
+     element would snap back to `opacity: 0` the moment that 0.01ms elapsed and
+     the curtain would never be seen at all. */
+  opacity: 0;
+  animation: arrive 0.5s var(--ease-ui) 0.24s forwards;
+}
+
+/* The same warm rise from the bottom of the frame that the auth screens stand
+   on — two stops, no image, no request. Copied in shape rather than imported
+   because a shared partial between two CSS Modules is a build-order question
+   for six declarations. Absolute rather than fixed, unlike auth-shell's: this
+   element is unmounted the instant the route resolves, and a fixed layer that
+   outlives its own stacking context by even a frame is a scrim over the screen
+   the guest was waiting for. */
+.screen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(
+    120% 80% at 50% 120%,
+    rgb(var(--dusk-amber-rgb) / 0.16),
+    transparent 60%
+  );
+}
+
+/* The house mark, drawn the way auth-shell draws it: --umber through a mask,
+   so the file is one shape and the colour is a token rather than a fill baked
+   into an SVG nobody greps. */
+.monogram {
+  position: relative;
+  width: 3rem;
+  height: 3rem;
+  background: var(--umber);
+  mask: url("/brand/mariva-monogram.svg") center / contain no-repeat;
+  -webkit-mask: url("/brand/mariva-monogram.svg") center / contain no-repeat;
+
+  /* A breath, not a spinner. A spinner measures nothing here — the wait is a
+     route resolving, and there is no proportion of it to report — so what this
+     says is only "still here", which is what a hotel would say.
+
+     `alternate` from dim to lit, and that direction is load-bearing under
+     reduced motion: the kill switch pins the count to one iteration at 0.01ms,
+     so the mark settles on the `to` keyframe. Written the other way round it
+     would settle at 0.4 opacity and read as a mark that failed to load. */
+  animation: breathe 1.8s var(--ease-ui) infinite alternate;
+}
+
+/* The line, in the quietest voice on an ivory ground — design-foundations.md §2
+   puts body copy at --stone-deep and it is a caption, not a heading. */
+.line {
+  position: relative;
+  color: var(--stone-deep);
+}
+
+@keyframes arrive {
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes breathe {
+  from {
+    opacity: 0.4;
+  }
+
+  to {
+    opacity: 1;
+  }
+}

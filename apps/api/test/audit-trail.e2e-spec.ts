@@ -14,11 +14,17 @@
 //   3. **Atomicity.** The row and the edit are one commit. A refused edit that
 //      left a log entry behind would describe a price nobody ever charged, and
 //      is the failure `NFR-09`'s coverage assertion cannot see.
-//   4. **Exactness.** `audit.service.ts` carries both snapshots as text
-//      precisely so no đồng figure passes through a JavaScript `number`. The
-//      price below is 2^53 + 1 for that reason: it is the smallest integer a
-//      `number` cannot hold, so a snapshot that ever became one comes back a
-//      đồng short and this is the assertion that notices.
+//   4. **Exactness.** The snapshot is copied from a `bigint` column into a
+//      `jsonb` one by Postgres, so no đồng figure passes through a JavaScript
+//      `number` on the way in. The price below is 2^53 + 1 for that reason: it
+//      is the smallest integer a `number` cannot hold, so a snapshot that ever
+//      became one comes back a đồng short and this is the assertion that
+//      notices.
+//
+// None of the three services under test files an entry itself. Every row
+// asserted on here is written by the trigger on the table being changed, which
+// is what makes the coverage a property of the database rather than of these
+// three call sites — and what makes case 3 exact rather than nearly so.
 
 import "reflect-metadata";
 
@@ -40,7 +46,6 @@ import {
 } from "../src/database/schema/pricing.js";
 import { seedDatabase } from "../src/database/seed/seed.js";
 import { TransactionRunner } from "../src/database/transaction-runner.js";
-import { AuditService } from "../src/modules/audit/audit.service.js";
 import { StaffUserService } from "../src/modules/identity/staff-user.service.js";
 import { RateCalendarService } from "../src/modules/pricing/rate-calendar.service.js";
 
@@ -122,10 +127,18 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
+  // The rules go first and the log second, and the order is the whole of it:
+  // clearing the restrictions is itself an audited change, so emptying the log
+  // before them would leave the next case reading this one's tidying-up.
+  await db.delete(stayRestriction);
+
   // The log is the thing under test, so every case starts from an empty one and
   // asserts on everything in it rather than on a suffix it has to find.
-  await db.delete(auditEntry);
-  await db.delete(stayRestriction);
+  // `truncate` rather than a delete: every protected table files its own
+  // entries now, so by the time this file runs the log holds every row the
+  // suite before it seeded, and a delete over those is a statement that has to
+  // finish inside the pool's five seconds.
+  await db.execute(sql`truncate audit_entry`);
 });
 
 afterAll(async () => {
@@ -400,25 +413,28 @@ describe("the log and the edit are one commit", () => {
     expect(await entriesFor("rate_calendar")).toHaveLength(0);
   });
 
-  it("refuses a write that reaches the log with nobody behind it", async () => {
+  it("files a change with nobody behind it against nobody", async () => {
     const transactions = app.get(TransactionRunner);
-    const audit = app.get(AuditService);
+    const calendar = app.get(RateCalendarService);
 
-    // No `withAuditActor` — the state a sweep or a gateway callback is in
-    // today. `audit_entry.actor_id` is NOT NULL, and the honest answer to an
-    // unattributable change is a refusal rather than an anonymous row.
-    await expect(
-      transactions.run((exec) =>
-        audit.record(exec, "rate_calendar", [
-          {
-            rowId: "00000000-0000-0000-0000-000000000000",
-            action: "INSERT",
-            before: null,
-            after: '{"id": "00000000-0000-0000-0000-000000000000"}',
-          },
-        ]),
-      ),
-    ).rejects.toThrow(/cannot be attributed/);
+    // No `withAuditActor` — the state a sweep, a scheduled job or a gateway
+    // callback is in. The change still happened and is still recorded; what it
+    // must not do is name an account, because an entry crediting somebody who
+    // did nothing is worse than one crediting nobody.
+    await transactions.run((exec) =>
+      calendar.set(exec, {
+        roomType: "DELUXE",
+        from: parseDate(FIRST),
+        to: parseDate(FIRST),
+        grossPerNight: 3_300_000n,
+      }),
+    );
+
+    const entries = await entriesFor("rate_calendar");
+
+    expect(entries).toHaveLength(1);
+    expect(entries[0]!.actorKind).toBe("system");
+    expect(entries[0]!.actorId).toBeNull();
   });
 });
 

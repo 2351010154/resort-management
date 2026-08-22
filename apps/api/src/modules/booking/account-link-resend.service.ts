@@ -58,20 +58,15 @@
 
 import { Inject, Injectable } from "@nestjs/common";
 import { ORPCError } from "@orpc/nest";
-import { eq, sql } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { ENV, type Env } from "../../config/env.js";
 import type { DbExecutor } from "../../database/database.module.js";
 import { booking } from "../../database/schema/booking.js";
-import { bookingLink } from "../../database/schema/booking-link.js";
 import { afterCommit } from "../../database/transaction-runner.js";
-import { AuditService } from "../audit/audit.service.js";
 import { BookingTokenService } from "../auth/booking-token/booking-token.service.js";
 import { accountForAddress } from "../auth/guest/registered-address.js";
 import { AccountLinkMailService } from "../notification/account-link-mail.service.js";
 import { accountLinkUrl } from "./mailed-link-urls.js";
-
-/** The table a resend writes to, and therefore the one it is audited against. */
-const AUDITED_TABLE = "booking_link";
 
 /** What the desk is told: where the message went, and about which stay. */
 export interface ResentAccountLink {
@@ -85,17 +80,22 @@ export class AccountLinkResendService {
     @Inject(ENV) private readonly env: Env,
     private readonly bookingTokens: BookingTokenService,
     private readonly mail: AccountLinkMailService,
-    private readonly audit: AuditService,
   ) {}
 
   /**
    * Mints an account link for this stay and hands the message over.
    *
    * **Takes the caller's executor, like every other write here.** The link row,
-   * the audit row that says who caused it and the read that decided it was
-   * allowed are one commit — an audit row on another connection would survive a
+   * the change-log entry that says who caused it and the read that decided it
+   * was allowed are one commit — an entry on another connection would survive a
    * rollback and record a link nobody was ever sent, and a link that committed
-   * without one would be mail to a guest with nobody's name against it.
+   * without one would be mail to a guest with nobody's name against it. The
+   * entry is filed by the trigger on `booking_link` as the row is inserted, so
+   * the three are one commit by construction rather than by this method
+   * remembering to make them one. A resend is mail sent to a guest's address on
+   * a member of staff's say-so, which is exactly the act `FR-AUD-01` exists for,
+   * and it is filed against whoever the access guard resolved rather than
+   * against anything the request could have named.
    *
    * **The message is handed over after that commit and not inside it.** The
    * credential it carries is a row, and a message enqueued from inside the
@@ -113,8 +113,6 @@ export class AccountLinkResendService {
   ): Promise<ResentAccountLink> {
     const stay = await this.stayFor(exec, bookingId);
     const link = await this.bookingTokens.mintAccountLink(exec, { bookingId });
-
-    await this.fileAgainstTheCaller(exec, link);
 
     const message = {
       to: stay.contactEmail,
@@ -195,54 +193,5 @@ export class AccountLinkResendService {
       contactEmail: row.contactEmail,
       contactName: row.contactName,
     };
-  }
-
-  /**
-   * Files the new link against the member of staff who caused it.
-   *
-   * A resend is mail sent to a guest's address on a member of staff's say-so,
-   * which is exactly the act `FR-AUD-01` exists for, and the log's own shape
-   * fits it without bending: the link is a row, so this is that row's `INSERT`
-   * with no pre-image. `audit.service.ts` reads the actor off the ambient scope
-   * rather than off an argument — an actor a caller could pass is an attribution
-   * a caller could choose — so a call that somehow arrives without one is
-   * refused there and the whole transaction with it. Refusing is right: mail on
-   * nobody's authority is precisely what this record exists to prevent.
-   *
-   * The row id comes back out of the signed text rather than out of the mint,
-   * which is `signLink`'s inverse and the same trip `mail-queue.service.ts`
-   * makes. The snapshot is read as text and never parsed, for the reason
-   * `audit.service.ts` gives.
-   */
-  private async fileAgainstTheCaller(
-    exec: DbExecutor,
-    link: string,
-  ): Promise<void> {
-    const linkId = this.bookingTokens.linkIdOf(link);
-
-    if (!linkId) {
-      // Unreachable: this deployment signed the text one statement ago with the
-      // key it verifies against. Stated rather than asserted, because the
-      // alternative is a link that was sent and not recorded.
-      throw new ORPCError("INTERNAL_SERVER_ERROR", {
-        message: "The account link could not be recorded, so it was not sent",
-      });
-    }
-
-    const [written] = await exec
-      .select({ state: sql<string>`to_jsonb(booking_link)::text` })
-      .from(bookingLink)
-      .where(eq(bookingLink.id, linkId))
-      .limit(1);
-
-    await this.audit.record(exec, AUDITED_TABLE, [
-      {
-        rowId: linkId,
-        action: "INSERT",
-        before: null,
-        // The insert is this transaction's and the row cannot have gone.
-        after: written!.state,
-      },
-    ]);
   }
 }

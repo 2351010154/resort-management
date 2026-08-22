@@ -1,11 +1,18 @@
 "use client";
 
-import { formatVnd, SHIFT_PAGE_SIZE, type StaffRole } from "@mariva/shared";
+import {
+  formatVnd,
+  SHIFT_HISTORY_EXPORT_PATH,
+  SHIFT_HISTORY_EXPORT_STEM,
+  SHIFT_PAGE_SIZE,
+  type StaffRole,
+} from "@mariva/shared";
 import type * as React from "react";
 import { useId, useMemo, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useCommands } from "@/features/command-palette";
 /* The property's day, from the hook the rest of the console already asks it
  * with: one route through the same `orpc` utils is one cache entry, so the day a
  * typed filter is resolved against here is the day the desk is working, without
@@ -19,6 +26,15 @@ import { pageWindow } from "@/features/folios/folio-ledger";
 import { formatInstant } from "@/features/guests/guest-record";
 import { useStaffSession } from "@/lib/auth";
 import { formatShortDate } from "@/lib/business-date";
+/* The one place the console takes a list away as a spreadsheet. A receptionist
+ * is offered it here and the file they get holds their own drawers — the API
+ * narrows it off the same grant it narrows the list with, so this screen makes
+ * no second decision about scope. */
+import {
+  type ExcelExportSubject,
+  mayTakeAnExport,
+  useExcelExport,
+} from "@/lib/excel-export";
 import { useHotkeys } from "@/lib/keyboard";
 import { cn } from "@/lib/utils";
 
@@ -99,6 +115,14 @@ interface Asked {
  * memoized on the shifts they were built from. */
 const NO_SHIFTS: readonly Shift[] = [];
 
+/** Where the history's export answers and what its file is called, from the
+ *  contract rather than typed out here. */
+const HISTORY_EXPORT: ExcelExportSubject = {
+  path: SHIFT_HISTORY_EXPORT_PATH,
+  stem: SHIFT_HISTORY_EXPORT_STEM,
+  failure: "The shift history could not be exported.",
+};
+
 export function ShiftsScreen() {
   const session = useStaffSession();
   const [fields, setFields] = useState<HistoryFields>(DEFAULT_HISTORY_FIELDS);
@@ -113,8 +137,32 @@ export function ShiftsScreen() {
     session.status === "authenticated" ? session.user.role : null;
   const offered = role !== null && mayReadDrawers(role);
   const picksOperator = role !== null && mayPickOperator(role);
+  /* Both rows, and neither alone — the drawer's, which this screen is already
+   * behind, and the matrix's *Excel export* row. A housekeeper holds neither
+   * and reaches nothing; a receptionist holds both, conditionally, and the file
+   * they get is the history they can already read. */
+  const exportsTheHistory = offered && role !== null && mayTakeAnExport(role);
 
   const firstDayField = useRef<HTMLInputElement>(null);
+  const historyExport = useExcelExport(HISTORY_EXPORT);
+
+  useCommands(
+    exportsTheHistory
+      ? [
+          {
+            id: "shifts.export",
+            label: "Export these shifts to Excel",
+            group: "actions" as const,
+            keywords: ["excel", "xlsx", "spreadsheet", "variance", "download"],
+            // Shown and refused rather than hidden while the file is being
+            // written, so an operator who reaches for it twice is told why the
+            // second press did nothing.
+            disabled: historyExport.isPending,
+            action: takeTheHistory,
+          },
+        ]
+      : [],
+  );
 
   useHotkeys("/", () => {
     firstDayField.current?.focus();
@@ -156,6 +204,18 @@ export function ShiftsScreen() {
     () => operatorChoices(shifts, fields.operator),
     [shifts, fields.operator],
   );
+
+  /* The file carries the question the screen is showing, not the words
+   * currently in the fields: `query` is what was submitted and what the table
+   * below was drawn from. A receptionist's `operatorId` is whatever they were
+   * answered with, and the API overwrites it with their own account anyway —
+   * this screen does not narrow it a second time, for the reason
+   * `shift-day.ts` gives about the picker it already declines to offer them. */
+  function takeTheHistory() {
+    if (query !== null) {
+      historyExport.mutate(query);
+    }
+  }
 
   /* One path for every change of question, because the filters and the pager
    * are parts of one query — a screen that built it in two places would
@@ -241,6 +301,22 @@ export function ShiftsScreen() {
 
             <div className="mt-rhythm-1 flex flex-wrap items-center gap-3">
               <Button type="submit">Show shifts</Button>
+              {exportsTheHistory ? (
+                /* The label changes as well as the control disabling: a file of
+                   a year of desk is one the API is still writing, and a control
+                   that only greyed out would read as broken for as long as it
+                   took. */
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled={query === null || historyExport.isPending}
+                  onClick={takeTheHistory}
+                >
+                  {historyExport.isPending
+                    ? "Writing the file"
+                    : "Export to Excel"}
+                </Button>
+              ) : null}
               <span className="text-muted-foreground text-xs">
                 {/* Said rather than implied: both ends are the trading day the
                     shift opened on and not the instant it opened at, which is
@@ -332,9 +408,9 @@ function ShiftTable({
       <table className="w-full border-collapse text-sm">
         <caption className="text-muted-foreground mb-rhythm-1 text-left text-xs">
           Every shift the filters matched, newest opening first. What the drawer
-          should have held is the opening float plus the cash taken on it; the
-          variance is the property's own figure, computed when the drawer was
-          counted out.
+          should have held is the opening float, plus the cash taken on it, plus
+          what the property recorded through it; the variance is the property's
+          own figure, computed when the drawer was counted out.
         </caption>
         <thead>
           <tr className="border-border border-b">
@@ -342,6 +418,7 @@ function ShiftTable({
             <Column>Operator</Column>
             <Column align="right">Float</Column>
             <Column align="right">Cash taken</Column>
+            <Column align="right">Thu chi</Column>
             <Column align="right">Counted out</Column>
             <Column>Variance</Column>
           </tr>
@@ -417,6 +494,14 @@ function ShiftRows({ shift }: { shift: Shift }) {
         <td className="px-3 py-1 text-right font-mono whitespace-nowrap">
           {formatVnd(shift.cashTaken)}
         </td>
+        {/* The property's own money through the same till — `FR-OPS-02`. A term
+            of what the drawer should have held, beside the guests' cash rather
+            than folded into it: one is what the desk took and the other is what
+            the property spent from the till, and a manager reading a variance
+            asks which. */}
+        <td className="px-3 py-1 text-right font-mono whitespace-nowrap">
+          {formatVnd(shift.cashBookNet)}
+        </td>
         <td className="px-3 py-1 text-right font-mono whitespace-nowrap">
           {shift.closingCount === null ? (
             <span className="text-muted-foreground">Not counted</span>
@@ -441,7 +526,7 @@ function ShiftRows({ shift }: { shift: Shift }) {
         <tr className="border-border border-b">
           <td
             className="text-muted-foreground pb-2 text-sm first:pl-0"
-            colSpan={6}
+            colSpan={7}
           >
             <span className="border-border block border-l-2 pl-3 whitespace-pre-wrap">
               {shift.handoverNote}
