@@ -54,7 +54,7 @@ up, monitor and upgrade.
 | `apps/web` 3D/motion | three 0.169 + `@react-three/fiber` 9.6 + gsap + lenis, `(marketing)` only | `/booking` ships zero bytes of them — a CI budget |
 | `apps/admin` | Next.js (matching web) + Tailwind 4.3 `@theme` | `@theme` reads CSS custom properties, so it consumes Mariva tokens directly |
 | Admin primitives | shadcn/ui, cmdk 1.1, `@tanstack/react-table` 8.21, react-hook-form 7.83 | Copied in, restyled to tokens; focus management stays ours |
-| Admin charts | Bklit (shadcn registry) | 17+ chart types as source; Recharts is the fallback |
+| Admin charts | Bklit (shadcn registry), visx `4.0.1-alpha.0` | Adopted at M9 for `FR-RPT-02`: `@bklit/bar-chart` copied into `apps/admin/components/charts`, restyled to `@mariva/tokens` through the `--chart-*` block in `app/globals.css`, and its entrance animation removed in the vendored source per `NFR-04`. Not Recharts-backed — the visx peers are pinned exactly as the registry specifies, alpha included. See §Admin charts, as adopted |
 | Data fetching | `@tanstack/react-query` 5.101 + `@orpc/tanstack-query` | Typed end to end from the contract |
 | Motion budget | `motion` 12.42 | Guest surfaces choreograph; admin feedback ≤150ms, no entrance animation |
 
@@ -73,6 +73,32 @@ up, monitor and upgrade.
 | Git hooks | lefthook 2.1.x | Format + typecheck on commit |
 | ERD | `drizzle-dbml-generator` 0.10.x | Schema → DBML, CI fails on drift |
 | Excel export | exceljs 4.4.0 | Kept at the M8 re-evaluation, 2026-08-20 — the only adopted writer that streams a workbook *and* formats a cell. See §Excel export, re-evaluated |
+
+## Admin charts, as adopted
+
+`FR-RPT-02` asks for charts on the Reports pages. Bklit was already the recorded
+choice; what M9 settled is what that costs and what had to change in it.
+
+**The components are source, not a dependency.** `pnpm dlx shadcn@latest add
+@bklit/bar-chart` writes them into `apps/admin/components/charts`, which is what
+makes the two edits below possible at all — neither is a prop.
+
+**Every colour is a `--chart-*` custom property, and `apps/admin/app/globals.css`
+answers all of them out of `@mariva/tokens`.** The registry ships that block as
+`oklch()` literals with a `.dark` override; both are replaced, because a palette
+in a second place is the drift `packages/tokens` exists to stop. No component
+was edited to know about `--umber`.
+
+**The entrance animation is removed rather than configured off.** `NFR-04`
+allows none on an operational screen, so `components/charts/animation.ts`
+carries a zero duration, the growing-bar component is deleted, and the loading
+sweep is gone. Hover and tooltip motion stays and is inside the same
+requirement's 150 ms.
+
+**The visx peers are pinned at `4.0.1-alpha.0`, which is the registry's own
+specification and a known, accepted risk.** They are not floated to a range: an
+alpha that moves under a pinned component set is a chart that breaks on an
+install nobody made.
 
 ## Excel export, re-evaluated
 
