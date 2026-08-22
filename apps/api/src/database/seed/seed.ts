@@ -50,9 +50,14 @@ import {
 import { sql } from "drizzle-orm";
 import type { Database } from "../database.module.js";
 import { booking, bookingNight } from "../schema/booking.js";
+import { feedback } from "../schema/feedback.js";
+import { folio, folioPosting } from "../schema/folio.js";
 import { registration } from "../schema/guest.js";
 import { guestAccount, guestSession, guestUser } from "../schema/index.js";
 import { roomCondition } from "../schema/housekeeping.js";
+import { loyaltyLedger } from "../schema/loyalty.js";
+import { payment } from "../schema/payment.js";
+import { paymentDiscrepancy } from "../schema/reconciliation.js";
 import {
   room,
   roomAssignment,
@@ -138,16 +143,35 @@ async function wipe(db: Database): Promise<void> {
   // where they are: a person is not owned by one stay, and the seed never
   // wrote them.
   //
-  // Nothing opens a folio yet, and the day something does, the delete of
-  // `booking` below stops working: `folio.booking_id` references it with no
-  // cascade. The repair is not another line here, because `folio_posting`
-  // refuses `DELETE` outright — the append-only trigger raises on it for every
-  // client, this one included. A seed that owns stays will have to drop the
-  // ledger by a route that is not a delete, and choosing which is part of
-  // building it.
+  // The ledger those stays carry goes before them, and it goes by `truncate`
+  // rather than by delete: `folio_posting` refuses a `DELETE` outright — the
+  // append-only trigger raises on it for every client, this one included. That
+  // is not a widening of what this wipe owns. A folio names a booking with no
+  // cascade, every booking goes on the line below, and an account whose stay
+  // does not exist is not a record anybody can read; deleting the stay *is*
+  // emptying it. Left standing, one such row fails the delete of `booking` for
+  // every seed that runs after it, from inside a wipe and a long way from
+  // whatever wrote it.
+  //
+  // Every table that references the ledger is named rather than reached by a
+  // `cascade`, for the reason at the top of this function: `payment` and
+  // `loyalty_ledger` point at a folio, `payment_discrepancy` points at a
+  // payment, and a `cascade` would take whatever is pointed at these next
+  // without anybody deciding it should.
+  //
+  // `truncate` also needs rights over the tables rather than over their rows,
+  // which is the property `schema/folio.ts` relies on: a deployment that does
+  // not grant them to the role the API runs as gets a seed that fails loudly
+  // instead of a ledger that is quietly gone.
   await db.execute(sql`delete from ${roomAssignment}`);
   await db.execute(sql`delete from ${registration}`);
   await db.execute(sql`delete from ${bookingNight}`);
+  await db.execute(
+    sql`truncate ${folioPosting}, ${folio}, ${payment}, ${loyaltyLedger}, ${paymentDiscrepancy}`,
+  );
+  // What a stay was asked about afterwards, for the reason the ledger goes: it
+  // names a booking, the bookings go, and nothing else clears it.
+  await db.execute(sql`delete from ${feedback}`);
   await db.execute(sql`delete from ${booking}`);
   await db.execute(sql`delete from ${typeInventory}`);
   await db.execute(sql`delete from ${stayRestriction}`);

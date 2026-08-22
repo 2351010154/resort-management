@@ -21,12 +21,13 @@ import { AuditService } from "./audit.service.js";
 // injects a service from this one, would put the read and the write of one table
 // behind two boundaries for no rule either of them enforces.
 //
-// `@Global()`, and it is the same reason `DatabaseModule` is. Every module that
-// writes state will eventually inject `AuditService` — `FR-AUD-01` says every
-// one — and an import line in each of them is a list that has to be kept
-// complete by hand, whose omission is a module that silently audits nothing.
-// The alternative to a global is not a tighter boundary, it is a boundary
-// nobody notices is missing.
+// `@Global()`, and it is the same reason `DatabaseModule` is — but the reason
+// is now the interceptor below rather than the service beside it. The
+// interceptor has to run on every route in the application, including ones
+// written months from now by somebody who has not read this file, and a module
+// that has to be imported to take effect is a module somebody forgets. What
+// `FR-AUD-01` asks of the modules that write state is answered by the triggers
+// on their tables, so none of them injects anything from here.
 //
 // Registering `APP_INTERCEPTOR` here changes every route in the application,
 // exactly as `AuthModule` registering `APP_GUARD` does. Nest runs global

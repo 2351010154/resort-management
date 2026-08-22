@@ -60,6 +60,7 @@ import type { Env } from "../src/config/env.js";
 import { booking, bookingNight } from "../src/database/schema/booking.js";
 import { systemConfig } from "../src/database/schema/config.js";
 import { folio, folioPosting } from "../src/database/schema/folio.js";
+import { auditEntry } from "../src/database/schema/audit.js";
 import { staffUser } from "../src/database/schema/identity.js";
 import * as schema from "../src/database/schema/index.js";
 import { room, roomType } from "../src/database/schema/inventory.js";
@@ -200,6 +201,8 @@ beforeAll(async () => {
 
   await db.execute(sql`truncate system_config`);
   await db.insert(systemConfig).values(CONFIGURED);
+
+  await db.delete(auditEntry);
 
   // Removed first rather than upserted: the uniqueness on this table is over
   // `lower(email)`, which is an index `on conflict` cannot name.

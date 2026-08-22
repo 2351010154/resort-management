@@ -499,6 +499,49 @@ that a rule you have to keep by hand, because the global kill-switch in
 the sheet is rendered in place rather than travelling a viewport height in
 `0.01ms`.
 
+### Between screens
+
+The gap between one route and the next is a surface, and both apps now dress it
+— differently, for the same reason everything else in this file is different
+between them.
+
+On the guest site it is a curtain:
+[`features/threshold/threshold.tsx`](../../apps/web/features/threshold/threshold.tsx),
+rendered by one `loading.tsx` per route group. It is `--ivory`, the warm
+`--dusk-amber` rise the auth screens stand on, the monogram breathing between
+0.4 and full opacity, and one `caps-label` line — "One moment" in the funnel,
+"Arriving" on the marketing group, where the wait is the whole animation stack
+loading. Nothing in it is a new colour, a new face or a new curve; the point of
+a seam is that the guest cannot find it.
+
+**The load-bearing part is the 0.24s `animation-delay` before it appears at
+all.** A fallback that paints the instant a link is clicked is a third screen
+inserted between the two that were asked for, and on a prefetched navigation it
+is on screen for three frames — long enough to read as a stutter, too short to
+read. Below that threshold the element is unmounted before it ever paints, so a
+fast navigation costs nothing. The delay is deliberately outside the 0.4–0.5s
+window this section otherwise rules, because it is not a transition; the fade
+that follows it is 0.5s on `var(--ease-ui)` like everything else. Under reduced
+motion the kill-switch collapses the fade and leaves the delay, which is the
+right reading — the wait is kept and the motion into it is not — and both
+keyframe pairs are written so their `to` state is the legible one, since a
+collapsed animation settles there.
+
+On the console it is not a curtain, and `NFR-04` is why: sub-150ms feedback and
+no entrance animation on operational screens. A full-frame interstitial in front
+of a receptionist with a guest at the desk, several times a minute, is the
+opposite of that.
+[`components/console-wait.tsx`](../../apps/admin/components/console-wait.tsx)
+instead draws the *shape of the header about to land* — `p-rhythm-3`, the caps
+kicker, the rule under it, at the exact offsets every screen family opens with —
+so the title fills in above a rule that never moved. `(app)/loading.tsx` renders
+it inside `main`, with the rail, the shift bar and the palette still mounted and
+still usable; `SessionGuard` renders it for the `restoring` state, which is the
+console's longest wait and was a blank window before. It names no screen, role
+or operator, so drawing it before the session resolves leaks nothing — the
+guard's own comment carries that argument, and its `anonymous` branch still
+draws nothing, because a redirect in flight is not a wait.
+
 ### What the login screen settled
 
 `/login` is the first surface built to the rules above, and it is worth reading

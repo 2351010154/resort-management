@@ -27,11 +27,18 @@
 //     counted from. A price that was refused must not appear as a price that was
 //     set.
 //
-// So the write belongs where the executor is, which is the service — `AuditService`
-// takes a `DbExecutor` like every other write in the tree, and the caller's
-// transaction is the one it lands in. This interceptor's whole job is to make
-// the actor reachable from there without twenty-three controllers passing it
-// down by hand.
+// So the write belongs inside the transaction, and the furthest inside it can
+// get is the statement itself: a trigger on each protected table files the entry
+// as the row moves, so there is no window at all between a change and its
+// record, and no writer who can forget. `TransactionRunner` carries the actor
+// down to it on a transaction-local setting.
+//
+// **That is what this interceptor exists for**, and the reason it is here rather
+// than the actor being an argument: `audit-actor.ts` does the arithmetic —
+// twenty-three routes change state, and threading an actor through every service
+// signature between a controller and a write is a mechanism whose omission is a
+// row filed against nobody. Reaching the actor from the ambient scope costs
+// nothing at any of those call sites, because none of them mentions it.
 
 import {
   type CallHandler,
@@ -53,9 +60,10 @@ export class AuditActorInterceptor implements NestInterceptor {
 
     // No actor is the ordinary case, not an error: the availability search, the
     // liveness probe and VNPay's IPN all reach handlers with no member of staff
-    // behind them. A write that needs one refuses on its own — `AuditService`
-    // says so in the sentence it throws — and refusing here instead would 500
-    // every unauthenticated read in the application.
+    // behind them. A change made with nobody behind it is filed against nobody —
+    // `schema/audit.ts` argues why that is a `system` row rather than a
+    // placeholder account — and refusing here instead would 500 every
+    // unauthenticated read in the application.
     if (!actor) {
       return next.handle();
     }

@@ -11,6 +11,12 @@
 // commit happened, which is why `afterCommit` lives here: everything a rollback
 // cannot take back has to wait for that moment, and nothing else in the process
 // can see it.
+//
+// It is also the only place that can tell Postgres who is acting, which is why
+// {@link ACTOR_SETTING} is set here. The row-audit triggers read that setting
+// to attribute every change they file, and it has to be established inside the
+// transaction whose writes they will fire on — which is the transaction this
+// file opens and nobody else does.
 
 // The `database.module.js` import is type-only, and has to stay that way:
 // imports this file to provide it, so a value imported back — the `DRIZZLE`
@@ -18,8 +24,30 @@
 // and Nest reports it as a dependency it cannot resolve. `DatabaseModule`
 // constructs this from a factory for that reason.
 import { Logger } from "@nestjs/common";
+import { sql } from "drizzle-orm";
 import type { PinoLogger } from "nestjs-pino";
+import { currentAuditActor } from "../common/audit/audit-actor.js";
 import type { Database, DbExecutor } from "./database.module.js";
+
+/**
+ * The transaction-local setting the row-audit triggers read the actor from.
+ *
+ * Namespaced with a prefix Postgres does not know, which is what makes it a
+ * custom setting rather than a mis-spelled server one: an unprefixed name is
+ * refused outright, and the prefix is how `current_setting` finds it again.
+ */
+const ACTOR_SETTING = "app.audit_actor";
+
+/**
+ * What the setting holds when nothing acted — a sweep, a job, a gateway's
+ * callback, the seeder at boot.
+ *
+ * A setting holds text and has no absent value, so the absence is spelled. The
+ * trigger reads this and a connection that has never carried an actor as the
+ * same answer — which it has to anyway, because a setting released at the end of
+ * a transaction reverts to the empty string rather than to unset.
+ */
+const NOBODY = "";
 
 /**
  * Where the fallback below is reported.
@@ -126,6 +154,22 @@ export class TransactionRunner {
    * inside `run` is two transactions on two connections, each committing on
    * its own and each draining its own queue. A savepoint would be
    * `exec.transaction(...)`, which nothing in this codebase calls.
+   *
+   * **Whoever is acting is announced to Postgres before any of the work runs**,
+   * so that the audit triggers on every protected table can attribute what they
+   * file. The actor is the ambient one — read from the access guard's decision
+   * by `common/audit/audit.interceptor.ts` and never from anything that crossed
+   * the network — and it is read here rather than passed, for the reason
+   * `audit-actor.ts` gives: threading it through every service signature that
+   * might one day write is a mechanism whose omission is silent.
+   *
+   * **It is announced on every transaction, including the ones with nobody
+   * behind them.** Postgres releases a local setting when the transaction ends,
+   * so a stale actor cannot in fact survive onto the next request that borrows
+   * the connection — but the cost of being wrong about that is a change credited
+   * to whoever happened to hold the connection before, which is an accusation
+   * rather than a gap. One statement per transaction is the cheaper side of that
+   * trade, and it leaves one code path instead of two.
    */
   async run<T>(work: (exec: DbExecutor) => Promise<T>): Promise<T> {
     let pending: PostCommitWork[] = [];
@@ -140,6 +184,17 @@ export class TransactionRunner {
       pending = [];
 
       pendingByExecutor.set(exec, pending);
+
+      // Read inside the callback rather than before it, so a retried attempt
+      // announces the actor again on the connection the retry runs on.
+      const actor = currentAuditActor();
+
+      // `set_config` and not `SET LOCAL`, because `SET` takes no parameters:
+      // spelled as a statement, the id would have to be interpolated into SQL
+      // text. The third argument is what makes it local to this transaction.
+      await exec.execute(
+        sql`select set_config(${ACTOR_SETTING}, ${actor?.staffUserId ?? NOBODY}, true)`,
+      );
 
       try {
         return await work(exec);

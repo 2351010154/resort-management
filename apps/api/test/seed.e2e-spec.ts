@@ -15,6 +15,8 @@ import { migrate } from "drizzle-orm/node-postgres/migrator";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { Database } from "../src/database/database.module.js";
+import { booking } from "../src/database/schema/booking.js";
+import { folio, folioPosting } from "../src/database/schema/folio.js";
 import { roomCondition } from "../src/database/schema/housekeeping.js";
 import * as schema from "../src/database/schema/index.js";
 import { guestUser } from "../src/database/schema/index.js";
@@ -337,6 +339,42 @@ describe("running it again", () => {
 
     expect(second).toEqual(summary);
     expect(await fingerprint()).toEqual(before);
+  });
+});
+
+describe("a stay that ran up an account", () => {
+  it("empties the ledger rather than failing on the key that holds it", async () => {
+    const [stay] = await db
+      .select({ id: booking.id })
+      .from(booking)
+      .limit(1);
+
+    const [opened] = await db
+      .insert(folio)
+      .values({ bookingId: stay!.id })
+      .returning({ id: folio.id });
+
+    // A line as well as the account, and it is the half that decides how the
+    // wipe has to be written: `folio_posting` refuses a `DELETE` for every
+    // client, so a seed that cleared the ledger with one would fail here rather
+    // than on the foreign key.
+    await db.insert(folioPosting).values({
+      folioId: opened!.id,
+      type: "ROOM_CHARGE",
+      amount: 1_200_000n,
+      description: "Một đêm phòng Deluxe",
+      businessDate: summary.firstNight,
+    });
+
+    await seedDatabase(db, { from: SEED_FROM });
+
+    const { rows } = await db.execute<{ folios: number; postings: number }>(sql`
+      select
+        (select count(*)::int from folio) as folios,
+        (select count(*)::int from folio_posting) as postings
+    `);
+
+    expect(rows[0]).toEqual({ folios: 0, postings: 0 });
   });
 });
 

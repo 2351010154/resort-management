@@ -1,34 +1,32 @@
-// Filing a change — the write half of `FR-AUD-01`.
+// Reading the change log — `FR-AUD-02`, the viewer over what `FR-AUD-01`
+// records.
 //
-// **It takes an executor, like every other write in the tree.** That single
-// line is what makes the audit row and the change it describes one commit:
-// `database.module.ts` makes the general argument for why a write is handed its
-// executor rather than opening one, and here it has a sharper consequence than
-// anywhere else. An audit row on a different connection would commit
-// independently of the edit — an edit that then rolled back would leave a log
-// entry for a price nobody ever charged, and an audit row that failed would
-// leave a change nobody can see. Neither is reported by anything. Handed the
-// caller's executor, both outcomes become impossible rather than unlikely.
+// **Nothing here writes an entry, and that is the design rather than a gap.**
+// It used to: five services called a `record` method on this class with a
+// pre-image they had captured by hand. What replaced it is a trigger on every
+// protected table, which files the entry inside the statement that made the
+// change — the same commit, reached without any writer remembering, and reached
+// by a support script or a psql session too. `common/audit/audit.interceptor.ts`
+// sets out why an entry that is not in the change's own transaction is the wrong
+// trade; a trigger is the strongest form of what that argument asks for. The
+// five call sites were removed rather than kept beside it, because the enum
+// carries no semantic action name — the trigger's entry and the service's were
+// the same fact, and the log has to hold exactly one row per change or the
+// viewer shows every price change twice.
 //
-// **The snapshots arrive as text and are cast back to `jsonb` here, and they
-// are never parsed on the way.** Postgres renders a row with `to_jsonb` and
-// hands it over as text; this sends that text back with a `::jsonb` cast. The
-// alternative — letting the driver parse it into an object — takes every
-// `bigint` column through a JavaScript `number` on the way in and out, and
+// **No đồng amount passes through a JavaScript `number` on either side.** On
+// the way in the figure is copied from a `bigint` column into a `jsonb` one by
+// Postgres, both arbitrary precision, with the driver nowhere on the path. This
+// file keeps the same promise on the way out: nothing below ever selects
+// `before` or `after` as a column, because the driver parses `jsonb` with
+// `JSON.parse` and would take every amount in a snapshot through a `number` —
+// undoing on the read what the write is careful never to do.
 // `schema/pricing.ts` is explicit that parsing a đồng amount to a `number` is
-// the one conversion that would make a rate unrepresentable. A string that is
-// never looked at cannot lose a digit. Postgres `jsonb` numbers are arbitrary
-// precision, so what lands in the column is exactly what came out of the row.
-//
-// **The read half keeps the same promise from the other direction** —
-// `FR-AUD-02`, the viewer. Nothing below ever selects `before` or `after` as a
-// column: the driver parses `jsonb` with `JSON.parse`, which would take every
-// đồng amount in a snapshot through a JavaScript `number` on the way out and
-// undo, on the read, exactly what the write went to such lengths to avoid. So
-// the list does not select the snapshots at all, and the one method that needs
-// them has Postgres split them into text with `->>` before the driver ever sees
-// them. A value that was never a number in this process cannot have lost a
-// digit while being one.
+// the one conversion that would make a rate unrepresentable. So the list does
+// not select the snapshots at all, and the one method that needs them has
+// Postgres split them into text with `->>` before the driver ever sees them. A
+// value that was never a number in this process cannot have lost a digit while
+// being one.
 //
 // **Nothing here decides who may read what.** `financial-tables.ts` holds the
 // tables the matrix's "ACC: financial entries only" admits, and
@@ -51,7 +49,6 @@ import {
   lt,
   sql,
 } from "drizzle-orm";
-import { currentAuditActor } from "../../common/audit/audit-actor.js";
 import type { DbExecutor } from "../../database/database.module.js";
 import { auditEntry } from "../../database/schema/audit.js";
 import { staffUser } from "../../database/schema/identity.js";
@@ -60,28 +57,8 @@ import { FINANCIAL_TABLES } from "./financial-tables.js";
 /** What happened to the row — the `audit_action` enum, as callers name it. */
 export type AuditAction = "INSERT" | "UPDATE" | "DELETE";
 
-/**
- * A whole row as Postgres rendered it: the text of `to_jsonb(<table>)`.
- *
- * Text and not an object, deliberately — see the header. A caller producing one
- * of these writes `to_jsonb(<table>)::text` into its own `returning` clause and
- * passes the value straight through without reading it.
- */
-export type RowSnapshot = string;
-
 /** Whether the change had a person behind it — the `audit_actor_kind` enum. */
 export type AuditActorKind = "staff" | "system";
-
-/** One row's change, in the shape the log records it. */
-export interface AuditEntryInput {
-  readonly rowId: string;
-  readonly action: AuditAction;
-  /** Null exactly when the row did not exist yet. */
-  readonly before: RowSnapshot | null;
-  /** Null exactly when the row no longer exists. */
-  readonly after: RowSnapshot | null;
-}
-
 
 /**
  * Which changes to read back, and how much of the log the reader may see.
@@ -242,63 +219,6 @@ function matching(query: AuditEntryQuery): SQL | undefined {
 
 @Injectable()
 export class AuditService {
-  /**
-   * Files one row per change, against the acting member of staff.
-   *
-   * The actor is taken from the ambient scope the audit interceptor
-   * established and is not a parameter, which is the point:
-   * `common/audit/audit-actor.ts` argues that an actor a caller could pass is an
-   * attribution a caller could choose. A write that reaches here with no actor
-   * is refused rather than filed anonymously — every row this service writes
-   * is a `staff` row, and `audit_entry_actor_check` demands an actor for one.
-   * The honest answer to an unattributable change made by a person is that it
-   * does not happen; the unattended writers file their own rows and name no
-   * account at all.
-   *
-   * An empty list is a no-op and not an error. A manager clearing a fortnight
-   * that carried no rules changed nothing, and a log that recorded the gesture
-   * anyway would put edits that did not happen into the trail.
-   */
-  async record(
-    exec: DbExecutor,
-    tableName: string,
-    entries: readonly AuditEntryInput[],
-  ): Promise<void> {
-    if (entries.length === 0) {
-      return;
-    }
-
-    const actor = currentAuditActor();
-
-    if (!actor) {
-      throw new ORPCError("UNAUTHORIZED", {
-        message:
-          "This change has no member of staff behind it, and a change that " +
-          "cannot be attributed is not recorded",
-      });
-    }
-
-    const values = entries.map(
-      (entry) => sql`(
-        'staff'::audit_actor_kind,
-        ${actor.staffUserId}::uuid,
-        ${tableName},
-        ${entry.rowId}::uuid,
-        ${entry.action}::audit_action,
-        ${entry.before}::jsonb,
-        ${entry.after}::jsonb
-      )`,
-    );
-
-    // One statement for the whole set. A season repriced across four hundred
-    // nights is four hundred rows, and a round trip each would cost more than
-    // the edit it describes.
-    await exec.execute(sql`
-      insert into audit_entry
-        (actor_kind, actor_id, table_name, row_id, action, "before", "after")
-      values ${sql.join(values, sql`, `)}
-    `);
-  }
   /**
    * The change log, filtered — `FR-AUD-02`'s list.
    *

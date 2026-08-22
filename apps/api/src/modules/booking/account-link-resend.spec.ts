@@ -14,9 +14,11 @@
 //    refused call is a credential in a mailbox nobody meant to send.
 // 3. **The address is the booking's.** The call takes a stay and there is no
 //    argument for anything else, which is the shape rather than a check.
-// 4. **The send is attributed, and attribution is not optional.** A call with no
-//    member of staff behind it takes the link down with it, because the audit
-//    row and the link row are one transaction.
+// 4. **The send is attributed, and the attribution is the guard's.** The entry
+//    names the member of staff the guard resolved, and a call with nobody behind
+//    it is filed against nobody rather than against whoever happened to be
+//    reachable. Both are the trigger on `booking_link`, firing in the same
+//    statement that mints the link.
 // 5. **Only staff reach the route.** A guest session, a booking token and no
 //    principal at all are refused before the service is touched.
 // 6. **The limiter refuses past its figure**, counting refused calls like any
@@ -45,7 +47,6 @@ import { staffUser } from "../../database/schema/identity.js";
 import * as schema from "../../database/schema/index.js";
 import { roomType } from "../../database/schema/inventory.js";
 import { TransactionRunner } from "../../database/transaction-runner.js";
-import { AuditService } from "../audit/audit.service.js";
 import { BookingTokenService } from "../auth/booking-token/booking-token.service.js";
 import { AccountLinkMailService } from "../notification/account-link-mail.service.js";
 import type { MailQueue } from "../notification/mail-queue.service.js";
@@ -167,6 +168,7 @@ async function linksFor(bookingId: string) {
 async function trailFor(rowId: string) {
   return await db
     .select({
+      actorKind: auditEntry.actorKind,
       actorId: auditEntry.actorId,
       tableName: auditEntry.tableName,
       action: auditEntry.action,
@@ -246,12 +248,7 @@ beforeAll(async () => {
   );
 
   transactions = new TransactionRunner(db);
-  resends = new AccountLinkResendService(
-    { WEB_ORIGIN } as Env,
-    tokens,
-    mail,
-    new AuditService(),
-  );
+  resends = new AccountLinkResendService({ WEB_ORIGIN } as Env, tokens, mail);
   controller = new AccountLinkController(resends, transactions);
 });
 
@@ -406,6 +403,7 @@ describe("who the desk's send is filed against", () => {
     const [filed] = await trailFor(link!.id);
 
     expect(filed).toBeDefined();
+    expect(filed!.actorKind).toBe("staff");
     expect(filed!.actorId).toBe(staffUserId);
     expect(filed!.tableName).toBe("booking_link");
     expect(filed!.action).toBe("INSERT");
@@ -415,18 +413,21 @@ describe("who the desk's send is filed against", () => {
     expect(filed!.after).toContain(stay.bookingId);
   });
 
-  it("sends nothing at all when no member of staff is behind the call", async () => {
+  it("names nobody rather than somebody when nothing established an actor", async () => {
     const stay = await aStayWithNoAccount();
 
-    // No `withAuditActor`. `AuditService` refuses, and because the link and the
-    // audit row are one transaction the refusal takes the link with it — which
-    // is the whole reason they share a commit.
-    await expect(
-      transactions.run((exec) => resends.resend(exec, stay.bookingId)),
-    ).rejects.toThrow(/no member of staff behind it/);
+    // No `withAuditActor`, which no request to this route can produce — the
+    // block below proves the guard refuses every caller that is not a member of
+    // staff. What is on trial is the direction the attribution fails in if one
+    // ever does: an entry naming an account that did nothing is an accusation,
+    // where an entry naming nobody is a fact.
+    await transactions.run((exec) => resends.resend(exec, stay.bookingId));
 
-    expect(await linksFor(stay.bookingId)).toHaveLength(0);
-    expect(queue.handed).toHaveLength(0);
+    const [link] = await linksFor(stay.bookingId);
+    const [filed] = await trailFor(link!.id);
+
+    expect(filed!.actorKind).toBe("system");
+    expect(filed!.actorId).toBeNull();
   });
 });
 

@@ -72,7 +72,59 @@ up, monitor and upgrade.
 | Lint + format | Biome 2.5.x | One repository config; its executable scope and current API exclusion live in `biome.jsonc` |
 | Git hooks | lefthook 2.1.x | Format + typecheck on commit |
 | ERD | `drizzle-dbml-generator` 0.10.x | Schema → DBML, CI fails on drift |
-| Excel export | exceljs 4.4.0 | ⚠ Last published 2024-12-20; re-evaluate at P5 |
+| Excel export | exceljs 4.4.0 | Kept at the M8 re-evaluation, 2026-08-20 — the only adopted writer that streams a workbook *and* formats a cell. See §Excel export, re-evaluated |
+
+## Excel export, re-evaluated
+
+`FR-OPS-03` asks for a streamed Excel export and made the choice conditional on
+a re-evaluation at M8. **Decided 2026-08-20: exceljs 4.4.0 is kept.**
+
+The requirement's own word decides it. "Streamed" is not a preference — an
+export that assembles a whole workbook in memory has a memory profile that
+fails on the one month somebody actually needs, which is the month the property
+had a problem. That rules out most of the field, and what survives has to format
+a cell as well, because the file exists so an accountant can sum a column of
+đồng and a numeric cell needs a number format to be readable as money.
+
+What was measured, on the day:
+
+| Library | Latest | Published | Streams a workbook | Formats a cell | Weekly |
+|---|---|---|:-:|:-:|---:|
+| **exceljs** | 4.4.0 | 2023-10-19 | yes | yes | 11.4M |
+| `write-excel-file` | 4.1.1 | 2026-06-08 | no | yes | 569k |
+| `xlsx-write-stream` | 1.0.4 | 2026-05-12 | yes | **no** | 21k |
+| `@zurmokeeper/exceljs` | 4.4.9 | 2025-02-26 | yes | yes | 4k |
+| `@e965/xlsx` (SheetJS) | 0.20.3 | 2024-07-19 | no | yes | — |
+
+`xlsx-write-stream` is the closest alternative and describes itself exactly:
+"strictly a CSV replacement", with no formatting, one sheet and no number
+formats. It would mean either a column of undecorated digits or text cells that
+cannot be totalled, and losing the column an accountant opens the file for is a
+larger cost than an old release date. `write-excel-file` is maintained and
+formats well, and buffers — it builds the zip and hands back a `Blob`.
+`@zurmokeeper/exceljs` is a maintained fork with the same streaming API; it is
+the fallback if exceljs is ever found to be broken rather than merely still, and
+it is not the choice today because it has three ten-thousandths of the adoption
+and one maintainer.
+
+**The staleness is real and is a staleness rather than a defect.** 4.4.0 is the
+last stable release; the last publish of anything was a prerelease on
+2024-12-20. Against that: no advisory stands against 4.4.0 — the one CVE on the
+package was fixed in 1.6.0 — its dependency ranges resolve to patched versions
+of `tmp` and `jszip`, it is MIT, it ships its own types, and the streaming
+writer was verified against Node 25 in this repository before the decision was
+made. A format that has not changed and a library that has not changed are a
+better pairing than most.
+
+**What the risk is bounded by.** `apps/api/src/modules/reporting/excel-sheet.ts`
+is the only file in the tree that imports it, and its interface — columns, a
+stamp, an async source of rows — names nothing exceljs owns. Replacing the
+library is that one file.
+
+**Re-evaluate again if any of these becomes true**, rather than on a date: an
+advisory is filed against 4.4.0 or a dependency it pins, it stops working on a
+Node LTS the project moves to, or a maintained library appears that streams a
+workbook and formats a cell.
 
 ## Rejected, and why
 
@@ -89,6 +141,8 @@ up, monitor and upgrade.
 | Node 25 | Odd-numbered Current line, never an LTS |
 | Two test runners | Vitest everywhere |
 | Hand-rolled VNPay HMAC | Use the maintained `vnpay` library |
+| `xlsx-write-stream` for the Excel export | Streams, but is a CSV replacement with no cell formats — a đồng column would be unreadable or unsummable. See §Excel export, re-evaluated |
+| `write-excel-file`, SheetJS for the Excel export | Both buffer the whole workbook before the first byte, which is the memory profile `FR-OPS-03` says "streamed" to avoid |
 
 ## oRPC compile-time contract evidence
 
