@@ -111,10 +111,18 @@ describe("who is offered which report", () => {
     }
   });
 
-  it("offers a housekeeper nothing under Reports", () => {
-    // Their `⚠` on the operational row is "own board", and the board is their
-    // own screen — `nav-inventory.ts` does not offer them this family at all.
-    expect(reportsFor("HOUSEKEEPING")).toEqual([]);
+  it("offers a housekeeper room status and nothing else", () => {
+    // Their `⚠` on the operational row is "own board", which narrows a list of
+    // guests and has nothing to narrow on a count of rooms — they read every
+    // one of those conditions on the board already. So the page opens for them,
+    // as the API's guard opens it, and neither money report does.
+    expect(mayReadRoomStatus("HOUSEKEEPING")).toBe(true);
+    expect(reportsFor("HOUSEKEEPING").map((page) => page.id)).toEqual([
+      "room-status",
+    ]);
+    // Reading the page is not taking it away: they are not on the export row,
+    // and the route refuses them for that reason whatever this screen offers.
+    expect(mayTakeAnExport("HOUSEKEEPING")).toBe(false);
   });
 
   it("offers occupancy, ADR and RevPAR to the three roles that hold the row", () => {
