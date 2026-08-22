@@ -5,24 +5,36 @@ import { OperationsModule } from "../operations/operations.module.js";
 import { SystemConfigModule } from "../system-config/system-config.module.js";
 import { ManagementExports } from "./management-exports.js";
 import { NightAuditService } from "./night-audit.service.js";
+import { PerformanceQueries } from "./performance-queries.service.js";
+import { ReportQueries } from "./report-queries.service.js";
 import { ReportingController } from "./reporting.controller.js";
 
-// Management data as a file — `repository-structure.md`'s `reporting` row, and
-// the first thing to occupy the folder it reserved.
+// Management data as a file, and the reports it is drawn from —
+// `repository-structure.md`'s `reporting` row.
 //
-// **The export half of that row, and now the night audit.** `FR-OPS-03`'s files
-// were the first thing here; `FR-RPT-01` is the second, and the machinery the
-// exports are built on is the machinery the Reports pages will hand their own
-// rows to — `excel-sheet.ts` knows nothing about a cash book, so a
-// snapshot-backed report is a fourth sheet definition and no change to the
-// writer at all. The KPI reads themselves are `FR-RPT-02` and `FR-RPT-03` and
-// are still not anticipated here: a service registered against a requirement
-// nobody has built is the lie `app.module.ts` warns about in its own header.
+// **The export half of that row, then the night audit, now the Reports pages.**
+// `FR-OPS-03`'s files were the first thing here and `FR-RPT-01` was the second;
+// `FR-RPT-02` is the third, and it needed exactly what that second one promised
+// — `excel-sheet.ts` knew nothing about a cash book, so the two report sheets
+// are two more definitions in `management-exports.ts` and one new column kind in
+// the writer. `FR-RPT-03` is the fourth and is `PerformanceQueries`.
+//
+// **Two report services and not one, which is a boundary rather than a
+// duplication.** `ReportQueries` owns `FR-RPT-02`'s revenue and room-status
+// pages and `PerformanceQueries` owns `FR-RPT-03`'s occupancy, ADR and RevPAR;
+// the second is constructed against the first, because the boundary every report
+// page is stamped with — `max(business_date)` — is one statement in one place,
+// and two of them would let the two pages disagree about how far the audit has
+// got. Nest hands it the same singleton the controller holds, so the pair is one
+// object and one answer.
 //
 // **What the exports do is read and write nothing.** Every row in every file
 // they produce comes back through the service that already owns that list, so
 // there is no query there to keep in step with a screen and no scoping rule to
-// restate.
+// restate. `ReportQueries` is that service for the two report sheets, and it is
+// the same provider the two read routes answer from — the file and the page
+// cannot disagree about a month, because there is one set of statements behind
+// both.
 //
 // `NightAuditService` is the exception and is why this module now exports
 // something. It is the only writer in the folder: it freezes what a closed
@@ -58,6 +70,8 @@ import { ReportingController } from "./reporting.controller.js";
     CashBookService,
     ManagementExports,
     NightAuditService,
+    PerformanceQueries,
+    ReportQueries,
   ],
   exports: [NightAuditService],
 })

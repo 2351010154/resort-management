@@ -121,6 +121,39 @@ export function readsEverythingOn(grant: Grant): boolean {
 }
 
 /**
+ * The caller's grant on an *aggregate*, or a refusal — the reads behind the two
+ * Reports exports.
+ *
+ * **A total is not a list, and there is no narrow version of one.** Every other
+ * export composes a scope into the rows: an accountant's change log carries
+ * financial entries only, a receptionist's shift history carries their own
+ * drawers, and {@link readsEverythingOn} decides which. A report has no rows to
+ * withhold — a month's room revenue is one figure assembled from every stay the
+ * property took, and a narrowed reader handed it would be holding exactly what
+ * the narrowing exists to keep from them. So a narrowed grant is refused here
+ * rather than scoped, which is the fail-closed direction this file argues for
+ * everywhere else.
+ *
+ * Nothing reaches this refusal today and it is not written for a hypothetical:
+ * `reporting.excel-export` denies `HOUSEKEEPING` outright, and they are the only
+ * holder of a `⚠` on either row the two reports compose. What it does is make
+ * that a consequence of the two rows rather than something this file knows —
+ * the day the matrix narrows somebody on revenue or on the operational reports,
+ * this refuses them the file instead of quietly handing over the whole property.
+ */
+export function readingEveryFigureOn(
+  key: CapabilityKey,
+  principal: Principal | null,
+): void {
+  if (!readsEverythingOn(readingTheListBehind(key, principal))) {
+    throw new ForbiddenException(
+      `Not permitted: ${capability(key).row} — a report is one figure over ` +
+        `every stay the property took, so there is no narrower file to give you`,
+    );
+  }
+}
+
+/**
  * The staff member behind an export, or a refusal.
  *
  * Only needed where the narrowing is "your own": a receptionist's shift export

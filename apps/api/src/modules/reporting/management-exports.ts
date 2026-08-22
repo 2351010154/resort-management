@@ -1,14 +1,19 @@
-// The three sheets M8 owns — what goes in each column of each, and where the
-// rows come from.
+// The six sheets — what goes in each column of each, and where the rows come
+// from.
 //
 // This is the half of the export that knows what it is exporting.
 // `excel-sheet.ts` holds the half that does not, and the split is what makes
-// `FR-OPS-03` one mechanism used three times rather than three exports: adding
-// the Reports pages at M9 is a fourth method here and no change at all there.
+// `FR-OPS-03` one mechanism used six times rather than six exports: the
+// Reports pages arrived at M9 as three more methods here and two new column
+// kinds there — a count, because a room tally has to be summable and there was
+// no numeric column that was not đồng, and then a proportion, because
+// `FR-RPT-03`'s occupancy is neither whole nor money and a percentage stored as
+// text is a column nobody can chart. Each kind arrived with the sheet that
+// needed it and none was anticipated.
 //
 // **Every row is read through the list's own service, and no query is written
-// in this file.** `CashBookService.list`, `ShiftService.history` and
-// `AuditService.list` already decide what their filters mean — that the cash
+// in this file.** `CashBookService.list`, `ShiftService.history`,
+// `AuditService.list` and `ReportQueries` already decide what their filters mean — that the cash
 // book's days are `business_date` and not the instant somebody typed, that a
 // shift's days are `opening_business_date` so a 01:00 shift is answerable for
 // the day before, that the change log's scope goes into the predicate before
@@ -16,6 +21,15 @@
 // a second opinion about all of that, and the first thing to drift would be the
 // narrowing. So the reads here are the reads the screens make, with the page
 // taken off.
+//
+// **The three report sheets are the one exception to the paging below, and they
+// are not an exception to the rule above it.** A report is an aggregate: a
+// bucket per day, month or quarter of the range, or a row per room type. There
+// is no page to walk because the service does not hand out one — the whole
+// answer is the same object the screen draws, which is exactly the property this
+// file is arranged to keep. {@link theseRows} yields it, so the writer's
+// interface is unchanged and the streaming below still holds for the three
+// sheets that need it.
 //
 // **The rows arrive a page at a time and are never all resident.**
 // {@link eachRowOf} walks each list with the same `limit`/`offset` the console
@@ -53,9 +67,13 @@
 import {
   type cashBookExportInput,
   type changeLogExportInput,
+  HOUSEKEEPING_STATUSES,
   LONGEST_AUDIT_PAGE,
   LONGEST_CASH_BOOK_PAGE,
   LONGEST_SHIFT_PAGE,
+  type performanceReportQuery,
+  type RevenueBucket,
+  type revenueReportQuery,
   type shiftHistoryExportInput,
 } from "@mariva/shared";
 import { Injectable } from "@nestjs/common";
@@ -72,6 +90,17 @@ import {
   inPropertyZone,
   type SheetColumn,
 } from "./excel-sheet.js";
+import {
+  type PerformanceBucketRow,
+  type PerformanceFigures,
+  PerformanceQueries,
+  type PerformanceTotals,
+} from "./performance-queries.service.js";
+import type {
+  RevenueBucketRow,
+  RoomStatusType,
+} from "./report-queries.service.js";
+import { ReportQueries } from "./report-queries.service.js";
 
 /** The filters each export was asked for, as the contract decoded them. Taken
  *  off the schema rather than restated, so a filter added there is a compile
@@ -79,6 +108,38 @@ import {
 export type CashBookExportFilters = z.infer<typeof cashBookExportInput>;
 export type ShiftExportFilters = z.infer<typeof shiftHistoryExportInput>;
 export type ChangeLogExportFilters = z.infer<typeof changeLogExportInput>;
+/** The revenue page's own query, whole. A report has no page to drop, so
+ *  `contract/reporting.ts` declares one shape for the screen and for the file,
+ *  and this is it. */
+export type RevenueExportFilters = z.infer<typeof revenueReportQuery>;
+/** The performance page's own query, whole, for the reason the revenue one is:
+ *  `contract/reporting.ts` declares one shape for the screen and for the file,
+ *  and a second export-shaped copy could only drift from it. */
+export type PerformanceExportFilters = z.infer<typeof performanceReportQuery>;
+
+/**
+ * One line of the performance sheet: one bucket's figures for one scope.
+ *
+ * Flat, because a cell is flat. The six figures are spread from whichever
+ * {@link PerformanceFigures} the row is about — the bucket's property row or one
+ * of its types — and nothing is recomputed on the way, which is what keeps the
+ * "never averaged" rule `performance-queries.service.ts` holds structurally from
+ * being quietly undone by a spreadsheet.
+ */
+export interface PerformanceSheetRow extends PerformanceFigures {
+  readonly from: string;
+  readonly to: string;
+  readonly closedDays: number;
+  /** {@link PROPERTY_WIDE} on the bucket's own row, and the room type's code on
+   *  each row under it. */
+  readonly scope: string;
+}
+
+/** What the scope column says on the row counted over the whole property. A
+ *  word rather than a blank, because a blank in a column a reader filters on is
+ *  a row they cannot select — and rather than a code, because it must not
+ *  collide with one `room_type` could hold. */
+const PROPERTY_WIDE = "Property";
 
 @Injectable()
 export class ManagementExports {
@@ -86,6 +147,8 @@ export class ManagementExports {
     private readonly cashBook: CashBookService,
     private readonly shifts: ShiftService,
     private readonly audit: AuditService,
+    private readonly reports: ReportQueries,
+    private readonly performance: PerformanceQueries,
   ) {}
 
   /**
@@ -261,6 +324,246 @@ export class ManagementExports {
       }),
     };
   }
+
+  /**
+   * What the property earned over a stretch of trading days — `FR-RPT-02`'s
+   * revenue page as a file.
+   *
+   * **Asynchronous, unlike the three above, and the stamp is why.** A list's
+   * stamp is the filters the operator typed, which this method already holds; a
+   * report's stamp is the last business date the night audit closed, which is a
+   * fact that has to be read. So the sheet is assembled after the answer rather
+   * than around a promise of one, and `reporting.controller.ts` awaits it before
+   * a byte is written — which it can, because the read is refusable and the
+   * status line is still there until `writeExcelSheet` is reached.
+   *
+   * **The whole report is resident, and that is not the compromise it looks
+   * like.** The buckets are one row per day, month or quarter of the range: a
+   * decade by day is under four thousand rows, and by month a hundred and
+   * twenty. There is no page to walk because the screen does not have one
+   * either, so this file's rule — the file holds what the screen holds — is kept
+   * by handing the same object over rather than by re-asking for it in slices.
+   *
+   * **No totals row, for `cashBookSheet`'s reason.** The four figures the page
+   * prints come from the service's own aggregate over every closed day in the
+   * range; writing them into a cell under columns Excel is also summing would
+   * give a reader two totals that agree until somebody filters the sheet. They
+   * go in the stamp instead, where they read as what the file is about rather
+   * than as a row of it.
+   */
+  async revenueSheet(
+    exec: DbExecutor,
+    filters: RevenueExportFilters,
+    takenAt: Date,
+  ): Promise<ExcelSheet<RevenueBucketRow>> {
+    const report = await this.reports.revenue(exec, filters);
+
+    return {
+      sheetName: "Revenue",
+      title: "Revenue — what the property earned, by closed trading day",
+      stamp: [
+        takenLine(takenAt),
+        filterLine([
+          ["from", filters.from?.toString()],
+          ["to", filters.to?.toString()],
+          ["grouped by", BUCKET_IN_A_FILE[filters.bucket]],
+        ]),
+        boundaryLine(report.lastClosedBusinessDate),
+        `Range totals over ${report.totals.closedDays} closed days · ` +
+          `room ${report.totals.roomRevenueVnd} · ` +
+          `other ${report.totals.otherRevenueVnd} · ` +
+          `penalties ${report.totals.penaltyRevenueVnd} · ` +
+          `total ${report.totals.totalVnd} đồng`,
+      ],
+      columns: REVENUE_COLUMNS,
+      rows: theseRows(report.buckets),
+    };
+  }
+
+  /**
+   * How the property's rooms are standing — `FR-RPT-02`'s room-status page as a
+   * file.
+   *
+   * **Live, and the file says so in two places.** The stamp carries the instant
+   * the rooms were counted as well as the family's boundary, because a
+   * spreadsheet outlives the screen it was taken from: a reader opening this
+   * next week has no other way to know that these counts are a photograph of one
+   * minute rather than a summary of a closed day. `roomStatusReportSchema` draws
+   * the same distinction on the wire and for the same reason.
+   *
+   * One row per type with a column per status, rather than a row per pair. A
+   * property has five types and four conditions, and a grid an eye reads across
+   * is what somebody comparing the floors is after — where twenty rows of
+   * type-status-count is a pivot table waiting to be built. The columns come from
+   * `HOUSEKEEPING_STATUSES`, so a fifth condition becomes a column without this
+   * file being touched.
+   */
+  async roomStatusSheet(
+    exec: DbExecutor,
+    takenAt: Date,
+  ): Promise<ExcelSheet<RoomStatusType>> {
+    const report = await this.reports.roomStatus(exec);
+
+    return {
+      sheetName: "Room status",
+      title: "Room status — where every room stands, counted live",
+      stamp: [
+        takenLine(takenAt),
+        `Counted ${inPropertyZone(report.takenAt)} · ${report.rooms} rooms · ` +
+          "a housekeeping status is where a room stands now, so this is a " +
+          "count taken at that minute and not a closed day read back",
+        boundaryLine(report.lastClosedBusinessDate),
+        filterLine([]),
+      ],
+      columns: ROOM_STATUS_COLUMNS,
+      rows: theseRows(report.byType),
+    };
+  }
+
+  /**
+   * How the property performed over a stretch of closed trading days —
+   * `FR-RPT-03`'s occupancy, ADR and RevPAR as a file.
+   *
+   * **The ratios are `PerformanceQueries`' and are not derived here.** The
+   * counts travel in the file beside them, so the arithmetic is checkable
+   * without being repeated — which is {@link shiftHistorySheet}'s argument about
+   * the variance, and it is sharper on this sheet: that service divides in
+   * exactly one place so that a month's ADR can only ever be Σ revenue / Σ rooms
+   * sold rather than the mean of thirty daily ADRs, and a second division
+   * written here would be the one that averages. Asynchronous for
+   * {@link revenueSheet}'s reason as well — a report's stamp is a fact that has
+   * to be read.
+   *
+   * **One row per bucket per scope, and not the grid {@link roomStatusSheet}
+   * argues for.** That argument turns on the status set being fixed and small:
+   * four conditions come from `HOUSEKEEPING_STATUSES` and a fifth arrives as a
+   * fifth column. Neither half holds here. The second axis is the property's
+   * room types, which are its own data — a column per type is a sheet whose
+   * shape changes when somebody adds one, and at three figures per type it is
+   * three columns each. And the first axis is unbounded: `roomStatusSheet` has
+   * one row per type where this has one per day of whatever range was asked for.
+   * So the two files disagree about their shape because their axes differ, not
+   * because they were written by different hands.
+   *
+   * Within a bucket the property row comes first and its types follow in the
+   * order the service answered in, which is `ROOM_TYPE_CODES` ladder order — so
+   * the sheet reads as the page does and a diff between two files is a diff
+   * about figures rather than about ordering.
+   *
+   * **The null ratios stay null all the way to the cell.** A property with
+   * nothing on sale has no occupancy and a night that sold nothing has no ADR;
+   * `excel-sheet.ts` writes a null as an empty cell, and that is the honest
+   * rendering. A nought in its place is a number somebody averages.
+   *
+   * **No totals row, for {@link cashBookSheet}'s reason** — the range totals go
+   * in the stamp, where they read as what the file is about rather than as a row
+   * of it that breaks every filter and sum a reader applies afterwards.
+   */
+  async performanceSheet(
+    exec: DbExecutor,
+    filters: PerformanceExportFilters,
+    takenAt: Date,
+  ): Promise<ExcelSheet<PerformanceSheetRow>> {
+    const report = await this.performance.performance(exec, filters);
+
+    return {
+      sheetName: "Performance",
+      title:
+        "Performance — occupancy, ADR and RevPAR over closed trading days",
+      stamp: [
+        takenLine(takenAt),
+        filterLine([
+          ["from", filters.from?.toString()],
+          ["to", filters.to?.toString()],
+          ["grouped by", BUCKET_IN_A_FILE[filters.bucket]],
+        ]),
+        boundaryLine(report.lastClosedBusinessDate),
+        rangeTotalsLine(report.totals),
+      ],
+      columns: PERFORMANCE_COLUMNS,
+      rows: theseRows(everyScopeIn(report.buckets)),
+    };
+  }
+}
+
+/**
+ * A bucket's rows, property first and then its types.
+ *
+ * The one place the report's two-level shape is flattened, and it does nothing
+ * else: every figure is carried across as it arrived. The property row is the
+ * service's own `property`, which is counted over `night_audit_snapshot`'s own
+ * columns rather than assembled from the type rows — so a file in which the
+ * types do not add up to the property is a file reporting what the audit froze
+ * rather than a fault in this function.
+ */
+function everyScopeIn(
+  buckets: readonly PerformanceBucketRow[],
+): readonly PerformanceSheetRow[] {
+  return buckets.flatMap((bucket) => {
+    const when = {
+      from: bucket.from,
+      to: bucket.to,
+      closedDays: bucket.closedDays,
+    };
+
+    return [
+      { ...when, scope: PROPERTY_WIDE, ...bucket.property },
+      ...bucket.byType.map((type) => ({
+        ...when,
+        scope: type.roomType,
+        ...type,
+      })),
+    ];
+  });
+}
+
+/**
+ * The performance range totals, as the one stamp line they belong on.
+ *
+ * Every figure is the service's, printed. A ratio with no denominator behind it
+ * is named rather than left blank: a stamp is a sentence, and a gap in one reads
+ * as an oversight where an empty cell in a column reads as an absence.
+ */
+function rangeTotalsLine(totals: PerformanceTotals): string {
+  const held = totals.property;
+
+  return (
+    `Range totals over ${totals.closedDays} closed days · ` +
+    `sellable ${held.sellableRooms} · sold ${held.roomsSold} · ` +
+    `net room revenue ${held.netRoomRevenueVnd} đồng · ` +
+    `occupancy ${asPercentage(held.occupancy)} · ` +
+    `ADR ${measured(held.adrVnd)} · RevPAR ${measured(held.revparVnd)}`
+  );
+}
+
+/** A figure with no denominator behind it, in words.
+ *  `performance-queries.service.ts` is the authority for when that happens:
+ *  nothing was on sale, or nothing sold. */
+const NO_DENOMINATOR = "not measured";
+
+/** A fraction as a percentage, to the one decimal place the cells carry. */
+function asPercentage(fraction: number | null): string {
+  return fraction === null ? NO_DENOMINATOR : `${(fraction * 100).toFixed(1)}%`;
+}
+
+/** A đồng figure, or the words for the absence of one. */
+function measured(amount: bigint | null): string {
+  return amount === null ? NO_DENOMINATOR : `${amount} đồng`;
+}
+
+/**
+ * Rows a service handed over whole, as the writer's interface takes them.
+ *
+ * The reports are aggregates and arrive complete — the header says why that is
+ * not the paging rule being broken. A generator rather than a cast, because
+ * `ExcelSheet.rows` is an `AsyncIterable` so that a sheet *can* stream, and a
+ * sheet that does not need to should say so in one line rather than by widening
+ * the type every other sheet depends on.
+ */
+async function* theseRows<Row>(rows: readonly Row[]): AsyncGenerator<Row> {
+  for (const row of rows) {
+    yield row;
+  }
 }
 
 /**
@@ -297,6 +600,73 @@ async function* eachRowOf<Row>(
     offset += page.length;
   }
 }
+
+const REVENUE_COLUMNS: readonly SheetColumn<RevenueBucketRow>[] = [
+  { header: "From", width: 13, text: (held) => held.from },
+  { header: "To", width: 13, text: (held) => held.to },
+  { header: "Closed days", width: 12, count: (held) => held.closedDays },
+  { header: "Room revenue", width: 18, dong: (held) => held.roomRevenueVnd },
+  { header: "Other revenue", width: 18, dong: (held) => held.otherRevenueVnd },
+  { header: "Penalties", width: 16, dong: (held) => held.penaltyRevenueVnd },
+  { header: "Total", width: 18, dong: (held) => held.totalVnd },
+];
+
+/**
+ * The bucket, then the scope, then the counts, then the three ratios they are
+ * divisions of.
+ *
+ * The counts come before the ratios deliberately: a reader checking a figure
+ * reads left to right along the row it was computed from, and a reader who only
+ * wants the KPI reads the last three columns. `Scope` sits between the bucket
+ * and the figures because it completes the row's identity — `from`, `to` and
+ * `scope` together are what make a row unique, and having the columns left of
+ * the first figure be exactly that key is what lets a reader sort or pivot on
+ * them without thinking about it.
+ *
+ * `Occupancy` is a `fraction` and therefore a *number* under a percent format
+ * rather than text: the cell holds `roomsSold / sellableRooms` exactly as the
+ * service computed it, so a reading above 100% shows as 120.0% rather than
+ * being clipped, and the column can still be charted and compared. ADR and
+ * RevPAR are đồng and take the money column, which is what makes them summable
+ * and what degrades them to exact text past Excel's fifteenth digit.
+ */
+const PERFORMANCE_COLUMNS: readonly SheetColumn<PerformanceSheetRow>[] = [
+  { header: "From", width: 13, text: (held) => held.from },
+  { header: "To", width: 13, text: (held) => held.to },
+  { header: "Closed days", width: 12, count: (held) => held.closedDays },
+  { header: "Scope", width: 14, text: (held) => held.scope },
+  { header: "Sellable rooms", width: 15, count: (held) => held.sellableRooms },
+  { header: "Rooms sold", width: 12, count: (held) => held.roomsSold },
+  {
+    header: "Net room revenue",
+    width: 18,
+    dong: (held) => held.netRoomRevenueVnd,
+  },
+  { header: "Occupancy", width: 12, fraction: (held) => held.occupancy },
+  { header: "ADR", width: 16, dong: (held) => held.adrVnd },
+  { header: "RevPAR", width: 16, dong: (held) => held.revparVnd },
+];
+
+/**
+ * One column per condition, derived from the contract's own tuple.
+ *
+ * `readable` renders the header, so `OUT_OF_ORDER` lands as "Out of order" and
+ * a fifth status added to `HOUSEKEEPING_STATUSES` arrives with a header nobody
+ * had to write. The count is read off the row's own `byStatus`, which the
+ * service zero-fills for every status — so a type with no dirty room is a nought
+ * in the cell rather than an empty one, and the file says the property has
+ * nothing dirty of that type instead of saying nothing.
+ */
+const ROOM_STATUS_COLUMNS: readonly SheetColumn<RoomStatusType>[] = [
+  { header: "Room type", width: 20, text: (type) => readable(type.roomType) },
+  { header: "Rooms", width: 10, count: (type) => type.rooms },
+  ...HOUSEKEEPING_STATUSES.map((status) => ({
+    header: readable(status),
+    width: 14,
+    count: (type: RoomStatusType) =>
+      type.byStatus.find((count) => count.status === status)?.rooms ?? 0,
+  })),
+];
 
 const CASH_BOOK_COLUMNS: readonly SheetColumn<CashBookEntry>[] = [
   { header: "Trading day", width: 13, text: (entry) => entry.businessDate },
@@ -367,6 +737,33 @@ function standingOf(entry: CashBookEntry): string {
   }
 
   return entry.reversedByEntryId === null ? "Stands" : "Corrected";
+}
+
+/** How a range was cut, in the words the file uses for it. A `Record` over the
+ *  union rather than `readable`, because "Day" alone reads as a column heading
+ *  where the stamp needs a phrase. */
+const BUCKET_IN_A_FILE: Record<RevenueBucket, string> = {
+  DAY: "each trading day",
+  MONTH: "each month",
+  QUARTER: "each quarter",
+};
+
+/**
+ * The boundary every report page and every report file carries.
+ *
+ * Worded as `screens.md` words it — a promise about what is *not* here rather
+ * than a claim about where each figure came from — because this file mixes a
+ * frozen snapshot with a live ledger sum and a reader is owed the distinction.
+ * A property whose audit has never run gets a sentence rather than a blank,
+ * since an empty sheet with no explanation reads as a property that earned
+ * nothing.
+ */
+function boundaryLine(lastClosedBusinessDate: string | null): string {
+  return lastClosedBusinessDate === null
+    ? "Boundary: the night audit has closed no trading day yet, so there is " +
+        "nothing here to report on."
+    : `Boundary: nothing here reaches past ${lastClosedBusinessDate}, the last ` +
+        "trading day the night audit has closed.";
 }
 
 /** When this file was taken, and in whose clock. The zone is named because the
