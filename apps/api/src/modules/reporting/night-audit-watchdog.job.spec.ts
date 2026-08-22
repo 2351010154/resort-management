@@ -13,6 +13,15 @@
 // wrong is silent for the property that changed the row and loud for everybody
 // carrying the pager.
 //
+// The second suite is the other way this sweep can fail, and it fails silently.
+// `night-audit.job.ts` refuses to freeze a day carrying a night nothing can
+// charge, and it looks back seven days — so a day nobody repairs stops being a
+// candidate on the eighth morning. A watchdog that only ever asked about
+// yesterday would stop mentioning it on the same morning, leaving a permanent
+// hole in every report range that spans that date and nothing anywhere saying
+// so. So the cases below put a hole behind the look-back and require the page to
+// go on naming it, and require the oldest one to be the one it names.
+//
 // `now()` is Postgres's and not this process's — `sweep-job.ts` says why — so
 // the stand-in below answers the one statement the sweep issues about time, and
 // the assertions are about which instant it answered with.
@@ -80,13 +89,52 @@ describe("a business date the audit closed", () => {
   it("says nothing, however long ago the day rolled", async () => {
     const watched = await watch({
       at: A_MINUTE_AFTER_THE_DEADLINE,
-      frozen: true,
+      closed: [LAST_NIGHT.toString()],
     });
 
     expect(watched.paged).toEqual([]);
     // And it never asks what time it is, because a closed day is closed whatever
     // the answer would have been.
     expect(watched.askedTheTime).toBe(false);
+    // Nor does it page about the days before the first one on file. A property
+    // traded before it started keeping snapshots, and reading their absence as a
+    // backlog would page about every day since it opened, on the morning this
+    // deploys.
+  });
+});
+
+describe("a day the audit gave up on", () => {
+  it("goes on being paged about after the sweep stopped looking back at it", async () => {
+    // Eight days back, so `night-audit.job.ts` no longer offers it as a
+    // candidate. Nothing else in the tree mentions the date again, which is the
+    // whole reason this sweep has to.
+    const watched = await watch({
+      at: A_MINUTE_AFTER_THE_DEADLINE,
+      closed: closedExcept(["2027-10-27"]),
+    });
+
+    expect(watched.paged).toHaveLength(1);
+    expect(watched.paged[0]?.details.businessDate).toBe("2027-10-27");
+    expect(watched.paged[0]?.details.unclosedDates).toBe(1);
+    // The grace is not consulted: a day that ended eight days ago is past it by
+    // arithmetic, and asking Postgres the time would be asking a question whose
+    // answer cannot change the outcome.
+    expect(watched.askedTheTime).toBe(false);
+  });
+
+  it("names the oldest of them and says how many are behind it", async () => {
+    const watched = await watch({
+      at: A_MINUTE_AFTER_THE_DEADLINE,
+      closed: closedExcept(["2027-10-27", LAST_NIGHT.toString()]),
+    });
+
+    expect(watched.paged).toHaveLength(1);
+    // The oldest, because it is what somebody has to act on first and because it
+    // holds still from tick to tick — which is what a receiver deduping on the
+    // kind and the date needs of it.
+    expect(watched.paged[0]?.details.businessDate).toBe("2027-10-27");
+    expect(watched.paged[0]?.details.unclosedDates).toBe(2);
+    expect(watched.paged[0]?.text).toContain("1 later business date(s)");
   });
 });
 
@@ -102,18 +150,36 @@ describe("what the watchdog leaves behind", () => {
   });
 });
 
+/**
+ * The days on file when the property has been trading a fortnight, less the
+ * ones a case wants missing.
+ *
+ * Anchored on a first frozen day rather than running to the beginning of time,
+ * because that first row is the horizon the sweep takes: before it the property
+ * was not keeping snapshots, and their absence there is not a backlog.
+ */
+function closedExcept(open: readonly string[]): readonly string[] {
+  const days: string[] = [];
+
+  for (let back = 14; back >= 1; back--) {
+    days.push(TODAY.subtract({ days: back }).toString());
+  }
+
+  return days.filter((day) => !open.includes(day));
+}
+
 /** One tick of the watchdog, and everything it did. */
 async function watch({
   at,
   rolloverHour = 4,
-  frozen = false,
+  closed = [],
 }: {
   readonly at: Date;
   readonly rolloverHour?: number;
-  readonly frozen?: boolean;
+  readonly closed?: readonly string[];
 }) {
   const paged: OpsAlert[] = [];
-  const books = new TheMorningAfter(at, frozen);
+  const books = new TheMorningAfter(at, closed);
 
   const job = new NightAuditWatchdogJob(
     {
@@ -134,8 +200,13 @@ async function watch({
 }
 
 /**
- * The two statements one tick issues: is the day frozen, and has the deadline
- * passed?
+ * The two statements one tick issues: which days are frozen, and has the
+ * deadline passed?
+ *
+ * The days come back as the rows themselves rather than as an answer this
+ * stand-in worked out, because which of them are missing is exactly what the
+ * sweep is being asked — a stand-in that filtered here would be answering
+ * instead of it.
  *
  * The comparison is Postgres's in the sweep and is Postgres's here — the
  * `execute` below evaluates the instant the sweep computed against the one this
@@ -149,7 +220,7 @@ class TheMorningAfter {
 
   constructor(
     private readonly now: Date,
-    private readonly frozen: boolean,
+    private readonly closed: readonly string[],
   ) {}
 
   get executor(): DbExecutor {
@@ -161,7 +232,7 @@ class TheMorningAfter {
       from: () => ({
         where: async () =>
           await Promise.resolve(
-            this.frozen ? [{ businessDate: LAST_NIGHT.toString() }] : [],
+            this.closed.map((businessDate) => ({ businessDate })),
           ),
       }),
     };

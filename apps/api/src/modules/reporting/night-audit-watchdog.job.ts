@@ -59,10 +59,14 @@
 // tree's: the `kind` below is stable and the business date is in the details,
 // which is everything a receiver needs to dedupe on.
 
-import { toCalendarDateTime, toZoned } from "@internationalized/date";
+import {
+  parseDate,
+  toCalendarDateTime,
+  toZoned,
+} from "@internationalized/date";
 import { PROPERTY_TIME_ZONE, type StayDate } from "@mariva/shared";
 import { Injectable } from "@nestjs/common";
-import { eq, sql } from "drizzle-orm";
+import { lte, sql } from "drizzle-orm";
 import type { DbExecutor } from "../../database/database.module.js";
 import { nightAuditSnapshot } from "../../database/schema/night-audit.js";
 import type { SweepJob } from "../../jobs/sweep-job.js";
@@ -103,47 +107,119 @@ export class NightAuditWatchdogJob implements SweepJob {
   /**
    * Answers with nothing, always. The page is the work.
    *
-   * Only the day that closed at the most recent rollover is asked about. A day
-   * further back that is still unfrozen was this same watchdog's subject on the
-   * morning it closed and was paged about then; re-paging it now would say the
-   * audit is late by half an hour about a day it is late by a week on, and
-   * `night-audit.job.ts` picks it up on its own for a week regardless.
+   * Every business date the property has finished trading and not frozen is
+   * asked about, and not only the one that closed at the most recent rollover.
+   * A day the audit refuses is the reason: `night-audit.job.ts` will not freeze
+   * a date carrying a night nothing can charge, and it looks back seven days —
+   * so a day nobody repairs stops being a candidate on the eighth morning, and a
+   * sweep that only ever asked about yesterday would stop mentioning it at the
+   * same moment. A permanent hole in every report range that spans that date,
+   * and silence about it, is the failure `FR-RPT-01` exists to prevent reached
+   * from the other side.
+   *
+   * The oldest one is what the page names. A backlog is one incident rather
+   * than one per morning, the oldest date is what somebody has to act on first,
+   * and it holds still from tick to tick — which is what a receiver deduping on
+   * `kind` and the business date needs of it.
    */
   async run(exec: DbExecutor, today: StayDate): Promise<readonly string[]> {
     const closing = today.subtract({ days: 1 });
+    const unclosed = await this.unclosed(exec, closing);
 
-    const [frozen] = await exec
-      .select({ businessDate: nightAuditSnapshot.businessDate })
-      .from(nightAuditSnapshot)
-      .where(eq(nightAuditSnapshot.businessDate, closing.toString()));
-
-    if (frozen) {
+    if (unclosed.length === 0) {
       return [];
     }
 
     const rolloverHour =
       await this.configuration.businessDateRolloverHour(exec);
 
-    if (!(await this.graceHasRun(exec, today, rolloverHour))) {
-      // The day rolled less than half an hour ago and the audit has its window.
-      // This is the ordinary reading between a rollover and the tick that closes
-      // the day, and a watchdog that paged here would page every single morning.
+    // Only the day that has just closed can still be inside the audit's window.
+    // Anything behind it ended whole days ago and is past the grace by
+    // arithmetic rather than by a question, so the clock is asked about exactly
+    // one case — and it is the case that would otherwise page every morning
+    // between a rollover and the tick that closes the day.
+    const onlyLastNight =
+      unclosed.length === 1 && unclosed[0] === closing.toString();
+
+    if (onlyLastNight && !(await this.graceHasRun(exec, today, rolloverHour))) {
       return [];
     }
+
+    const [oldest] = unclosed;
+    const behind = unclosed.length - 1;
 
     await this.alerts.page({
       kind: "night-audit-missed",
       text:
-        `Business date ${closing.toString()} ended over ${GRACE_MINUTES} minutes ago and the night audit has not closed it — ` +
-        "reports have no figures for that day and room charges for it may still be unposted",
+        `Business date ${oldest} ended over ${GRACE_MINUTES} minutes ago and the night audit has not closed it — ` +
+        "reports have no figures for that day and room charges for it may still be unposted" +
+        (behind > 0
+          ? `; ${behind} later business date(s) are open too, so the property is behind on closing its days`
+          : ""),
       details: {
-        businessDate: closing.toString(),
+        businessDate: oldest,
+        unclosedDates: unclosed.length,
         rolloverHour,
         graceMinutes: GRACE_MINUTES,
       },
     });
 
     return [];
+  }
+
+  /**
+   * Every business date the property finished trading and never froze, oldest
+   * first.
+   *
+   * The window runs from the first day the audit ever closed to the day that
+   * has just closed, because that span is exactly what the property owes a
+   * snapshot for. Before the first frozen row it was not keeping them, and a
+   * watchdog that read their absence as a backlog would page about every day
+   * since the property opened on the morning this deploys. An empty table falls
+   * back to the day that has just closed — a property whose very first audit has
+   * not run, which is the one case with no earlier row to take a horizon from
+   * and still a day somebody owes.
+   *
+   * Reading the whole set is reasonable rather than something to bound, because
+   * the set is one row per day the property has traded: a 40-room house closes
+   * 365 of them a year, and the table is its own trading history.
+   */
+  private async unclosed(
+    exec: DbExecutor,
+    closing: StayDate,
+  ): Promise<readonly string[]> {
+    const lastNight = closing.toString();
+
+    const rows = await exec
+      .select({ businessDate: nightAuditSnapshot.businessDate })
+      .from(nightAuditSnapshot)
+      .where(lte(nightAuditSnapshot.businessDate, lastNight));
+
+    const frozen = new Set(rows.map((row) => row.businessDate));
+
+    // An ISO date sorts as text, so the earliest is the smallest string — and
+    // folding from last night is what makes an empty table answer with the one
+    // day it should rather than with no window at all.
+    const earliest = [...frozen].reduce(
+      (oldest, day) => (day < oldest ? day : oldest),
+      lastNight,
+    );
+
+    const missing: string[] = [];
+
+    for (
+      let day = parseDate(earliest);
+      day.compare(closing) <= 0;
+      day = day.add({ days: 1 })
+    ) {
+      const on = day.toString();
+
+      if (!frozen.has(on)) {
+        missing.push(on);
+      }
+    }
+
+    return missing;
   }
 
   /**
