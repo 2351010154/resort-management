@@ -11,6 +11,10 @@ import { TierRecomputeSweep } from "../modules/guest/tier-recompute-sweep.js";
 import { NotificationModule } from "../modules/notification/notification.module.js";
 import { PaymentModule } from "../modules/payment/payment.module.js";
 import { ReconciliationJob } from "../modules/payment/reconciliation.job.js";
+import { NightAuditWatchdogJob } from "../modules/reporting/night-audit-watchdog.job.js";
+import { NightAuditJob } from "../modules/reporting/night-audit.job.js";
+import { ReportingModule } from "../modules/reporting/reporting.module.js";
+import { SystemConfigModule } from "../modules/system-config/system-config.module.js";
 import { JobRunner } from "./job-runner.service.js";
 import { JobScheduler } from "./job-scheduler.service.js";
 import { JobTriggerController } from "./job-trigger.controller.js";
@@ -78,6 +82,23 @@ import { SWEEP_JOBS, type SweepJob } from "./sweep-job.js";
 // thresholds, so a sweep that worked one out itself would be a second ladder,
 // and the two would agree until an `ADMIN` moved a rung.
 //
+// `ReportingModule` is imported for `NightAuditService`, which is what
+// `NightAuditJob` freezes a closed day through. Same reason as the four above,
+// and the sharpest form of it: `FR-RPT-01` says reports read snapshots so that
+// history never changes, and a sweep that assembled a day's figures itself would
+// be a second answer to what a night was worth — one frozen into the table and
+// one the Reports pages compute, disagreeing the first time a charge is
+// reversed. `night-audit.job.ts` also takes `RoomChargeSweep`, which is provided
+// below like every other sweep: the audit guarantees the closing day's rent is
+// posted before it freezes, and it does that by running the sweep that already
+// knows what a night costs rather than by pricing one itself.
+//
+// `SystemConfigModule` is imported for `SystemConfigService`, which is what
+// `NightAuditWatchdogJob` asks for the rollover hour. Its deadline is half an
+// hour after the day rolled, so the hour §2 keeps in a row is what moves it —
+// deriving it here from a constant would be that row's second home and would
+// page every morning at a property that audits at six.
+//
 // `DatabaseModule` is global, so nothing is imported for the pool pg-boss
 // borrows or for the transaction runner that opens a run's boundary.
 @Module({
@@ -87,6 +108,8 @@ import { SWEEP_JOBS, type SweepJob } from "./sweep-job.js";
     PaymentModule,
     NotificationModule,
     GuestModule,
+    ReportingModule,
+    SystemConfigModule,
   ],
   controllers: [JobTriggerController],
   providers: [
@@ -105,6 +128,8 @@ import { SWEEP_JOBS, type SweepJob } from "./sweep-job.js";
         ReconciliationJob,
         TierRecomputeSweep,
         PreArrivalReminderSweep,
+        NightAuditJob,
+        NightAuditWatchdogJob,
       ],
       useFactory: (...jobs: SweepJob[]): readonly SweepJob[] => jobs,
     },
@@ -114,6 +139,8 @@ import { SWEEP_JOBS, type SweepJob } from "./sweep-job.js";
     ReconciliationJob,
     TierRecomputeSweep,
     PreArrivalReminderSweep,
+    NightAuditJob,
+    NightAuditWatchdogJob,
     JobRunner,
     JobScheduler,
   ],
