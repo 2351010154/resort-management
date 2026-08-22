@@ -35,16 +35,19 @@ function BarYAxisLabel({
       }}
     >
       <motion.span
+        /* The registry's own fallbacks were `--foreground` and Tailwind's
+           `--color-zinc-500`, and neither exists in this console: the theme
+           deletes the stock palette outright and names its own colour
+           `--color-foreground`. Both are the chart vocabulary now, which is a
+           `var()` into @mariva/tokens like everything else here. */
         animate={{
           opacity: isHovered ? 1 : 0.7,
-          color: isHovered
-            ? "var(--foreground)"
-            : "var(--chart-label, var(--color-zinc-500))",
+          color: isHovered ? "var(--chart-foreground)" : "var(--chart-label)",
         }}
         className={cn("truncate whitespace-nowrap text-right text-xs")}
         initial={{
           opacity: 0.7,
-          color: "var(--chart-label, var(--color-zinc-500))",
+          color: "var(--chart-label)",
         }}
         style={{ maxWidth: 70 }}
         transition={{ duration: 0.15 }}

@@ -20,7 +20,11 @@ const DateTickerCompact = memo(function DateTickerCompact({
   const label = labels[currentIndex] ?? labels[0] ?? "";
 
   return (
-    <div className="overflow-hidden rounded-full bg-zinc-900 px-4 py-1 text-white shadow-lg dark:bg-zinc-100 dark:text-zinc-900">
+    /* The registry drew this pill in Tailwind's stock zinc with a dark-mode
+       inversion. The console deletes the stock palette (`--color-*: initial`)
+       and has no dark mode, so both halves were dead classes; it is the same
+       dark surface the tooltip beside it is, in the same two tokens. */
+    <div className="overflow-hidden rounded-full bg-chart-tooltip-background px-4 py-1 text-chart-tooltip-foreground shadow-lg">
       <div className="flex h-6 items-center justify-center">
         <span className="whitespace-nowrap font-medium text-sm">{label}</span>
       </div>
@@ -93,7 +97,7 @@ const DateTickerInner = memo(function DateTickerInner({
   }
 
   return (
-    <div className="overflow-hidden rounded-full bg-zinc-900 px-4 py-1 text-white shadow-lg dark:bg-zinc-100 dark:text-zinc-900">
+    <div className="overflow-hidden rounded-full bg-chart-tooltip-background px-4 py-1 text-chart-tooltip-foreground shadow-lg">
       <div className="relative h-6 overflow-hidden">
         <div className="flex items-center justify-center gap-1">
           {/* Month stack */}

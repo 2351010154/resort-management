@@ -41,7 +41,9 @@ export function useChartPhaseOrchestrator({
   const phaseRef = useRef(chartPhase);
   phaseRef.current = chartPhase;
 
-  // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: status transition branches for animation durations
+  // The branches below are the status transitions and the durations each one
+  // implies. The registry suppressed a complexity rule here that this repository
+  // does not enable, and an unused suppression is a finding of its own.
   useEffect(() => {
     const prevStatus = prevStatusRef.current;
     if (prevStatus === chartStatus) {

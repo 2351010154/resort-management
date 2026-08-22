@@ -15,7 +15,10 @@ import {
   useState,
 } from "react";
 import { cn } from "@/lib/utils";
-import { DEFAULT_ANIMATION_EASING } from "./animation";
+import {
+  DEFAULT_ANIMATION_DURATION_MS,
+  DEFAULT_ANIMATION_EASING,
+} from "./animation";
 import type { BarProps } from "./bar";
 import { topSquareCenterY } from "./bar-squares-layout";
 import {
@@ -41,7 +44,6 @@ import {
   DEFAULT_CHART_LIFECYCLE,
   resolveRestingChartPhase,
 } from "./chart-phase";
-import { BarLoadingSkeleton } from "./loading-sweep";
 import { extractReferenceAreaConfigs } from "./reference-area-config";
 import { useScheduledTooltip } from "./use-scheduled-tooltip";
 import {
@@ -50,9 +52,6 @@ import {
   normalizeYAxisId,
   wrapSingleYScale,
 } from "./y-axis-scales";
-
-/** Skeleton bars to show when `status="loading"` and `data` is empty. */
-const FALLBACK_LOADING_BARS = 12;
 
 export type BarOrientation = "vertical" | "horizontal";
 
@@ -63,7 +62,9 @@ export interface BarChartProps {
   xDataKey?: string;
   /** Chart margins */
   margin?: Partial<Margin>;
-  /** Animation duration in milliseconds. Default: 1100 */
+  /** Animation duration in milliseconds. Default: 0 — `NFR-04` allows no
+   *  entrance animation on an operational screen, and `animation.ts` says why
+   *  that is the default here rather than a value each caller passes. */
   animationDuration?: number;
   /** CSS easing for bar grow transitions. */
   animationEasing?: string;
@@ -651,15 +652,15 @@ const ChartCore = memo(function ChartCore({
 
           {renderKeyedChartLayers(clipExcludedChildren)}
           {renderKeyedChartLayers(underlayChildren)}
-          {status === "loading" ? (
-            <BarLoadingSkeleton
-              barCount={data.length || FALLBACK_LOADING_BARS}
-              innerHeight={innerHeight}
-              innerWidth={innerWidth}
-            />
-          ) : (
-            renderKeyedChartLayers(preOverlayChildren)
-          )}
+          {/* The loading skeleton this branch used to draw is gone, and with
+              it `loading-sweep.tsx` and `bar-chart-loading.tsx`: a shimmering
+              sweep is entrance animation by another name, and `NFR-04` refuses
+              it on an operational screen. A screen that is waiting says so in
+              words above the chart, which is what every other pending state in
+              this console does. `status` still governs interaction, so a chart
+              told it is loading stays inert rather than answering a hover with
+              figures nobody has read yet. */}
+          {renderKeyedChartLayers(preOverlayChildren)}
 
           {/* Markers rendered last so they're on top for interaction */}
           {renderKeyedChartLayers(postOverlayChildren)}
@@ -673,7 +674,7 @@ export function BarChart({
   data,
   xDataKey = "name",
   margin: marginProp,
-  animationDuration = 1100,
+  animationDuration = DEFAULT_ANIMATION_DURATION_MS,
   animationEasing = DEFAULT_ANIMATION_EASING,
   enterTransition,
   revealSignature,

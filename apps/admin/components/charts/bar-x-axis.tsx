@@ -59,7 +59,10 @@ function BarXAxisLabel({
         animate={{ opacity }}
         className={cn("whitespace-nowrap text-chart-label text-xs")}
         initial={{ opacity: 1 }}
-        transition={{ duration: 0.4, ease: "easeInOut" }}
+        /* 150 ms and not 400: this fades a tick label out from under the
+           crosshair, which is feedback to a pointer, and `NFR-04` puts the
+           console's ceiling for that at 150 ms. */
+        transition={{ duration: 0.15, ease: "easeInOut" }}
       >
         {label}
       </motion.span>
