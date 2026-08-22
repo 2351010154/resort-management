@@ -132,13 +132,28 @@ export function mayReadRevenue(role: StaffRole): boolean {
  * The matrix's *Operational reports* row. It is the mirror of the one above:
  * the desk is on it and the accountant is not, because how many rooms are dirty
  * on the third floor is the state of the floors rather than the state of the
- * books. `HOUSEKEEPING` holds it as a `⚠` — "own board" — and is left off here
- * because `nav-inventory.ts` does not offer them the family at all: what a
- * housekeeper reads is the board itself, which is their own screen and shows
- * every room already.
+ * books.
+ *
+ * **`HOUSEKEEPING` is on it, and their `⚠` narrows nothing on this page.** The
+ * warning is "own board", which is what the row's *arrivals and in-house* half
+ * owes a housekeeper — a list of guests is scoped or it is not theirs. A count
+ * of rooms by condition has no such half: it is the board's own subject
+ * totalled, and they hold `housekeeping.board` outright, so there is no figure
+ * here they cannot already read room by room. Leaving them off would have the
+ * console refuse a page the API's guard admits, and the refusal would protect
+ * nothing.
+ *
+ * The rail is a separate question and `nav-inventory.ts` still answers it the
+ * same way: a housekeeper is offered one family, the board. This decides who
+ * the page opens for, not who is invited to it.
  */
 export function mayReadRoomStatus(role: StaffRole): boolean {
-  return role === "RECEPTIONIST" || role === "MANAGER" || role === "ADMIN";
+  return (
+    role === "RECEPTIONIST" ||
+    role === "HOUSEKEEPING" ||
+    role === "MANAGER" ||
+    role === "ADMIN"
+  );
 }
 
 /**
