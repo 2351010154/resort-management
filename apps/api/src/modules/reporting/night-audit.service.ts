@@ -218,11 +218,19 @@ export class NightAuditService {
    * sweep charges `CHECKED_IN` stays, and the reason this reaches `CHECKED_OUT`
    * as well is the whole of the case: a day closed late — the look-back picking
    * up a night the property was down for — has stays that occupied it and have
-   * since departed, and they are precisely the ones no run will ever charge. The
-   * `not exists` is unchanged down to the `posted_by is null`, so a night the
-   * desk charged by hand is not reported as missing and a reversed charge is not
-   * reported at all — `FR-FOL-01` leaves the mistake standing, and the night was
-   * charged.
+   * since departed, and they are precisely the ones no run will ever charge.
+   *
+   * The `not exists` is unchanged down to the `posted_by is null`, which is to
+   * say it asks for the line the sweep itself would have written. A reversed
+   * charge therefore answers it and is not reported as missing — `FR-FOL-01`
+   * leaves the mistake standing, and the night was charged. A room charge
+   * somebody keyed at the desk does not answer it, because `posted_by` carries
+   * the member of staff: the narrowing exists on the sweep's side so that a
+   * desk-posted late checkout cannot suppress the night's rent, and it is kept
+   * here so that both ask the same question. The consequence is that such a day
+   * is refused rather than frozen short, and `night-audit-watchdog.job.ts` is
+   * what stops the refusal going quiet once this sweep's look-back has passed
+   * the date by.
    *
    * `HELD`, `CONFIRMED`, `CANCELLED` and `NO_SHOW` are outside it because none
    * of them slept in a room: an arrival that never arrived owes §4's no-show
