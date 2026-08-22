@@ -463,8 +463,7 @@ async function occupied(
       adults: 2,
       quotedStayTotalGross: 1_400_000n,
       quotedPercentAdjustment: 0,
-      quotedBreakfastPerPersonGross: 0n,
-      quotedExtraPersonPerNightGross: 0n,
+      quotedExtraPersonPerNightGross: 600_000n,
     })
     .returning({ id: booking.id });
 
