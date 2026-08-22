@@ -56,6 +56,10 @@ import { registration } from "../schema/guest.js";
 import { guestAccount, guestSession, guestUser } from "../schema/index.js";
 import { roomCondition } from "../schema/housekeeping.js";
 import { loyaltyLedger } from "../schema/loyalty.js";
+import {
+  nightAuditSnapshot,
+  nightAuditSnapshotType,
+} from "../schema/night-audit.js";
 import { payment } from "../schema/payment.js";
 import { paymentDiscrepancy } from "../schema/reconciliation.js";
 import {
@@ -176,6 +180,16 @@ async function wipe(db: Database): Promise<void> {
   await db.execute(sql`delete from ${typeInventory}`);
   await db.execute(sql`delete from ${stayRestriction}`);
   await db.execute(sql`delete from ${rateCalendar}`);
+  // The closed trading days, before the room types their per-type rows name.
+  // `truncate` and not `delete`, because `0043` refuses a row-level delete on
+  // both of these outright: a snapshot is frozen so that a report re-read next
+  // year says what it said. Emptying the table wholesale is a different act from
+  // editing a day, it needs rights over the table rather than over its rows, and
+  // it is the same property `schema/folio.ts` relies on for the ledger above.
+  // Both together in one statement, because the type rows reference the day.
+  await db.execute(
+    sql`truncate ${nightAuditSnapshotType}, ${nightAuditSnapshot}`,
+  );
   // Before the rooms they name, for the same reason the assignments went before
   // the bookings: each delete here clears the rows that reference the next.
   await db.execute(sql`delete from ${roomCondition}`);
