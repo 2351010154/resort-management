@@ -80,6 +80,19 @@ const A_CLOSED_DAY = "2027-10-14";
 /** A date no snapshot exists for, where a test needs a day nobody closed. */
 const AN_UNCLOSED_DAY = "2027-10-15";
 
+/**
+ * The night the service cases below build out of real rows.
+ *
+ * Its own date, and deliberately years past the horizon `seedDatabase`
+ * publishes: the service sums the inventory and the postings of *every* type and
+ * stay on the date it is given, so a night that shared a date with the seed
+ * would be asserted against the seed's rooms as well as this file's. The
+ * `type_inventory` rows for it are cleared inside the transaction regardless,
+ * because "the seed does not reach 2029" is a fact about the seed and this file
+ * should not depend on it.
+ */
+const A_NIGHT_OF_ITS_OWN = "2029-02-17";
+
 let pool: pg.Pool;
 let db: ReturnType<typeof drizzle<typeof schema>>;
 
@@ -311,20 +324,20 @@ describe("what the service reads a day off the ledger with", () => {
     await rolledBack(async (tx) => {
       const typeId = await someRoomType(tx);
 
-      await onSale(tx, typeId, A_CLOSED_DAY, 20);
+      await onSale(tx, typeId, A_NIGHT_OF_ITS_OWN, 20);
 
-      const stay = await occupied(tx, typeId, A_CLOSED_DAY, "CHECKED_IN");
+      const stay = await occupied(tx, typeId, A_NIGHT_OF_ITS_OWN, "CHECKED_IN");
 
-      await charge(tx, stay, A_CLOSED_DAY, 1_200_000n);
+      await charge(tx, stay, A_NIGHT_OF_ITS_OWN, 1_200_000n);
 
       expect(
-        await new NightAuditService().freeze(tx, parseDate(A_CLOSED_DAY)),
+        await new NightAuditService().freeze(tx, parseDate(A_NIGHT_OF_ITS_OWN)),
       ).toBe(true);
 
       const [frozen] = await tx
         .select()
         .from(nightAuditSnapshot)
-        .where(eq(nightAuditSnapshot.businessDate, A_CLOSED_DAY));
+        .where(eq(nightAuditSnapshot.businessDate, A_NIGHT_OF_ITS_OWN));
 
       expect(frozen).toMatchObject({
         sellableRooms: 20,
@@ -338,7 +351,7 @@ describe("what the service reads a day off the ledger with", () => {
       const under = await tx
         .select()
         .from(nightAuditSnapshotType)
-        .where(eq(nightAuditSnapshotType.businessDate, A_CLOSED_DAY));
+        .where(eq(nightAuditSnapshotType.businessDate, A_NIGHT_OF_ITS_OWN));
 
       expect(under).toMatchObject([
         {
@@ -361,13 +374,13 @@ describe("what the service reads a day off the ledger with", () => {
 
       const audit = new NightAuditService();
 
-      expect(await audit.freeze(tx, parseDate(A_CLOSED_DAY))).toBe(true);
-      expect(await audit.freeze(tx, parseDate(A_CLOSED_DAY))).toBe(false);
+      expect(await audit.freeze(tx, parseDate(A_NIGHT_OF_ITS_OWN))).toBe(true);
+      expect(await audit.freeze(tx, parseDate(A_NIGHT_OF_ITS_OWN))).toBe(false);
 
       const days = await tx
         .select({ businessDate: nightAuditSnapshot.businessDate })
         .from(nightAuditSnapshot)
-        .where(eq(nightAuditSnapshot.businessDate, A_CLOSED_DAY));
+        .where(eq(nightAuditSnapshot.businessDate, A_NIGHT_OF_ITS_OWN));
 
       expect(days).toHaveLength(1);
     });
@@ -381,32 +394,47 @@ describe("what the service reads a day off the ledger with", () => {
     await rolledBack(async (tx) => {
       const typeId = await someRoomType(tx);
 
-      const departed = await occupied(tx, typeId, A_CLOSED_DAY, "CHECKED_OUT");
-      const charged = await occupied(tx, typeId, A_CLOSED_DAY, "CHECKED_IN");
+      const departed = await occupied(
+        tx,
+        typeId,
+        A_NIGHT_OF_ITS_OWN,
+        "CHECKED_OUT",
+      );
+      const charged = await occupied(
+        tx,
+        typeId,
+        A_NIGHT_OF_ITS_OWN,
+        "CHECKED_IN",
+      );
 
-      await charge(tx, charged, A_CLOSED_DAY, 1_200_000n);
+      await charge(tx, charged, A_NIGHT_OF_ITS_OWN, 1_200_000n);
 
       expect(
         await new NightAuditService().unchargedStays(
           tx,
-          parseDate(A_CLOSED_DAY),
+          parseDate(A_NIGHT_OF_ITS_OWN),
         ),
       ).toEqual([departed]);
     });
   });
 });
 
-/** How many of a type the property put on sale that night. */
+/**
+ * How many of a type the property put on sale that night, and nothing else.
+ *
+ * The date is cleared first because the service sums `total_rooms` over every
+ * type with a row on it. A seeded row left standing would be added to this one,
+ * and the case would be asserting the seed's property rather than its own.
+ */
 async function onSale(
   tx: Tx,
   roomTypeId: string,
   stayDate: string,
   totalRooms: number,
 ): Promise<void> {
-  await tx
-    .insert(typeInventory)
-    .values({ roomTypeId, stayDate, totalRooms })
-    .onConflictDoNothing();
+  await tx.delete(typeInventory).where(eq(typeInventory.stayDate, stayDate));
+
+  await tx.insert(typeInventory).values({ roomTypeId, stayDate, totalRooms });
 }
 
 /**
