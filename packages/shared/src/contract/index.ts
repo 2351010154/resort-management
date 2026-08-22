@@ -22,6 +22,7 @@ import { jobs } from "./jobs.js";
 import { operations } from "./operations.js";
 import { payment } from "./payment.js";
 import { pricing } from "./pricing.js";
+import { reporting } from "./reporting.js";
 import { search } from "./search.js";
 import { service } from "./service.js";
 import { systemConfig } from "./system-config.js";
@@ -45,6 +46,7 @@ export const contract = {
   operations,
   finance,
   audit,
+  reporting,
 };
 
 export type Contract = typeof contract;
@@ -60,9 +62,9 @@ export {
   auditEntrySchema,
   auditFieldSchema,
   auditScopeSchema,
-  listAuditEntriesInput,
   LONGEST_AUDIT_PAGE,
   LONGEST_TABLE_NAME,
+  listAuditEntriesInput,
   readAuditEntryInput,
 } from "./audit.js";
 export { rateCalendarQuery, stayOfferQuery } from "./availability.js";
@@ -91,6 +93,11 @@ export {
   LONGEST_FEEDBACK_COMMENT,
   submitFeedbackInput,
 } from "./feedback.js";
+export type {
+  CashBookCategory,
+  CashBookDirection,
+  CashBookMethod,
+} from "./finance.js";
 export {
   CASH_BOOK_CATEGORIES,
   CASH_BOOK_PAGE_SIZE,
@@ -102,16 +109,11 @@ export {
   categorySuitsDirection,
   EXPENSE_CATEGORIES,
   INCOME_CATEGORIES,
-  listCashBookEntriesInput,
   LONGEST_CASH_BOOK_NOTE,
   LONGEST_CASH_BOOK_PAGE,
+  listCashBookEntriesInput,
   recordCashBookEntryInput,
   reverseCashBookEntryInput,
-} from "./finance.js";
-export type {
-  CashBookCategory,
-  CashBookDirection,
-  CashBookMethod,
 } from "./finance.js";
 export {
   closeFolioInput,
@@ -122,9 +124,9 @@ export {
   folioSchema,
   folioStateSchema,
   folioSummarySchema,
+  LONGEST_FOLIO_PAGE,
   listedFolioSchema,
   listFoliosInput,
-  LONGEST_FOLIO_PAGE,
   postChargeInput,
   postingTypeSchema,
   postOverrideRefundInput,
@@ -156,12 +158,12 @@ export { closeRoomInput, roomClosureSchema } from "./inventory.js";
 export { jobRunSchema, triggerJobInput } from "./jobs.js";
 export {
   closeShiftInput,
-  listPendingItemsInput,
-  listShiftHistoryInput,
   LONGEST_HANDOVER_NOTE,
   LONGEST_PENDING_ITEM,
   LONGEST_PENDING_ITEM_PAGE,
   LONGEST_SHIFT_PAGE,
+  listPendingItemsInput,
+  listShiftHistoryInput,
   openShiftInput,
   PENDING_ITEM_PAGE_SIZE,
   pendingItemPageSchema,
@@ -173,9 +175,9 @@ export {
   shiftSchema,
 } from "./operations.js";
 export {
+  LONGEST_PAYMENT_PAGE,
   listedPaymentSchema,
   listPaymentsInput,
-  LONGEST_PAYMENT_PAGE,
   openedPaymentSchema,
   openPaymentAttemptInput,
   PAYMENT_PAGE_SIZE,
@@ -193,19 +195,44 @@ export {
   stayRestrictionSchema,
   updateRatePlanInput,
 } from "./pricing.js";
-// The three Excel exports. Named exports only and nothing added to `contract`
-// above, because they are not oRPC routes: `reporting.ts` opens by saying why a
-// response measured in chunks of zip cannot be one, and an entry in that object
-// would be a promise `@Implement` could not keep.
+export type { RevenueBucket } from "./reporting.js";
+// The Reports family. `reporting` is in `contract` above because `FR-RPT-02`'s
+// two reads and `FR-RPT-03`'s KPI read are ordinary oRPC procedures; the six
+// Excel exports below are named exports and nothing more, because `reporting.ts`
+// opens by saying why a response measured in chunks of zip cannot be a
+// procedure, and an entry in that object would be a promise `@Implement` could
+// not keep.
 export {
   CASH_BOOK_EXPORT_PATH,
   CASH_BOOK_EXPORT_STEM,
-  cashBookExportInput,
   CHANGE_LOG_EXPORT_PATH,
   CHANGE_LOG_EXPORT_STEM,
+  cashBookExportInput,
   changeLogExportInput,
   EXCEL_MEDIA_TYPE,
   excelExportFileName,
+  PERFORMANCE_REPORT_EXPORT_PATH,
+  PERFORMANCE_REPORT_EXPORT_STEM,
+  performanceBucketRowSchema,
+  performanceFiguresSchema,
+  performanceReportQuery,
+  performanceReportSchema,
+  performanceTotalsSchema,
+  performanceTypeRowSchema,
+  REVENUE_BUCKETS,
+  REVENUE_REPORT_EXPORT_PATH,
+  REVENUE_REPORT_EXPORT_STEM,
+  ROOM_STATUS_REPORT_EXPORT_PATH,
+  ROOM_STATUS_REPORT_EXPORT_STEM,
+  revenueBucketRowSchema,
+  revenueBucketSchema,
+  revenueReportQuery,
+  revenueReportSchema,
+  revenueTotalsSchema,
+  roomStatusCountSchema,
+  roomStatusReportQuery,
+  roomStatusReportSchema,
+  roomStatusTypeSchema,
   SHIFT_HISTORY_EXPORT_PATH,
   SHIFT_HISTORY_EXPORT_STEM,
   shiftHistoryExportInput,
@@ -217,8 +244,8 @@ export {
   SEARCH_RESULT_LIMIT,
   searchResultsSchema,
 } from "./search.js";
-export { serviceCatalogItemSchema } from "./service.js";
 export type { ServiceCatalogItem } from "./service.js";
+export { serviceCatalogItemSchema } from "./service.js";
 export {
   systemConfigurationSchema,
   updateSystemConfigInput,
