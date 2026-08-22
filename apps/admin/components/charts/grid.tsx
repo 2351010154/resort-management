@@ -12,8 +12,12 @@ import {
 
 const DEFAULT_SHIMMER_LENGTH_PX = 140;
 const DEFAULT_SHIMMER_SPEED = 1;
+/* `--foreground` is not a name this console declares — the theme's is
+   `--color-foreground` — so the shimmer stroke is the chart vocabulary's own
+   line colour. Nothing sets `shimmer` on either report chart: a sweep across the
+   grid is entrance chrome and `NFR-04` refuses it. */
 const DEFAULT_SHIMMER_STROKE =
-  "color-mix(in oklch, var(--foreground) 68%, transparent)";
+  "color-mix(in oklch, var(--chart-foreground) 68%, transparent)";
 
 export interface GridProps {
   /** Show horizontal grid lines. Default: true */
@@ -92,7 +96,11 @@ function resolveRowTickValues(options: {
   return filtered.length > 0 ? filtered : undefined;
 }
 
-// biome-ignore lint/complexity/noExcessiveCognitiveComplexity: grid fade masks and shimmer share one layer tree
+// The grid's fade masks and its shimmer share one layer tree, which is why this
+// function is as long as it is. The registry carried a `biome-ignore` for a
+// complexity rule here; this repository does not enable that rule, and an
+// unused suppression is itself a finding — so the note stays and the directive
+// does not.
 export function Grid({
   horizontal = true,
   vertical = false,

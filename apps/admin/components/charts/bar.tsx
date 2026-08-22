@@ -1,8 +1,6 @@
 "use client";
 
 import type { scaleBand } from "@visx/scale";
-import type { Transition } from "motion/react";
-import { motion } from "motion/react";
 import { memo, useId, useMemo } from "react";
 import { barDepthAndRise, barDepthMaxDepth } from "./bar-depth-geometry";
 import {
@@ -12,14 +10,12 @@ import {
   useYScale,
 } from "./chart-context";
 import { useChartLegendHover } from "./chart-legend-hover";
-import { transitionWithDelay } from "./motion-utils";
 
 type ScaleBand<Domain extends { toString(): string }> = ReturnType<
   typeof scaleBand<Domain>
 >;
 
 export type BarLineCap = "round" | "butt" | number;
-export type BarAnimationType = "grow" | "fade";
 
 // ── Bar-depth perspective trim ───────────────────────────────────────────
 // Uses the SHARED geometry (`bar-depth-geometry.ts`) so a
@@ -62,10 +58,6 @@ export interface BarProps {
   stroke?: string;
   /** Line cap style for bar ends: "round", "butt", or a number for custom radius. Default: "round" */
   lineCap?: BarLineCap;
-  /** Whether to animate the bars. Default: true */
-  animate?: boolean;
-  /** Animation type: "grow" (height) or "fade" (opacity + blur). Default: "grow" */
-  animationType?: BarAnimationType;
   /** Opacity when not hovered (when another bar is hovered). Default: 0.3 */
   fadedOpacity?: number;
   /** Stagger delay between bars in seconds. Auto-calculated if not provided. */
@@ -91,100 +83,21 @@ interface BarInnerProps extends BarProps {
   barXAccessor: (d: Record<string, unknown>) => string;
 }
 
-interface AnimatedBarProps {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-  fill: string;
-  rx: number;
-  ry: number;
-  index: number;
-  isFaded: boolean;
-  animationType: BarAnimationType;
-  innerHeight: number;
-  fadedOpacity: number;
-  staggerDelay: number;
-  enterTransition?: Transition;
-  revealEpoch: number;
-  isHorizontal: boolean;
-}
-
-function AnimatedBar({
-  x,
-  y,
-  width,
-  height,
-  fill,
-  rx,
-  ry,
-  index,
-  isFaded,
-  animationType,
-  innerHeight,
-  fadedOpacity,
-  staggerDelay,
-  enterTransition,
-  revealEpoch,
-  isHorizontal,
-}: AnimatedBarProps) {
-  const enterAnim = transitionWithDelay(enterTransition, index * staggerDelay);
-
-  if (animationType === "fade") {
-    return (
-      <motion.rect
-        animate={{
-          opacity: isFaded ? fadedOpacity : 1,
-          filter: "blur(0px)",
-        }}
-        fill={fill}
-        height={height}
-        initial={{ opacity: 0, filter: "blur(2px)" }}
-        key={`fade-${index}-${revealEpoch}`}
-        rx={rx}
-        ry={ry}
-        transition={enterAnim}
-        width={width}
-        x={x}
-        y={y}
-      />
-    );
-  }
-
-  const initial = isHorizontal
-    ? { width: 0, height, x: 0, y }
-    : { width, height: 0, x, y: innerHeight };
-  const target = isHorizontal
-    ? { width, height, x: 0, y }
-    : { width, height, x, y };
-
-  return (
-    <g
-      opacity={isFaded ? fadedOpacity : 1}
-      style={{ transition: "opacity 0.15s ease-in-out" }}
-    >
-      <motion.rect
-        animate={target}
-        fill={fill}
-        initial={initial}
-        key={`grow-${index}-${revealEpoch}`}
-        rx={rx}
-        ry={ry}
-        transition={enterAnim}
-      />
-    </g>
-  );
-}
+/* `AnimatedBar` used to live here — a bar that grew from the baseline or faded
+ * in from a blur, staggered across the series. It is gone rather than switched
+ * off: `NFR-04` allows no entrance animation on an operational screen, and a
+ * component that can still be asked for one is a component somebody will ask.
+ * Every bar below is drawn in the state it is in, and the only motion left on it
+ * is the opacity change that answers a hover — interaction, which the same
+ * requirement asks for under 150 ms and gets in 150.
+ */
 
 const BarInner = memo(function BarInner({
   dataKey,
   yAxisId,
   fill = chartCssVars.linePrimary,
   lineCap = "round",
-  animate = true,
-  animationType = "grow",
   fadedOpacity = 0.3,
-  staggerDelay,
   stackGap = 0,
   groupGap = 4,
   perspective = false,
@@ -198,23 +111,13 @@ const BarInner = memo(function BarInner({
     yScale: chartYScale,
     innerHeight,
     innerWidth,
-    isLoaded,
     hoveredBarIndex,
     lines,
     orientation,
     stacked,
     stackOffsets,
-    animationDuration,
-    enterTransition,
-    revealEpoch = 0,
   } = useChart();
 
-  // Calculate stagger delay automatically if not provided
-  // Total animation duration is ~1200ms, with 40% for stagger spread and 60% for bar animation
-  const totalAnimDuration = animationDuration || 1100;
-  const staggerSpread = totalAnimDuration * 0.4; // 40% of time for stagger spread
-  const calculatedStaggerDelay =
-    staggerDelay ?? (data.length > 1 ? staggerSpread / 1000 / data.length : 0);
   const uniqueId = useId();
 
   const isHorizontal = orientation === "horizontal";
@@ -396,31 +299,6 @@ const BarInner = memo(function BarInner({
         const effectiveRx = applyRounding ? cornerRadius : 0;
         const effectiveRy = applyRounding ? cornerRadius : 0;
 
-        if (animate && !isLoaded) {
-          return (
-            <AnimatedBar
-              animationType={animationType}
-              enterTransition={enterTransition}
-              fadedOpacity={fadedOpacity}
-              fill={fill}
-              height={barHeight}
-              index={i}
-              innerHeight={innerHeight}
-              isFaded={isFaded}
-              isHorizontal={isHorizontal}
-              key={barKey}
-              revealEpoch={revealEpoch}
-              rx={effectiveRx}
-              ry={effectiveRy}
-              staggerDelay={calculatedStaggerDelay}
-              width={barW}
-              x={x}
-              y={y}
-            />
-          );
-        }
-
-        // Static bar after animation completes
         return (
           <rect
             fill={fill}

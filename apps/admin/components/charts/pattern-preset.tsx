@@ -176,7 +176,11 @@ export function renderPatternPreset(
         <PatternLines
           {...common}
           orientation={["diagonal"]}
-          stroke="#e879f9"
+          /* A hardcoded fuchsia in the registry's source, which is exactly
+             the literal @mariva/tokens exists to stop. Nothing in this console
+             asks for the accent pattern; it is pointed at the palette so that
+             the day something does, it is not off-brand. */
+          stroke="var(--chart-crosshair)"
           strokeWidth={strokeWidth}
         />
       );
