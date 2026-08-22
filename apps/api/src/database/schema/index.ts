@@ -93,6 +93,13 @@ export * from "./shift.js";
 // the drawer whose count has to account for them. Owned by `modules/operations`.
 export * from "./cash-book.js";
 
+// What a closed trading day came to — one frozen row per business date and one
+// per room type beneath it, written once by the night audit and refused every
+// edit afterwards. Reports read these rather than the live ledger, which is what
+// makes a December re-read in March still say what December said. Owned by
+// `modules/reporting`.
+export * from "./night-audit.js";
+
 // What a guest thought of a stay they have finished — one row per booking, and
 // no row at all for a stay that has not ended. Owned by `modules/feedback`.
 export * from "./feedback.js";

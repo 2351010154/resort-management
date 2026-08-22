@@ -312,6 +312,14 @@ The structural half of `D2`. Rates live in §8.
 | Money | `bigint`, whole đồng. No minor unit, no rounding inside a calculation |
 | Display rounding | nearest 1,000 ₫ via `Intl.NumberFormat('vi-VN')` — presentation only, never persisted |
 | Tax class | every room type and every service item carries one |
+| Policy charge (§4) | **no VAT and no service charge** — posted whole, as a single line |
+
+The policy-charge row is the owner's decision and it closes a question the
+schema had been carrying open. A cell of §4's grid is not a supply: the
+property sold no night and no item, and what it keeps is the money a booking
+forfeited by not happening. So the charge posts as one line with no service
+charge levied on it and no tax line beside it — which is also why the row above
+it says the service charge applies to “room and service lines” and stops there.
 
 Gross display and a line-itemised folio are deliberately different views. A
 Vietnamese guest expects the price they see to be the price they pay; an
