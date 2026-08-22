@@ -30,18 +30,39 @@
 // `0043_a_closed_trading_day_is_frozen_once.sql` and only migrating puts it
 // there. No Nest application is booted — the subject is the storage layer
 // itself.
+//
+// ## And the three statements the service reads a day with
+//
+// The last suite is here because nothing else executes them. `night-audit.job.
+// spec.ts` runs the sweep against a stand-in that answers `select` without
+// reading a predicate — deliberately, because which lines are revenue is what
+// the roll-up is being asked and a stand-in that filtered would be answering
+// instead of it. The cost is that the SQL itself is never issued: the aliased
+// self-join that names the line a reversal undoes, the correlated `not exists`
+// that finds a night nobody charged, and the `on conflict do nothing …
+// returning` the whole idempotency argument rests on are all assembled by
+// Drizzle and, until here, never handed to Postgres.
+//
+// So the cases below build a night out of real rows and let `NightAuditService`
+// read it. What they assert is small on purpose — a figure, a count, a stay's id
+// — because the arithmetic is the other suite's subject and this one is asking
+// only whether the statements run and come back with the rows they name.
 
+import { parseDate } from "@internationalized/date";
 import { and, eq } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { booking } from "../src/database/schema/booking.js";
+import { folio, folioPosting } from "../src/database/schema/folio.js";
 import * as schema from "../src/database/schema/index.js";
-import { roomType } from "../src/database/schema/inventory.js";
+import { roomType, typeInventory } from "../src/database/schema/inventory.js";
 import {
   nightAuditSnapshot,
   nightAuditSnapshotType,
 } from "../src/database/schema/night-audit.js";
+import { NightAuditService } from "../src/modules/reporting/night-audit.service.js";
 
 const UNIQUE_VIOLATION = "23505";
 const FOREIGN_KEY_VIOLATION = "23503";
@@ -279,6 +300,193 @@ describe("the types under a closed day", () => {
     });
   });
 });
+
+describe("what the service reads a day off the ledger with", () => {
+  it("freezes the night the postings and the inventory actually say", async () => {
+    // One Deluxe night, charged at 1,200,000 đồng net with its tax line beside
+    // it, against twenty rooms on sale. The VAT is in the ledger and must not be
+    // in the room revenue — `FR-GST-04` — and here that is asserted through the
+    // statement that reads the column rather than through a literal handed to
+    // the roll-up.
+    await rolledBack(async (tx) => {
+      const typeId = await someRoomType(tx);
+
+      await onSale(tx, typeId, A_CLOSED_DAY, 20);
+
+      const stay = await occupied(tx, typeId, A_CLOSED_DAY, "CHECKED_IN");
+
+      await charge(tx, stay, A_CLOSED_DAY, 1_200_000n);
+
+      expect(
+        await new NightAuditService().freeze(tx, parseDate(A_CLOSED_DAY)),
+      ).toBe(true);
+
+      const [frozen] = await tx
+        .select()
+        .from(nightAuditSnapshot)
+        .where(eq(nightAuditSnapshot.businessDate, A_CLOSED_DAY));
+
+      expect(frozen).toMatchObject({
+        sellableRooms: 20,
+        roomsSold: 1,
+        netRoomRevenueVnd: 1_200_000n,
+        otherRevenueVnd: 0n,
+      });
+
+      // And the type row beneath it, which is what `FR-RPT-03`'s three ratios
+      // are taken over.
+      const under = await tx
+        .select()
+        .from(nightAuditSnapshotType)
+        .where(eq(nightAuditSnapshotType.businessDate, A_CLOSED_DAY));
+
+      expect(under).toMatchObject([
+        {
+          roomTypeId: typeId,
+          sellableRooms: 20,
+          roomsSold: 1,
+          netRoomRevenueVnd: 1_200_000n,
+        },
+      ]);
+    });
+  });
+
+  it("answers a second freeze of the same day with false, at the key", async () => {
+    // The idempotency the runner's second pass turns on, issued as the statement
+    // the service actually writes: `on conflict do nothing … returning` gives
+    // back no row, and no row is what tells the service it closed nothing. A
+    // stand-in can model that; only Postgres can confirm the statement means it.
+    await rolledBack(async (tx) => {
+      await someRoomType(tx);
+
+      const audit = new NightAuditService();
+
+      expect(await audit.freeze(tx, parseDate(A_CLOSED_DAY))).toBe(true);
+      expect(await audit.freeze(tx, parseDate(A_CLOSED_DAY))).toBe(false);
+
+      const days = await tx
+        .select({ businessDate: nightAuditSnapshot.businessDate })
+        .from(nightAuditSnapshot)
+        .where(eq(nightAuditSnapshot.businessDate, A_CLOSED_DAY));
+
+      expect(days).toHaveLength(1);
+    });
+  });
+
+  it("names the stay that occupied a night nothing charged, and only that one", async () => {
+    // The question the sweep asks before it freezes, and the one the whole
+    // refuse-rather-than-understate decision rests on. The departed stay is the
+    // case: `RoomChargeSweep` charges `CHECKED_IN` only, so a stay that occupied
+    // the night and has since left is the one no run will ever post for.
+    await rolledBack(async (tx) => {
+      const typeId = await someRoomType(tx);
+
+      const departed = await occupied(tx, typeId, A_CLOSED_DAY, "CHECKED_OUT");
+      const charged = await occupied(tx, typeId, A_CLOSED_DAY, "CHECKED_IN");
+
+      await charge(tx, charged, A_CLOSED_DAY, 1_200_000n);
+
+      expect(
+        await new NightAuditService().unchargedStays(
+          tx,
+          parseDate(A_CLOSED_DAY),
+        ),
+      ).toEqual([departed]);
+    });
+  });
+});
+
+/** How many of a type the property put on sale that night. */
+async function onSale(
+  tx: Tx,
+  roomTypeId: string,
+  stayDate: string,
+  totalRooms: number,
+): Promise<void> {
+  await tx
+    .insert(typeInventory)
+    .values({ roomTypeId, stayDate, totalRooms })
+    .onConflictDoNothing();
+}
+
+/**
+ * A stay across the night, in the state a case needs it in, with an account
+ * open.
+ *
+ * The columns are the ones the table requires and no more: this file's subject
+ * is what the audit reads off a stay, not how a stay comes to exist, which is
+ * `booking-storage.e2e-spec.ts`'s.
+ */
+async function occupied(
+  tx: Tx,
+  roomTypeId: string,
+  night: string,
+  state: "CHECKED_IN" | "CHECKED_OUT",
+): Promise<string> {
+  const [stay] = await tx
+    .insert(booking)
+    .values({
+      reference: `NA-${state}-${night}-${stayCount++}`,
+      state,
+      roomTypeId,
+      checkInDate: night,
+      checkOutDate: parseDate(night).add({ days: 1 }).toString(),
+      ratePlanCode: "STANDARD",
+      adults: 2,
+      quotedStayTotalGross: 1_400_000n,
+      quotedPercentAdjustment: 0,
+      quotedBreakfastPerPersonGross: 0n,
+      quotedExtraPersonPerNightGross: 0n,
+    })
+    .returning({ id: booking.id });
+
+  await tx.insert(folio).values({ bookingId: stay!.id });
+
+  return stay!.id;
+}
+
+/**
+ * The night's rent on that stay's account, with the tax line the sale carries.
+ *
+ * `posted_by` is left null, which is what makes it the sweep's own line — the
+ * narrowing both `room-charge-sweep.ts` and `unchargedStays` are written around.
+ */
+async function charge(
+  tx: Tx,
+  bookingId: string,
+  businessDate: string,
+  net: bigint,
+): Promise<void> {
+  const [account] = await tx
+    .select({ id: folio.id })
+    .from(folio)
+    .where(eq(folio.bookingId, bookingId));
+
+  const [room] = await tx
+    .insert(folioPosting)
+    .values({
+      folioId: account!.id,
+      type: "ROOM_CHARGE",
+      amount: net,
+      description: "One night",
+      businessDate,
+    })
+    .returning({ id: folioPosting.id });
+
+  // Beside it and never inside it. A snapshot that counted this as revenue would
+  // report the property's takings as the guest's bill.
+  await tx.insert(folioPosting).values({
+    folioId: account!.id,
+    type: "VAT",
+    amount: net / 10n,
+    description: "VAT",
+    businessDate,
+    parentPostingId: room!.id,
+  });
+}
+
+/** Keeps every stay this file opens on a reference of its own. */
+let stayCount = 0;
 
 /**
  * Closes a day at a figure the other cases read back.
