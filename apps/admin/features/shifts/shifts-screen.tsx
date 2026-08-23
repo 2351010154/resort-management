@@ -10,8 +10,10 @@ import {
 import type * as React from "react";
 import { useId, useMemo, useRef, useState } from "react";
 
+import { DataTableFrame, EmptyState, PageHeader } from "@/components/console";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useCommands } from "@/features/command-palette";
 /* The property's day, from the hook the rest of the console already asks it
  * with: one route through the same `orpc` utils is one cache entry, so the day a
@@ -234,30 +236,20 @@ export function ShiftsScreen() {
   }
 
   return (
-    <div className="p-rhythm-3">
-      <header>
-        <p className="text-muted-foreground text-xs tracking-caps uppercase">
-          Operations
-        </p>
-        <h1 className="font-display text-display-sm mt-2">Shifts</h1>
-        <p className="text-muted-foreground mt-rhythm-1 border-border border-t pt-2">
-          The desk's days as they were counted out: who was answerable, what the
-          drawer should have held, what it did hold, and what the shift told the
-          one after it. A drawer is opened and closed from the command palette
-          on whatever screen the desk is working — this is the record of it.
-        </p>
-      </header>
+    <div className="mx-auto w-full max-w-[1600px] p-4 sm:p-6 lg:p-8">
+      <PageHeader
+        title="Shifts"
+        description="Drawer history, variances, and handover notes."
+      />
 
       {!offered ? (
-        <p className="text-muted-foreground mt-rhythm-2 max-w-prose text-sm">
-          The cash drawer belongs to the desk, the accountant and management. A
-          housekeeper's day is worked on the board, which is the one screen it
-          happens on.
+        <p className="mt-6 max-w-prose text-sm text-muted-foreground">
+          Shift history is available to front desk, accounting, and management.
         </p>
       ) : (
         <>
           <form
-            className="mt-rhythm-2"
+            className="mt-6 rounded-lg bg-card p-4 shadow-card"
             onSubmit={(event) => {
               event.preventDefault();
               ask(fields, 0);
@@ -330,7 +322,7 @@ export function ShiftsScreen() {
             </div>
           </form>
 
-          <div className="mt-rhythm-2 grid gap-rhythm-2 lg:grid-cols-[1fr_22rem]">
+          <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
             <ShiftTable
               shifts={shifts}
               pending={history.isPending}
@@ -376,36 +368,39 @@ function ShiftTable({
     // The console's error device is a rule on the leading edge rather than a
     // colour: --color-destructive and --color-primary are the same umber.
     return (
-      <p className="border-destructive text-destructive border-l-2 pl-3 text-sm">
-        The shift history could not be read. Nothing here is a statement about
-        what happened at the desk.
+      <p
+        className="border-danger border-l-2 pl-3 text-sm text-danger"
+        role="alert"
+      >
+        Shift history could not be loaded.
       </p>
     );
   }
 
   if (pending) {
     return (
-      <p className="text-muted-foreground text-sm" aria-busy>
-        Reading the desk's days.
-      </p>
+      <div className="space-y-2" aria-busy>
+        <Skeleton className="h-12" />
+        <Skeleton className="h-12" />
+        <Skeleton className="h-12" />
+      </div>
     );
   }
 
   if (shifts.length === 0) {
     return (
-      <p className="text-muted-foreground text-sm">
-        No shift matches. A stretch of days with no shift on it is a property
-        nobody opened a drawer at, which is an ordinary answer for a quiet week
-        and a question worth asking on a busy one.
-      </p>
+      <EmptyState
+        title="No matching shifts"
+        description="Try a wider date range or another operator."
+      />
     );
   }
 
   const window = pageWindow(total, shifts.length, offset, SHIFT_PAGE_SIZE);
 
   return (
-    <div>
-      <table className="w-full border-collapse text-sm">
+    <DataTableFrame className="overflow-x-auto p-4">
+      <table className="w-full min-w-[900px] border-collapse text-sm">
         <caption className="text-muted-foreground mb-rhythm-1 text-left text-xs">
           Every shift the filters matched, newest opening first. What the drawer
           should have held is the opening float, plus the cash taken on it, plus
@@ -455,7 +450,7 @@ function ShiftTable({
           Next
         </Button>
       </div>
-    </div>
+    </DataTableFrame>
   );
 }
 

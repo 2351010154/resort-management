@@ -11,7 +11,10 @@ import {
 import type * as React from "react";
 import { useMemo, useRef, useState } from "react";
 
+import { DataTableFrame, EmptyState, PageHeader } from "@/components/console";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useCommands } from "@/features/command-palette";
 /* The property's day, from the hook the rest of the console already asks it
  * with: one route through the same `orpc` utils is one cache entry, so the day a
@@ -258,32 +261,21 @@ export function FinanceScreen() {
   }
 
   return (
-    <div className="p-rhythm-3">
-      <header>
-        <p className="text-muted-foreground text-xs tracking-caps uppercase">
-          Operations
-        </p>
-        <h1 className="font-display text-display-sm mt-2">Finance</h1>
-        <p className="text-muted-foreground mt-rhythm-1 border-border border-t pt-2 max-w-prose">
-          The property's own money — what it spent on supplies, utilities and
-          wages, and what it took in outside a guest's account. Room revenue is
-          not here: it is computed from the night audit and read in Reports, and
-          counting it twice is the one thing this book must not do.
-        </p>
-      </header>
+    <div className="mx-auto w-full max-w-[1600px] p-4 sm:p-6 lg:p-8">
+      <PageHeader
+        title="Finance"
+        description="Property income and expenses outside guest folios."
+      />
 
       {!offered ? (
-        <p className="text-muted-foreground mt-rhythm-2 max-w-prose text-sm">
-          The cash book belongs to the accountant and management. Money out of a
-          drawer is recorded by whoever accounts for it rather than by whoever
-          is holding it — what the desk sees is the drawer's expected figure
-          moving.
+        <p className="mt-6 max-w-prose text-sm text-muted-foreground">
+          The cash book is available to accounting and management.
         </p>
       ) : (
         <>
-          <section className="mt-rhythm-2">
-            <h2 className="font-display text-lg">Record a movement</h2>
-            <div className="mt-rhythm-1 max-w-3xl">
+          <Card className="mt-6 p-5">
+            <h2 className="text-lg font-semibold">Record a movement</h2>
+            <div className="mt-4 max-w-3xl">
               <RecordEntryForm
                 drawers={drawers}
                 drawersPending={history.isPending}
@@ -297,17 +289,17 @@ export function FinanceScreen() {
                 }}
               />
             </div>
-          </section>
+          </Card>
 
           <form
-            className="mt-rhythm-3"
+            className="mt-6 rounded-lg bg-card p-5 shadow-card"
             onSubmit={(event) => {
               event.preventDefault();
               ask(fields, 0);
             }}
           >
-            <h2 className="font-display text-lg">The book</h2>
-            <div className="mt-rhythm-1 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <h2 className="text-lg font-semibold">The book</h2>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
               <Field
                 label="From"
                 value={fields.from}
@@ -464,7 +456,7 @@ function Totals({
   const net = netOfTheBook({ incomeTotal, expenseTotal });
 
   return (
-    <dl className="mt-rhythm-2 grid gap-2 text-sm sm:grid-cols-3">
+    <dl className="mt-6 grid gap-3 text-sm sm:grid-cols-3">
       <Total label="Thu" value={formatVnd(incomeTotal)} />
       <Total label="Chi" value={formatVnd(expenseTotal)} />
       <Total
@@ -486,12 +478,16 @@ function Total({
   emphasis?: boolean;
 }) {
   return (
-    <div>
-      <dt className="text-muted-foreground text-xs tracking-caps uppercase">
+    <div className="rounded-lg bg-card p-4 shadow-card">
+      <dt className="text-xs font-semibold tracking-[0.06em] text-muted-foreground uppercase">
         {label}
       </dt>
       <dd
-        className={emphasis ? "font-mono" : "font-mono text-muted-foreground"}
+        className={
+          emphasis
+            ? "mt-2 text-2xl font-semibold tabular-nums"
+            : "mt-2 text-2xl font-semibold text-muted-foreground tabular-nums"
+        }
       >
         {value}
       </dd>
@@ -527,36 +523,40 @@ function EntryTable({
     // The console's error device is a rule on the leading edge rather than a
     // colour: --color-destructive and --color-primary are the same umber.
     return (
-      <p className="border-destructive text-destructive mt-rhythm-2 border-l-2 pl-3 text-sm">
-        The cash book could not be read. Nothing here is a statement about what
-        the property took or spent.
+      <p
+        className="mt-6 border-danger border-l-2 pl-3 text-sm text-danger"
+        role="alert"
+      >
+        The cash book could not be loaded.
       </p>
     );
   }
 
   if (pending) {
     return (
-      <p className="text-muted-foreground mt-rhythm-2 text-sm" aria-busy>
-        Reading the book.
-      </p>
+      <div className="mt-6 space-y-2" aria-busy>
+        <Skeleton className="h-12" />
+        <Skeleton className="h-12" />
+        <Skeleton className="h-12" />
+      </div>
     );
   }
 
   if (entries.length === 0) {
     return (
-      <p className="text-muted-foreground mt-rhythm-2 text-sm">
-        No entry matches. A stretch of days with nothing in the book is a
-        property that spent nothing of its own, which is an ordinary answer for
-        a quiet week and a question worth asking about a month.
-      </p>
+      <EmptyState
+        className="mt-6"
+        title="No matching entries"
+        description="Try a wider date range or fewer filters."
+      />
     );
   }
 
   const window = pageWindow(total, entries.length, offset, CASH_BOOK_PAGE_SIZE);
 
   return (
-    <div className="mt-rhythm-2">
-      <table className="w-full border-collapse text-sm">
+    <DataTableFrame className="mt-6 overflow-x-auto p-4">
+      <table className="w-full min-w-[900px] border-collapse text-sm">
         <caption className="text-muted-foreground mb-rhythm-1 text-left text-xs">
           Every entry the filters matched, latest trading day first. A cash
           entry names the drawer it moved through, and its count has to account
@@ -613,7 +613,7 @@ function EntryTable({
           Next
         </Button>
       </div>
-    </div>
+    </DataTableFrame>
   );
 }
 
