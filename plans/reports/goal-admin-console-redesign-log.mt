@@ -64,3 +64,16 @@
 - Checkpoint gates passed: admin typecheck, 31 test files / 733 tests, and repo
   lint. The only lint output is the repository's existing Biome configuration
   deprecation notice.
+
+## 2026-08-23 · Money operations
+
+- Migrated Folios to a card-based master-detail ledger with compact filters,
+  explicit loading/empty/error states, and the original paging and roving focus.
+- Migrated Payments into a reconciliation workspace with contained history and
+  night-detail surfaces. Night selection, discrepancy reads, and role scoping
+  continue to use the existing model and queries.
+- Migrated Shifts and Finance. Drawer history, handover backlog, cash-book
+  recording/correction, exports, inclusive-day filters, and role gates remain
+  functionally unchanged.
+- Checkpoint gates passed: admin typecheck, 31 test files / 733 tests, and repo
+  lint. The existing Biome configuration deprecation notice remains informational.
