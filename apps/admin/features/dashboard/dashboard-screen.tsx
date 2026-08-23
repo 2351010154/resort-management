@@ -1,5 +1,13 @@
 "use client";
 
+import {
+  BedDoubleIcon,
+  LogInIcon,
+  LogOutIcon,
+  WalletCardsIcon,
+} from "lucide-react";
+
+import { PageHeader } from "@/components/console";
 import { formatLongDate } from "@/lib/business-date";
 
 import { CountCard } from "./count-card";
@@ -38,45 +46,50 @@ export function DashboardScreen() {
   const counts = useDayCounts();
 
   return (
-    <div className="p-rhythm-3">
-      <header>
-        <p className="text-muted-foreground text-xs tracking-caps uppercase">
-          Front desk
-        </p>
-        <h1 className="font-display text-display-sm mt-2">Dashboard</h1>
-        <p className="text-muted-foreground mt-rhythm-1 border-border border-t pt-2">
-          {counts.businessDate === null
-            ? "Reading the property's day."
-            : `The property is working ${formatLongDate(counts.businessDate)}.`}
-        </p>
-      </header>
+    <div className="mx-auto w-full max-w-[1600px] p-4 sm:p-6 lg:p-8">
+      <PageHeader
+        title="Today"
+        description={
+          counts.businessDate === null
+            ? "Reading the hotel day."
+            : `Front-desk work for ${formatLongDate(counts.businessDate)}.`
+        }
+      />
 
       {/* A list, because that is what four counts are, and a screen reader
           announcing "list of 4 items" tells an operator arriving by keyboard
           how much is here before they Tab into it. */}
-      <ul className="mt-rhythm-2 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <ul className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <CountCard
-          label="Arrivals awaiting check-in"
+          label="Arrivals"
           href="/arrivals"
-          description="Confirmed stays due in today."
+          description="Awaiting check-in"
+          action="Open arrivals"
+          icon={LogInIcon}
           reading={counts.arrivals}
         />
         <CountCard
-          label="Departures awaiting checkout"
+          label="Departures"
           href="/departures"
-          description="Guests in house who leave today."
+          description="Awaiting checkout"
+          action="Open departures"
+          icon={LogOutIcon}
           reading={counts.departures}
         />
         <CountCard
-          label="Rooms not ready"
+          label="Rooms"
           href="/housekeeping"
-          description="Nobody can be walked into these."
+          description="Not ready"
+          action="Open housekeeping"
+          icon={BedDoubleIcon}
           reading={counts.roomsNotReady}
         />
         <CountCard
-          label="Unsettled folios"
+          label="Folios"
           href="/folios"
-          description="Accounts that do not balance."
+          description="Unsettled"
+          action="Open folios"
+          icon={WalletCardsIcon}
           reading={counts.unsettledFolios}
         />
       </ul>

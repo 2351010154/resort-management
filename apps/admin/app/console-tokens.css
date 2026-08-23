@@ -1,0 +1,56 @@
+:root {
+  --font-figtree: "Figtree Variable";
+
+  /* Console-only palette. The guest site continues to read packages/tokens. */
+  --console-background: oklch(0.968 0.004 155);
+  --console-surface: oklch(0.994 0.002 155);
+  --console-surface-muted: oklch(0.936 0.009 155);
+  --console-surface-strong: oklch(0.895 0.014 155);
+  --console-ink: oklch(0.235 0.026 157);
+  --console-muted: oklch(0.47 0.022 157);
+  --console-faint: oklch(0.79 0.015 157);
+
+  --console-nav: oklch(0.235 0.038 157);
+  --console-nav-raised: oklch(0.29 0.04 157);
+  --console-nav-text: oklch(0.945 0.01 155);
+  --console-nav-muted: oklch(0.74 0.02 155);
+
+  --console-accent: oklch(0.67 0.13 54);
+  --console-accent-strong: oklch(0.48 0.1 52);
+  --console-accent-soft: oklch(0.925 0.035 58);
+
+  --console-success: oklch(0.47 0.105 153);
+  --console-success-soft: oklch(0.925 0.035 153);
+  --console-warning: oklch(0.45 0.09 75);
+  --console-warning-soft: oklch(0.93 0.04 80);
+  --console-info: oklch(0.46 0.085 235);
+  --console-info-soft: oklch(0.93 0.028 235);
+  --console-danger: oklch(0.45 0.13 27);
+  --console-danger-soft: oklch(0.925 0.035 27);
+
+  --console-overlay: oklch(0.14 0.03 157 / 0.55);
+  --console-shadow-sm: 0 1px 2px oklch(0.2 0.025 157 / 0.08);
+  --console-shadow-card:
+    0 1px 2px oklch(0.2 0.025 157 / 0.06),
+    0 8px 20px oklch(0.2 0.025 157 / 0.08);
+  --console-shadow-raised:
+    0 2px 4px oklch(0.2 0.025 157 / 0.08),
+    0 16px 32px oklch(0.2 0.025 157 / 0.12);
+
+  --console-radius-sm: 6px;
+  --console-radius-md: 8px;
+  --console-radius-lg: 12px;
+
+  --console-ease-out: cubic-bezier(0.25, 1, 0.5, 1);
+  --console-duration-instant: 100ms;
+  --console-duration-state: 180ms;
+
+  --console-space-1: 0.25rem;
+  --console-space-2: 0.5rem;
+  --console-space-3: 0.75rem;
+  --console-space-4: 1rem;
+  --console-space-6: 1.5rem;
+  --console-space-8: 2rem;
+  --console-space-12: 3rem;
+  --console-space-16: 4rem;
+}

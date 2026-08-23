@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mariva Console v2 · Dashboard mock</title>
+    <link rel="stylesheet" href="prototype.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <a class="brand" href="#">
+          <span class="brand-mark">M</span>
+          <span class="brand-name">Mariva</span>
+        </a>
+        <nav class="nav-scroll" aria-label="Console sections">
+          <div class="nav-group">
+            <p class="nav-label">Today</p>
+            <a class="nav-item" aria-current="page" href="#">
+              <span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M4 13h6V4H4v9Zm10 7h6V11h-6v9Zm0-16v3h6V4h-6ZM4 20h6v-3H4v3Z" /></svg></span>
+              <span>Dashboard</span><kbd class="key-hint">G D</kbd>
+            </a>
+            <a class="nav-item" href="#"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M4 19V9l8-5 8 5v10M8 19v-5h8v5" /></svg></span><span>Arrivals</span><kbd class="key-hint">G A</kbd></a>
+            <a class="nav-item" href="#"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M5 12h14m-5-5 5 5-5 5" /></svg></span><span>Departures</span><kbd class="key-hint">G E</kbd></a>
+          </div>
+          <div class="nav-group">
+            <p class="nav-label">Reservations</p>
+            <a class="nav-item" href="#"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M6 3v3m12-3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Z" /></svg></span><span>Bookings</span><kbd class="key-hint">G B</kbd></a>
+            <a class="nav-item" href="#"><span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0" /></svg></span><span>Guests</span><kbd class="key-hint">G G</kbd></a>
+          </div>
+          <div class="nav-group">
+            <p class="nav-label">Property</p>
+            <a class="nav-item" href="#"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M4 18v-7h16v7M6 11V7h5a3 3 0 0 1 3 3v1M4 18v2m16-2v2" /></svg></span><span>Rooms</span><kbd class="key-hint">G R</kbd></a>
+            <a class="nav-item" href="#"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="m8 3 1.5 3L13 7.5 9.5 9 8 12 6.5 9 3 7.5 6.5 6 8 3Zm8 9 1 2 2 1-2 1-1 2-1-2-2-1 2-1 1-2Z" /></svg></span><span>Housekeeping</span><kbd class="key-hint">G H</kbd></a>
+            <a class="nav-item" href="#"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M5 20V10m7 10V4m7 16v-7" /></svg></span><span>Rates</span><kbd class="key-hint">G T</kbd></a>
+          </div>
+          <div class="nav-group">
+            <p class="nav-label">Money</p>
+            <a class="nav-item" href="#"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Zm3 5h6m-6 4h6" /></svg></span><span>Folios</span><kbd class="key-hint">G F</kbd></a>
+            <a class="nav-item" href="#"><span class="nav-icon"><svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18" /></svg></span><span>Payments</span><kbd class="key-hint">G P</kbd></a>
+            <a class="nav-item" href="#"><span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2" /></svg></span><span>Shifts</span><kbd class="key-hint">G S</kbd></a>
+            <a class="nav-item" href="#"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M4 19h16M6 16V8m4 8V5m4 11v-6m4 6V3" /></svg></span><span>Finance</span><kbd class="key-hint">G I</kbd></a>
+          </div>
+          <div class="nav-group">
+            <p class="nav-label">Management</p>
+            <a class="nav-item" href="#"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M5 20V9m7 11V4m7 16v-7" /></svg></span><span>Reports</span><kbd class="key-hint">G O</kbd></a>
+            <a class="nav-item" href="#"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg></span><span>Audit</span><kbd class="key-hint">G U</kbd></a>
+            <a class="nav-item" href="#"><span class="nav-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6 1.7 1.7 0 0 0 10 3V2.8h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z" /></svg></span><span>Settings</span><kbd class="key-hint">G N</kbd></a>
+          </div>
+        </nav>
+        <div class="profile"><span class="avatar">TA</span><span class="profile-copy"><strong>Test Admin</strong><span>Administrator</span></span></div>
+      </aside>
+      <div class="workspace">
+        <div class="topbar">
+          <div class="property-day"><span class="row-icon"><svg viewBox="0 0 24 24"><path d="M6 3v3m12-3v3M4 9h16M5 5h14a1 1 0 0 1 1 1v14H4V6a1 1 0 0 1 1-1Z" /></svg></span>Sunday, 23 August 2026</div>
+          <div class="topbar-actions">
+            <button class="drawer-pill"><span class="drawer-state"></span><strong>Drawer open</strong><span>213,200 ₫</span></button>
+            <button class="command-button"><span class="command-label">Search or run</span><kbd>⌘ K</kbd></button>
+          </div>
+        </div>
+        <main class="page">
+          <header class="page-header">
+            <div><h1 class="page-title">Dashboard</h1><p class="page-description">Sunday, 23 August. Keep the shift moving.</p></div>
+          </header>
+          <ul class="stat-grid">
+            <li><a class="stat-card" href="#"><span class="card-icon"><svg viewBox="0 0 24 24"><path d="M4 19V9l8-5 8 5v10M8 19v-5h8v5" /></svg></span><strong class="stat-number">11</strong><span class="stat-label">Awaiting check-in</span><span class="stat-link">View arrivals <span>→</span></span></a></li>
+            <li><a class="stat-card" href="#"><span class="card-icon"><svg viewBox="0 0 24 24"><path d="M5 12h14m-5-5 5 5-5 5" /></svg></span><strong class="stat-number">4</strong><span class="stat-label">Awaiting checkout</span><span class="stat-link">View departures <span>→</span></span></a></li>
+            <li><a class="stat-card" href="#"><span class="card-icon"><svg viewBox="0 0 24 24"><path d="M4 18v-7h16v7M6 11V7h5a3 3 0 0 1 3 3v1M4 18v2m16-2v2" /></svg></span><strong class="stat-number">5</strong><span class="stat-label">Rooms not ready</span><span class="stat-link">Open room board <span>→</span></span></a></li>
+            <li><a class="stat-card" href="#"><span class="card-icon"><svg viewBox="0 0 24 24"><path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Zm3 5h6m-6 4h6" /></svg></span><strong class="stat-number">10</strong><span class="stat-label">Unsettled folios</span><span class="stat-link">Review folios <span>→</span></span></a></li>
+          </ul>
+          <div class="dashboard-grid">
+            <section class="surface">
+              <div class="section-heading"><h2>Front desk</h2><a href="#">Open bookings</a></div>
+              <div class="queue-tabs" role="tablist"><button class="queue-tab" aria-selected="true">Arrivals 11</button><button class="queue-tab" aria-selected="false">Departures 4</button></div>
+              <ul class="queue-list">
+                <li class="queue-row"><span class="room-key">405</span><span class="queue-name"><strong>Mai Anh Nguyễn</strong><span>MRV-20260823-0002</span></span><span class="queue-meta"><strong>Premier</strong><span>4 nights</span></span><span class="status-chip status-confirmed">Ready</span></li>
+                <li class="queue-row"><span class="room-key">TBD</span><span class="queue-name"><strong>Elena Petrova</strong><span>AT4F-B4VF</span></span><span class="queue-meta"><strong>Deluxe</strong><span>3 nights</span></span><span class="status-chip status-due">Assign room</span></li>
+                <li class="queue-row"><span class="room-key">TBD</span><span class="queue-name"><strong>Yuki Tanaka</strong><span>HFHJ-9KZZ</span></span><span class="queue-meta"><strong>Panorama suite</strong><span>3 nights</span></span><span class="status-chip status-due">Assign room</span></li>
+                <li class="queue-row"><span class="room-key">208</span><span class="queue-name"><strong>David Okonkwo</strong><span>EKJU-A9SP</span></span><span class="queue-meta"><strong>Junior suite</strong><span>1 night</span></span><span class="status-chip status-confirmed">Ready</span></li>
+              </ul>
+            </section>
+            <aside class="handover-card">
+              <div class="section-heading"><h2>Handover</h2><button>Add note</button></div>
+              <div class="handover-note"><p>VIP arrival at 17:30. Keep room 405 ready and call reception when luggage arrives.</p><footer>Alex R. · 08:15</footer></div>
+              <ul class="handover-list">
+                <li><span class="row-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v6m0 4h.01" /></svg></span>Room 305 deposit needs a receipt</li>
+                <li><span class="row-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v6m0 4h.01" /></svg></span>One drawer item is still open</li>
+              </ul>
+            </aside>
+          </div>
+        </main>
+      </div>
+    </div>
+  </body>
+</html>

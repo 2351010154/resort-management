@@ -13,10 +13,13 @@
 export { AppNav } from "./app-nav";
 export {
   isActivePath,
+  NAV_GROUPS,
   NAV_ITEMS,
   NAV_PREFIX,
   NAV_SEQUENCE_TIMEOUT_MS,
   type NavItem as NavItemData,
+  type NavGroup,
+  type NavGroupId,
   navCommandId,
   navItemsFor,
   navShortcut,

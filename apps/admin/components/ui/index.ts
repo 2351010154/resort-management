@@ -13,6 +13,15 @@
  * primitive is renamed. */
 
 export { Button, buttonVariants } from "./button";
+export { Badge, badgeVariants } from "./badge";
+export {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "./card";
 export { Checkbox } from "./checkbox";
 export {
   Command,
@@ -55,6 +64,7 @@ export {
   DropdownMenuTrigger,
 } from "./dropdown-menu";
 export { Input } from "./input";
+export { Kbd } from "./kbd";
 export { Label } from "./label";
 export {
   Popover,
@@ -66,6 +76,7 @@ export {
   PopoverTrigger,
 } from "./popover";
 export { RadioGroup, RadioGroupItem } from "./radio-group";
+export { Separator } from "./separator";
 export {
   Select,
   SelectContent,
@@ -79,7 +90,31 @@ export {
   SelectValue,
 } from "./select";
 export { Toaster } from "./sonner";
+export {
+  Sheet,
+  SheetBody,
+  SheetClose,
+  SheetContent,
+  SheetDescription,
+  SheetFooter,
+  SheetHeader,
+  SheetOverlay,
+  SheetPortal,
+  SheetTitle,
+  SheetTrigger,
+} from "./sheet";
+export { Skeleton } from "./skeleton";
 export { Switch } from "./switch";
+export {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableFooter,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "./table";
 export {
   Tabs,
   TabsContent,

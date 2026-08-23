@@ -1,5 +1,6 @@
 "use client";
 
+import type { LucideIcon } from "lucide-react";
 import Link from "next/link";
 
 import type { CountReading } from "./day-counts";
@@ -37,6 +38,8 @@ export interface CountCardProps {
   href: string;
   /** A word about what the operator will find there. */
   description: string;
+  action: string;
+  icon: LucideIcon;
   reading: CountReading;
 }
 
@@ -44,6 +47,8 @@ export function CountCard({
   label,
   href,
   description,
+  action,
+  icon: Icon,
   reading,
 }: CountCardProps) {
   return (
@@ -54,20 +59,36 @@ export function CountCard({
         // muted "Counting" line shows sighted operators is announced rather
         // than being a visual-only fact.
         aria-busy={reading.status === "pending" ? true : undefined}
-        className="border-border hover:border-ring flex h-full flex-col justify-between gap-rhythm-1 rounded-md border bg-card p-4 transition-colors"
+        className="group flex min-h-40 h-full flex-col rounded-lg bg-card p-5 shadow-card transition-[box-shadow,transform] duration-200 ease-ui hover:-translate-y-0.5 hover:shadow-raised active:translate-y-px"
       >
-        <span className="text-muted-foreground text-xs tracking-caps uppercase">
-          {label}
+        <span className="flex items-start justify-between gap-3">
+          <span>
+            <span className="block text-sm font-semibold">{label}</span>
+            <span className="block text-sm text-muted-foreground">
+              {description}
+            </span>
+          </span>
+          <span className="grid size-9 shrink-0 place-items-center rounded-md bg-accent-soft text-accent-strong">
+            <Icon aria-hidden="true" className="size-4" strokeWidth={1.8} />
+          </span>
         </span>
 
         {/* `items-end`, so the figure and the two sentences that stand in for
             it sit on one baseline instead of centring at three different
             heights. */}
-        <span className="flex h-10 items-end">
+        <span className="mt-5 flex h-10 items-end">
           <CountValue reading={reading} />
         </span>
 
-        <span className="text-muted-foreground text-sm">{description}</span>
+        <span className="mt-4 flex items-center justify-between border-border border-t pt-3 text-sm font-semibold">
+          {action}
+          <span
+            aria-hidden="true"
+            className="transition-transform duration-150 ease-ui group-hover:translate-x-0.5"
+          >
+            →
+          </span>
+        </span>
       </Link>
     </li>
   );
@@ -92,7 +113,7 @@ function CountValue({ reading }: { reading: CountReading }) {
   }
 
   return (
-    <span className="font-display text-display-sm lining-nums tabular-nums">
+    <span className="text-3xl font-semibold leading-9 lining-nums tabular-nums">
       {reading.count}
       {/* The search answers at most fifty stays, so a full page means the
           figure is a floor. `+` is the honest way to print a number the API
