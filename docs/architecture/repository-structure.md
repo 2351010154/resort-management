@@ -253,10 +253,10 @@ the e-invoice job uses at folio close, and for the same reason — one provider
 timeout must never be able to roll back a completed act.
 
 **What the budget forbids is those three packages, and `motion` is not one of
-them.** `tech-stack.md` §Frontend defines the motion boundary, and
-[`design-foundations.md`](design-foundations.md) §5 records why the funnel could
-not stay CSS-only: CSS has no exit, so a bottom sheet could enter on the house
-curve and never leave on one. Bundle verification must prove that funnel chunks
+them.** `tech-stack.md` §Frontend defines the motion boundary — the funnel
+could not stay CSS-only because CSS has no exit, so a bottom sheet could enter
+on the house curve and never leave on one. Bundle verification must prove that
+funnel chunks
 contain none of `three`, `gsap`, or `lenis`, and
 [`scripts/check-bundle-budget.ts`](../../apps/web/scripts/check-bundle-budget.ts)
 measures it on every build: the route group is still the convention, but a
@@ -351,7 +351,7 @@ lowest-common-denominator abstraction with no real second consumer. Revisit when
 one appears.
 
 What the three surfaces *do* share — the palette, the type scale, the spacing
-rhythm, the two easing curves, and the copy voice — is written down in
-[`design-foundations.md`](design-foundations.md) instead of packaged. That file
-is the standard a `(booking)` screen is built against, including the
-`three`/`gsap`/`lenis` budget above and what may be imported from `lib/`.
+rhythm, the two easing curves, and the copy voice — lives in `packages/tokens`
+and the codebase itself rather than in a shared package or a standards
+document, including the `three`/`gsap`/`lenis` budget above and what may be
+imported from `lib/`.

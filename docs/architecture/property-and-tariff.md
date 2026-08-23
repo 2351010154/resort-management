@@ -94,8 +94,7 @@ That was always about representation, and it still is: what changed is that a
 bed the party requires is now a line the property does not raise.
 
 The last four columns were added when `/booking` was built: a room card that says
-nothing concrete is five near-identical blocks, and
-[`design-foundations.md`](design-foundations.md) §6 forbids a component inventing a
+nothing concrete is five near-identical blocks, and copy must never invent a
 hotel fact. They are ⚑ like the rest of §1–§7 — the developer's call until the
 database holds them — and `apps/web/features/booking/lib/room-types.ts` is the one
 place the code reads them from.
