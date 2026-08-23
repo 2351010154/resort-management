@@ -27,7 +27,11 @@ export function NavItem({ item, icon: Icon, active, hint }: NavItemProps) {
       className={cn(
         "group/nav-item relative flex min-h-11 items-center justify-center gap-3 rounded-md px-2 text-sm font-medium transition-colors duration-150 ease-ui xl:justify-start xl:px-3",
         active
-          ? "bg-nav-raised text-nav-text shadow-xs before:absolute before:inset-y-2 before:left-0 before:w-0.5 before:rounded-full before:bg-accent"
+          ? // The marker is the brand amber itself rather than `accent`, which
+            // is the pale tint shadcn's controls hover on: a 2px rule in that
+            // colour against the rail's own sand would be a marker only
+            // somebody told where to look could find.
+            "bg-nav-raised text-nav-text shadow-xs before:absolute before:inset-y-2 before:left-0 before:w-0.5 before:rounded-full before:bg-accent-mark"
           : "text-nav-muted hover:bg-nav-raised hover:text-nav-text",
       )}
       {...roving}

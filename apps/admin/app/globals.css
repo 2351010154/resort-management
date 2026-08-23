@@ -14,17 +14,22 @@
   --color-card-foreground: var(--console-ink);
   --color-popover: var(--console-surface);
   --color-popover-foreground: var(--console-ink);
-  --color-primary: var(--console-nav);
-  --color-primary-foreground: var(--console-nav-text);
+  /* Primary is its own token now that the rail is light. The two were one
+     value while the rail was dark, and mapping a solid button to it today
+     would draw ivory buttons carrying umber text. */
+  --color-primary: var(--console-primary);
+  --color-primary-foreground: var(--console-primary-text);
   --color-secondary: var(--console-surface-muted);
   --color-secondary-foreground: var(--console-ink);
   --color-muted: var(--console-surface-muted);
   --color-muted-foreground: var(--console-muted);
   --color-accent: var(--console-accent-soft);
   --color-accent-foreground: var(--console-accent-strong);
+  /* A card's internal rules are decorative; an input's edge is a boundary WCAG
+     holds to 3:1. Sand answers the first and stone the second. */
   --color-border: var(--console-faint);
-  --color-input: var(--console-faint);
-  --color-ring: var(--console-accent);
+  --color-input: var(--console-line);
+  --color-ring: var(--console-accent-line);
   --color-destructive: var(--console-danger);
   --color-destructive-foreground: var(--console-surface);
   --color-overlay: var(--console-overlay);
@@ -32,12 +37,15 @@
   --color-surface: var(--console-surface);
   --color-surface-muted: var(--console-surface-muted);
   --color-surface-strong: var(--console-surface-strong);
+  --color-line: var(--console-line);
   --color-nav: var(--console-nav);
   --color-nav-raised: var(--console-nav-raised);
   --color-nav-text: var(--console-nav-text);
   --color-nav-muted: var(--console-nav-muted);
   --color-accent-strong: var(--console-accent-strong);
   --color-accent-soft: var(--console-accent-soft);
+  --color-accent-line: var(--console-accent-line);
+  --color-accent-mark: var(--console-accent);
   --color-success: var(--console-success);
   --color-success-soft: var(--console-success-soft);
   --color-warning: var(--console-warning);
@@ -130,7 +138,9 @@
 
 /* Vendored charts keep their API and inherit the console palette here. */
 :root {
-  --chart-1: var(--console-nav);
+  /* Series read against a card, so the rail's value is no longer one of these:
+     it is a wall colour now and would draw a line nobody could see. */
+  --chart-1: var(--console-primary);
   --chart-2: var(--console-accent-strong);
   --chart-3: var(--console-info);
   --chart-4: var(--console-success);
@@ -143,9 +153,12 @@
   --chart-crosshair: var(--console-accent);
   --chart-grid: var(--console-faint);
   --chart-brush-border: var(--console-faint);
-  --chart-tooltip-background: var(--console-nav);
-  --chart-tooltip-foreground: var(--console-nav-text);
-  --chart-tooltip-muted: var(--console-nav-muted);
+  /* The tooltip stays the inverted surface it always was. That used to be the
+     rail's value; with a light rail it has to be named as the dark it is,
+     otherwise a tooltip is a cream box floating over a cream card. */
+  --chart-tooltip-background: var(--console-primary);
+  --chart-tooltip-foreground: var(--console-primary-text);
+  --chart-tooltip-muted: var(--sand);
   --chart-marker-background: var(--console-surface-muted);
   --chart-marker-border: var(--console-faint);
   --chart-marker-foreground: var(--console-ink);
@@ -154,6 +167,6 @@
   --chart-scale-02: var(--console-surface-strong);
   --chart-scale-03: var(--console-info);
   --chart-scale-04: var(--console-accent-strong);
-  --chart-scale-05: var(--console-nav);
+  --chart-scale-05: var(--console-primary);
   --chart-scale-pattern-color: var(--console-surface);
 }

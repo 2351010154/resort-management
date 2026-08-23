@@ -13,12 +13,12 @@ import {
   LandmarkIcon,
   LogInIcon,
   LogOutIcon,
+  type LucideIcon,
   ScrollTextIcon,
   SettingsIcon,
   SparklesIcon,
   UsersRoundIcon,
   WalletCardsIcon,
-  type LucideIcon,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -82,20 +82,11 @@ export function AppNav() {
   return (
     <nav
       aria-label="Console sections"
-      className="sticky top-0 flex h-svh w-[72px] shrink-0 flex-col overflow-y-auto bg-nav px-2 py-3 text-nav-text xl:w-[248px] xl:px-3"
+      // The right border is load-bearing now the rail is light: it and the
+      // screens beside it are two steps of the same ivory, and without a rule
+      // the two grounds meet at an edge the eye has to guess at.
+      className="sticky top-0 flex h-svh w-[72px] shrink-0 flex-col overflow-x-hidden overflow-y-auto border-border border-r bg-nav px-2 py-3 text-nav-text xl:w-[248px] xl:px-3"
     >
-      <div className="mb-4 flex min-h-12 items-center gap-3 px-2 xl:px-3">
-        <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent-soft font-semibold text-accent-strong shadow-xs">
-          M
-        </span>
-        <span className="hidden min-w-0 xl:block">
-          <span className="block text-sm font-semibold tracking-[0.18em]">
-            MARIVA
-          </span>
-          <span className="block text-sm text-nav-muted">Staff console</span>
-        </span>
-      </div>
-
       <RovingFocusGroup className="flex flex-col gap-2" role="menu">
         {groups.map((group) => {
           const activeGroup = group.items.some((item) =>

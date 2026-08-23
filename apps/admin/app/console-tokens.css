@@ -1,41 +1,113 @@
+/* The console's palette, expressed in the brand's colours.
+ *
+ * The nine anchors below are `packages/tokens/tokens.css` — the same names and
+ * the same values, so a grep for `--dusk-amber` finds the guest site and the
+ * console together. They are restated here rather than imported because that
+ * package also carries a type ramp (`--text-base`, `--text-lg`) which the
+ * console overrides in `globals.css`, and an unlayered `:root` import would win
+ * over Tailwind's layered `@theme` and quietly resize every screen. Restating
+ * the palette costs one file to keep level; importing it would cost the type
+ * scale.
+ *
+ * **Everything below the anchors is console vocabulary, not brand.** A hotel
+ * front page needs a ground, a dark and an accent; a console worked eight hours
+ * a day also needs a card that sits above the ground, a border that is a real
+ * boundary rather than a suggestion, and four status colours the brand has no
+ * opinion about. Those are derived here — warm, and in the brand's key — rather
+ * than borrowed from a stock palette, which is how this file previously came to
+ * be spruce-green on a property whose whole identity is ivory and amber.
+ *
+ * **Every pair a screen can draw is checked against WCAG AA**, and the ratios
+ * are recorded beside the values that earn them. Two of them decided a token:
+ * `--dusk-amber` on ivory is 2.7:1, so the accent cannot be a focus ring or a
+ * solid button — it is a marker, a fill and a tint, and the ring and the strong
+ * text are darker ambers that carry the contrast the accent cannot.
+ */
+
 :root {
   --font-figtree: "Figtree Variable";
 
-  /* Console-only palette. The guest site continues to read packages/tokens. */
-  --console-background: oklch(0.968 0.004 155);
-  --console-surface: oklch(0.994 0.002 155);
-  --console-surface-muted: oklch(0.936 0.009 155);
-  --console-surface-strong: oklch(0.895 0.014 155);
-  --console-ink: oklch(0.235 0.026 157);
-  --console-muted: oklch(0.47 0.022 157);
-  --console-faint: oklch(0.79 0.015 157);
+  /* The brand, from packages/tokens/tokens.css. Change there first. */
+  --ivory: #f4efe6;
+  --ivory-warm: #eee7de;
+  --sand: #cfc0ab;
+  --stone: #8a7b6e;
+  --stone-deep: #645c51;
+  --umber: #3a332b;
+  --ink: #1c1915;
+  --dusk-amber: #b48b60;
+  --ocean: #7fa2b7;
 
-  --console-nav: oklch(0.235 0.038 157);
-  --console-nav-raised: oklch(0.29 0.04 157);
-  --console-nav-text: oklch(0.945 0.01 155);
-  --console-nav-muted: oklch(0.74 0.02 155);
+  /* Ground, and the two surfaces that sit above it.
+   *
+   * Three steps and not two: the rail is the ivory-warm wall, screens are the
+   * ivory ground, and a card is the near-white that lifts off it. A console
+   * where cards were also the ground would be a page of hairlines. */
+  --console-background: var(--ivory);
+  --console-surface: #fbf8f3;
+  --console-surface-muted: var(--ivory-warm);
+  --console-surface-strong: #e0d5c5;
 
-  --console-accent: oklch(0.67 0.13 54);
-  --console-accent-strong: oklch(0.48 0.1 52);
-  --console-accent-soft: oklch(0.925 0.035 58);
+  /* Text. 11.7:1 and 6.2:1 on a card — the second is secondary copy, not a
+     disabled state, so it is held to AA for body text rather than to 3:1. */
+  --console-ink: var(--umber);
+  --console-muted: var(--stone-deep);
 
-  --console-success: oklch(0.47 0.105 153);
-  --console-success-soft: oklch(0.925 0.035 153);
-  --console-warning: oklch(0.45 0.09 75);
-  --console-warning-soft: oklch(0.93 0.04 80);
-  --console-info: oklch(0.46 0.085 235);
-  --console-info-soft: oklch(0.93 0.028 235);
-  --console-danger: oklch(0.45 0.13 27);
-  --console-danger-soft: oklch(0.925 0.035 27);
+  /* Two border weights, because they answer to different rules. `faint` rules
+     a card into sections and is decorative; `line` is the edge of an input or a
+     control, which WCAG holds to 3:1 — sand is 1.7:1 and would be a boundary
+     only somebody who already knew where it was could find. */
+  --console-faint: var(--sand);
+  --console-line: var(--stone);
 
-  --console-overlay: oklch(0.14 0.03 157 / 0.55);
-  --console-shadow-sm: 0 1px 2px oklch(0.2 0.025 157 / 0.08);
+  /* The rail, light as the reference draws it. `nav-muted` is stone-deep
+     rather than stone: 5.4:1 against the rail where stone gives 3.3:1, and a
+     shortcut hint nobody can read is a hint that is not there. */
+  --console-nav: var(--ivory-warm);
+  --console-nav-raised: #e0d5c5;
+  --console-nav-text: var(--umber);
+  --console-nav-muted: var(--stone-deep);
+
+  /* Solid controls. Umber and not amber, for the reason in the header: ivory on
+     dusk-amber is 2.7:1 and umber on it is 4.0:1, so neither text colour makes
+     the accent a button. Ivory on umber is 10.9:1. */
+  --console-primary: var(--umber);
+  --console-primary-text: var(--ivory);
+
+  /* The accent, in the three jobs it can actually hold.
+   *
+   * `accent` is the brand amber and is drawn as a mark: the active rail
+   * marker, a chart series, an icon on a tint. `accent-line` is the focus ring
+   * and any amber that has to be a boundary — 4.0:1 on ivory against the
+   * accent's 2.7:1. `accent-strong` is amber as text, 5.1:1 on the tint below
+   * and 6.2:1 on a card. */
+  --console-accent: var(--dusk-amber);
+  --console-accent-line: #96683c;
+  --console-accent-strong: #7d5533;
+  --console-accent-soft: #efe2d3;
+
+  /* Status. The brand names one of these — `--ocean` is its informational
+     colour — and it is 2.4:1 as text, so what is used here is ocean taken down
+     to a readable value rather than a blue from somewhere else. The other three
+     are built to match it: one lightness, low chroma, warm. Each is AA on both
+     a card and its own tint. */
+  --console-success: #4a5f3a;
+  --console-success-soft: #e4e7dc;
+  --console-warning: #7a5a1e;
+  --console-warning-soft: #f0e6d2;
+  --console-info: #3f6178;
+  --console-info-soft: #dde6ec;
+  --console-danger: #8f3a2e;
+  --console-danger-soft: #f2ddd8;
+
+  /* Shadows are umber at low alpha rather than black: a neutral shadow on a
+     warm ground reads as grey dirt under the card. */
+  --console-overlay: rgb(58 51 43 / 0.55);
+  --console-shadow-sm: 0 1px 2px rgb(58 51 43 / 0.08);
   --console-shadow-card:
-    0 1px 2px oklch(0.2 0.025 157 / 0.06),
-    0 8px 20px oklch(0.2 0.025 157 / 0.08);
+    0 1px 2px rgb(58 51 43 / 0.06), 0 8px 20px rgb(58 51 43 / 0.08);
   --console-shadow-raised:
-    0 2px 4px oklch(0.2 0.025 157 / 0.08),
-    0 16px 32px oklch(0.2 0.025 157 / 0.12);
+    0 2px 4px rgb(58 51 43 / 0.08), 0 16px 32px rgb(58 51 43 / 0.12);
 
   --console-radius-sm: 6px;
   --console-radius-md: 8px;
