@@ -10,9 +10,13 @@
 // contract, so an endpoint added in `@mariva/shared` is callable from here the
 // moment it exists, with no entry to add and none to forget.
 
-import { type Contract, contract } from "@mariva/shared";
+import { type Contract, contract, reviveWireMoney } from "@mariva/shared";
 import { createORPCClient } from "@orpc/client";
-import type { ContractRouterClient } from "@orpc/contract";
+import {
+  type ContractRouterClient,
+  getContractRouter,
+  isContractProcedure,
+} from "@orpc/contract";
 import { OpenAPILink } from "@orpc/openapi-client/fetch";
 
 /** The API, as the contract describes it. `client.health()` and, as M3 lands
@@ -53,5 +57,78 @@ export function createApiClient(options: ApiClientOptions): ApiClient {
     },
   });
 
-  return createORPCClient(link);
+  return decodeWireMoney(createORPCClient<ApiClient>(link));
+}
+
+/**
+ * The same client, with every answer read back through the contract.
+ *
+ * **Why the transport and not the screens.** The link's JSON serialiser writes
+ * a `bigint` out as decimal text and has no matching hook to read one back —
+ * `StandardOpenAPICustomJsonSerializer` carries `condition` and `serialize` and
+ * nothing else — so an amount arrives as `"1850000"` wearing the `bigint` type
+ * the contract inferred. Nothing in TypeScript can see that, which is why the
+ * defect surfaces as a `TypeError` in a folio balance, a concatenation in a cash
+ * drawer, and a variance that is never zero. Fixing it once here is the only
+ * arrangement where a screen written tomorrow is right without its author having
+ * heard of the problem.
+ *
+ * A proxy over the generated client, for the reason the client is generated at
+ * all: there is no per-endpoint entry to add, so a route that lands in the
+ * contract is decoded the moment it is callable. The proxy records the path it
+ * was walked down, awaits the real call, and hands the result to
+ * {@link reviveWireMoney} together with that procedure's declared output schema.
+ * A path that is not a procedure, or a procedure that declares no output, is
+ * returned untouched.
+ */
+function decodeWireMoney(client: ApiClient): ApiClient {
+  return decodeAt(client, []) as ApiClient;
+}
+
+function decodeAt(node: unknown, path: readonly string[]): unknown {
+  if (
+    typeof node !== "function" &&
+    (typeof node !== "object" || node === null)
+  ) {
+    return node;
+  }
+
+  // The target is a function so the `apply` trap is reachable: an oRPC client's
+  // branches are callable as well as indexable, and a plain object target would
+  // make `client.folio.read(...)` a TypeError.
+  const shell = async (...args: unknown[]) => {
+    const answer = await (node as (...a: unknown[]) => Promise<unknown>)(
+      ...args,
+    );
+
+    return reviveWireMoney(outputSchemaAt(path), answer);
+  };
+
+  return new Proxy(shell, {
+    get: (_shell, key) => {
+      // `then` is answered as absent so the proxy is not mistaken for a
+      // thenable. The oRPC client answers every string key with a callable, so
+      // anything that awaited this object would otherwise call a procedure
+      // named `then` and never settle. No contract procedure is called `then`;
+      // if one ever is, this is the line that has to change.
+      if (typeof key === "symbol" || key === "then") {
+        return undefined;
+      }
+
+      return decodeAt((node as Record<string, unknown>)[key], [...path, key]);
+    },
+  });
+}
+
+/** What the contract says the procedure at this path returns, or nothing. */
+function outputSchemaAt(path: readonly string[]): unknown {
+  if (path.length === 0) {
+    return undefined;
+  }
+
+  const procedure = getContractRouter(contract, path);
+
+  return isContractProcedure(procedure)
+    ? procedure["~orpc"].outputSchema
+    : undefined;
 }
