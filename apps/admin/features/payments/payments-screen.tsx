@@ -1,11 +1,21 @@
 "use client";
 
 import { formatVnd, type StaffRole } from "@mariva/shared";
+import { SearchIcon } from "lucide-react";
 import type * as React from "react";
 import { useId, useMemo, useRef, useState } from "react";
 
+import {
+  DataTableFrame,
+  EmptyState,
+  FilterBar,
+  KeyHint,
+  PageHeader,
+} from "@/components/console";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 /* The console's one rendering of an instant in the property's zone — the same
  * formatter a folio attributes a posting with, so the moment a gateway says
  * money moved and the moment the ledger says it was posted are read the same
@@ -199,108 +209,99 @@ export function PaymentsScreen() {
   }
 
   return (
-    <div className="p-rhythm-3">
-      <header>
-        <p className="text-muted-foreground text-xs tracking-caps uppercase">
-          Money
-        </p>
-        <h1 className="font-display text-display-sm mt-2">Payments</h1>
-        <p className="text-muted-foreground mt-rhythm-1 border-border border-t pt-2">
-          What the property has been paid, as the payer's side reported it, and
-          what last night's comparison made of it. A disagreement is an
-          observation of one night: it is recorded, never edited, and the
-          figures behind it belong to the night that found them.
-        </p>
-      </header>
+    <div className="mx-auto w-full max-w-[1600px] p-4 sm:p-6 lg:p-8">
+      <PageHeader
+        title="Payments"
+        description="Payment history and nightly gateway reconciliation."
+      />
 
       {!offered ? (
-        <p className="text-muted-foreground mt-rhythm-2 max-w-prose text-sm">
-          Holding the property's payments against the gateway's own report is
-          the accountant's work, and management's. Money on a single stay is
-          worked from that stay — the charges, what has been collected and what
-          is left — on Folios and in the checkout sequence.
+        <p className="mt-6 max-w-prose text-sm text-muted-foreground">
+          Reconciliation is available to accounting and management. Use Folios
+          for a single stay.
         </p>
       ) : propertyDay.isError ? (
-        <p className="border-destructive text-destructive mt-rhythm-2 border-l-2 pl-3 text-sm">
-          The property's day could not be read, and every question this screen
-          asks is about a trading day. Nothing is shown rather than a day this
-          console guessed at.
+        <p
+          className="mt-6 border-danger border-l-2 pl-3 text-sm text-danger"
+          role="alert"
+        >
+          The hotel day could not be read. Payments are unavailable.
         </p>
       ) : (
         <>
-          <form
-            className="mt-rhythm-2"
+          <FilterBar
+            className="mt-6"
+            actions={
+              <Button type="submit">
+                <SearchIcon aria-hidden="true" />
+                Show payments
+              </Button>
+            }
             onSubmit={(event) => {
               event.preventDefault();
               ask(fields, 0);
             }}
           >
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <Field
-                label="Trading day"
-                value={fields.day}
-                placeholder="today"
-                inputRef={dayField}
-                onChange={(day) => {
-                  setFields((current) => ({ ...current, day }));
-                }}
-              />
-              <Field
-                label="Stay"
-                value={fields.bookingId}
-                placeholder="The id on the stay's folio"
-                onChange={(bookingId) => {
-                  setFields((current) => ({ ...current, bookingId }));
-                }}
-              />
-              <Choice
-                label="Method"
-                value={fields.method}
-                options={[
-                  { value: "ANY" as const, label: "Every method" },
-                  ...PAYMENT_METHODS.map((method) => ({
-                    value: method,
-                    label: METHOD_LABELS[method],
-                  })),
-                ]}
-                onChange={(method) => {
-                  setFields((current) => ({ ...current, method }));
-                }}
-              />
-              <Choice
-                label="State"
-                value={fields.status}
-                options={[
-                  { value: "ANY" as const, label: "Every state" },
-                  ...PAYMENT_STATUSES.map((status) => ({
-                    value: status,
-                    label: STATUS_LABELS[status],
-                  })),
-                ]}
-                onChange={(status) => {
-                  setFields((current) => ({ ...current, status }));
-                }}
-              />
-            </div>
+            <Field
+              label="Trading day"
+              value={fields.day}
+              placeholder="today"
+              inputRef={dayField}
+              onChange={(day) => {
+                setFields((current) => ({ ...current, day }));
+              }}
+            />
+            <Field
+              label="Stay"
+              value={fields.bookingId}
+              placeholder="The id on the stay's folio"
+              onChange={(bookingId) => {
+                setFields((current) => ({ ...current, bookingId }));
+              }}
+            />
+            <Choice
+              label="Method"
+              value={fields.method}
+              options={[
+                { value: "ANY" as const, label: "Every method" },
+                ...PAYMENT_METHODS.map((method) => ({
+                  value: method,
+                  label: METHOD_LABELS[method],
+                })),
+              ]}
+              onChange={(method) => {
+                setFields((current) => ({ ...current, method }));
+              }}
+            />
+            <Choice
+              label="State"
+              value={fields.status}
+              options={[
+                { value: "ANY" as const, label: "Every state" },
+                ...PAYMENT_STATUSES.map((status) => ({
+                  value: status,
+                  label: STATUS_LABELS[status],
+                })),
+              ]}
+              onChange={(status) => {
+                setFields((current) => ({ ...current, status }));
+              }}
+            />
+          </FilterBar>
 
-            {problem === null ? null : (
-              <p className="border-destructive text-destructive mt-rhythm-1 border-l-2 pl-3 text-sm">
-                {problem}
-              </p>
-            )}
+          {problem === null ? null : (
+            <p
+              className="mt-3 border-danger border-l-2 pl-3 text-sm text-danger"
+              role="alert"
+            >
+              {problem}
+            </p>
+          )}
 
-            <div className="mt-rhythm-1 flex flex-wrap items-center gap-3">
-              <Button type="submit">Show payments</Button>
-              <span className="text-muted-foreground text-xs">
-                {/* Said rather than implied: an attempt that moved no money
-                    belongs to no trading day, so it is unreachable until the
-                    day is cleared. That is the route's rule, not this screen's
-                    filter dropping rows it should have kept. */}
-                / reaches the day · clear it to reach an attempt that moved no
-                money, which belongs to no trading day
-              </span>
-            </div>
-          </form>
+          <p className="mt-3 text-xs text-muted-foreground">
+            <KeyHint>/</KeyHint> focuses the trading day. Clear it to include
+            attempts with no trading day.
+          </p>
 
           <ComparedNights
             nights={nights}
@@ -310,7 +311,7 @@ export function PaymentsScreen() {
             }}
           />
 
-          <div className="mt-rhythm-2 grid gap-rhythm-2 lg:grid-cols-[1fr_22rem]">
+          <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
             <PaymentTable
               page={page}
               night={night}
@@ -353,8 +354,11 @@ function ComparedNights({
   }
 
   return (
-    <nav className="mt-rhythm-2" aria-label="Nights already compared">
-      <p className="text-muted-foreground text-xs tracking-caps uppercase">
+    <nav
+      className="mt-6 rounded-lg bg-card p-4 shadow-card"
+      aria-label="Nights already compared"
+    >
+      <p className="text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
         Compared
       </p>
       <ul className="mt-1 flex flex-wrap gap-2">
@@ -418,9 +422,11 @@ function PaymentTable({
 
   if (page.status === "idle" || page.status === "pending") {
     return (
-      <p className="text-muted-foreground text-sm" aria-busy>
-        Reading the property's payments.
-      </p>
+      <div className="space-y-2" aria-busy>
+        <Skeleton className="h-12" />
+        <Skeleton className="h-12" />
+        <Skeleton className="h-12" />
+      </div>
     );
   }
 
@@ -428,26 +434,27 @@ function PaymentTable({
     // The console's error device is a rule on the leading edge rather than a
     // colour: --color-destructive and --color-primary are the same umber.
     return (
-      <p className="border-destructive text-destructive border-l-2 pl-3 text-sm">
-        The payments could not be read. Nothing here is a statement about what
-        the property has been paid.
+      <p
+        className="border-danger border-l-2 pl-3 text-sm text-danger"
+        role="alert"
+      >
+        Payments could not be loaded.
       </p>
     );
   }
 
   if (rows.length === 0) {
     return (
-      <p className="text-muted-foreground text-sm">
-        No payment matches. A day the property was not paid on is an ordinary
-        day; an attempt that moved no money belongs to no trading day at all, so
-        clearing the day is how it is reached.
-      </p>
+      <EmptyState
+        title="No matching payments"
+        description="Clear the trading day to include attempts that moved no money."
+      />
     );
   }
 
   return (
-    <div>
-      <table className="w-full border-collapse text-sm">
+    <DataTableFrame className="overflow-x-auto p-4">
+      <table className="w-full min-w-[680px] border-collapse text-sm">
         <caption className="text-muted-foreground mb-rhythm-1 text-left text-xs">
           Every payment the filters matched, with the ones a night disagreed
           about first. The amount is what the payer's side reported and carries
@@ -499,7 +506,7 @@ function PaymentTable({
           Next
         </Button>
       </div>
-    </div>
+    </DataTableFrame>
   );
 }
 
@@ -642,12 +649,12 @@ function NightPanel({
   marked: string | null;
 }) {
   return (
-    <div className="border-border lg:border-l lg:pl-4">
+    <Card className="overflow-hidden p-5">
       {/* Pinned, for the folio ledger's reason: the disagreements are read
           against a table that scrolls, and the thing they are being checked
           against has to stay where the reader can see it. */}
-      <div className="bg-background sticky top-0 z-10 pb-2">
-        <h2 className="font-display text-2xl">
+      <div className="sticky top-14 z-10 bg-card pb-3">
+        <h2 className="text-2xl font-semibold leading-8">
           {day === null ? "No single night" : formatLongDate(day)}
         </h2>
 
@@ -669,7 +676,7 @@ function NightPanel({
           marked={marked}
         />
       ) : null}
-    </div>
+    </Card>
   );
 }
 
