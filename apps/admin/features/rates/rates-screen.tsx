@@ -3,8 +3,10 @@
 import type { StaffRole } from "@mariva/shared";
 import { useId, useRef, useState } from "react";
 
+import { DataTableFrame, PageHeader } from "@/components/console";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useStaffSession } from "@/lib/auth";
@@ -127,40 +129,32 @@ export function RatesScreen() {
   const businessDate = day.data?.businessDate ?? null;
 
   return (
-    <div className="p-rhythm-3">
-      <header>
-        <p className="text-muted-foreground text-xs tracking-caps uppercase">
-          Tariff
-        </p>
-        <h1 className="font-display text-display-sm mt-2">Rates</h1>
-        <p className="text-muted-foreground mt-rhythm-1 border-border border-t pt-2">
-          What every room type costs each night, and the rules attached to those
-          nights. Select a block of cells to price a weekend or a season in one
-          edit.
-        </p>
-      </header>
+    <div className="mx-auto w-full max-w-[1600px] p-4 sm:p-6 lg:p-8">
+      <PageHeader
+        title="Rates"
+        description="Nightly prices and restrictions by room type. Select a range to edit in one pass."
+      />
 
       {role !== null && !mayReadRates(role) ? (
-        <p className="text-muted-foreground mt-rhythm-2 text-sm">
-          The property's tariff is not part of this role. Room condition is on
-          the housekeeping board.
+        <p className="mt-6 text-sm text-muted-foreground">
+          Rate management is not available for this role.
         </p>
       ) : null}
 
       {day.isError ? (
         // The console's error device is a rule on the leading edge rather than
         // a colour: --color-destructive and --color-primary are the same umber.
-        <p className="border-destructive text-destructive mt-rhythm-2 border-l-2 pl-3 text-sm">
-          The property's day could not be read, so there is no night to open the
-          grid on. Nothing here is a statement about what a night costs.
+        <p
+          className="mt-6 border-danger border-l-2 pl-3 text-sm text-danger"
+          role="alert"
+        >
+          The hotel day could not be read. Rates are unavailable.
         </p>
       ) : null}
 
       {role !== null && mayReadRates(role) && !day.isError ? (
         businessDate === null ? (
-          <p className="text-muted-foreground mt-rhythm-2 text-sm" aria-busy>
-            Reading the property's day.
-          </p>
+          <Skeleton className="mt-6 h-80" aria-busy />
         ) : (
           <RateBoard businessDate={businessDate} role={role} />
         )
@@ -282,7 +276,7 @@ function RateBoard({
           {/* The grid scrolls in its own box rather than the page: twenty-eight
               legible columns are wider than a laptop, and a page that scrolled
               sideways would take the edit panel and the plans with it. */}
-          <div className="mt-rhythm-1 overflow-x-auto">
+          <DataTableFrame className="mt-4 overflow-x-auto p-4">
             <RovingFocusGroup
               // The table already says what it is, so the group claims nothing
               // over it — `roving-focus.tsx`'s own note about a table of rows,
@@ -354,7 +348,7 @@ function RateBoard({
                 </tbody>
               </table>
             </RovingFocusGroup>
-          </div>
+          </DataTableFrame>
         </>
       ) : null}
 
