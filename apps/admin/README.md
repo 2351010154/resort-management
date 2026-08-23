@@ -3,108 +3,40 @@
 Next.js. The front-desk and management console — keyboard-first, no WebGL, on
 its own origin away from the guest-facing site.
 
-Scaffolded, not built. What exists is the shape a screen can land in: the root
-layout (document element, type stack and `app/globals.css`), the `(auth)` and
-`(app)` route groups, one index route so `next build` checks something real, the
-primitives in `components/ui/`, the keyboard layer in `lib/keyboard/`, and the
-command palette the `(app)` layout mounts. There are no screens, no navigation
-and no query provider yet — each has an owner further along, and the layout
-comments say what lands where.
+The console has a signed-in shell, role-filtered navigation, a global command
+palette, and the complete staff route set described in `docs/screens.md`.
+Operational state continues to come through the feature query hooks; the
+presentation layer is local to this app.
 
 ## The theme
 
-`app/globals.css` is the whole styling configuration. There is no
-`tailwind.config.ts`: Tailwind 4's `@theme` reads CSS custom properties, so the
-console's palette *references* `@mariva/tokens` rather than restating it, and
-changing the brand stays a one-file change in `packages/tokens`.
+`app/console-tokens.css` owns the admin-only visual vocabulary. It uses mineral
+surfaces, a deep spruce rail, a clay-amber action accent, and explicit semantic
+status colours. `app/globals.css` maps those values into Tailwind 4 and loads
+Figtree as the console's one type family. The guest site and
+`packages/tokens/tokens.css` are deliberately outside this boundary.
 
-Four things about it are decisions rather than defaults, and each is load-bearing:
-
-- **Tailwind's stock palette and font families are deleted** (`--color-*: initial`,
-  `--font-*: initial`). `bg-slate-100` and `font-sans` do not compile. The
-  console has nine colours and two faces; anything else is a build error rather
-  than a review comment.
-- **A semantic layer** — `background`, `foreground`, `muted-foreground`,
-  `border`, `input`, `ring`, `primary`, `secondary`, `accent` — sits over the
-  Mariva names so shadcn/ui primitives can be copied in rather than rewritten.
-  Primitives use the semantic names; screens may use either.
-- **`--dusk-amber` is a fill, never text and never the focus ring.** It computes
-  2.70:1 on `--ivory` — under the 4.5:1 text needs and under the 3:1 a focus
-  indicator needs. `--color-ring` is `--umber` (10.86:1). Accented *text* is
-  `--umber` or `--ink`; text *on* the amber is `--ink` (5.67:1).
-- **`--color-muted-foreground` is `--stone-deep`, not `--stone`.** `--stone` is
-  3.57:1 on ivory — large text, rules and non-text UI only.
-
-Two collisions with Tailwind's own namespaces are worth knowing before editing
-this file. Tailwind's font-size namespace is `--text-*` and its tracking
-namespace is `--tracking-*`, which are the names `tokens.css` already uses. The
-four shared steps (`text-xs` … `text-lg`) therefore resolve to the Mariva values
-through the cascade — tokens is unlayered, Tailwind's defaults sit in
-`@layer theme`, and unlayered wins — which is why `text-lg` here is 1.375rem and
-not Tailwind's 1.125rem. The steps with no Tailwind counterpart
-(`text-display`, `text-display-sm`, `text-display-lg`, `tracking-caps`) are
-registered with `@utility` instead, because writing them as theme keys would
-mean `--text-display: var(--text-display)` — a property referencing itself.
-
-Spacing keeps Tailwind's 0.25rem multiplier for component work; Mariva's five
-step rhythm sits beside it as `--spacing-rhythm-1` … `-5`, so `p-2` is a control
-and `gap-rhythm-3` is a page composition.
-
-**`--color-destructive` is `--umber`, and there is still no red.** The palette
-has none, and inventing one here would put the console's error colour outside
-`packages/tokens`. The guest site had already answered the question the same way
-— `apps/web`'s auth screens draw their error state as `--umber` text behind an
-`--umber` rule — so the console follows it rather than opening a second
-convention. What that costs is described under *Primitives* below.
+Tailwind's stock colour and font namespaces are cleared so screens use semantic
+names such as `background`, `card`, `nav`, `accent-soft`, `success`, `warning`,
+and `danger`. Focus is a single three-pixel accent outline. Operational motion
+is limited to state transitions and loading skeletons; there is no route or
+surface entrance animation.
 
 ## Primitives
 
-`components/ui/` holds thirteen shadcn/ui components, copied in and restyled.
-`components.json` records the settings the generator would use, so
-`pnpm dlx shadcn@latest add <name>` drops a new one in the right place with the
-right import aliases — but it arrives in upstream's styling, and the four rules
-below are what has to be applied to it before it is a Mariva primitive.
+`components/ui/` holds the local shadcn/Radix primitives. `components/console/`
+is the product layer: page headers, key hints, status chips, stat cards, filter
+bars, table frames, detail sheets, form sections, fields, empty states, and
+toolbars.
 
-Import from the deep path (`@/components/ui/button`) on a screen that needs one
-or two. `components/ui/index.ts` re-exports everything and is the inventory; it
-is also a client-component barrel, so importing from it pulls all thirteen into
-the bundle.
-
-- **Focus is drawn once, in `app/globals.css`.** Upstream rings each control
-  with `ring-ring/50` — `--umber` at half strength, roughly 2.7:1 on `--ivory`,
-  under the 3:1 a focus indicator owes. The primitives drop `outline-none` and
-  inherit the base rule's full-strength 2px outline instead. Two exceptions,
-  both deliberate: panels that take focus only so a screen reader lands in them
-  (dialog, popover and select content, tab panels) keep the suppression, and a
-  highlighted select or menu row is marked by the `--accent` fill rather than an
-  outline that would clip against the panel edge.
-- **Nothing animates in or out.** `NFR-04` holds operational screens to no
-  entrance animation, so every `animate-in` / `fade-in-0` / `zoom-in-95` /
-  `slide-in-from-*` is stripped, along with the `origin-*` that only existed to
-  anchor the zoom. It also means the app needs no animation plugin.
-- **`font-medium` and `font-semibold` become `font-normal`.** `app/layout.tsx`
-  loads both faces at 300 and 400 only; a 500 or 600 would be a weight the
-  browser synthesises rather than one the type designer drew. 400 against the
-  body's 300 is the console's emphasis step.
-- **Destructive differs by form, not by hue.** `--color-destructive` and
-  `--color-primary` are both `--umber`, so a destructive control that copies the
-  primary's shape says nothing. `Button variant="destructive"` is the only
-  variant drawn as a doubled rule on the page ground, filling on hover and
-  focus; a destructive `DropdownMenuItem` carries an `--umber` rule on its
-  leading edge, the same device `apps/web` uses for an error notice. Both rely
-  on the label naming the verb — "Cancel booking", never "Confirm". Sonner's
-  `richColors` is off for the same reason.
-
-Still open, and inherited rather than introduced here: the operational screens
-will want **status** colours — housekeeping state, discrepancy severity,
-success and warning — and the palette has none. Shape carries two states well
-and does not scale to five. That decision belongs to `packages/tokens` and the
-design authority, and it is not blocking until the first screen needs it.
+Import primitives from their deep paths on screens that need one or two. The UI
+barrel remains the inventory. Use console components for repeated product
+patterns rather than restyling a primitive in each feature.
 
 ## The keyboard layer
 
-`lib/keyboard/` and `lib/date-parser.ts`. It is here before any screen is,
-which is the point: focus order, an escape route out of every surface, and one
+`lib/keyboard/` and `lib/date-parser.ts` provide the shared interaction layer:
+focus order, an escape route out of every surface, and one
 place that owns the arrow keys are properties of all the screens at once, and
 retrofitting them onto twenty screens written mouse-first is a rewrite rather
 than a refactor.
@@ -195,8 +127,8 @@ default stays off: a screen's own binding has nothing underneath it to protect.
 
 ## The command palette
 
-`features/command-palette/`, mounted once by the `(app)` layout so ⌘K means the
-same thing on every authenticated screen.
+`features/command-palette/` is mounted once by the `(app)` layout so ⌘K means
+the same thing on every authenticated screen.
 
 | Module | Owns |
 |---|---|
@@ -223,13 +155,10 @@ useCommands([
 ]);
 ```
 
-A command therefore exists exactly while the screen that owns it is on, which is
-the only definition that stays true as the console grows — the alternative is
-one central list with a guard on every entry saying when it applies, which every
-screen has to remember to edit and which nothing fails when they don't. **Today
-that means the palette opens onto "This screen offers no commands."**, because
-nothing registers yet. The shell fills `Go to`; screens fill `Actions`; `Quick
-search` is defined and stays empty until something API-backed registers into it.
+A command therefore exists exactly while the screen that owns it is on. The
+shell registers role-filtered **Go to** destinations and shift actions; screens
+register contextual **Actions** such as booking creation, report export, and
+filter focus. `Quick search` remains available for API-backed registrations.
 
 Four decisions worth knowing before adding to it:
 
@@ -261,29 +190,26 @@ restoration so an action that opens a surface of its own gets the last word.
 
 ```
 pnpm --filter @mariva/admin dev     # port 3002
+pnpm --filter @mariva/admin typecheck
 pnpm --filter @mariva/admin build
 pnpm --filter @mariva/admin test
+pnpm lint                           # repository gate
+pnpm --filter @mariva/admin test:e2e # existing console/API/Postgres only
 ```
 
-`@mariva/shared` and `@mariva/api-client` are declared but not yet imported.
-They ship `dist/`, not source, so once a screen imports one, run it through
-Turbo — `turbo run dev --filter @mariva/admin...` — and the dependency builds
-first instead of failing to resolve.
-
-There is no `typecheck` script, matching `apps/web`: `next build` type-checks
-the app, and a separate `tsc` here would read the `.next/types` that build
-rewrites underneath it.
+The feature layer imports `@mariva/shared` and `@mariva/api-client`; both ship
+`dist/`, not source. Run development through Turbo when their sources change so
+the dependencies build before the console. The `typecheck` script runs
+`tsc --noEmit`; production builds retain Next.js's own type gate.
 
 `vitest run` covers every `*.spec.ts` in the app and runs in no environment at
 all — the chord normalization, the registry's stacking and gates, the roving
 list's arithmetic and the date parser are pure, and the registry is driven
 through `dispatchHotkey` rather than a real press.
-The trap, the roving group and `useHotkeys` are deliberately not tested here,
-on the same line `apps/web` draws: what matters about a focus trap is where
-focus actually lands, and jsdom has no layout, so `offsetParent` is null for
-every element in it and the visibility checks both are built on would be
-asserted against a model rather than a browser. They are proved end to end
-instead, by the keyboard-only check-in run `NFR-11` requires.
+The trap, roving group, and `useHotkeys` need a browser because jsdom has no
+layout. Playwright covers the keyboard-only check-in and timing requirements
+against an already-running console, API, and Postgres instance; its config does
+not start those services.
 
 Layering rules and the screen inventory are in
 [`docs/architecture/repository-structure.md`](../../docs/architecture/repository-structure.md);
