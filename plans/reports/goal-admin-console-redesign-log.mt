@@ -48,3 +48,19 @@
   and all existing data hooks remain in place.
 - Checkpoint gates passed: admin typecheck, 31 test files / 733 tests, repo
   lint, and the 22-route admin production build.
+
+## 2026-08-23 · Property and guest records
+
+- Migrated Rooms to the accepted master-detail layout. Search and roving focus
+  still operate on the full board; out-of-order and closure mutations keep
+  their existing role gates, previews, and optimistic query behavior.
+- Migrated the touch-first Housekeeping board with larger room-key tiles while
+  preserving its deliberate keyboard exception and state-advance mutations.
+- Migrated Guests to search results plus a protected detail record. Search
+  continues to re-mask identity data, `/` still focuses search, and reveal
+  auditing remains unchanged.
+- Contained the existing two-axis Rates grid in the console surface system;
+  range selection, arrow movement, role gating, and rate-plan forms are intact.
+- Checkpoint gates passed: admin typecheck, 31 test files / 733 tests, and repo
+  lint. The only lint output is the repository's existing Biome configuration
+  deprecation notice.
