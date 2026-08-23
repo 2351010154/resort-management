@@ -1,73 +1,153 @@
 "use client";
 
+import {
+  BadgeDollarSignIcon,
+  BedDoubleIcon,
+  CalendarDaysIcon,
+  ChartNoAxesCombinedIcon,
+  ChevronDownIcon,
+  Clock3Icon,
+  CreditCardIcon,
+  DoorOpenIcon,
+  HouseIcon,
+  LandmarkIcon,
+  LogInIcon,
+  LogOutIcon,
+  ScrollTextIcon,
+  SettingsIcon,
+  SparklesIcon,
+  UsersRoundIcon,
+  WalletCardsIcon,
+  type LucideIcon,
+} from "lucide-react";
 import { usePathname } from "next/navigation";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import { formatShortcut } from "@/features/command-palette";
 import { useStaffSession } from "@/lib/auth";
 import { detectPlatform, RovingFocusGroup } from "@/lib/keyboard";
-import { isActivePath, navItemsFor, navShortcut } from "./nav-inventory";
+import { cn } from "@/lib/utils";
+import {
+  isActivePath,
+  NAV_GROUPS,
+  type NavGroupId,
+  navItemsFor,
+  navShortcut,
+} from "./nav-inventory";
 import { NavItem } from "./nav-item";
 import { UserMenu } from "./user-menu";
 
-/* The rail every authenticated screen is drawn beside.
- *
- * What it holds is decided by the session's role rather than by the screen, so
- * a housekeeper's console has one entry in it and an administrator's has
- * fifteen. That filtering is not a security boundary — the API's capability
- * guard is — but offering a door that answers 403 is the console telling
- * somebody their job includes a screen it does not, and they will ask why it is
- * broken rather than conclude it is not theirs.
- *
- * Persistent, and that is the point of it being in the layout rather than in a
- * page: Next keeps a layout mounted across a navigation within its group, so
- * the rail is not rebuilt, the roving Tab stop is not lost, and the sequence
- * bindings are not unregistered and re-registered on every screen change.
- */
+const NAV_ICONS: Record<string, LucideIcon> = {
+  dashboard: HouseIcon,
+  arrivals: LogInIcon,
+  departures: LogOutIcon,
+  bookings: CalendarDaysIcon,
+  guests: UsersRoundIcon,
+  rooms: BedDoubleIcon,
+  housekeeping: SparklesIcon,
+  rates: BadgeDollarSignIcon,
+  folios: WalletCardsIcon,
+  payments: CreditCardIcon,
+  shifts: Clock3Icon,
+  finance: LandmarkIcon,
+  reports: ChartNoAxesCombinedIcon,
+  audit: ScrollTextIcon,
+  settings: SettingsIcon,
+};
+
+const OPEN_GROUPS: Record<NavGroupId, boolean> = {
+  today: true,
+  reservations: true,
+  property: true,
+  money: true,
+  management: true,
+};
 
 export function AppNav() {
   const session = useStaffSession();
   const pathname = usePathname();
-  // Read once. It cannot change within a session, and every entry's hint is
-  // formatted against it.
   const platform = useMemo(() => detectPlatform(), []);
+  const [expanded, setExpanded] = useState(OPEN_GROUPS);
 
-  // The guard above this renders nothing until the session is authenticated, so
-  // this is unreachable in the shell. It is here because the narrowing is real
-  // — `user` exists on one of the three states — and a cast would be a claim
-  // about a component's position in a tree that nothing checks.
   if (session.status !== "authenticated") {
     return null;
   }
 
   const items = navItemsFor(session.user.role);
+  const groups = NAV_GROUPS.map((group) => ({
+    ...group,
+    items: items.filter((item) => item.group === group.id),
+  })).filter((group) => group.items.length > 0);
 
   return (
     <nav
-      // Named, because a screen reader listing landmarks needs to tell this
-      // apart from whatever navigation a screen draws inside itself.
       aria-label="Console sections"
-      className="flex w-56 shrink-0 flex-col gap-4 border-border border-r bg-card px-3 py-4"
+      className="sticky top-0 flex h-svh w-[72px] shrink-0 flex-col overflow-y-auto bg-nav px-2 py-3 text-nav-text xl:w-[248px] xl:px-3"
     >
-      {/* The property, not a logo. The console is one hotel's back office and
-       * an operator never needs to be told which product they are in — what the
-       * head of the rail is for is somewhere for the eye to start. */}
-      <span className="px-3 font-display text-lg">Mariva</span>
+      <div className="mb-4 flex min-h-12 items-center gap-3 px-2 xl:px-3">
+        <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-accent-soft font-semibold text-accent-strong shadow-xs">
+          M
+        </span>
+        <span className="hidden min-w-0 xl:block">
+          <span className="block text-sm font-semibold tracking-[0.18em]">
+            MARIVA
+          </span>
+          <span className="block text-xs text-nav-muted">Staff console</span>
+        </span>
+      </div>
 
-      <RovingFocusGroup className="flex flex-col gap-0.5">
-        {items.map((item) => (
-          <NavItem
-            key={item.id}
-            item={item}
-            active={isActivePath(pathname, item.href)}
-            hint={formatShortcut(navShortcut(item), platform)}
-          />
-        ))}
+      <RovingFocusGroup className="flex flex-col gap-2" role="menu">
+        {groups.map((group) => {
+          const activeGroup = group.items.some((item) =>
+            isActivePath(pathname, item.href),
+          );
+          const isOpen = expanded[group.id] || activeGroup;
+
+          return (
+            <section key={group.id} aria-labelledby={`nav-group-${group.id}`}>
+              <button
+                id={`nav-group-${group.id}`}
+                type="button"
+                aria-expanded={isOpen}
+                className="hidden h-8 w-full items-center justify-between rounded-md px-3 text-left text-xs font-semibold tracking-[0.08em] text-nav-muted uppercase transition-colors duration-150 ease-ui hover:bg-nav-raised hover:text-nav-text xl:flex"
+                onClick={() => {
+                  setExpanded((current) => ({
+                    ...current,
+                    [group.id]: !current[group.id],
+                  }));
+                }}
+              >
+                {group.label}
+                <ChevronDownIcon
+                  aria-hidden="true"
+                  className={cn(
+                    "size-3.5 transition-transform duration-150 ease-ui",
+                    isOpen ? "rotate-0" : "-rotate-90",
+                  )}
+                />
+              </button>
+              <div
+                className={cn(
+                  "mt-0.5 flex flex-col gap-0.5 xl:mt-0",
+                  !isOpen && "xl:hidden",
+                )}
+              >
+                {group.items.map((item) => (
+                  <NavItem
+                    key={item.id}
+                    item={item}
+                    icon={NAV_ICONS[item.id] ?? DoorOpenIcon}
+                    active={isActivePath(pathname, item.href)}
+                    hint={formatShortcut(navShortcut(item), platform)}
+                  />
+                ))}
+              </div>
+            </section>
+          );
+        })}
       </RovingFocusGroup>
 
-      {/* Pushed to the foot of the rail by the margin rather than by a spacer
-       * element, so the entries above stay a single list to the arrows. */}
-      <div className="mt-auto border-border border-t pt-2">
+      <div className="mt-auto border-nav-raised border-t pt-2">
         <UserMenu user={session.user} />
       </div>
     </nav>

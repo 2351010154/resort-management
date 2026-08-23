@@ -38,6 +38,8 @@ export interface NavItem {
   /** The family, lowercase. Also the value the roving list tracks the entry
    *  by, and the second half of the command id. */
   id: string;
+  /** The operational chapter used to group the rail without duplicating its map. */
+  group: NavGroupId;
   /** What the operator reads in the rail and in the palette. */
   label: string;
   /** Where the family lives once it is built. */
@@ -66,6 +68,26 @@ export interface NavItem {
   keywords?: readonly string[];
 }
 
+export type NavGroupId =
+  | "today"
+  | "reservations"
+  | "property"
+  | "money"
+  | "management";
+
+export interface NavGroup {
+  id: NavGroupId;
+  label: string;
+}
+
+export const NAV_GROUPS: readonly NavGroup[] = [
+  { id: "today", label: "Today" },
+  { id: "reservations", label: "Reservations" },
+  { id: "property", label: "Property" },
+  { id: "money", label: "Money" },
+  { id: "management", label: "Management" },
+];
+
 // The role sets, named once, because the matrix repeats itself and a typo in a
 // literal list is the kind of thing that quietly hands somebody a screen.
 //
@@ -89,6 +111,7 @@ const MANAGEMENT = ["MANAGER", "ADMIN"] as const;
 export const NAV_ITEMS: readonly NavItem[] = [
   {
     id: "dashboard",
+    group: "today",
     label: "Dashboard",
     href: "/dashboard",
     key: "d",
@@ -100,6 +123,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   },
   {
     id: "arrivals",
+    group: "today",
     label: "Arrivals",
     href: "/arrivals",
     key: "a",
@@ -108,6 +132,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   },
   {
     id: "departures",
+    group: "today",
     label: "Departures",
     href: "/departures",
     key: "e",
@@ -116,6 +141,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   },
   {
     id: "bookings",
+    group: "reservations",
     label: "Bookings",
     href: "/bookings",
     key: "b",
@@ -125,7 +151,17 @@ export const NAV_ITEMS: readonly NavItem[] = [
     keywords: ["reservations", "đặt phòng", "walk-in"],
   },
   {
+    id: "guests",
+    group: "reservations",
+    label: "Guests",
+    href: "/guests",
+    key: "g",
+    roles: LEDGER,
+    keywords: ["profiles", "cccd", "khách"],
+  },
+  {
     id: "rooms",
+    group: "property",
     label: "Rooms",
     href: "/rooms",
     key: "r",
@@ -138,6 +174,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   },
   {
     id: "housekeeping",
+    group: "property",
     label: "Housekeeping",
     href: "/housekeeping",
     key: "h",
@@ -145,15 +182,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
     keywords: ["board", "clean", "dọn phòng", "buồng phòng"],
   },
   {
-    id: "guests",
-    label: "Guests",
-    href: "/guests",
-    key: "g",
-    roles: LEDGER,
-    keywords: ["profiles", "cccd", "khách"],
-  },
-  {
     id: "rates",
+    group: "property",
     label: "Rates",
     href: "/rates",
     key: "t",
@@ -164,6 +194,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   },
   {
     id: "folios",
+    group: "money",
     label: "Folios",
     href: "/folios",
     key: "f",
@@ -172,6 +203,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   },
   {
     id: "payments",
+    group: "money",
     label: "Payments",
     href: "/payments",
     key: "p",
@@ -180,6 +212,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   },
   {
     id: "shifts",
+    group: "money",
     label: "Shifts",
     href: "/shifts",
     key: "s",
@@ -188,6 +221,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   },
   {
     id: "finance",
+    group: "money",
     label: "Finance",
     href: "/finance",
     key: "i",
@@ -195,7 +229,17 @@ export const NAV_ITEMS: readonly NavItem[] = [
     keywords: ["income", "expense", "thu chi"],
   },
   {
+    id: "reports",
+    group: "management",
+    label: "Reports",
+    href: "/reports",
+    key: "o",
+    roles: LEDGER,
+    keywords: ["revenue", "occupancy", "adr", "revpar", "báo cáo"],
+  },
+  {
     id: "audit",
+    group: "management",
     label: "Audit",
     href: "/audit",
     key: "u",
@@ -207,6 +251,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
   },
   {
     id: "settings",
+    group: "management",
     label: "Settings",
     href: "/settings",
     key: "n",
@@ -215,14 +260,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
     // anybody else's.
     roles: MANAGEMENT,
     keywords: ["staff", "tax", "business date", "cài đặt"],
-  },
-  {
-    id: "reports",
-    label: "Reports",
-    href: "/reports",
-    key: "o",
-    roles: LEDGER,
-    keywords: ["revenue", "occupancy", "adr", "revpar", "báo cáo"],
   },
 ];
 

@@ -1,359 +1,188 @@
-/* The console's styling layer.
- *
- * Two imports, and what settles a conflict between them is the layering rather
- * than the order they appear in. @mariva/tokens is unlayered; everything
- * Tailwind emits sits inside `@layer theme|base|...`, and an unlayered
- * declaration beats a layered one however the two are sequenced. So for every
- * property name the two happen to share, the brand's value wins. `--text-lg` is
- * the one that actually differs — Mariva sets 1.375rem, Tailwind's default is
- * 1.125rem — and this is why `text-lg` here means the Mariva step.
- *
- * Nothing below restates a token value: apart from three CSS-wide keywords, the
- * whole theme is `var()` references, so changing the brand is still a one-file
- * change in packages/tokens.
- */
-
-@import "@mariva/tokens/tokens.css";
+@import "./console-tokens.css";
 @import "tailwindcss";
+@import "@fontsource-variable/figtree/wght.css";
 
-/* The two faces, carried in the lockfile rather than fetched while the app
- * builds. next/font/google downloads the woff2 from fonts.gstatic.com during
- * `next build`, which makes a green build depend on Google serving a CSS
- * document whose file names still resolve — and when Google rotated the
- * Cormorant Garamond binaries, the stale document some edges kept serving named
- * files that 404, so the build failed on machines that reached those edges and
- * passed on the ones that did not. A font is a dependency; it belongs where the
- * other dependencies are.
- *
- * Every subset ships with its `unicode-range`, so a browser still downloads
- * only latin and vietnamese here — the same bytes over the wire as before.
- *
- * The variable file covers 300–700 in one download, which is why the two
- * weights the console sets cost what one used to. */
-@import "@fontsource-variable/cormorant-garamond/wght.css";
-@import "@fontsource/ibm-plex-mono/300.css";
-@import "@fontsource/ibm-plex-mono/400.css";
-
-/* Named for the face, not the role. The role names — --font-display and
- * --font-ui — are assigned from these in the `@theme` block below, so that the
- * day a face is swapped there is exactly one line to change and no stylesheet
- * anywhere is quietly asserting that "display" means "Cormorant".
- *
- * The same two faces the guest site sets, for the same two reasons — the
- * console is a different product, not a different brand, and apps/web's layout
- * records the measurements behind the pairing. The short version of the one
- * that matters here: IBM Plex Mono carries ₫ (U+20AB) and the Vietnamese
- * diacritics, which the console needs on every folio line and in every guest's
- * own name.
- *
- * No italic is imported above, unlike the guest site: the arrival sets one line
- * in italic for effect, and an operational screen has no equivalent. Loading a
- * second drawn style would be bytes on the console's critical path for
- * nothing. */
-:root {
-  --font-cormorant: "Cormorant Garamond Variable";
-  --font-plex-mono: "IBM Plex Mono";
-}
-
-/* The charts' own names, answered in Mariva's colours.
- *
- * `components/charts/` is vendored from the Bklit registry and every colour in
- * it is read through one of these names — `chart-context.ts` collects them as
- * `chartCssVars` and nothing under it holds a literal. So this block is the
- * whole of the restyle: the components were not edited to know about --umber,
- * they were pointed at a palette that answers to the names they already use.
- *
- * **Not one value below is a colour.** Every one is a `var()` into
- * @mariva/tokens, which is that package's own instruction — its header records
- * that the palette used to live as re-typed rgba() literals in nine stylesheets
- * and that the channel triplets exist so alpha use never has to re-type one.
- * The registry shipped this block as two dozen `oklch()` literals and a `.dark`
- * override; both are gone, along with an `@theme inline` it emitted with a
- * double-dash typo (`var(----chart-1)`) that resolved to nothing.
- *
- * The series ramp is the palette's own value ladder from --umber down to --sand,
- * because a report is read in one colour family and a bar chart of revenue is
- * not five unrelated hues. --dusk-amber is the accent and takes the crosshair,
- * where design-foundations.md already puts it: a fill and a state mark, never
- * text and never a focus ring.
- *
- * These are declared here rather than in packages/tokens because they are the
- * console's chart vocabulary rather than the brand — apps/web has no chart, and
- * a token nobody outside one app reads is a token in the wrong package. */
-:root {
-  /* The series ramp, darkest first. Room revenue is the deepest and the
-     penalties the lightest, which is also the order they stack. */
-  --chart-1: var(--ink);
-  --chart-2: var(--umber);
-  --chart-3: var(--stone-deep);
-  --chart-4: var(--stone);
-  --chart-5: var(--sand);
-  --chart-background: var(--ivory);
-  --chart-foreground: var(--ink);
-  --chart-foreground-muted: var(--stone-deep);
-  --chart-line-primary: var(--chart-2);
-  --chart-line-secondary: var(--chart-3);
-  /* The accent, and the one place it is spent on this screen. */
-  --chart-crosshair: var(--dusk-amber);
-  /* Rules are the ink at low strength, exactly as --color-border is — the
-     triplet is what tokens.css exists for. */
-  --chart-grid: rgb(var(--umber-rgb) / 0.16);
-  --chart-brush-border: var(--chart-grid);
-  /* The tooltip is the one dark surface on an ivory screen, which is the
-     console's own inversion rather than a dark mode: --night is the value every
-     dark act on the guest site hands over on. */
-  --chart-tooltip-background: rgb(var(--night-rgb) / 0.92);
-  --chart-tooltip-foreground: var(--ivory);
-  --chart-tooltip-muted: var(--sand);
-  --chart-marker-background: var(--ivory-warm);
-  --chart-marker-border: rgb(var(--umber-rgb) / 0.24);
-  --chart-marker-foreground: var(--ink);
-  /* Axis labels are the secondary-text token, and --stone-deep rather than
-     --stone for the contrast reason the @theme block below states. */
-  --chart-label: var(--stone-deep);
-  --chart-scale-01: var(--ivory-warm);
-  --chart-scale-02: var(--sand);
-  --chart-scale-03: var(--stone);
-  --chart-scale-04: var(--stone-deep);
-  --chart-scale-05: var(--umber);
-  --chart-scale-pattern-color: var(--ivory);
-}
-
-/* Not `@theme inline`, and the distinction cost a build to find. Tailwind's
- * `inline` option substitutes each value into the utilities and then emits no
- * custom property for it — `.text-muted-foreground` compiles to
- * `color: var(--stone-deep)` and `--color-muted-foreground` never exists. That
- * is fine for anything written as a utility class and silently broken for
- * anything written as CSS, which is every rule in the base layer at the bottom
- * of this file: `background-color: var(--color-background)` would resolve to
- * nothing at all.
- *
- * `inline` exists for theme values that reference a variable declared on a
- * narrower scope than the document root. Nothing here is: tokens.css and the
- * two face names above both declare on `:root`. So the plain form resolves
- * correctly and leaves one name — the semantic one — usable from both a
- * utility and a stylesheet. */
 @theme {
-  /* ---- palette -------------------------------------------------------- */
-
-  /* Tailwind's stock palette is deleted rather than left available. The console
-   * has nine colours; `bg-slate-100` is not one of them, and the prototype in
-   * prototypes/dashboard-launchpad proved that when an off-brand colour is one
-   * keystroke away it eventually ships. Gone from the theme, it is a build
-   * error instead of a review comment. */
   --color-*: initial;
-
-  /* Keywords, not colours — restored because the wipe above takes them too and
-   * a button with no fill has to be able to say so. */
   --color-transparent: transparent;
   --color-current: currentcolor;
   --color-inherit: inherit;
 
-  --color-ivory: var(--ivory);
-  --color-ivory-warm: var(--ivory-warm);
-  --color-sand: var(--sand);
-  --color-stone: var(--stone);
-  --color-stone-deep: var(--stone-deep);
-  --color-umber: var(--umber);
-  --color-ink: var(--ink);
-  --color-dusk-amber: var(--dusk-amber);
-  --color-night: var(--night);
+  --color-background: var(--console-background);
+  --color-foreground: var(--console-ink);
+  --color-card: var(--console-surface);
+  --color-card-foreground: var(--console-ink);
+  --color-popover: var(--console-surface);
+  --color-popover-foreground: var(--console-ink);
+  --color-primary: var(--console-nav);
+  --color-primary-foreground: var(--console-nav-text);
+  --color-secondary: var(--console-surface-muted);
+  --color-secondary-foreground: var(--console-ink);
+  --color-muted: var(--console-surface-muted);
+  --color-muted-foreground: var(--console-muted);
+  --color-accent: var(--console-accent-soft);
+  --color-accent-foreground: var(--console-accent-strong);
+  --color-border: var(--console-faint);
+  --color-input: var(--console-faint);
+  --color-ring: var(--console-accent);
+  --color-destructive: var(--console-danger);
+  --color-destructive-foreground: var(--console-surface);
+  --color-overlay: var(--console-overlay);
 
-  /* --ocean is deliberately absent. design-foundations.md reserves it for the
-   * booking funnel's informational state — a selected date — and an admin
-   * screen spending it on a chip or a badge would make the guest site's one
-   * informational colour mean two different things. */
+  --color-surface: var(--console-surface);
+  --color-surface-muted: var(--console-surface-muted);
+  --color-surface-strong: var(--console-surface-strong);
+  --color-nav: var(--console-nav);
+  --color-nav-raised: var(--console-nav-raised);
+  --color-nav-text: var(--console-nav-text);
+  --color-nav-muted: var(--console-nav-muted);
+  --color-accent-strong: var(--console-accent-strong);
+  --color-accent-soft: var(--console-accent-soft);
+  --color-success: var(--console-success);
+  --color-success-soft: var(--console-success-soft);
+  --color-warning: var(--console-warning);
+  --color-warning-soft: var(--console-warning-soft);
+  --color-info: var(--console-info);
+  --color-info-soft: var(--console-info-soft);
+  --color-danger: var(--console-danger);
+  --color-danger-soft: var(--console-danger-soft);
 
-  /* The four chart names that are written as utility classes rather than read
-   * through `chartCssVars`. They are aliases of the `--chart-*` block at the top
-   * of this file and hold no value of their own, so the restyle stays in one
-   * place; the rest of the chart vocabulary never becomes a Tailwind colour
-   * because nothing writes `bg-chart-grid`. */
-  --color-chart-label: var(--chart-label);
-  --color-chart-tooltip-background: var(--chart-tooltip-background);
-  --color-chart-tooltip-foreground: var(--chart-tooltip-foreground);
-  --color-chart-tooltip-muted: var(--chart-tooltip-muted);
-
-  /* ---- semantic layer ------------------------------------------------- */
-
-  /* The names shadcn/ui's primitives are written against, mapped once here so
-   * that copying a primitive in is a copy rather than a rewrite. A primitive
-   * that reaches for a raw Mariva name instead of one of these is a primitive
-   * that has to be re-audited the next time the mapping moves.
-   *
-   * Two of these mappings are contrast findings, not preferences:
-   *
-   *   --color-muted-foreground is --stone-deep and NOT --stone. --stone on
-   *   ivory computes ~3.65:1, which passes AA for large text and fails it for
-   *   the secondary labels this token actually gets used on. --stone-deep is
-   *   ~5.80:1 and passes.
-   *
-   *   --color-ring is --umber and NOT --dusk-amber. The amber is ~2.75:1 on
-   *   ivory: below the 4.5:1 text needs and below the 3:1 a focus indicator
-   *   needs. On a console this is keyboard-first, an invisible focus ring is
-   *   the whole product failing, so the accent does not get this job. */
-  --color-background: var(--ivory);
-  --color-foreground: var(--ink);
-
-  /* Panels lift off the page by warming, not by brightening — there is no
-   * colour above --ivory in the palette to brighten towards. */
-  --color-card: var(--ivory-warm);
-  --color-card-foreground: var(--ink);
-  --color-popover: var(--ivory-warm);
-  --color-popover-foreground: var(--ink);
-
-  --color-primary: var(--umber);
-  --color-primary-foreground: var(--ivory);
-  --color-secondary: var(--sand);
-  --color-secondary-foreground: var(--umber);
-
-  --color-muted: var(--ivory-warm);
-  --color-muted-foreground: var(--stone-deep);
-
-  /* The accent is for fills, rules, and state marks — never for text, and
-   * never for a focus ring. --color-accent-foreground is what goes *on* it. */
-  --color-accent: var(--dusk-amber);
-  --color-accent-foreground: var(--ink);
-
-  /* Rules and field edges are the ink at low strength rather than a ninth
-   * colour. The channel triplets in tokens.css exist for exactly this — the
-   * package's own comment explains that re-typing `rgb(58 51 43 / .16)` as a
-   * literal is the drift it was created to stop. */
-  --color-border: rgb(var(--umber-rgb) / 0.16);
-  --color-input: rgb(var(--umber-rgb) / 0.24);
-  --color-ring: var(--umber);
-
-  /* Destructive is --umber, and the absence of a red here is the decision
-   * rather than a gap in it. The palette has no red; inventing one in this file
-   * would put the console's error colour outside packages/tokens, where the
-   * brand lives and where apps/web would never see it.
-   *
-   * The guest site already answered this question. auth-shell.module.css draws
-   * its error state as `.notice` with the rule recoloured to --umber, and
-   * login-screen.module.css sets error text in --umber too. Nothing in the tree
-   * has ever signalled danger with hue.
-   *
-   * What follows from that is a constraint on the primitives, not just a
-   * mapping: --color-destructive and --color-primary resolve to the same
-   * number, so a destructive control that copies the primary's shape is
-   * invisible as a warning. Every destructive variant in components/ui/
-   * therefore differentiates by *form* — a doubled rule, an inset mark — and
-   * each one carries the note saying so. */
-  --color-destructive: var(--umber);
-  --color-destructive-foreground: var(--ivory);
-
-  /* The scrim a modal stands on. --night is the palette's darkest value and the
-   * one the guest site's dark acts already hand over on, so the console dims to
-   * the same black rather than to a neutral one. Written through --night-rgb
-   * because it is the colour at an alpha, which is exactly the case the channel
-   * triplets in tokens.css exist for. */
-  --color-overlay: rgb(var(--night-rgb) / 0.55);
-
-  /* ---- type ----------------------------------------------------------- */
-
-  /* The stock families go the same way as the stock palette: the console reads
-   * in two faces and `font-sans` is not one of them. The faces are named
-   * --font-cormorant and --font-plex-mono at the top of this file rather than
-   * --font-display/--font-ui, so that the face and the *role* stay two separate
-   * names and this block is the only place the two are joined. */
   --font-*: initial;
-  --font-display: var(--font-cormorant), serif;
-  /* `monospace`, not `sans-serif`: if the face fails to load, the fallback
-   * still has to hold the fixed pitch every figure on screen is set on. */
-  --font-ui: var(--font-plex-mono), ui-monospace, monospace;
+  --font-sans: var(--font-figtree), "Segoe UI", sans-serif;
+  --font-ui: var(--font-figtree), "Segoe UI", sans-serif;
+  --font-display: var(--font-figtree), "Segoe UI", sans-serif;
+  --font-mono: var(--font-figtree), "Segoe UI", sans-serif;
 
-  /* The four shared type steps are not declared here on purpose. Tailwind's
-   * font-size namespace is `--text-*`, which is the same name tokens.css
-   * already uses, so `text-xs`/`text-sm`/`text-base`/`text-lg` read the Mariva
-   * values through the cascade note at the top of this file. Declaring them
-   * would be `--text-lg: var(--text-lg)` — a property referencing itself.
-   * The three display steps have no Tailwind default to inherit from, so they
-   * are registered as utilities further down instead. */
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-base: 0.9375rem;
+  --text-lg: 1.0625rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.5rem;
+  --text-3xl: 1.75rem;
 
-  /* ---- spacing -------------------------------------------------------- */
+  --radius-xs: var(--console-radius-sm);
+  --radius-sm: var(--console-radius-sm);
+  --radius-md: var(--console-radius-md);
+  --radius-lg: var(--console-radius-lg);
+  --radius-xl: var(--console-radius-lg);
 
-  /* Tailwind's 0.25rem multiplier stays: a table cell, an input and a 44px
-   * touch target all need steps that Mariva's rhythm does not have. The rhythm
-   * is added beside it under its own name — it is a page-composition scale
-   * (section gaps, page gutters), and `gap-rhythm-3` says which of the two a
-   * reader is looking at. Naming it --spacing-3 would have collided with the
-   * multiplier's own p-3. */
-  --spacing-rhythm-1: var(--space-1);
-  --spacing-rhythm-2: var(--space-2);
-  --spacing-rhythm-3: var(--space-3);
-  --spacing-rhythm-4: var(--space-4);
-  --spacing-rhythm-5: var(--space-5);
+  --shadow-xs: var(--console-shadow-sm);
+  --shadow-sm: var(--console-shadow-sm);
+  --shadow-card: var(--console-shadow-card);
+  --shadow-raised: var(--console-shadow-raised);
+
+  --ease-ui: var(--console-ease-out);
+
+  --spacing-rhythm-1: var(--console-space-2);
+  --spacing-rhythm-2: var(--console-space-4);
+  --spacing-rhythm-3: var(--console-space-8);
+  --spacing-rhythm-4: var(--console-space-12);
+  --spacing-rhythm-5: var(--console-space-16);
 }
 
-/* Utilities for the token names Tailwind's namespaces already occupy. Declared
- * with `@utility` rather than as theme keys because `--text-display:
- * var(--text-display)` is a cycle, not a reference — same property name on both
- * sides. These behave like any other utility: variants and breakpoints apply. */
-
+/* Compatibility utilities disappear as screens migrate to the console kit. */
 @utility text-display-sm {
-  font-size: var(--text-display-sm);
+  font-size: var(--text-3xl);
+  line-height: 1.2;
 }
 
 @utility text-display {
-  font-size: var(--text-display);
+  font-size: var(--text-3xl);
+  line-height: 1.2;
 }
 
 @utility text-display-lg {
-  font-size: var(--text-display-lg);
+  font-size: var(--text-3xl);
+  line-height: 1.2;
 }
 
 @utility tracking-caps {
-  letter-spacing: var(--tracking-caps);
+  letter-spacing: 0.06em;
 }
 
 @layer base {
-  /* The document's resting state. Tailwind's preflight has already zeroed
-   * margins and normalised the box model, so this adds only what preflight has
-   * no opinion about: which face the console reads in, and what it stands on. */
+  html {
+    background: var(--color-background);
+  }
+
   body {
-    background-color: var(--color-background);
+    min-width: 320px;
+    background: var(--color-background);
     color: var(--color-foreground);
     font-family: var(--font-ui);
-    /* The weight both faces are drawn at across Mariva. */
-    font-weight: 300;
+    font-size: var(--text-base);
+    font-weight: 400;
+    letter-spacing: 0;
+    line-height: 1.5;
     -webkit-font-smoothing: antialiased;
   }
 
-  /* Lining figures are a repair, not a preference, and they have to travel with
-   * the display face wherever it is named. Cormorant Garamond is a Garamond
-   * revival, so its default figures are oldstyle: 3 5 7 9 drop below the
-   * baseline and 6 climbs above the x-height. A room count or a price set in
-   * this face steps up and down through the line until `lnum` is asked for.
-   *
-   * The trap is that font-variant-numeric is one value rather than a set of
-   * flags that merge down the cascade: a descendant writing `tabular-nums`
-   * replaces this instead of adding to it and silently gets oldstyle back.
-   * Every tabular context in the console writes `lining-nums tabular-nums`. */
-  .font-display {
-    font-variant-numeric: lining-nums;
+  h1,
+  h2,
+  h3 {
+    text-wrap: balance;
   }
 
-  /* Keyboard-first means the focus ring is a primary interface element, not an
-   * accessibility afterthought — an operator running check-in without a mouse
-   * navigates by it. It is drawn in --color-ring (see the contrast note above)
-   * and offset so it reads as a ring around the control rather than a border on
-   * it. :focus-visible, so a pointer click does not paint it. */
+  p {
+    text-wrap: pretty;
+  }
+
+  table,
+  [data-numeric] {
+    font-variant-numeric: lining-nums tabular-nums;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+
   :focus-visible {
-    outline: 2px solid var(--color-ring);
+    outline: 3px solid var(--color-ring);
     outline-offset: 2px;
   }
 
-  /* The reduced-motion kill switch. NFR-04 already holds admin motion to
-   * sub-150ms feedback with no entrance animation, so there is very little here
-   * for this to catch — which is the point: it is the backstop that keeps a
-   * later screen from being the first place anyone checks. */
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
     *::after {
       animation-duration: 0.01ms !important;
       animation-iteration-count: 1 !important;
+      scroll-behavior: auto !important;
       transition-duration: 0.01ms !important;
     }
   }
+}
+
+/* Vendored charts keep their API and inherit the console palette here. */
+:root {
+  --chart-1: var(--console-nav);
+  --chart-2: var(--console-accent-strong);
+  --chart-3: var(--console-info);
+  --chart-4: var(--console-success);
+  --chart-5: var(--console-warning);
+  --chart-background: var(--console-surface);
+  --chart-foreground: var(--console-ink);
+  --chart-foreground-muted: var(--console-muted);
+  --chart-line-primary: var(--chart-1);
+  --chart-line-secondary: var(--chart-2);
+  --chart-crosshair: var(--console-accent);
+  --chart-grid: var(--console-faint);
+  --chart-brush-border: var(--console-faint);
+  --chart-tooltip-background: var(--console-nav);
+  --chart-tooltip-foreground: var(--console-nav-text);
+  --chart-tooltip-muted: var(--console-nav-muted);
+  --chart-marker-background: var(--console-surface-muted);
+  --chart-marker-border: var(--console-faint);
+  --chart-marker-foreground: var(--console-ink);
+  --chart-label: var(--console-muted);
+  --chart-scale-01: var(--console-surface-muted);
+  --chart-scale-02: var(--console-surface-strong);
+  --chart-scale-03: var(--console-info);
+  --chart-scale-04: var(--console-accent-strong);
+  --chart-scale-05: var(--console-nav);
+  --chart-scale-pattern-color: var(--console-surface);
 }

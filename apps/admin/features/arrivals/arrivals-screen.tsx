@@ -10,6 +10,8 @@ import {
 import type * as React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { DataTableFrame, EmptyState, PageHeader } from "@/components/console";
+import { Skeleton } from "@/components/ui/skeleton";
 import { formatLongDate, formatShortDate } from "@/lib/business-date";
 import { RovingFocusGroup, useRovingFocusItem } from "@/lib/keyboard";
 
@@ -114,63 +116,69 @@ export function ArrivalsScreen() {
   }
 
   return (
-    <div className="p-rhythm-3">
-      <header>
-        <p className="text-muted-foreground text-xs tracking-caps uppercase">
-          Front desk
-        </p>
-        <h1 className="font-display text-display-sm mt-2">Arrivals</h1>
-        <p className="text-muted-foreground mt-rhythm-1 border-border border-t pt-2">
-          {businessDate === null
-            ? "Reading the property's day."
-            : `Confirmed stays due in on ${formatLongDate(businessDate)}.`}
-        </p>
-      </header>
+    <div className="mx-auto w-full max-w-[1600px] p-4 sm:p-6 lg:p-8">
+      <PageHeader
+        title="Arrivals"
+        description={
+          businessDate === null
+            ? "Reading the hotel day."
+            : `Confirmed stays due on ${formatLongDate(businessDate)}.`
+        }
+      />
 
       {queue.status === "pending" ? (
-        <p className="text-muted-foreground mt-rhythm-2 text-sm" aria-busy>
-          Reading today's arrivals.
-        </p>
+        <div className="mt-6 space-y-2" aria-busy>
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
+        </div>
       ) : null}
 
       {queue.status === "failed" ? (
         // The console's error device is a rule on the leading edge rather than
         // a colour: --color-destructive and --color-primary are the same umber.
-        <p className="border-destructive text-destructive mt-rhythm-2 border-l-2 pl-3 text-sm">
-          The arrivals queue could not be loaded. Nothing here is a statement
-          about who is due in today.
+        <p
+          className="mt-6 border-danger border-l-2 pl-3 text-sm text-danger"
+          role="alert"
+        >
+          Arrivals could not be loaded. No due-in details are shown.
         </p>
       ) : null}
 
       {queue.status === "ready" && arrivals.length === 0 ? (
-        <p className="text-muted-foreground mt-rhythm-2 text-sm">
-          Nobody is waiting to be checked in.
-        </p>
+        <EmptyState
+          className="mt-6"
+          title="No arrivals waiting"
+          description="All confirmed arrivals for this hotel day are checked in."
+        />
       ) : null}
 
       {queue.status === "ready" && arrivals.length > 0 ? (
         // The wrapper carries the ref rather than the group: the group spreads
         // the props it does not name onto its own container, and a `ref` passed
         // through would replace the one its arrow handling reads the list from.
-        <div ref={queueRef} className="mt-rhythm-2">
+        <DataTableFrame ref={queueRef} className="mt-6 overflow-x-auto">
           <RovingFocusGroup
             // The table already says what it is, so the group claims nothing over
             // it — `roving-focus.tsx`'s own note about a queue of rows.
             role="presentation"
           >
-            <table className="w-full border-collapse text-sm">
+            <table className="w-full min-w-[760px] border-collapse text-sm">
               <caption className="sr-only">
                 Today's arrivals. Arrow keys move between stays, Enter opens the
                 check-in.
               </caption>
               <thead>
                 {table.getHeaderGroups().map((group) => (
-                  <tr key={group.id} className="border-border border-b">
+                  <tr
+                    key={group.id}
+                    className="border-border border-b bg-surface-muted/70"
+                  >
                     {group.headers.map((header) => (
                       <th
                         key={header.id}
                         scope="col"
-                        className="text-muted-foreground px-3 py-2 text-left text-xs font-normal tracking-caps uppercase"
+                        className="px-4 py-3 text-left text-xs font-semibold tracking-[0.06em] text-muted-foreground uppercase"
                       >
                         {flexRender(
                           header.column.columnDef.header,
@@ -208,13 +216,12 @@ export function ArrivalsScreen() {
             </table>
 
             {queue.truncated ? (
-              <p className="text-muted-foreground mt-rhythm-1 text-sm">
-                The search answers at most fifty stays, so there may be arrivals
-                this queue does not show.
+              <p className="border-border border-t px-4 py-3 text-sm text-muted-foreground">
+                Showing the first fifty arrivals.
               </p>
             ) : null}
           </RovingFocusGroup>
-        </div>
+        </DataTableFrame>
       ) : null}
     </div>
   );
@@ -241,7 +248,7 @@ function ArrivalRow({
       <tr
         {...roving}
         aria-expanded={open}
-        className="border-border hover:bg-accent/40 focus-visible:bg-accent/40 border-b"
+        className="border-border border-b transition-colors duration-150 ease-ui hover:bg-accent-soft/60 focus-visible:bg-accent-soft/60"
         onKeyDown={(event) => {
           // Only the row's own press. Once the sequence is open the operator is
           // typing inside it, and every Enter in there bubbles through here on
@@ -263,7 +270,7 @@ function ArrivalRow({
         }}
       >
         {row.getVisibleCells().map((cell) => (
-          <td key={cell.id} className="px-3 py-2">
+          <td key={cell.id} className="px-4 py-3">
             {flexRender(cell.column.columnDef.cell, cell.getContext())}
           </td>
         ))}
@@ -325,7 +332,7 @@ function arrivalColumns(): ColumnDef<Arrival>[] {
       id: "stay",
       header: "Nights",
       accessorFn: (arrival) =>
-        `${formatShortDate(arrival.checkIn)} – ${formatShortDate(arrival.checkOut)}`,
+        `${formatShortDate(arrival.checkIn)} to ${formatShortDate(arrival.checkOut)}`,
     },
     {
       id: "room",

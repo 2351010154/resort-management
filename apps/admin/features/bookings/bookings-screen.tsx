@@ -7,11 +7,21 @@ import {
   type Row,
   useReactTable,
 } from "@tanstack/react-table";
+import { PlusIcon, SearchIcon } from "lucide-react";
 import type * as React from "react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 
+import {
+  DataTableFrame,
+  EmptyState,
+  FilterBar,
+  KeyHint,
+  PageHeader,
+  StatusChip,
+} from "@/components/console";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useStaffSession } from "@/lib/auth";
 import { formatLongDate, formatShortDate } from "@/lib/business-date";
 import {
@@ -198,98 +208,110 @@ export function BookingsScreen() {
   }
 
   return (
-    <div className="p-rhythm-3">
-      <header>
-        <p className="text-muted-foreground text-xs tracking-caps uppercase">
-          Front desk
-        </p>
-        <h1 className="font-display text-display-sm mt-2">Bookings</h1>
-        <p className="text-muted-foreground mt-rhythm-1 border-border border-t pt-2">
-          {criteria !== null
-            ? "The stays matching this search."
+    <div className="mx-auto w-full max-w-[1600px] p-4 sm:p-6 lg:p-8">
+      <PageHeader
+        title="Bookings"
+        description={
+          criteria !== null
+            ? "Stays matching this search."
             : businessDate === null
-              ? "Reading the property's day."
-              : `Stays occupying the property on ${formatLongDate(businessDate)} — arriving, in house and leaving.`}
-        </p>
-      </header>
+              ? "Reading the hotel day."
+              : `Arriving, in-house, and departing stays for ${formatLongDate(businessDate)}.`
+        }
+        actions={
+          mayCreate ? (
+            <Button type="button" onClick={openPanel}>
+              <PlusIcon aria-hidden="true" />
+              New booking
+              <KeyHint>N</KeyHint>
+            </Button>
+          ) : undefined
+        }
+      />
 
-      <form
-        className="mt-rhythm-2"
+      <FilterBar
+        className="mt-6"
+        fieldsClassName="lg:grid-cols-5"
+        actions={
+          <>
+            <Button type="submit">
+              <SearchIcon aria-hidden="true" />
+              Search
+            </Button>
+            {criteria === null ? null : (
+              <Button type="button" variant="ghost" onClick={backToToday}>
+                Today
+              </Button>
+            )}
+          </>
+        }
+        result={
+          <span>{list.status === "ready" ? `${stays.length} stays` : ""}</span>
+        }
         onSubmit={(event) => {
           event.preventDefault();
           runSearch();
         }}
       >
-        <div className="grid gap-3 sm:grid-cols-5">
-          <SearchField
-            label="Reference"
-            value={fields.reference}
-            inputRef={searchField}
-            placeholder="BK-1042"
-            onChange={(reference) => {
-              setFields((current) => ({ ...current, reference }));
-            }}
-          />
-          <SearchField
-            label="Guest name"
-            value={fields.guestName}
-            onChange={(guestName) => {
-              setFields((current) => ({ ...current, guestName }));
-            }}
-          />
-          <SearchField
-            label="Telephone"
-            value={fields.guestPhone}
-            onChange={(guestPhone) => {
-              setFields((current) => ({ ...current, guestPhone }));
-            }}
-          />
-          <SearchField
-            label="From"
-            value={fields.from}
-            placeholder="15/3"
-            onChange={(from) => {
-              setFields((current) => ({ ...current, from }));
-            }}
-          />
-          <SearchField
-            label="To"
-            value={fields.to}
-            placeholder="+2d"
-            onChange={(to) => {
-              setFields((current) => ({ ...current, to }));
-            }}
-          />
-        </div>
+        <SearchField
+          label="Reference"
+          value={fields.reference}
+          inputRef={searchField}
+          placeholder="BK-1042"
+          onChange={(reference) => {
+            setFields((current) => ({ ...current, reference }));
+          }}
+        />
+        <SearchField
+          label="Guest name"
+          value={fields.guestName}
+          onChange={(guestName) => {
+            setFields((current) => ({ ...current, guestName }));
+          }}
+        />
+        <SearchField
+          label="Telephone"
+          value={fields.guestPhone}
+          onChange={(guestPhone) => {
+            setFields((current) => ({ ...current, guestPhone }));
+          }}
+        />
+        <SearchField
+          label="From"
+          value={fields.from}
+          placeholder="15/3"
+          onChange={(from) => {
+            setFields((current) => ({ ...current, from }));
+          }}
+        />
+        <SearchField
+          label="To"
+          value={fields.to}
+          placeholder="+2d"
+          onChange={(to) => {
+            setFields((current) => ({ ...current, to }));
+          }}
+        />
+      </FilterBar>
 
-        {problem === null ? null : (
-          <p className="border-destructive text-destructive mt-rhythm-1 border-l-2 pl-3 text-sm">
-            {problem}
-          </p>
-        )}
+      {problem === null ? null : (
+        <p
+          className="mt-3 border-danger border-l-2 pl-3 text-sm text-danger"
+          role="alert"
+        >
+          {problem}
+        </p>
+      )}
 
-        <div className="mt-rhythm-1 flex flex-wrap items-center gap-3">
-          <Button type="submit">Search</Button>
-          {criteria === null ? null : (
-            <Button type="button" variant="ghost" onClick={backToToday}>
-              Back to today
-            </Button>
-          )}
-          {mayCreate ? (
-            <Button type="button" variant="ghost" onClick={openPanel}>
-              New booking
-            </Button>
-          ) : null}
-          <span className="text-muted-foreground text-xs">
-            {mayCreate
-              ? "/ searches · n takes a booking"
-              : "/ searches. Bookings are read-only for this account."}
-          </span>
-        </div>
-      </form>
+      <p className="mt-3 text-xs text-muted-foreground">
+        <KeyHint>/</KeyHint> searches
+        {mayCreate
+          ? " · New booking is also available with N."
+          : " · Read-only access."}
+      </p>
 
       {creating && businessDate !== null ? (
-        <div className="border-border mt-rhythm-2 border">
+        <div className="mt-6 overflow-hidden rounded-lg bg-card shadow-raised">
           <NewBookingForm
             businessDate={businessDate}
             rooms={rooms}
@@ -300,40 +322,49 @@ export function BookingsScreen() {
       ) : null}
 
       {list.status === "pending" ? (
-        <p className="text-muted-foreground mt-rhythm-2 text-sm" aria-busy>
-          Reading the bookings.
-        </p>
+        <div className="mt-6 space-y-2" aria-busy>
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-12 w-full" />
+        </div>
       ) : null}
 
       {list.status === "failed" ? (
         // The console's error device is a rule on the leading edge rather than
         // a colour: --color-destructive and --color-primary are the same umber.
-        <p className="border-destructive text-destructive mt-rhythm-2 border-l-2 pl-3 text-sm">
+        <p
+          className="mt-6 border-danger border-l-2 pl-3 text-sm text-danger"
+          role="alert"
+        >
           The bookings could not be read. Nothing here is a statement about
           which stays the property has.
         </p>
       ) : null}
 
       {list.status === "ready" && stays.length === 0 ? (
-        <p className="text-muted-foreground mt-rhythm-2 text-sm">
-          {criteria === null
-            ? "No stay occupies the property today."
-            : "No stay matches. A name or a telephone number finds a stay only once somebody has been registered on it at check-in — before that, search by reference or by dates."}
-        </p>
+        <EmptyState
+          className="mt-6"
+          title={criteria === null ? "No stays today" : "No matching stays"}
+          description={
+            criteria === null
+              ? "No stay occupies the hotel today."
+              : "Try a reference or a shorter date range. Guest details appear after registration."
+          }
+        />
       ) : null}
 
       {list.status === "ready" && stays.length > 0 ? (
         // The wrapper carries the ref rather than the group: the group spreads
         // the props it does not name onto its own container, and a `ref` passed
         // through would replace the one its arrow handling reads the list from.
-        <div className="mt-rhythm-2">
+        <DataTableFrame className="mt-6 overflow-x-auto">
           <RovingFocusGroup
             // The table already says what it is, so the group claims nothing
             // over it — `roving-focus.tsx`'s own note about a queue of rows.
             role="presentation"
           >
-            <table className="w-full border-collapse text-sm">
-              <caption className="text-muted-foreground mb-rhythm-1 text-left text-xs">
+            <table className="w-full min-w-[860px] border-collapse text-sm">
+              <caption className="px-4 py-3 text-left text-xs text-muted-foreground">
                 {/* Said rather than implied, because a row here opens nothing:
                     an operator who has arrowed onto a stay and pressed Enter is
                     owed the reason nothing happened, and the reason is that the
@@ -343,12 +374,15 @@ export function BookingsScreen() {
               </caption>
               <thead>
                 {table.getHeaderGroups().map((group) => (
-                  <tr key={group.id} className="border-border border-b">
+                  <tr
+                    key={group.id}
+                    className="border-border border-b bg-surface-muted/70"
+                  >
                     {group.headers.map((header) => (
                       <th
                         key={header.id}
                         scope="col"
-                        className="text-muted-foreground px-3 py-2 text-left text-xs font-normal tracking-caps uppercase"
+                        className="px-4 py-3 text-left text-xs font-semibold tracking-[0.06em] text-muted-foreground uppercase"
                       >
                         {flexRender(
                           header.column.columnDef.header,
@@ -367,14 +401,12 @@ export function BookingsScreen() {
             </table>
 
             {list.truncated ? (
-              <p className="text-muted-foreground mt-rhythm-1 text-sm">
-                The search answers at most fifty stays and has no second page,
-                so there may be stays this list does not show. Narrow it with a
-                reference or a shorter range of dates.
+              <p className="border-border border-t px-4 py-3 text-sm text-muted-foreground">
+                Showing the first fifty stays. Narrow the dates to find more.
               </p>
             ) : null}
           </RovingFocusGroup>
-        </div>
+        </DataTableFrame>
       ) : null}
     </div>
   );
@@ -387,10 +419,10 @@ function BookingRow({ row }: { row: Row<Stay> }) {
   return (
     <tr
       {...roving}
-      className="border-border hover:bg-accent/40 focus-visible:bg-accent/40 border-b"
+      className="border-border border-b transition-colors duration-150 ease-ui hover:bg-accent-soft/60 focus-visible:bg-accent-soft/60"
     >
       {row.getVisibleCells().map((cell) => (
-        <td key={cell.id} className="px-3 py-2">
+        <td key={cell.id} className="px-4 py-3">
           {flexRender(cell.column.columnDef.cell, cell.getContext())}
         </td>
       ))}
@@ -435,6 +467,21 @@ function bookingColumns(): ColumnDef<Stay>[] {
       id: "state",
       header: "State",
       accessorFn: (stay) => stay.state,
+      cell: (context) => {
+        const state = context.getValue<string>();
+        const tone =
+          state === "CHECKED_IN"
+            ? "success"
+            : state === "CONFIRMED"
+              ? "info"
+              : state === "CANCELLED"
+                ? "danger"
+                : "neutral";
+
+        return (
+          <StatusChip tone={tone}>{state.replaceAll("_", " ")}</StatusChip>
+        );
+      },
     },
     {
       id: "roomType",
@@ -445,7 +492,7 @@ function bookingColumns(): ColumnDef<Stay>[] {
       id: "stay",
       header: "Nights",
       accessorFn: (stay) =>
-        `${formatShortDate(stay.checkIn)} – ${formatShortDate(stay.checkOut)}`,
+        `${formatShortDate(stay.checkIn)} to ${formatShortDate(stay.checkOut)}`,
     },
     {
       id: "room",
@@ -480,7 +527,7 @@ function SearchField({
     <div>
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-xs tracking-caps uppercase"
+        className="block text-xs font-semibold text-muted-foreground"
       >
         {label}
       </label>
