@@ -5,6 +5,7 @@ import { hotkeyId } from "@/lib/keyboard/chord";
 
 import {
   isActivePath,
+  NAV_GROUPS,
   NAV_ITEMS,
   NAV_PREFIX,
   navCommandId,
@@ -43,6 +44,14 @@ describe("the navigation inventory", () => {
   it("offers every entry to at least one role", () => {
     for (const item of NAV_ITEMS) {
       expect(item.roles.length).toBeGreaterThan(0);
+    }
+  });
+
+  it("places every entry in one declared operational group", () => {
+    const groups = new Set(NAV_GROUPS.map((group) => group.id));
+
+    for (const item of NAV_ITEMS) {
+      expect(groups.has(item.group)).toBe(true);
     }
   });
 
