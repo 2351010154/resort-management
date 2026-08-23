@@ -10,17 +10,32 @@ presentation layer is local to this app.
 
 ## The theme
 
-`app/console-tokens.css` owns the admin-only visual vocabulary. It uses mineral
-surfaces, a deep spruce rail, a clay-amber action accent, and explicit semantic
-status colours. `app/globals.css` maps those values into Tailwind 4 and loads
-Figtree as the console's one type family. The guest site and
-`packages/tokens/tokens.css` are deliberately outside this boundary.
+`app/console-tokens.css` owns the admin-only visual vocabulary, and it is the
+brand's colours wearing console names. The nine anchors at the top of that file
+are `packages/tokens/tokens.css` — same names, same values — restated rather
+than imported, because that package also carries a type ramp (`--text-base`,
+`--text-lg`) which the console overrides in `globals.css`, and an unlayered
+`:root` import would beat Tailwind's layered `@theme` and resize every screen.
+Restating the palette costs one file to keep level; importing it would cost the
+type scale. **Change a colour in the tokens package first.**
 
-Tailwind's stock colour and font namespaces are cleared so screens use semantic
-names such as `background`, `card`, `nav`, `accent-soft`, `success`, `warning`,
-and `danger`. Focus is a single three-pixel accent outline. Operational motion
-is limited to state transitions and loading skeletons; there is no route or
-surface entrance animation.
+What the console adds on top is vocabulary a hotel front page does not need: a
+card above the ground, two border weights, and four status colours. Every pair
+a screen can draw is checked against WCAG AA and the ratio is written beside
+the value that earns it. Two of those checks decided a token — `--dusk-amber`
+is 2.7:1 on ivory, so the accent cannot be a focus ring or a solid button. It
+is a marker, a fill and a tint; `--console-accent-line` is the ring and
+`--console-accent-strong` is amber as text. Solid controls are umber.
+
+`app/globals.css` maps those values into Tailwind 4 and loads Figtree as the
+console's one type family. Tailwind's stock colour and font namespaces are
+cleared so screens use semantic names such as `background`, `card`, `nav`,
+`accent-soft`, `accent-mark`, `line`, `success`, `warning`, and `danger`. Note
+that `primary` is its own token rather than the rail's: the rail is light, and a
+button mapped to it would be ivory carrying umber text. Focus is a single
+three-pixel outline in `accent-line`. Operational motion is limited to state
+transitions and loading skeletons; there is no route or surface entrance
+animation.
 
 ## Primitives
 
