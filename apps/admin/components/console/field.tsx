@@ -24,7 +24,7 @@ function Field({
     <div data-slot="field" className={cn("min-w-0", className)} {...props}>
       <label
         htmlFor={htmlFor}
-        className="mb-1.5 block text-xs font-semibold text-muted-foreground"
+        className="mb-1.5 block text-sm font-semibold text-muted-foreground"
       >
         {label}
       </label>
@@ -33,7 +33,7 @@ function Field({
         <p
           id={`${htmlFor}-message`}
           className={cn(
-            "mt-1 text-xs text-muted-foreground",
+            "mt-1 text-sm text-muted-foreground",
             error && "text-danger",
           )}
         >

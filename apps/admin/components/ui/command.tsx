@@ -166,14 +166,14 @@ function CommandGroup({
     <CommandPrimitive.Group
       data-slot="command-group"
       /* The heading is the caps caption the brand already uses to label a
-       * block — `tracking-caps` at the small step, in the muted foreground —
+       * block — `` at the small step, in the muted foreground —
        * rather than a second, palette-only treatment for the same job.
        *
        * It is styled through cmdk's own `[cmdk-group-heading]` attribute
        * because cmdk renders that element itself from the `heading` prop, so
        * there is no component here to hang a class on. */
       className={cn(
-        "overflow-hidden p-1 text-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:tracking-caps [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:uppercase",
+        "overflow-hidden p-1 text-foreground [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-sm [&_[cmdk-group-heading]]: [&_[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-group-heading]]:uppercase",
         className,
       )}
       {...props}
@@ -228,10 +228,7 @@ function CommandShortcut({
     <span
       data-slot="command-shortcut"
       aria-hidden="true"
-      className={cn(
-        "ml-auto text-xs tracking-caps text-muted-foreground",
-        className,
-      )}
+      className={cn("ml-auto text-sm  text-muted-foreground", className)}
       {...props}
     />
   );

@@ -140,7 +140,7 @@ export function GuestsScreen() {
     <div className="mx-auto w-full max-w-[1600px] p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="Guests"
-        description="Find a guest by name or telephone. Identity details stay masked until revealed."
+        description="Find guests by name or telephone. Identity details stay masked."
       />
 
       <FilterBar
@@ -183,7 +183,7 @@ export function GuestsScreen() {
         </p>
       )}
 
-      <p className="mt-3 text-xs text-muted-foreground">
+      <p className="mt-3 text-sm text-muted-foreground">
         <KeyHint>/</KeyHint> focuses search. Identity numbers are not
         searchable.
       </p>
@@ -298,7 +298,7 @@ function GuestRow({
         )}
       >
         <span className="font-semibold">{guest.fullName}</span>
-        <span className="text-xs text-muted-foreground">
+        <span className="text-sm text-muted-foreground">
           {/* What distinguishes one candidate from another, which is what the
               search is allowed to disclose. The masked number is here because
               two people with one name are told apart by it at the desk, with a
@@ -353,7 +353,7 @@ function GuestDetail({ guest, role }: { guest: GuestHit; role: StaffRole }) {
 
           <IdentityNumber record={record.data} role={role} />
 
-          <p className="text-muted-foreground mt-rhythm-2 text-xs">
+          <p className="text-muted-foreground mt-4 text-sm">
             {/* Said rather than implied: an operator looking for a stay list or
                 a scan on this screen is owed the reason there is none. */}
             This record is the person, not their stays — a guest's bookings are
@@ -393,7 +393,7 @@ function IdentityNumber({
 
   if (record.cccdMasked === null) {
     return (
-      <section className="mt-rhythm-2">
+      <section className="mt-4">
         <h3 className="text-sm">Identity number</h3>
         <p className="text-muted-foreground mt-1 text-sm">
           None on file. It is taken from the document at check-in.
@@ -417,10 +417,10 @@ function IdentityNumber({
   }
 
   return (
-    <section className="mt-rhythm-2">
+    <section className="mt-4">
       <h3 className="text-sm">Identity number</h3>
 
-      <p className="mt-1 font-mono text-lg">
+      <p className="mt-1 tabular-nums text-lg">
         {/* In place: the masked value and the revealed one occupy the same line,
             so an operator reading a document against the screen does not have
             to look somewhere else once they have pressed. */}
@@ -428,20 +428,20 @@ function IdentityNumber({
       </p>
 
       {revealed === undefined ? null : (
-        <p className="text-muted-foreground mt-1 text-xs">
+        <p className="text-muted-foreground mt-1 text-sm">
           {revealNotice(revealed)} It is masked again as soon as you leave this
           record, and reading it a second time is a second entry.
         </p>
       )}
 
       {!mayRevealCccd(role) ? (
-        <p className="text-muted-foreground mt-rhythm-1 text-xs">
+        <p className="text-muted-foreground mt-2 text-sm">
           Reading the number itself is the desk's act, and a manager's. This
           account reads the record with the number masked.
         </p>
       ) : revealed === undefined ? (
         <form
-          className="mt-rhythm-1 flex flex-wrap items-end gap-2"
+          className="mt-2 flex flex-wrap items-end gap-2"
           onSubmit={(event) => {
             event.preventDefault();
             press();
@@ -450,7 +450,7 @@ function IdentityNumber({
           <Field
             label="Reason"
             value={reason}
-            hint="Optional — checking a document, a police request. Who looked and when is recorded either way."
+            hint="Optional. Every reveal is recorded."
             onChange={(typed) => {
               setReason(typed);
               setProblem(null);
@@ -463,7 +463,7 @@ function IdentityNumber({
       ) : null}
 
       {problem === null ? null : (
-        <p className="border-destructive text-destructive mt-rhythm-1 border-l-2 pl-3 text-sm">
+        <p className="border-destructive text-destructive mt-2 border-l-2 pl-3 text-sm">
           {problem}
         </p>
       )}
@@ -493,7 +493,7 @@ function Field({
     <div>
       <label
         htmlFor={fieldId}
-        className="block text-xs font-semibold text-muted-foreground"
+        className="block text-sm font-semibold text-muted-foreground"
       >
         {label}
       </label>
@@ -508,7 +508,7 @@ function Field({
         }}
       />
       {hint === undefined ? null : (
-        <p className="text-muted-foreground mt-1 max-w-64 text-xs">{hint}</p>
+        <p className="text-muted-foreground mt-1 max-w-64 text-sm">{hint}</p>
       )}
     </div>
   );
@@ -517,7 +517,7 @@ function Field({
 function Fact({ fact }: { fact: GuestFact }) {
   return (
     <div>
-      <dt className="text-xs font-semibold text-muted-foreground">
+      <dt className="text-sm font-semibold text-muted-foreground">
         {fact.label}
       </dt>
       <dd>{fact.value}</dd>

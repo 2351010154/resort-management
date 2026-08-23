@@ -134,7 +134,7 @@ export function RoomsScreen() {
             <Field
               label="Find a room"
               value={query}
-              hint="A number, a type, or a condition — 402, deluxe, out of order."
+              hint="Number, type, or condition."
               onChange={setQuery}
             />
 
@@ -152,7 +152,7 @@ export function RoomsScreen() {
             >
               {shown.map((group) => (
                 <section key={group.roomType}>
-                  <h2 className="px-2 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+                  <h2 className="px-2 text-sm font-semibold  text-muted-foreground uppercase">
                     {/* The code as the contract spells it. The console names room
                       types this way on every other screen — arrivals' "Sold as"
                       column, the new booking form's choices — and a second
@@ -267,7 +267,7 @@ function RoomDetail({
           <BedDoubleIcon aria-hidden="true" className="size-5" />
         </span>
         <span>
-          <span className="block text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+          <span className="block text-sm font-semibold  text-muted-foreground uppercase">
             Room
           </span>
           <h2 className="text-2xl font-semibold leading-8 tabular-nums">
@@ -304,7 +304,7 @@ function RoomDetail({
         ) : null}
       </dl>
 
-      <p className="mx-5 border-border border-t pt-4 text-xs text-muted-foreground">
+      <p className="mx-5 border-border border-t pt-4 text-sm text-muted-foreground">
         Guest details stay with the booking. Room catalogue changes are not
         available here.
       </p>
@@ -376,7 +376,7 @@ function OutOfOrderControl({
           >
             Return to service
           </Button>
-          <p className="mt-2 text-xs text-muted-foreground">
+          <p className="mt-2 text-sm text-muted-foreground">
             The room returns as dirty for housekeeping release.
           </p>
         </div>
@@ -522,7 +522,7 @@ function ClosureControl({
       </form>
 
       {attempt !== null && "input" in attempt ? (
-        <p className="mt-rhythm-1 text-sm">
+        <p className="mt-2 text-sm">
           Withdraws {attempt.nights} {attempt.nights === 1 ? "night" : "nights"}{" "}
           of {room.roomType} from sale, from{" "}
           {formatShortDate(attempt.input.checkIn)} up to{" "}
@@ -537,7 +537,7 @@ function ClosureControl({
       )}
 
       {closeRoom.data === undefined ? null : (
-        <p className="text-muted-foreground mt-rhythm-1 text-sm">
+        <p className="text-muted-foreground mt-2 text-sm">
           Closed {formatLongDate(closeRoom.data.checkIn)} to{" "}
           {formatLongDate(closeRoom.data.checkOut)}:{" "}
           {closeRoom.data.nightsWithdrawn} nights withdrawn from sale.
@@ -567,7 +567,7 @@ function Field({
     <div>
       <label
         htmlFor={fieldId}
-        className="block text-xs font-semibold text-muted-foreground"
+        className="block text-sm font-semibold text-muted-foreground"
       >
         {label}
       </label>
@@ -580,7 +580,7 @@ function Field({
         }}
       />
       {hint === undefined ? null : (
-        <p className="text-muted-foreground mt-1 max-w-64 text-xs">{hint}</p>
+        <p className="text-muted-foreground mt-1 max-w-64 text-sm">{hint}</p>
       )}
     </div>
   );
@@ -589,7 +589,7 @@ function Field({
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-xs font-semibold text-muted-foreground">{label}</dt>
+      <dt className="text-sm font-semibold text-muted-foreground">{label}</dt>
       <dd>{value}</dd>
     </div>
   );

@@ -188,7 +188,7 @@ export function DeparturesScreen() {
                       <th
                         key={header.id}
                         scope="col"
-                        className="px-4 py-3 text-left text-xs font-semibold tracking-[0.06em] text-muted-foreground uppercase"
+                        className="px-4 py-3 text-left text-sm font-semibold  text-muted-foreground uppercase"
                       >
                         {flexRender(
                           header.column.columnDef.header,
@@ -324,7 +324,7 @@ function departureColumns(): ColumnDef<Departure>[] {
       header: "Stay",
       accessorFn: (departure) => departure.reference,
       cell: (context) => (
-        <span className="font-mono">{context.getValue<string>()}</span>
+        <span className="tabular-nums">{context.getValue<string>()}</span>
       ),
     },
     {

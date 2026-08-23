@@ -8,8 +8,16 @@ import {
 import type * as React from "react";
 import { useId, useMemo, useRef, useState } from "react";
 
+import {
+  DataTableFrame,
+  EmptyState,
+  KeyHint,
+  PageHeader,
+} from "@/components/console";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useCommands } from "@/features/command-palette";
 /* The console's one rendering of an instant in the property's zone — the same
  * formatter a folio attributes a posting with, so the moment a change was made
@@ -240,28 +248,20 @@ export function AuditScreen() {
   }
 
   return (
-    <div className="p-rhythm-3">
-      <header>
-        <p className="text-muted-foreground text-xs tracking-caps uppercase">
-          Record
-        </p>
-        <h1 className="font-display text-display-sm mt-2">Audit</h1>
-        <p className="text-muted-foreground mt-rhythm-1 border-border border-t pt-2">
-          Who changed protected state, when, and what the row looked like on
-          either side of it. Every entry is written once and never edited —
-          there is no control on this screen that corrects one, because a log
-          with a correction route is not a log.
-        </p>
-      </header>
+    <div className="mx-auto w-full max-w-[1600px] p-4 sm:p-6 lg:p-8">
+      <PageHeader
+        title="Audit"
+        description="Who changed protected state, when, and what moved."
+      />
 
       {!offered ? (
-        <p className="text-muted-foreground mt-rhythm-2 max-w-prose text-sm">
+        <p className="text-muted-foreground mt-4 max-w-prose text-sm">
           Reviewing who changed what is the accountant's work, and management's.
           The desk's own day is reviewed on Shifts — the drawer, the count and
           what the last shift handed over.
         </p>
       ) : propertyDay.isError ? (
-        <p className="border-destructive text-destructive mt-rhythm-2 border-l-2 pl-3 text-sm">
+        <p className="border-destructive text-destructive mt-4 border-l-2 pl-3 text-sm">
           The property's day could not be read, and a day typed into the filters
           is counted from it. Nothing is shown rather than a day this console
           guessed at.
@@ -269,7 +269,7 @@ export function AuditScreen() {
       ) : (
         <>
           <form
-            className="mt-rhythm-2"
+            className="mt-6 rounded-lg bg-card p-4 shadow-card"
             onSubmit={(event) => {
               event.preventDefault();
               ask(fields, 0);
@@ -326,12 +326,12 @@ export function AuditScreen() {
             </div>
 
             {problem === null ? null : (
-              <p className="border-destructive text-destructive mt-rhythm-1 border-l-2 pl-3 text-sm">
+              <p className="border-destructive text-destructive mt-2 border-l-2 pl-3 text-sm">
                 {problem}
               </p>
             )}
 
-            <div className="mt-rhythm-1 flex flex-wrap items-center gap-3">
+            <div className="mt-2 flex flex-wrap items-center gap-3">
               <Button type="submit">Show changes</Button>
               {exportsTheLog ? (
                 /* The label changes as well as the control disabling: a file of
@@ -347,15 +347,17 @@ export function AuditScreen() {
                   {logExport.isPending ? "Writing the file" : "Export to Excel"}
                 </Button>
               ) : null}
-              <span className="text-muted-foreground text-xs">
+              <span className="text-muted-foreground flex flex-wrap items-center gap-2 text-sm">
                 {/* Said rather than implied: the pair is an address, and the
                     index behind it is on both halves. */}
-                / reaches the day · a record is a type and a row together
+                <KeyHint>/</KeyHint>
+                <span>First day</span>
+                <span>Type and record form one result</span>
               </span>
             </div>
           </form>
 
-          <div className="mt-rhythm-2 grid gap-rhythm-2 lg:grid-cols-[1fr_26rem]">
+          <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_420px]">
             <ChangeTable
               page={page}
               opened={opened}
@@ -387,9 +389,11 @@ function ChangeTable({
 }) {
   if (page.status === "idle" || page.status === "pending") {
     return (
-      <p className="text-muted-foreground text-sm" aria-busy>
-        Reading the change log.
-      </p>
+      <div className="space-y-2" aria-busy>
+        <Skeleton className="h-12" />
+        <Skeleton className="h-12" />
+        <Skeleton className="h-12" />
+      </div>
     );
   }
 
@@ -397,29 +401,30 @@ function ChangeTable({
     // The console's error device is a rule on the leading edge rather than a
     // colour: --color-destructive and --color-primary are the same umber.
     return (
-      <p className="border-destructive text-destructive border-l-2 pl-3 text-sm">
-        The change log could not be read. Nothing here is a statement about what
-        the property has or has not changed.
+      <p
+        className="border-danger border-l-2 pl-3 text-sm text-danger"
+        role="alert"
+      >
+        The change log could not be loaded.
       </p>
     );
   }
 
   return (
-    <div>
-      <p className="text-muted-foreground mb-rhythm-1 text-xs">
+    <DataTableFrame className="overflow-x-auto p-4">
+      <p className="text-muted-foreground mb-2 text-sm">
         {SCOPE_NOTES[page.scope]}
       </p>
 
       {page.entries.length === 0 ? (
-        <p className="text-muted-foreground text-sm">
-          No change matches. A stretch in which nothing protected was touched is
-          an ordinary stretch — and a record type outside this log's scope has
-          nothing in it to show either.
-        </p>
+        <EmptyState
+          title="No matching changes"
+          description="Try a wider date range or fewer record filters."
+        />
       ) : (
         <>
-          <table className="w-full border-collapse text-sm">
-            <caption className="text-muted-foreground mb-rhythm-1 text-left text-xs">
+          <table className="w-full min-w-[760px] border-collapse text-sm">
+            <caption className="text-muted-foreground mb-2 text-left text-sm">
               Every change the filters matched, newest first. Press a row to
               read the whole record on either side of it.
             </caption>
@@ -443,8 +448,8 @@ function ChangeTable({
             </tbody>
           </table>
 
-          <div className="mt-rhythm-1 flex flex-wrap items-center gap-3">
-            <p className="text-muted-foreground text-xs">
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            <p className="text-muted-foreground text-sm">
               {page.window.first}–{page.window.last} of {page.window.total}
             </p>
             <Button
@@ -470,7 +475,7 @@ function ChangeTable({
           </div>
         </>
       )}
-    </div>
+    </DataTableFrame>
   );
 }
 
@@ -497,7 +502,7 @@ function ChangeRowCells({
       <td className="px-3 py-1">
         <span>{actorLabel(change)}</span>
         {change.actorId === null ? null : (
-          <p className="text-muted-foreground font-mono text-xs">
+          <p className="text-muted-foreground tabular-nums text-sm">
             {change.actorId}
           </p>
         )}
@@ -506,8 +511,8 @@ function ChangeRowCells({
         {ACTION_LABELS[change.action]}
       </td>
       <td className="py-1 pl-3 last:pr-0">
-        <p className="font-mono text-xs">{change.tableName}</p>
-        <p className="text-muted-foreground font-mono text-xs">
+        <p className="tabular-nums text-sm">{change.tableName}</p>
+        <p className="text-muted-foreground tabular-nums text-sm">
           {change.rowId}
         </p>
         <Button
@@ -537,21 +542,21 @@ function ChangePanel({ reading }: { reading: ChangeReading }) {
 
   if (reading.status === "closed") {
     return (
-      <aside className="text-muted-foreground text-sm">
-        <p className="text-xs tracking-caps uppercase">The change</p>
-        <p className="mt-rhythm-1">
+      <Card className="p-5 text-sm text-muted-foreground">
+        <p className="text-sm  uppercase">The change</p>
+        <p className="mt-2">
           Press a row to read the record it names, column by column, on either
           side of the change. The columns that moved come first.
         </p>
-      </aside>
+      </Card>
     );
   }
 
   if (reading.status === "pending") {
     return (
-      <aside className="text-muted-foreground text-sm" aria-busy>
+      <Card className="p-5 text-sm text-muted-foreground" aria-busy>
         Reading the record.
-      </aside>
+      </Card>
     );
   }
 
@@ -560,10 +565,10 @@ function ChangePanel({ reading }: { reading: ChangeReading }) {
     // fault: an entry outside a narrowed reader's scope answers as no such
     // entry, which `contract/audit.ts` argues is the honest shape.
     return (
-      <aside className="border-destructive text-destructive border-l-2 pl-3 text-sm">
+      <Card className="border-danger border-l-2 p-5 text-sm text-danger">
         That change could not be read. It is either not in this log or no longer
         in the property's records.
-      </aside>
+      </Card>
     );
   }
 
@@ -571,18 +576,16 @@ function ChangePanel({ reading }: { reading: ChangeReading }) {
   const moved = changedCount(change.fields);
 
   return (
-    <aside>
-      <p className="text-muted-foreground text-xs tracking-caps uppercase">
-        The change
-      </p>
-      <p className="mt-rhythm-1 text-sm">
+    <Card className="p-5">
+      <p className="text-muted-foreground text-sm  uppercase">The change</p>
+      <p className="mt-2 text-sm">
         {actorLabel(change)} · {ACTION_LABELS[change.action]} ·{" "}
         {formatInstant(change.occurredAt)}
       </p>
-      <p className="text-muted-foreground font-mono text-xs">
+      <p className="text-muted-foreground tabular-nums text-sm">
         {change.tableName} · {change.rowId}
       </p>
-      <p className="text-muted-foreground mt-rhythm-1 text-xs">
+      <p className="text-muted-foreground mt-2 text-sm">
         {/* Zero is a real answer and is still said: a change that moved no
             column is a write that recorded itself, and hiding the count would
             leave a reader scanning forty rows for something that is not
@@ -591,12 +594,12 @@ function ChangePanel({ reading }: { reading: ChangeReading }) {
         {change.fields.length}.
       </p>
 
-      <dl className="mt-rhythm-1 divide-border divide-y text-sm">
+      <dl className="mt-2 divide-border divide-y text-sm">
         {fields.map((field) => (
           <FieldRow key={field.column} field={field} />
         ))}
       </dl>
-    </aside>
+    </Card>
   );
 }
 
@@ -611,13 +614,13 @@ function ChangePanel({ reading }: { reading: ChangeReading }) {
 function FieldRow({ field }: { field: ChangedField }) {
   return (
     <div className={cn("py-2", field.changed ? null : "text-muted-foreground")}>
-      <dt className="font-mono text-xs">
+      <dt className="tabular-nums text-sm">
         {field.column}
         {field.changed ? null : (
-          <span className="ml-2 tracking-caps uppercase">unchanged</span>
+          <span className="ml-2  uppercase">unchanged</span>
         )}
       </dt>
-      <dd className="mt-1 font-mono text-xs break-all">
+      <dd className="mt-1 tabular-nums text-sm break-all">
         {field.changed ? (
           <>
             <span className="line-through">{valueLabel(field.before)}</span>
@@ -640,7 +643,7 @@ function Column({ children }: { children: React.ReactNode }) {
   return (
     <th
       scope="col"
-      className="text-muted-foreground py-1 text-left text-xs font-normal tracking-caps uppercase first:pl-0 last:pr-0"
+      className="text-muted-foreground py-1 text-left text-sm font-normal  uppercase first:pl-0 last:pr-0"
     >
       {children}
     </th>
@@ -669,7 +672,7 @@ function Field({
     <div>
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-xs tracking-caps uppercase"
+        className="text-muted-foreground block text-sm  uppercase"
       >
         {label}
       </label>
@@ -713,7 +716,7 @@ function Choice<T extends string>({
     <div>
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-xs tracking-caps uppercase"
+        className="text-muted-foreground block text-sm  uppercase"
       >
         {label}
       </label>

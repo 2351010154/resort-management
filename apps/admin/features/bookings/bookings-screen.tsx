@@ -303,7 +303,7 @@ export function BookingsScreen() {
         </p>
       )}
 
-      <p className="mt-3 text-xs text-muted-foreground">
+      <p className="mt-3 text-sm text-muted-foreground">
         <KeyHint>/</KeyHint> searches
         {mayCreate
           ? " · New booking is also available with N."
@@ -364,13 +364,19 @@ export function BookingsScreen() {
             role="presentation"
           >
             <table className="w-full min-w-[860px] border-collapse text-sm">
-              <caption className="px-4 py-3 text-left text-xs text-muted-foreground">
+              <caption className="px-4 py-3 text-left text-sm text-muted-foreground">
                 {/* Said rather than implied, because a row here opens nothing:
                     an operator who has arrowed onto a stay and pressed Enter is
                     owed the reason nothing happened, and the reason is that the
                     act belongs to the queue that owns it. */}
-                Arrow keys move between stays. Checking a guest in is Arrivals
-                (g a); checking one out is Departures (g e).
+                <span className="flex flex-wrap items-center gap-2">
+                  <KeyHint>↑↓</KeyHint>
+                  <span>Move stays</span>
+                  <KeyHint>g a</KeyHint>
+                  <span>Arrivals</span>
+                  <KeyHint>g e</KeyHint>
+                  <span>Departures</span>
+                </span>
               </caption>
               <thead>
                 {table.getHeaderGroups().map((group) => (
@@ -382,7 +388,7 @@ export function BookingsScreen() {
                       <th
                         key={header.id}
                         scope="col"
-                        className="px-4 py-3 text-left text-xs font-semibold tracking-[0.06em] text-muted-foreground uppercase"
+                        className="px-4 py-3 text-left text-sm font-semibold  text-muted-foreground uppercase"
                       >
                         {flexRender(
                           header.column.columnDef.header,
@@ -446,7 +452,7 @@ function bookingColumns(): ColumnDef<Stay>[] {
       header: "Stay",
       accessorFn: (stay) => stay.reference,
       cell: (context) => (
-        <span className="font-mono">{context.getValue<string>()}</span>
+        <span className="tabular-nums">{context.getValue<string>()}</span>
       ),
     },
     {
@@ -527,7 +533,7 @@ function SearchField({
     <div>
       <label
         htmlFor={fieldId}
-        className="block text-xs font-semibold text-muted-foreground"
+        className="block text-sm font-semibold text-muted-foreground"
       >
         {label}
       </label>

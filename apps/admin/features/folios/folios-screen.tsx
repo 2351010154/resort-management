@@ -232,7 +232,7 @@ export function FoliosScreen() {
         </p>
       )}
 
-      <p className="mt-3 text-xs text-muted-foreground">
+      <p className="mt-3 text-sm text-muted-foreground">
         <KeyHint>/</KeyHint> focuses filters. Balances always cover the full
         account.
       </p>
@@ -289,7 +289,7 @@ export function FoliosScreen() {
               </RovingFocusGroup>
 
               <div className="mt-3 flex flex-wrap items-center gap-2 border-border border-t px-2 pt-3">
-                <p className="text-muted-foreground text-xs">
+                <p className="text-muted-foreground text-sm">
                   {page.window.first}–{page.window.last} of {page.window.total}
                 </p>
                 <Button
@@ -371,13 +371,13 @@ function FolioRow({
           <span className="font-semibold">
             Opened {formatInstant(folio.openedAt)}
           </span>
-          <span className="text-muted-foreground text-xs">
+          <span className="text-muted-foreground text-sm">
             {FOLIO_STATE_LABELS[folio.state]}
           </span>
         </span>
         <span
           className={cn(
-            "font-mono text-xs",
+            "tabular-nums text-sm",
             short ? "text-destructive" : "text-muted-foreground",
           )}
         >
@@ -425,7 +425,7 @@ function FolioDetail({ account }: { account: ListedFolio }) {
             <h2 className="text-2xl font-semibold leading-8">
               {FOLIO_STATE_LABELS[folio.state]} account
             </h2>
-            <p className="text-muted-foreground mt-1 text-xs">
+            <p className="text-muted-foreground mt-1 text-sm">
               {/* When it opened, when it was agreed, and the stay it belongs
                   to. The stay is a uuid because that is the whole of what the
                   contract attaches to an account — there is no reference and no
@@ -436,9 +436,9 @@ function FolioDetail({ account }: { account: ListedFolio }) {
               {folio.closedAt === null
                 ? null
                 : ` · agreed ${formatInstant(folio.closedAt)}`}{" "}
-              · stay <span className="font-mono">{folio.bookingId}</span>
+              · stay <span className="tabular-nums">{folio.bookingId}</span>
             </p>
-            <dl className="mt-rhythm-1 grid gap-3 text-sm sm:grid-cols-3">
+            <dl className="mt-2 grid gap-3 text-sm sm:grid-cols-3">
               <Fact label="Charged" value={formatVnd(folio.summary.charged)} />
               <Fact label="Paid" value={formatVnd(folio.summary.credited)} />
               <Fact
@@ -451,8 +451,8 @@ function FolioDetail({ account }: { account: ListedFolio }) {
 
           <LedgerNotice folio={folio} lines={lines} />
 
-          <table className="mt-rhythm-1 w-full border-collapse text-sm">
-            <caption className="text-muted-foreground mb-rhythm-1 text-left text-xs">
+          <table className="mt-2 w-full border-collapse text-sm">
+            <caption className="text-muted-foreground mb-2 text-left text-sm">
               Every posting on the account, oldest first. A correction is a line
               of its own and the line it corrects is still here, with the amount
               it was written for.
@@ -480,7 +480,7 @@ function FolioDetail({ account }: { account: ListedFolio }) {
             </tbody>
           </table>
 
-          <p className="text-muted-foreground mt-rhythm-2 text-xs">
+          <p className="text-muted-foreground mt-4 text-sm">
             {/* Said rather than implied: an operator looking for a correction
                 control here is owed the reason there is none, and the reason is
                 that reviewing is this screen's whole job. */}
@@ -510,7 +510,7 @@ function LedgerNotice({
       {ledgerAgrees(lines, folio.summary) ? null : (
         // Two derivations of one figure disagreeing is not something to paint
         // over. `folio-ledger.ts` says why this is worth a rule down the side.
-        <p className="border-destructive text-destructive mt-rhythm-1 border-l-2 pl-3 text-sm">
+        <p className="border-destructive text-destructive mt-2 border-l-2 pl-3 text-sm">
           These lines do not come to the balance above them. Something has been
           lost between the account and this screen — check the folio against the
           API before acting on either figure.
@@ -518,7 +518,7 @@ function LedgerNotice({
       )}
 
       {corrections > 0 ? (
-        <p className="text-muted-foreground mt-rhythm-1 text-sm">
+        <p className="text-muted-foreground mt-2 text-sm">
           {corrections === 1
             ? "One correction stands on this account."
             : `${corrections} corrections stand on this account.`}{" "}
@@ -542,7 +542,7 @@ function LedgerRow({ line }: { line: LedgerLine }) {
       <td className={cn("px-3 py-1", levied ? "pl-6" : null)}>
         <span>{POSTING_LABELS[posting.type]}</span>
         {levied ? (
-          <span className="text-muted-foreground text-xs">
+          <span className="text-muted-foreground text-sm">
             {" "}
             · levied on the charge above
           </span>
@@ -550,13 +550,13 @@ function LedgerRow({ line }: { line: LedgerLine }) {
         <p className="text-muted-foreground">{posting.description}</p>
 
         {posting.chargeBasis === null ? null : (
-          <p className="text-muted-foreground text-xs">
+          <p className="text-muted-foreground text-sm">
             {CHARGE_BASIS_LABELS[posting.chargeBasis]}
           </p>
         )}
 
         {reverses === null ? null : (
-          <p className="text-xs">
+          <p className="text-sm">
             Reverses the {POSTING_LABELS[reverses.type].toLowerCase()} of{" "}
             {formatShortDate(reverses.businessDate)} —{" "}
             {formatVnd(reverses.amount)}. That line stays on the account.
@@ -564,19 +564,19 @@ function LedgerRow({ line }: { line: LedgerLine }) {
         )}
 
         {reversedBy === null ? null : (
-          <p className="text-xs">
+          <p className="text-sm">
             Reversed by a correction of{" "}
             {formatShortDate(reversedBy.businessDate)}. This line keeps the
             amount it was written for.
           </p>
         )}
 
-        <p className="text-muted-foreground text-xs">{postedLabel(posting)}</p>
+        <p className="text-muted-foreground text-sm">{postedLabel(posting)}</p>
       </td>
-      <td className="px-3 py-1 text-right font-mono whitespace-nowrap">
+      <td className="px-3 py-1 text-right tabular-nums whitespace-nowrap">
         {formatVnd(posting.amount)}
       </td>
-      <td className="text-muted-foreground py-1 pl-3 text-right font-mono whitespace-nowrap last:pr-0">
+      <td className="text-muted-foreground py-1 pl-3 text-right tabular-nums whitespace-nowrap last:pr-0">
         {formatVnd(line.runningTotal)}
       </td>
     </tr>
@@ -594,7 +594,7 @@ function Column({
     <th
       scope="col"
       className={cn(
-        "text-muted-foreground px-3 py-2 text-xs font-normal tracking-caps uppercase first:pl-0 last:pr-0",
+        "text-muted-foreground px-3 py-2 text-sm font-normal  uppercase first:pl-0 last:pr-0",
         align === "right" ? "text-right" : "text-left",
       )}
     >
@@ -623,7 +623,7 @@ function Field({
     <div>
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-xs tracking-caps uppercase"
+        className="text-muted-foreground block text-sm  uppercase"
       >
         {label}
       </label>
@@ -668,7 +668,7 @@ function Choice<T extends string>({
     <div>
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-xs tracking-caps uppercase"
+        className="text-muted-foreground block text-sm  uppercase"
       >
         {label}
       </label>
@@ -702,10 +702,8 @@ function Fact({
 }) {
   return (
     <div>
-      <dt className="text-muted-foreground text-xs tracking-caps uppercase">
-        {label}
-      </dt>
-      <dd className={cn("font-mono", loud ? "text-destructive" : null)}>
+      <dt className="text-muted-foreground text-sm  uppercase">{label}</dt>
+      <dd className={cn("tabular-nums", loud ? "text-destructive" : null)}>
         {value}
       </dd>
     </div>

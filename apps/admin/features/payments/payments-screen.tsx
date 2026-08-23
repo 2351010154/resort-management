@@ -298,7 +298,7 @@ export function PaymentsScreen() {
             </p>
           )}
 
-          <p className="mt-3 text-xs text-muted-foreground">
+          <p className="mt-3 text-sm text-muted-foreground">
             <KeyHint>/</KeyHint> focuses the trading day. Clear it to include
             attempts with no trading day.
           </p>
@@ -358,7 +358,7 @@ function ComparedNights({
       className="mt-6 rounded-lg bg-card p-4 shadow-card"
       aria-label="Nights already compared"
     >
-      <p className="text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+      <p className="text-sm font-semibold  text-muted-foreground uppercase">
         Compared
       </p>
       <ul className="mt-1 flex flex-wrap gap-2">
@@ -455,7 +455,7 @@ function PaymentTable({
   return (
     <DataTableFrame className="overflow-x-auto p-4">
       <table className="w-full min-w-[680px] border-collapse text-sm">
-        <caption className="text-muted-foreground mb-rhythm-1 text-left text-xs">
+        <caption className="text-muted-foreground mb-2 text-left text-sm">
           Every payment the filters matched, with the ones a night disagreed
           about first. The amount is what the payer's side reported and carries
           no sign — which way it moved is the ledger's convention, on the folio.
@@ -481,8 +481,8 @@ function PaymentTable({
         </tbody>
       </table>
 
-      <div className="mt-rhythm-1 flex flex-wrap items-center gap-3">
-        <p className="text-muted-foreground text-xs">
+      <div className="mt-2 flex flex-wrap items-center gap-3">
+        <p className="text-muted-foreground text-sm">
           {page.window.first}–{page.window.last} of {page.window.total}
         </p>
         <Button
@@ -541,26 +541,26 @@ function PaymentRowCells({
       </td>
       <td className="px-3 py-1">
         <span>{METHOD_LABELS[payment.method]}</span>
-        <span className="text-muted-foreground text-xs">
+        <span className="text-muted-foreground text-sm">
           {" "}
           · {STATUS_LABELS[payment.status]}
         </span>
-        <p className="text-muted-foreground text-xs">{paidLabel(payment)}</p>
-        <p className="text-muted-foreground text-xs">
+        <p className="text-muted-foreground text-sm">{paidLabel(payment)}</p>
+        <p className="text-muted-foreground text-sm">
           {/* The gateway's own id is what an operator matches against a
               merchant screen, and its absence is a fact rather than a gap: cash
               counted at the desk and a bank transfer moved no gateway. */}
           {payment.gatewayTransactionId === null ? (
             "Collected by the property — no gateway id"
           ) : (
-            <span className="font-mono">{payment.gatewayTransactionId}</span>
+            <span className="tabular-nums">{payment.gatewayTransactionId}</span>
           )}
         </p>
-        <p className="text-muted-foreground font-mono text-xs">
+        <p className="text-muted-foreground tabular-nums text-sm">
           stay {payment.bookingId}
         </p>
       </td>
-      <td className="px-3 py-1 text-right font-mono whitespace-nowrap">
+      <td className="px-3 py-1 text-right tabular-nums whitespace-nowrap">
         {formatVnd(payment.amount)}
       </td>
       <td className="py-1 pl-3 text-sm last:pr-0">
@@ -745,7 +745,7 @@ function Disagreements({
   }
 
   return (
-    <ul className="mt-rhythm-1">
+    <ul className="mt-2">
       {entries.map((entry) => (
         <Disagreement
           key={entry.discrepancy.id}
@@ -781,7 +781,7 @@ function Disagreement({
         marked ? "bg-accent/40" : null,
       )}
     >
-      <p className="font-mono text-xs">{discrepancy.attemptReference}</p>
+      <p className="tabular-nums text-sm">{discrepancy.attemptReference}</p>
       <p className="text-destructive mt-1 text-sm">
         {DISCREPANCY_LABELS[discrepancy.kind]}
       </p>
@@ -794,7 +794,7 @@ function Disagreement({
         <Fact label="Ledger" value={reportedAmount(discrepancy.ledgerAmount)} />
       </dl>
 
-      <p className="text-muted-foreground mt-1 text-xs">
+      <p className="text-muted-foreground mt-1 text-sm">
         {/* When the two reports were held against each other, and not the
             trading day: a gap found at 04:05 the next morning and one found six
             days late are different answers to how long it stood. */}
@@ -820,7 +820,7 @@ function Column({
     <th
       scope="col"
       className={cn(
-        "text-muted-foreground px-3 py-2 text-xs font-normal tracking-caps uppercase first:pl-0 last:pr-0",
+        "text-muted-foreground px-3 py-2 text-sm font-normal  uppercase first:pl-0 last:pr-0",
         align === "right" ? "text-right" : "text-left",
       )}
     >
@@ -851,7 +851,7 @@ function Field({
     <div>
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-xs tracking-caps uppercase"
+        className="text-muted-foreground block text-sm  uppercase"
       >
         {label}
       </label>
@@ -895,7 +895,7 @@ function Choice<T extends string>({
     <div>
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-xs tracking-caps uppercase"
+        className="text-muted-foreground block text-sm  uppercase"
       >
         {label}
       </label>
@@ -920,10 +920,8 @@ function Choice<T extends string>({
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-muted-foreground text-xs tracking-caps uppercase">
-        {label}
-      </dt>
-      <dd className="font-mono">{value}</dd>
+      <dt className="text-muted-foreground text-sm  uppercase">{label}</dt>
+      <dd className="tabular-nums">{value}</dd>
     </div>
   );
 }

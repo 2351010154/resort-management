@@ -29,7 +29,7 @@ import {
  *
  * **What is in this file is the whole of what the console tells those
  * components.** The colours are not here: every series is a `var(--chart-N)`,
- * and `app/globals.css` answers those names out of @mariva/tokens — the
+ * and `app/globals.css` answers those names from the console palette — the
  * restyle is one block of that stylesheet rather than props threaded through
  * these components, which is what makes it a change to the brand rather than a
  * change to two charts. The one thing this file does say about colour is *which*
@@ -224,7 +224,7 @@ export function PerformanceChart({
       <fieldset>
         <legend
           id={groupId}
-          className="text-muted-foreground text-xs tracking-caps uppercase"
+          className="text-muted-foreground text-sm  uppercase"
         >
           Figure
         </legend>
@@ -244,7 +244,7 @@ export function PerformanceChart({
 
       <BarChart
         aspectRatio="3 / 1"
-        className="mt-rhythm-1"
+        className="mt-2"
         data={[...bars]}
         margin={{ top: 16, right: 8, bottom: 32, left: 8 }}
         xDataKey="bucket"

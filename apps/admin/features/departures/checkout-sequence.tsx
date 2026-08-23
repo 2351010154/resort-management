@@ -388,7 +388,7 @@ function Sequence({
             over — the stay cannot be checked out until it balances.
           </p>
 
-          <div className="mt-rhythm-1 grid gap-3 sm:grid-cols-2">
+          <div className="mt-2 grid gap-3 sm:grid-cols-2">
             <Field
               label="Amount"
               inputRef={firstControl}
@@ -425,8 +425,8 @@ function Sequence({
          * what the press below re-posts. A form that replaced them would look
          * like the payment had been thrown away, and a form nested inside
          * another one is not a form the browser will submit. */
-        <div className="border-border mt-rhythm-1 border-t pt-rhythm-1">
-          <p className="text-muted-foreground text-xs tracking-caps uppercase">
+        <div className="border-border mt-2 border-t pt-2">
+          <p className="text-muted-foreground text-sm  uppercase">
             Open a drawer
           </p>
           <OpenDrawerForm
@@ -468,7 +468,7 @@ function Sequence({
             />
           </dl>
 
-          <p className="text-muted-foreground mt-rhythm-1 text-sm">
+          <p className="text-muted-foreground mt-2 text-sm">
             {agreed || closed
               ? "The account is already agreed and its invoice is with the property's invoice job. This press ends the stay."
               : "This agrees the account, which is what puts the stay in the invoice queue, and then ends it. The invoice number is issued out of band — there is nothing here to wait for."}
@@ -477,12 +477,12 @@ function Sequence({
       ) : null}
 
       {problem === null ? null : (
-        <p className="border-destructive text-destructive mt-rhythm-1 border-l-2 pl-3 text-sm">
+        <p className="border-destructive text-destructive mt-2 border-l-2 pl-3 text-sm">
           {problem}
         </p>
       )}
 
-      <p className="text-muted-foreground mt-rhythm-1 text-xs">
+      <p className="text-muted-foreground mt-2 text-sm">
         Escape abandons the checkout. Nothing already posted or agreed is undone
         by it.
       </p>
@@ -501,7 +501,7 @@ function AccountSummary({ folio }: { folio: Folio }) {
   return (
     <>
       <table className="w-full border-collapse text-sm">
-        <caption className="text-muted-foreground text-left text-xs tracking-caps uppercase">
+        <caption className="text-muted-foreground text-left text-sm  uppercase">
           Charges and payments
         </caption>
         <tbody>
@@ -519,7 +519,7 @@ function AccountSummary({ folio }: { folio: Folio }) {
         </tbody>
       </table>
 
-      <dl className="mt-rhythm-1 grid gap-2 text-sm sm:grid-cols-3">
+      <dl className="mt-2 grid gap-2 text-sm sm:grid-cols-3">
         <Fact label="Charged" value={formatVnd(folio.summary.charged)} />
         <Fact label="Paid" value={formatVnd(folio.summary.credited)} />
         <Fact
@@ -538,7 +538,7 @@ function PostingRow({ posting }: { posting: FolioPosting }) {
         {formatShortDate(posting.businessDate)}
       </td>
       <td className="py-1 pr-3">{posting.description}</td>
-      <td className="py-1 text-right font-mono whitespace-nowrap">
+      <td className="py-1 text-right tabular-nums whitespace-nowrap">
         {formatVnd(posting.amount)}
       </td>
     </tr>
@@ -554,7 +554,7 @@ function StepTrail({
   current: CheckoutStep;
 }) {
   return (
-    <ol className="mb-rhythm-1 flex flex-wrap gap-3 text-xs tracking-caps uppercase">
+    <ol className="mb-2 flex flex-wrap gap-3 text-sm  uppercase">
       {steps.map((step) => (
         <li
           key={step}
@@ -600,7 +600,7 @@ function Step({
     >
       {children}
 
-      <div className="mt-rhythm-1">
+      <div className="mt-2">
         <Button ref={confirmRef} type="submit" disabled={busy}>
           {confirm}
         </Button>
@@ -635,7 +635,7 @@ function Field({
     <div>
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-xs tracking-caps uppercase"
+        className="text-muted-foreground block text-sm  uppercase"
       >
         {label}
       </label>
@@ -690,11 +690,8 @@ function MethodChoice({
   const groupId = useId();
 
   return (
-    <fieldset className="mt-rhythm-1">
-      <legend
-        id={groupId}
-        className="text-muted-foreground text-xs tracking-caps uppercase"
-      >
+    <fieldset className="mt-2">
+      <legend id={groupId} className="text-muted-foreground text-sm  uppercase">
         Method
       </legend>
       <RadioGroup
@@ -737,9 +734,7 @@ function MethodOption({ method }: { method: DeskPaymentMethod }) {
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-muted-foreground text-xs tracking-caps uppercase">
-        {label}
-      </dt>
+      <dt className="text-muted-foreground text-sm  uppercase">{label}</dt>
       <dd>{value}</dd>
     </div>
   );

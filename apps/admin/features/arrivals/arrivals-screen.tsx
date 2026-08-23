@@ -178,7 +178,7 @@ export function ArrivalsScreen() {
                       <th
                         key={header.id}
                         scope="col"
-                        className="px-4 py-3 text-left text-xs font-semibold tracking-[0.06em] text-muted-foreground uppercase"
+                        className="px-4 py-3 text-left text-sm font-semibold  text-muted-foreground uppercase"
                       >
                         {flexRender(
                           header.column.columnDef.header,
@@ -306,7 +306,7 @@ function arrivalColumns(): ColumnDef<Arrival>[] {
       header: "Stay",
       accessorFn: (arrival) => arrival.reference,
       cell: (context) => (
-        <span className="font-mono">{context.getValue<string>()}</span>
+        <span className="tabular-nums">{context.getValue<string>()}</span>
       ),
     },
     {
