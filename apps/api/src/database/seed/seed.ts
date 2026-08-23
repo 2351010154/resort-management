@@ -47,7 +47,13 @@ import {
   PROPERTY_TIME_ZONE,
   type VndAmount,
 } from "@mariva/shared";
-import { sql } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
+import { decomposeGross } from "../../modules/folio/tax-decomposition.js";
+import { NightAuditService } from "../../modules/reporting/night-audit.service.js";
+import {
+  SystemConfigService,
+  type TaxRules,
+} from "../../modules/system-config/system-config.service.js";
 import type { Database } from "../database.module.js";
 import { booking, bookingNight } from "../schema/booking.js";
 import { feedback } from "../schema/feedback.js";
@@ -98,6 +104,19 @@ const FAKER_SEED = 20_260_801;
 // a calendar with holes in it.
 const MAX_STAY_NIGHTS = 5;
 
+// How many of the stays behind today took breakfast on their arrival night.
+// Sparse for the reason the restrictions are sparse: a fixture where every stay
+// bought the same thing says nothing about the difference between what a room
+// earned and what everything else did, which is the split the revenue report is
+// two columns for.
+const BREAKFAST_SHARE_PERCENT = 35;
+
+// The hour a departed stay settled its account, in the property's own zone. Any
+// hour inside the day would do; what matters is that the instant is built in
+// that zone rather than the machine's, because a folio closed at 00:00 UTC
+// closes on the day before in Ho Chi Minh City.
+const SETTLEMENT_HOUR = 11;
+
 // A stay is placed by picking a type and an arrival and looking for a free
 // room. When the property is genuinely full for that combination the draw is
 // retried with a different one, and after this many failures the seed reports
@@ -115,6 +134,29 @@ export interface SeedSummary {
   readonly bookings: number;
   readonly firstNight: string;
   readonly lastNight: string;
+  /** The part of the seeded year that has already happened. */
+  readonly history: SeededHistory;
+}
+
+/**
+ * What the seed left behind today — the only part of it a report can read.
+ *
+ * `FR-RPT-02` and `FR-RPT-03` are both drawn from `night_audit_snapshot`, and
+ * `schema/night-audit.ts` says why that is not a detail a fixture may go
+ * around: reports read frozen days so that history cannot move. A seed that
+ * wrote a year of stays and closed none of it therefore produces a property
+ * whose report pages are empty however many bookings it holds, which is what
+ * these figures exist to stop being the case.
+ */
+export interface SeededHistory {
+  /** Accounts opened — one per stay that has already occupied a night. */
+  readonly folios: number;
+  /** Nights charged across all of them. */
+  readonly nightsCharged: number;
+  readonly serviceItemsSold: number;
+  /** Trading days the night audit closed, which is what a report can see. */
+  readonly closedDays: number;
+  readonly lastClosedBusinessDate: string | null;
 }
 
 export interface SeedOptions {
@@ -264,14 +306,22 @@ export async function seedDatabase(
   // sells. Six of the eight go in without a price and stay that way — §6 leaves
   // them to the owner, and a row without a price is a row a posting must refuse
   // rather than a row a seed fills in.
-  await db.insert(serviceCatalog).values(
-    SERVICE_CATALOG.map((item) => ({
-      code: item.code,
-      name: item.name,
-      unitPriceGross: item.unitPriceGross,
-      taxClass: item.taxClass,
-    })),
-  );
+  // The ids come back because a sold item names the catalog row it was sold
+  // from — `folio_posting_names_a_service_item_exactly_when_it_is_one` — and
+  // the history written below sells one of them.
+  const serviceItems = await db
+    .insert(serviceCatalog)
+    .values(
+      SERVICE_CATALOG.map((item) => ({
+        code: item.code,
+        name: item.name,
+        unitPriceGross: item.unitPriceGross,
+        taxClass: item.taxClass,
+      })),
+    )
+    .returning({ id: serviceCatalog.id, code: serviceCatalog.code });
+
+  const serviceItemIds = new Map(serviceItems.map((row) => [row.code, row.id]));
 
   // The calendar as a lookup as well as rows. A booking freezes the price it
   // was sold at, and the only way that frozen figure can be trusted is for it to
@@ -331,6 +381,14 @@ export async function seedDatabase(
 
   await insertGuestsAndStays(db, stays, typeIds, grossByTypeAndDate);
 
+  const history = await writeHistory(
+    db,
+    stays,
+    grossByTypeAndDate,
+    nights,
+    serviceItemIds,
+  );
+
   return {
     roomTypes: ROOM_TYPES.length,
     rooms: rooms.length,
@@ -341,6 +399,7 @@ export async function seedDatabase(
     bookings: stays.length,
     firstNight: nights[0]!.toString(),
     lastNight: nights.at(-1)!.toString(),
+    history,
   };
 }
 
@@ -522,7 +581,11 @@ function placeOne(
       roomId: chosen.id,
       roomTypeCode: chosen.roomTypeCode,
       checkIn: wanted[0]!,
-      checkOut: nights[start + length]!.toString(),
+      // The day after the last night, computed rather than looked up. The
+      // calendar is a list of nights, so a stay whose final night is the last
+      // of them departs on a date that is deliberately not in it — reading the
+      // departure out of the list left that stay with no check-out date at all.
+      checkOut: nights[start + length - 1]!.add({ days: 1 }).toString(),
       nights: wanted,
       guestName: name,
       // The stay's ordinal, not a draw: two guests may share a name — Vietnamese
@@ -636,6 +699,287 @@ function quotedTotal(
   );
 
   return (nights * BigInt(100 + plan.percentAdjustment)) / 100n;
+}
+
+/**
+ * The ledger the stays behind today ran up, and the days the audit closed over
+ * it — `FR-RPT-01`.
+ *
+ * The seed's other half writes a calendar and the stays standing against it,
+ * which is a property with a future and no past. Everything the reports read is
+ * in the past: `report-queries.service.ts` and `performance-queries.service.ts`
+ * both begin at `night_audit_snapshot`, so a demo property with no closed day
+ * shows two empty pages and a null business-date stamp no matter how many
+ * bookings it holds.
+ *
+ * **The figures are posted and then frozen, never written straight into the
+ * snapshot.** A fixture that invented plausible occupancy and revenue rows
+ * would be a second implementation of the night audit — one that no test covers
+ * and that cannot disagree with the ledger, because there would be no ledger
+ * for it to disagree with. So this writes the folios and the postings a stay
+ * genuinely produces and then hands each date to {@link NightAuditService},
+ * which is the same object the cron runs. What a report shows is therefore what
+ * the audit made of the seeded ledger, and a bug in either is visible in the
+ * other.
+ *
+ * **A stay that has slept in a room is not `CONFIRMED`.** The states are moved
+ * here rather than at placement because it is this function that decides which
+ * stays are behind today: a stay whose last night has passed has departed, one
+ * that arrived before today and has not yet departed is in house, and the rest
+ * of the year is left confirmed and unbilled. Charging a confirmed booking
+ * would be a folio the API itself would refuse to open.
+ *
+ * **A departed stay settles in full and its folio closes.** `FR-FOL-04` closes
+ * an account at nothing outstanding, so a checked-out stay carrying a balance
+ * is a state the desk could not have produced. The money arrives by bank
+ * transfer for a reason that is in the schema rather than in taste:
+ * `payment_shift_binding` puts cash inside an open shift, and a seed that paid
+ * in cash would have to invent a shift for every departure to have a drawer to
+ * put it in.
+ *
+ * Nothing is written at all when the calendar opens in the future, which is the
+ * case every e2e fixture pins with `--from`. There is no past to charge, and a
+ * suite asserting on a freshly seeded property sees exactly what it saw before.
+ */
+async function writeHistory(
+  db: Database,
+  stays: readonly SyntheticStay[],
+  grossByTypeAndDate: Map<string, VndAmount>,
+  nights: readonly CalendarDate[],
+  serviceItemIds: Map<string, string>,
+): Promise<SeededHistory> {
+  // Today itself is deliberately not in here. A day is closed by the audit once
+  // it has ended, and freezing the day the demo is being given on would report
+  // a night that is still being slept.
+  const now = today(PROPERTY_TIME_ZONE);
+  const closed = nights.filter((night) => night.compare(now) < 0);
+
+  if (closed.length === 0) {
+    return {
+      folios: 0,
+      nightsCharged: 0,
+      serviceItemsSold: 0,
+      closedDays: 0,
+      lastClosedBusinessDate: null,
+    };
+  }
+
+  // Read per date and not once, because the relief window makes the VAT rate a
+  // function of the business date — `system-config.service.ts`. A seed that
+  // decomposed every night at today's rate would put a figure on a December
+  // invoice that December's rate never produced.
+  const configuration = new SystemConfigService();
+  const rules = new Map<string, TaxRules>();
+
+  for (const night of closed) {
+    rules.set(night.toString(), await configuration.taxRules(db, night));
+  }
+
+  const standard = RATE_PLANS.find((plan) => plan.code === "STANDARD")!;
+  // The one item in §6's catalog that carries a price. The other six are left
+  // to the owner, and a seed that sold one would be inventing the figure the
+  // catalog deliberately does not state.
+  const breakfast = SERVICE_CATALOG.find((item) => item.code === "BREAKFAST")!;
+
+  const folios: (typeof folio.$inferInsert)[] = [];
+  const postings: (typeof folioPosting.$inferInsert)[] = [];
+  const payments: (typeof payment.$inferInsert)[] = [];
+  // Which accounts to close, and when — applied after the lines are on them.
+  // `folio_posting_stops_at_a_closed_folio` refuses a posting to a closed
+  // account, which is the rule the desk works under and not an obstacle to
+  // work around: an account is closed because there is nothing more to put on
+  // it. So the seed opens every folio, bills it, and closes it afterwards, in
+  // the order a stay actually goes through.
+  const closures: { readonly folioId: string; readonly closedAt: Date }[] = [];
+  const departed: string[] = [];
+  const inHouse: string[] = [];
+
+  let nightsCharged = 0;
+  let serviceItemsSold = 0;
+
+  /** One sale as `FR-FOL-02`'s three lines, the shape `postSale` writes. */
+  const sell = (
+    folioId: string,
+    businessDate: string,
+    grossAmount: VndAmount,
+    line: {
+      readonly type: "ROOM_CHARGE" | "SERVICE_ITEM";
+      readonly description: string;
+      readonly serviceCatalogId?: string;
+    },
+  ): void => {
+    const lines = decomposeGross(grossAmount, rules.get(businessDate)!);
+    // Stated rather than defaulted, because the two derived lines name it.
+    const chargeId = randomUUID();
+
+    postings.push(
+      {
+        id: chargeId,
+        folioId,
+        type: line.type,
+        amount: lines.netCharge,
+        description: line.description,
+        serviceCatalogId: line.serviceCatalogId ?? null,
+        businessDate,
+      },
+      {
+        folioId,
+        type: "SERVICE_CHARGE_FEE",
+        amount: lines.serviceCharge,
+        description: `Service charge on ${line.description}`,
+        parentPostingId: chargeId,
+        businessDate,
+      },
+      {
+        folioId,
+        type: "VAT",
+        amount: lines.vat,
+        description: `VAT on ${line.description}`,
+        parentPostingId: chargeId,
+        businessDate,
+      },
+    );
+  };
+
+  for (const stay of stays) {
+    // The nights are contiguous from the arrival, so the ones behind today are
+    // a prefix of them and the index below is the night's own.
+    const charged = stay.nights.filter(
+      (night) => parseDate(night).compare(now) < 0,
+    );
+
+    if (charged.length === 0) {
+      continue;
+    }
+
+    const folioId = randomUUID();
+    const hasLeft = parseDate(stay.checkOut).compare(now) <= 0;
+
+    let owed = 0n;
+
+    for (const [index, night] of charged.entries()) {
+      // The night's own share of the stay total, taken as the difference
+      // between the stay through this night and the stay through the last —
+      // which is how `room-charge-sweep.ts` prices a night, and for the reason
+      // it gives: the plan's percentage applies to the stay rather than to the
+      // night, so a per-night division would leave the folio a few đồng from
+      // the total the booking was sold at.
+      const gross =
+        quotedTotal(
+          { ...stay, nights: stay.nights.slice(0, index + 1) },
+          grossByTypeAndDate,
+          standard,
+        ) -
+        quotedTotal(
+          { ...stay, nights: stay.nights.slice(0, index) },
+          grossByTypeAndDate,
+          standard,
+        );
+
+      owed += gross;
+      sell(folioId, night, gross, {
+        type: "ROOM_CHARGE",
+        description: `Room charge, night of ${night}`,
+      });
+    }
+
+    nightsCharged += charged.length;
+
+    if (faker.number.int({ min: 1, max: 100 }) <= BREAKFAST_SHARE_PERCENT) {
+      const gross = breakfast.unitPriceGross! * BigInt(INCLUDED_OCCUPANCY);
+
+      owed += gross;
+      serviceItemsSold += 1;
+      sell(folioId, charged[0]!, gross, {
+        type: "SERVICE_ITEM",
+        description: `${INCLUDED_OCCUPANCY} × ${breakfast.name}`,
+        serviceCatalogId: serviceItemIds.get(breakfast.code)!,
+      });
+    }
+
+    folios.push({ id: folioId, bookingId: stay.bookingId });
+
+    if (!hasLeft) {
+      inHouse.push(stay.bookingId);
+
+      continue;
+    }
+
+    const settledAt = new Date(
+      parseDate(stay.checkOut).toDate(PROPERTY_TIME_ZONE).getTime() +
+        SETTLEMENT_HOUR * 3_600_000,
+    );
+
+    payments.push({
+      folioId,
+      method: "BANK_TRANSFER",
+      amount: owed,
+      status: "SUCCESS",
+      paidAt: settledAt,
+    });
+
+    // Negative on the ledger, which is the convention
+    // `folio_posting_sign_matches_type` enforces: money in reduces what is
+    // owed, so a settled account is a plain sum of zero.
+    postings.push({
+      folioId,
+      type: "PAYMENT",
+      amount: -owed,
+      description: "Bank transfer",
+      businessDate: stay.checkOut,
+    });
+
+    closures.push({ folioId, closedAt: settledAt });
+    departed.push(stay.bookingId);
+  }
+
+  // Order is the foreign keys again: the accounts before the lines that name
+  // them, and the payments last because they name an account too.
+  await insertInChunks(db, folio, folios);
+  await insertInChunks(db, folioPosting, postings);
+  await insertInChunks(db, payment, payments);
+
+  for (const closure of closures) {
+    await db
+      .update(folio)
+      .set({ state: "CLOSED", closedAt: closure.closedAt })
+      .where(eq(folio.id, closure.folioId));
+  }
+
+  await moveTo(db, departed, "CHECKED_OUT");
+  await moveTo(db, inHouse, "CHECKED_IN");
+
+  const audit = new NightAuditService();
+  let closedDays = 0;
+
+  for (const night of closed) {
+    if (await audit.freeze(db, night)) {
+      closedDays += 1;
+    }
+  }
+
+  return {
+    folios: folios.length,
+    nightsCharged,
+    serviceItemsSold,
+    closedDays,
+    lastClosedBusinessDate: closed.at(-1)!.toString(),
+  };
+}
+
+/** Puts the named stays into one state, chunked for the parameter ceiling. */
+async function moveTo(
+  db: Database,
+  bookingIds: readonly string[],
+  state: "CHECKED_IN" | "CHECKED_OUT",
+): Promise<void> {
+  for (let start = 0; start < bookingIds.length; start += CHUNK_ROWS) {
+    const chunk = bookingIds.slice(start, start + CHUNK_ROWS);
+
+    if (chunk.length > 0) {
+      await db.update(booking).set({ state }).where(inArray(booking.id, chunk));
+    }
+  }
 }
 
 /**

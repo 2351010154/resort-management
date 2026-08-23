@@ -296,9 +296,18 @@ the history of all of them.
 
 Reports is a short menu of named reports — revenue, room status, occupancy,
 ADR and RevPAR — each a page with a range picker, a chart and an Excel
-export. Every page is stamped with the business date of the night-audit
-snapshot it reads, because reports never see a day the audit has not closed.
-There is no report builder; the requirements enumerate exactly what is needed.
+export. Every page is stamped with the last business date the night audit has
+closed, and that stamp is a boundary rather than a statement of source: what
+it promises is that no page ever shows a day the audit has not closed, not
+that every figure on it was read from a frozen row. Room status has no frozen
+row to read — it is a live count over `room_condition`, because a housekeeping
+status is where a room stands now and is never a fact about a night that has
+ended, and a frozen copy of it would be exactly that confusion. The revenue
+page's cancellation and no-show penalties are summed from the folio ledger
+rather than from a snapshot column, still cut at the last closed business
+date: a penalty is posted to the trading day it was taken on and the ledger is
+append-only, so a closed day's total cannot move afterwards. There is no
+report builder; the requirements enumerate exactly what is needed.
 
 The console is organised around property work rather than the guest journey.
 The families, as an index:

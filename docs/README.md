@@ -33,7 +33,6 @@ the inconsistency rather than rewriting either source to conceal it.
 |---|---|
 | Product outcomes, stable requirements, acceptance criteria, business rules and external assumptions | [`product-requirements.md`](product-requirements.md) |
 | Repository boundaries and dependency rationale | [`architecture/repository-structure.md`](architecture/repository-structure.md) |
-| Palette, typography, spacing, motion, copy voice and alternative-text rules | [`architecture/design-foundations.md`](architecture/design-foundations.md) |
 | Property facts, rate structure, cancellation rules, charge model and service catalog | [`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) |
 | Roles, capabilities and permission rationale | [`architecture/rbac-matrix.md`](architecture/rbac-matrix.md) |
 | Booking states and transition rules | [`architecture/booking-state-machine.md`](architecture/booking-state-machine.md) |

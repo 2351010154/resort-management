@@ -118,17 +118,47 @@ export const LARGEST_EXACT_DONG_IN_A_CELL = 999_999_999_999_999n;
 const DONG_FORMAT = "#,##0";
 
 /**
+ * The number format a proportion carries.
+ *
+ * A percent format over the stored fraction, so 0.42 reads as 42.0% without
+ * anything here multiplying it: occupancy is `roomsSold / sellableRooms` and the
+ * cell holds exactly that, which is what keeps a reading above 100% — a room
+ * withdrawn after the night was sold, which `schema/night-audit.ts` declines to
+ * forbid — legible as 120.0% rather than clipped by a renderer. One decimal
+ * place, because a property counts rooms in tens and a second place would be
+ * precision the counts beside it do not carry.
+ */
+const FRACTION_FORMAT = "0.0%";
+
+/**
  * One column of a sheet, and what it takes out of a row.
  *
  * A union discriminated by which extractor it carries rather than a `kind`
  * field beside a loosely typed getter: a text column whose extractor returns a
  * `bigint` is then a compile error rather than a run of digits in a cell nobody
- * can sum. The three members are the three things these exports actually hold —
- * words, đồng, and an instant.
+ * can sum. The members are the things these exports actually hold — words,
+ * đồng, an instant, a count and a proportion — and each one arrived with a
+ * sheet that had nothing to render it with, rather than being anticipated.
  *
  * Null is an empty cell and is always meaningful: a drawer nobody has counted,
- * a change nobody was behind, an entry that moved no cash. It is never a
- * placeholder for a value the extractor could not compute.
+ * a change nobody was behind, an entry that moved no cash, a night with no room
+ * on sale to divide by. It is never a placeholder for a value the extractor
+ * could not compute.
+ *
+ * `count` is a whole number of things — rooms, closed trading days — and is a
+ * fourth member rather than text for the reason the money column is a number:
+ * the file exists to be totalled, and a column of digits stored as text sums to
+ * nothing. It carries no number format and no bound, because unlike đồng there
+ * is nothing here a double could lose — a property counts rooms and days, not
+ * quadrillions of them.
+ *
+ * `fraction` is a proportion of something, and it is a fifth member rather than
+ * a `count` because the two differ in exactly the way a cell shows: a count is
+ * whole and unformatted, where a proportion is between nothing and whatever it
+ * reaches and reads as a percentage. `FR-RPT-03`'s occupancy is the one that
+ * arrived, and it is a number and not text so that a manager can chart the
+ * column; it is never rounded or clamped on the way in, because the file's
+ * business is what the property measured rather than what looks plausible.
  */
 export type SheetColumn<Row> =
   | {
@@ -145,6 +175,16 @@ export type SheetColumn<Row> =
       readonly header: string;
       readonly width: number;
       readonly at: (row: Row) => Date | null;
+    }
+  | {
+      readonly header: string;
+      readonly width: number;
+      readonly count: (row: Row) => number | null;
+    }
+  | {
+      readonly header: string;
+      readonly width: number;
+      readonly fraction: (row: Row) => number | null;
     };
 
 /**
@@ -202,7 +242,7 @@ export async function writeExcelSheet<Row>(
   // stamp can come first.
   worksheet.columns = sheet.columns.map((column) => ({
     width: column.width,
-    style: "dong" in column ? { numFmt: DONG_FORMAT } : {},
+    style: formatOf(column),
   }));
 
   worksheet.addRow([sheet.title]).commit();
@@ -307,5 +347,33 @@ function cellOf<Row>(
     return at === null ? null : inPropertyZone(at);
   }
 
+  if ("count" in column) {
+    return column.count(row);
+  }
+
+  if ("fraction" in column) {
+    // Handed over as it arrived. The percent format on the column is what turns
+    // it into a percentage in the window, so nothing here multiplies, rounds or
+    // bounds it — and a null denominator stays a null and therefore an empty
+    // cell, which is the whole difference between "nothing was on sale" and
+    // "nothing sold".
+    return column.fraction(row);
+  }
+
   return column.text(row);
+}
+
+/**
+ * The number format a column's cells carry, or none.
+ *
+ * Two of the five kinds are formatted and three are not, which is why this is a
+ * lookup rather than a field on the column: a caller choosing its own format
+ * would be five sheets deciding separately what đồng looks like.
+ */
+function formatOf<Row>(column: SheetColumn<Row>): Partial<ExcelJS.Style> {
+  if ("dong" in column) {
+    return { numFmt: DONG_FORMAT };
+  }
+
+  return "fraction" in column ? { numFmt: FRACTION_FORMAT } : {};
 }
