@@ -170,6 +170,28 @@ stands alone with no shell and no nav
 ([`architecture/repository-structure.md`](architecture/repository-structure.md)
 §`apps/admin`).
 
+### Console presentation
+
+The staff console uses its own presentation tokens in
+[`apps/admin/app/console-tokens.css`](../apps/admin/app/console-tokens.css); the
+guest-app token package remains shared but unchanged. Figtree is the console's
+only typeface. UI copy has a 14px minimum, regular-or-heavier weight, and no
+tracked or monospace body treatment.
+
+The signed-in shell has a deep-spruce rail grouped as **Today**,
+**Reservations**, **Property**, **Money**, and **Management**. It collapses to
+an icon rail before the content becomes cramped. The top bar keeps the hotel
+business date, drawer state, handover action, and command-palette trigger in
+reach. Navigation chords, screen hotkeys, roving focus, and the command registry
+remain the shared interaction layer; visible shortcuts use key chips.
+
+Screens compose the console kit rather than defining another local shell:
+`PageHeader`, `FilterBar`, `DataTableFrame`, `DetailSheet`, `FormSection`,
+`StatusChip`, `StatCard`, `EmptyState`, and the shadcn/Radix primitives. Queues
+and ledgers use list-plus-detail layouts, Rooms uses a persistent split view,
+Housekeeping uses touch-sized room keys, Rates keeps its two-axis calendar, and
+reports place their range, metrics, chart, and table in separate surfaces.
+
 Landing after login is role-aware: a receptionist, manager or admin lands on
 the dashboard; housekeeping lands directly on the housekeeping board, the one
 screen their day happens on; the accountant lands on payments. Each role

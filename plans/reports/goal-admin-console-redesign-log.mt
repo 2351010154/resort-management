@@ -77,3 +77,46 @@
   functionally unchanged.
 - Checkpoint gates passed: admin typecheck, 31 test files / 733 tests, and repo
   lint. The existing Biome configuration deprecation notice remains informational.
+
+## 2026-08-23 · Management, access, and v1 retirement
+
+- Migrated Reports, Performance, Revenue, Room status, Audit, and Settings to
+  the console kit. Existing ranges, exports, charts, audit detail, account
+  creation, property configuration, role gates, and query hooks remain intact.
+- Rebuilt the staff login as a focused access card with a spruce property panel.
+  Session restoration, return destinations, validation, and autofocus are
+  unchanged.
+- Enforced the presentation contract across production UI: page titles use no
+  more than two words, descriptions no more than twelve, static field help no
+  more than eight, keyboard prompts use key chips, and UI text has a 14px floor
+  with regular-or-heavier Figtree treatment.
+- Removed the old Cormorant, IBM Plex Mono, and shared-token dependencies from
+  the admin package. Retired the obsolete `dashboard-launchpad` prototype and
+  removed the last v1 display/rhythm utility aliases and dead token references.
+- Updated `apps/admin/README.md` and `docs/screens.md` for the admin-only tokens,
+  grouped shell, console kit, route-family layouts, current command palette,
+  and validation commands.
+
+## 2026-08-23 · Final validation
+
+- Route audit found all 21 page entries. The production build generated 22
+  Next.js pages including the framework not-found page; every signed-in feature
+  route resolves to its migrated screen under the new shell.
+- Protected-diff audit from the pre-goal commit is empty for `apps/web`,
+  `apps/api`, and `packages/tokens/tokens.css`.
+- `pnpm --filter @mariva/admin typecheck` passed.
+- `pnpm --filter @mariva/admin test` passed: 31 files, 733 tests.
+- `pnpm lint` passed. Its only output is the repository's informational Biome
+  `recommended`-field deprecation notice.
+- `pnpm --filter @mariva/admin build` passed and generated all routes.
+- Browser e2e was not runnable: the existing console (3002), API (3001), and
+  Postgres (5432) listeners were all closed. Per `playwright.config.ts`, no
+  service was started by this goal.
+
+### Remaining known issues
+
+- Browser-only NFR-04/NFR-11 checks remain unexecuted until the console, API,
+  and Postgres are already running.
+- The repository's Biome configuration uses a deprecated field; this does not
+  affect the clean lint result.
+- No known functional or presentation defects remain from this redesign.
