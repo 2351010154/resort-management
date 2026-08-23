@@ -55,6 +55,70 @@
   --font-plex-mono: "IBM Plex Mono";
 }
 
+/* The charts' own names, answered in Mariva's colours.
+ *
+ * `components/charts/` is vendored from the Bklit registry and every colour in
+ * it is read through one of these names — `chart-context.ts` collects them as
+ * `chartCssVars` and nothing under it holds a literal. So this block is the
+ * whole of the restyle: the components were not edited to know about --umber,
+ * they were pointed at a palette that answers to the names they already use.
+ *
+ * **Not one value below is a colour.** Every one is a `var()` into
+ * @mariva/tokens, which is that package's own instruction — its header records
+ * that the palette used to live as re-typed rgba() literals in nine stylesheets
+ * and that the channel triplets exist so alpha use never has to re-type one.
+ * The registry shipped this block as two dozen `oklch()` literals and a `.dark`
+ * override; both are gone, along with an `@theme inline` it emitted with a
+ * double-dash typo (`var(----chart-1)`) that resolved to nothing.
+ *
+ * The series ramp is the palette's own value ladder from --umber down to --sand,
+ * because a report is read in one colour family and a bar chart of revenue is
+ * not five unrelated hues. --dusk-amber is the accent and takes the crosshair,
+ * where design-foundations.md already puts it: a fill and a state mark, never
+ * text and never a focus ring.
+ *
+ * These are declared here rather than in packages/tokens because they are the
+ * console's chart vocabulary rather than the brand — apps/web has no chart, and
+ * a token nobody outside one app reads is a token in the wrong package. */
+:root {
+  /* The series ramp, darkest first. Room revenue is the deepest and the
+     penalties the lightest, which is also the order they stack. */
+  --chart-1: var(--ink);
+  --chart-2: var(--umber);
+  --chart-3: var(--stone-deep);
+  --chart-4: var(--stone);
+  --chart-5: var(--sand);
+  --chart-background: var(--ivory);
+  --chart-foreground: var(--ink);
+  --chart-foreground-muted: var(--stone-deep);
+  --chart-line-primary: var(--chart-2);
+  --chart-line-secondary: var(--chart-3);
+  /* The accent, and the one place it is spent on this screen. */
+  --chart-crosshair: var(--dusk-amber);
+  /* Rules are the ink at low strength, exactly as --color-border is — the
+     triplet is what tokens.css exists for. */
+  --chart-grid: rgb(var(--umber-rgb) / 0.16);
+  --chart-brush-border: var(--chart-grid);
+  /* The tooltip is the one dark surface on an ivory screen, which is the
+     console's own inversion rather than a dark mode: --night is the value every
+     dark act on the guest site hands over on. */
+  --chart-tooltip-background: rgb(var(--night-rgb) / 0.92);
+  --chart-tooltip-foreground: var(--ivory);
+  --chart-tooltip-muted: var(--sand);
+  --chart-marker-background: var(--ivory-warm);
+  --chart-marker-border: rgb(var(--umber-rgb) / 0.24);
+  --chart-marker-foreground: var(--ink);
+  /* Axis labels are the secondary-text token, and --stone-deep rather than
+     --stone for the contrast reason the @theme block below states. */
+  --chart-label: var(--stone-deep);
+  --chart-scale-01: var(--ivory-warm);
+  --chart-scale-02: var(--sand);
+  --chart-scale-03: var(--stone);
+  --chart-scale-04: var(--stone-deep);
+  --chart-scale-05: var(--umber);
+  --chart-scale-pattern-color: var(--ivory);
+}
+
 /* Not `@theme inline`, and the distinction cost a build to find. Tailwind's
  * `inline` option substitutes each value into the utilities and then emits no
  * custom property for it — `.text-muted-foreground` compiles to
@@ -99,6 +163,16 @@
    * booking funnel's informational state — a selected date — and an admin
    * screen spending it on a chip or a badge would make the guest site's one
    * informational colour mean two different things. */
+
+  /* The four chart names that are written as utility classes rather than read
+   * through `chartCssVars`. They are aliases of the `--chart-*` block at the top
+   * of this file and hold no value of their own, so the restyle stays in one
+   * place; the rest of the chart vocabulary never becomes a Tailwind colour
+   * because nothing writes `bg-chart-grid`. */
+  --color-chart-label: var(--chart-label);
+  --color-chart-tooltip-background: var(--chart-tooltip-background);
+  --color-chart-tooltip-foreground: var(--chart-tooltip-foreground);
+  --color-chart-tooltip-muted: var(--chart-tooltip-muted);
 
   /* ---- semantic layer ------------------------------------------------- */
 

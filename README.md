@@ -313,7 +313,6 @@ Written as the system is built, not assembled at the end.
 | Design fact | Owner |
 | --- | --- |
 | Repository structure, dependency rules, module map | [`repository-structure.md`](docs/architecture/repository-structure.md) |
-| Palette, type, spacing, motion, copy voice, alt-text rule | [`design-foundations.md`](docs/architecture/design-foundations.md) |
 | Technology stack, versions, rejected options | [`tech-stack.md`](docs/architecture/tech-stack.md) |
 | Roles and permissions | [`rbac-matrix.md`](docs/architecture/rbac-matrix.md) |
 | Booking states and transitions | [`booking-state-machine.md`](docs/architecture/booking-state-machine.md) |

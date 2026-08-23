@@ -68,9 +68,17 @@ jobs:
 
       - run: pnpm run lint
 
-      # Covers the workspaces that have no build step to type-check them. The
-      # Next app deliberately has no typecheck task of its own: tsc there would
-      # read .next/types, which next build rewrites underneath it.
+      # Every workspace that has TypeScript, the two Next apps included; only
+      # tokens is exempt, being CSS. This is the only gate that reads the apps'
+      # *.spec.ts at all — next build type-checks the app but skips test files,
+      # which is how a broken import in one sat on main for a week under green
+      # runs.
+      #
+      # It does not see the route types Next generates into .next/types: this
+      # runner has no .next yet, so that glob matches nothing here. The build
+      # below covers them. Do not close that by generating them in this step —
+      # typegen writes inside the .next/** that the build task claims as its
+      # output, and nothing in the task graph orders the two.
       - run: pnpm run typecheck
 
       # Every .env is git-ignored, so the file the API's vitest config loads has

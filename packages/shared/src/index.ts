@@ -15,3 +15,4 @@ export * from "./service-catalog.js";
 export * from "./staff-auth.js";
 export * from "./stay-date.js";
 export * from "./stay-quote.js";
+export * from "./wire-money.js";

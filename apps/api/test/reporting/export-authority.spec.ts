@@ -1,7 +1,10 @@
 // What holds an export to the list it exports.
 //
 // The property under test is one sentence: **an export never widens what its
-// reader could already see.** It is checked two ways here, and both are needed.
+// reader could already see.** For a list that means the narrowing travels into
+// the rows; for a report it means a narrowed reader is refused the file, since
+// a range total has no rows to withhold. It is checked two ways here, and both
+// are needed.
 //
 // The first loop is driven off `matrix.ts` and covers every staff role there
 // is, including ones added after this file was written — so a sixth role
@@ -32,6 +35,7 @@ import { permits, STAFF_ROLES } from "../../src/modules/identity/rbac/roles.js";
 import type { StaffRole } from "../../src/modules/identity/rbac/roles.js";
 import {
   grantHeldOn,
+  readingEveryFigureOn,
   readingTheListBehind,
   readsEverythingOn,
 } from "../../src/modules/reporting/export-authority.js";
@@ -66,6 +70,27 @@ function reachesTheExport(list: CapabilityKey, principal: Principal): boolean {
 
   try {
     readingTheListBehind(list, principal);
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Whether this caller gets a *report* file, as the three report exports decide
+ *  it: the export row at the guard, then the whole of the row that owns the
+ *  figures. A narrowed grant is refused here rather than scoped, because there
+ *  is no narrow version of a range total. */
+function reachesTheWholeReport(
+  row: CapabilityKey,
+  principal: Principal,
+): boolean {
+  if (!permits(grantHeldOn(EXPORT_ROW, principal), "read")) {
+    return false;
+  }
+
+  try {
+    readingEveryFigureOn(row, principal);
 
     return true;
   } catch {
@@ -151,6 +176,70 @@ describe("what the note 'RCP: operational lists only' actually means", () => {
   });
 });
 
+describe("the report exports, which refuse a narrowed reader rather than scoping one", () => {
+  /** The row that owns each report's figures. A different row per report, which
+   *  is the separation `rbac-matrix.md` §Reports draws and not a convention. */
+  const REPORTS: readonly {
+    readonly report: string;
+    readonly row: CapabilityKey;
+  }[] = [
+    { report: "revenue", row: "reporting.financial" },
+    { report: "room status", row: "reporting.operational" },
+    { report: "performance", row: "reporting.performance" },
+  ];
+
+  for (const role of STAFF_ROLES) {
+    for (const { report, row } of REPORTS) {
+      it(`gives ${role} the ${report} file only where the matrix gives them the whole row`, () => {
+        const grant = staffGrant(row, role);
+        const whole =
+          permits(staffGrant(EXPORT_ROW, role), "read") &&
+          permits(grant, "read") &&
+          readsEverythingOn(grant);
+
+        expect(reachesTheWholeReport(row, staff(role))).toBe(whole);
+      });
+    }
+  }
+
+  it("gives a receptionist no performance file at all", () => {
+    // A different row from the revenue export's: the matrix denies the desk
+    // *Occupancy / ADR / RevPAR* outright, so there is nothing to narrow.
+    expect(grantHeldOn("reporting.performance", staff("RECEPTIONIST"))).toBe(
+      "denied",
+    );
+    expect(
+      reachesTheWholeReport("reporting.performance", staff("RECEPTIONIST")),
+    ).toBe(false);
+  });
+
+  it("gives an accountant the whole performance file, since 👁 is not a narrowing", () => {
+    // `read` is a claim about what may be done to the rows and not about which
+    // rows, and an export does nothing to them — so the accountant's file is
+    // whole rather than sliced.
+    expect(grantHeldOn("reporting.performance", staff("ACCOUNTANT"))).toBe(
+      "read",
+    );
+    expect(
+      reachesTheWholeReport("reporting.performance", staff("ACCOUNTANT")),
+    ).toBe(true);
+  });
+
+  it("gives a manager and an admin the performance file", () => {
+    for (const role of ["MANAGER", "ADMIN"] as const) {
+      expect(
+        reachesTheWholeReport("reporting.performance", staff(role)),
+      ).toBe(true);
+    }
+  });
+
+  it("gives housekeeping no report file at all", () => {
+    for (const { row } of REPORTS) {
+      expect(reachesTheWholeReport(row, staff("HOUSEKEEPING"))).toBe(false);
+    }
+  });
+});
+
 describe("a caller who is not staff", () => {
   it("holds nothing on a list, whatever the row says", () => {
     for (const { list } of EXPORTS) {
@@ -198,6 +287,9 @@ describe("the routes themselves", () => {
     "exportCashBook",
     "exportShiftHistory",
     "exportChangeLog",
+    "exportRevenue",
+    "exportRoomStatus",
+    "exportPerformance",
   ]) {
     it(`declares the export row on ${route}`, () => {
       const declared = Reflect.getMetadata(capabilityKey, controller[route]);
@@ -205,4 +297,40 @@ describe("the routes themselves", () => {
       expect(declared).toEqual({ key: EXPORT_ROW, action: "read" });
     });
   }
+
+  /* The three report reads, which are oRPC procedures rather than exports and
+   * therefore declare the row that owns their subject instead of the export row.
+   * They are asserted here for the same reason the six above are: a report
+   * route added without a declaration would be reachable by anybody, and the
+   * three of them are the whole of what keeps the desk out of the takings and
+   * the KPIs, and the accountant off the floors. */
+  const REPORT_ROWS: readonly [string, string][] = [
+    ["revenue", "reporting.financial"],
+    ["roomStatus", "reporting.operational"],
+    ["performance", "reporting.performance"],
+  ];
+
+  for (const [route, row] of REPORT_ROWS) {
+    it(`declares ${row} on ${route}`, () => {
+      const declared = Reflect.getMetadata(capabilityKey, controller[route]);
+
+      expect(declared).toEqual({ key: row, action: "read" });
+    });
+  }
+
+  it("keeps the desk out of the takings and the accountant off the floors", () => {
+    // The two rows read literally, which is what makes the console's own
+    // predicates a courtesy rather than the wall: a receptionist who types the
+    // revenue url is refused by the guard on the strength of this.
+    expect(grantHeldOn("reporting.financial", staff("RECEPTIONIST"))).toBe(
+      "denied",
+    );
+    expect(grantHeldOn("reporting.operational", staff("ACCOUNTANT"))).toBe(
+      "denied",
+    );
+    expect(grantHeldOn("reporting.financial", staff("ACCOUNTANT"))).toBe("full");
+    expect(grantHeldOn("reporting.operational", staff("RECEPTIONIST"))).toBe(
+      "full",
+    );
+  });
 });

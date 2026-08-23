@@ -65,6 +65,13 @@ async function main(): Promise<void> {
         `${summary.ratesWritten} rates, ${summary.restrictions} restrictions`,
         `${summary.serviceItems} service items`,
         `${summary.bookings} synthetic stays`,
+        summary.history.closedDays > 0
+          ? `${summary.history.folios} folios, ${summary.history.nightsCharged} nights charged, ` +
+            `${summary.history.serviceItemsSold} breakfasts`
+          : "no history — the calendar opens in the future",
+        summary.history.closedDays > 0
+          ? `${summary.history.closedDays} trading days closed, through ${summary.history.lastClosedBusinessDate}`
+          : "no trading day closed, so the report pages have nothing to read",
         "",
       ].join("\n"),
     );
