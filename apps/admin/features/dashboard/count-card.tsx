@@ -16,9 +16,13 @@ import type { CountReading } from "./day-counts";
  * receptionist misses at two o'clock.
  *
  * Keyboard reach costs nothing extra because of that: four cards are four Tab
- * stops in reading order, Enter follows, and the focus ring is the 2px
- * full-strength outline `globals.css` draws on every `:focus-visible` in the
- * console.
+ * stops in reading order, Enter follows, and the focus ring is the 3px accent
+ * outline `globals.css` draws on every `:focus-visible` in the console.
+ *
+ * **The figure leads and the words follow.** The number sits on the top line
+ * beside its icon rather than under the label, because the four cards are read
+ * as a row of four figures — the eye crosses the screen once at the same height
+ * and only comes back for the sentence under whichever number was surprising.
  *
  * **The three states occupy the same box.** A card that is one height while
  * counting and another once counted moves the three cards beside it as each
@@ -28,15 +32,17 @@ import type { CountReading } from "./day-counts";
  * **Nothing here animates in.** `NFR-04` forbids entrance animation on
  * operational surfaces, and the reason is this screen exactly: it is read at a
  * glance, mid-conversation, by somebody who has already looked away by the time
- * a fade would finish. The only transition is the hover colour.
+ * a fade would finish. The only transitions are hover ones.
  */
 
 export interface CountCardProps {
-  /** What the number is — "Arrivals awaiting check-in". */
+  /** The set being counted — "Arrivals awaiting", above the title. */
   label: string;
+  /** What the operator does about it — "Check-in". */
+  title: string;
   /** The family screen the count leads into. */
   href: string;
-  /** A word about what the operator will find there. */
+  /** A sentence about what they will find there. */
   description: string;
   action: string;
   icon: LucideIcon;
@@ -45,6 +51,7 @@ export interface CountCardProps {
 
 export function CountCard({
   label,
+  title,
   href,
   description,
   action,
@@ -59,28 +66,30 @@ export function CountCard({
         // muted "Counting" line shows sighted operators is announced rather
         // than being a visual-only fact.
         aria-busy={reading.status === "pending" ? true : undefined}
-        className="group flex min-h-40 h-full flex-col rounded-lg bg-card p-5 shadow-card transition-[box-shadow,transform] duration-200 ease-ui hover:-translate-y-0.5 hover:shadow-raised active:translate-y-px"
+        className="group flex h-full flex-col rounded-lg bg-card p-5 shadow-card transition-[box-shadow,transform] duration-200 ease-ui hover:-translate-y-0.5 hover:shadow-raised active:translate-y-px"
       >
-        <span className="flex items-start justify-between gap-3">
-          <span>
-            <span className="block text-sm font-semibold">{label}</span>
-            <span className="block text-sm text-muted-foreground">
-              {description}
-            </span>
+        {/* `items-center` on a fixed row: the badge and the figure share one
+            optical centre whichever of the three states the figure is in. */}
+        <span className="flex h-12 items-center gap-4">
+          <span className="grid size-11 shrink-0 place-items-center rounded-full bg-accent-soft text-accent-strong">
+            <Icon aria-hidden="true" className="size-5" strokeWidth={1.6} />
           </span>
-          <span className="grid size-9 shrink-0 place-items-center rounded-md bg-accent-soft text-accent-strong">
-            <Icon aria-hidden="true" className="size-4" strokeWidth={1.8} />
-          </span>
-        </span>
-
-        {/* `items-end`, so the figure and the two sentences that stand in for
-            it sit on one baseline instead of centring at three different
-            heights. */}
-        <span className="mt-5 flex h-10 items-end">
           <CountValue reading={reading} />
         </span>
 
-        <span className="mt-4 flex items-center justify-between border-border border-t pt-3 text-sm font-semibold">
+        <span className="mt-5 block text-sm font-semibold uppercase tracking-[0.12em] text-muted-foreground">
+          {label}
+        </span>
+        <span className="mt-1 block text-xl font-semibold tracking-[-0.01em]">
+          {title}
+        </span>
+        <span className="mt-2 block text-sm text-muted-foreground">
+          {description}
+        </span>
+
+        {/* `mt-auto`, so the four links sit on one line however long the
+            sentences above them run. */}
+        <span className="mt-auto flex items-center justify-between gap-3 border-border border-t pt-4 text-sm font-semibold">
           {action}
           <span
             aria-hidden="true"
@@ -100,20 +109,18 @@ function CountValue({ reading }: { reading: CountReading }) {
   }
 
   if (reading.status === "failed") {
-    // The console's error device is a rule on the leading edge and not a
-    // colour: --color-destructive and --color-primary are the same umber, so
-    // red is not available to mean anything here. The sentence says the number
-    // is missing rather than showing a zero, which would be a real and
-    // reassuring figure printed over a failure.
+    // A rule on the leading edge rather than colour alone, so the state
+    // survives being read by somebody who does not separate the danger red
+    // from the umber beside it.
     return (
-      <span className="border-destructive text-destructive border-l-2 pl-3 text-sm">
+      <span className="border-danger text-danger border-l-2 pl-3 text-sm">
         Unavailable
       </span>
     );
   }
 
   return (
-    <span className="text-3xl font-semibold leading-9 lining-nums tabular-nums">
+    <span className="text-[2.5rem] font-semibold leading-none lining-nums tabular-nums">
       {reading.count}
       {/* The search answers at most fifty stays, so a full page means the
           figure is a floor. `+` is the honest way to print a number the API

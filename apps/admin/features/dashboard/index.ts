@@ -11,12 +11,23 @@ export {
   arrivalCriteria,
   arrivalsAwaitingCheckIn,
   type CountReading,
-  countReading,
   type CountSource,
+  countReading,
   type DayCount,
   departureCriteria,
   departuresAwaitingCheckout,
+  type HouseTally,
+  houseTally,
+  type Reading,
+  reading,
   roomsNotReady,
+  STAY_PREVIEW_LIMIT,
+  type StaySample,
   shiftDate,
+  staysDueIn,
+  staysDueOut,
   unsettledFolios,
 } from "./day-counts";
+export { HouseStrip } from "./house-strip";
+export { ShiftSummary } from "./shift-summary";
+export { StaysPreview, type StaysPreviewProps } from "./stays-preview";
