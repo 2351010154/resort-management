@@ -42,7 +42,7 @@ export function NavItem({ item, icon: Icon, active, hint }: NavItemProps) {
       </span>
       <kbd
         className={cn(
-          "hidden text-[11px] text-nav-muted tracking-[0.06em] opacity-0 transition-opacity duration-150 ease-ui group-hover/nav-item:opacity-100 group-focus-visible/nav-item:opacity-100 xl:block",
+          "hidden text-sm text-nav-muted  opacity-0 transition-opacity duration-150 ease-ui group-hover/nav-item:opacity-100 group-focus-visible/nav-item:opacity-100 xl:block",
           active && "opacity-100",
         )}
       >

@@ -9,7 +9,9 @@ import {
 import type * as React from "react";
 import { useMemo } from "react";
 
+import { DataTableFrame, EmptyState, PageHeader } from "@/components/console";
 import { Button } from "@/components/ui/button";
+import { Skeleton } from "@/components/ui/skeleton";
 /* The console's one rendering of an instant in the property's zone, taken from
  * the module that already owns it rather than a second `Intl.DateTimeFormat`
  * beside it. */
@@ -98,29 +100,20 @@ export function RoomStatusScreen() {
   );
 
   return (
-    <div className="p-rhythm-3">
-      <header>
-        <p className="text-muted-foreground text-xs tracking-caps uppercase">
-          Reports
-        </p>
-        <h1 className="font-display text-display-sm mt-2">Room status</h1>
-        <p className="text-muted-foreground mt-rhythm-1 border-border border-t pt-2 max-w-prose">
-          Every room the property has, in the condition it is in and by type.
-          This is a count taken now rather than a closed night read back: a
-          housekeeping status is where a room stands at this minute, and there
-          is no frozen copy of it to report from. There is no range for the same
-          reason.
-        </p>
-      </header>
+    <div className="mx-auto w-full max-w-[1600px] p-4 sm:p-6 lg:p-8">
+      <PageHeader
+        title="Room status"
+        description="Live room condition counts by type."
+      />
 
       {!offered ? (
-        <p className="text-muted-foreground mt-rhythm-2 max-w-prose text-sm">
+        <p className="text-muted-foreground mt-4 max-w-prose text-sm">
           Where the rooms stand belongs to the desk and to management. What the
           property earned is the report open to you.
         </p>
       ) : (
         <>
-          <div className="mt-rhythm-2 flex flex-wrap items-center gap-3">
+          <div className="mt-4 flex flex-wrap items-center gap-3">
             <Stamp
               pending={report.isPending}
               failed={report.isError}
@@ -180,12 +173,12 @@ function Stamp({
 
   if (pending || report === null) {
     return (
-      <span className="text-muted-foreground text-xs">Counting the rooms.</span>
+      <span className="text-muted-foreground text-sm">Counting the rooms.</span>
     );
   }
 
   return (
-    <span className="text-muted-foreground text-xs">
+    <span className="text-muted-foreground text-sm">
       Counted {formatInstant(report.takenAt)} · {report.rooms} rooms ·{" "}
       {boundaryNote(report.lastClosedBusinessDate)}
     </span>
@@ -206,85 +199,92 @@ function Reading({
 }) {
   if (failed) {
     return (
-      <p className="border-destructive text-destructive mt-rhythm-2 border-l-2 pl-3 text-sm">
-        The room-status report could not be read. Nothing here is a statement
-        about where the rooms stand.
+      <p
+        className="mt-6 border-danger border-l-2 pl-3 text-sm text-danger"
+        role="alert"
+      >
+        The room-status report could not be loaded.
       </p>
     );
   }
 
   if (pending || report === null) {
-    return (
-      <p className="text-muted-foreground mt-rhythm-2 text-sm" aria-busy>
-        Counting the rooms.
-      </p>
-    );
+    return <Skeleton className="mt-6 h-80" aria-busy />;
   }
 
   if (report.rooms === 0) {
     return (
-      <p className="text-muted-foreground mt-rhythm-2 max-w-prose text-sm">
-        The property has no rooms on record. That is a question for the rooms
-        screen rather than an answer this report can give.
-      </p>
+      <EmptyState
+        className="mt-6"
+        title="No rooms recorded"
+        description="Add rooms before running this report."
+      />
     );
   }
 
   return (
     <>
-      <dl className="mt-rhythm-2 grid gap-2 text-sm sm:grid-cols-4">
+      <dl className="mt-6 grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
         {report.byStatus.map((count) => (
-          <div key={count.status}>
-            <dt className="text-muted-foreground text-xs tracking-caps uppercase">
+          <div
+            className="rounded-lg bg-card p-4 shadow-card"
+            key={count.status}
+          >
+            <dt className="text-sm font-semibold  text-muted-foreground uppercase">
               {ROOM_STATUS_LABELS[count.status]}
             </dt>
-            <dd className="font-mono">{count.rooms}</dd>
+            <dd className="mt-2 text-2xl font-semibold tabular-nums">
+              {count.rooms}
+            </dd>
           </div>
         ))}
       </dl>
 
-      <section className="mt-rhythm-2">
+      <section className="mt-6 rounded-lg bg-card p-4 shadow-card">
         <RoomStatusChart bars={bars} />
       </section>
 
-      <table className="mt-rhythm-2 w-full border-collapse text-sm">
-        <caption className="text-muted-foreground mb-rhythm-1 text-left text-xs">
-          Every room type the property operates, in the order it prices them. A
-          nought is a real answer — no room of that type is in that condition —
-          and a type the property has no rooms of is not a row at all.
-        </caption>
-        <thead>
-          <tr className="border-border border-b">
-            <Column>Room type</Column>
-            <Column align="right">Rooms</Column>
-            {HOUSEKEEPING_STATUSES.map((status) => (
-              <Column align="right" key={status}>
-                {ROOM_STATUS_LABELS[status]}
-              </Column>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {report.byType.map((type) => (
-            <tr className="border-border border-b" key={type.roomType}>
-              <td className="py-1 pr-3 whitespace-nowrap first:pl-0">
-                {type.roomType}
-              </td>
-              <td className="px-3 py-1 text-right font-mono whitespace-nowrap">
-                {type.rooms}
-              </td>
-              {type.byStatus.map((count) => (
-                <td
-                  className="text-muted-foreground px-3 py-1 text-right font-mono whitespace-nowrap last:pr-0"
-                  key={count.status}
-                >
-                  {count.rooms}
-                </td>
+      <DataTableFrame className="mt-6 overflow-x-auto p-4">
+        <table className="w-full min-w-[800px] border-collapse text-sm">
+          <caption className="text-muted-foreground mb-2 text-left text-sm">
+            Every room type the property operates, in the order it prices them.
+            A nought is a real answer — no room of that type is in that
+            condition — and a type the property has no rooms of is not a row at
+            all.
+          </caption>
+          <thead>
+            <tr className="border-border border-b">
+              <Column>Room type</Column>
+              <Column align="right">Rooms</Column>
+              {HOUSEKEEPING_STATUSES.map((status) => (
+                <Column align="right" key={status}>
+                  {ROOM_STATUS_LABELS[status]}
+                </Column>
               ))}
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {report.byType.map((type) => (
+              <tr className="border-border border-b" key={type.roomType}>
+                <td className="py-1 pr-3 whitespace-nowrap first:pl-0">
+                  {type.roomType}
+                </td>
+                <td className="px-3 py-1 text-right tabular-nums whitespace-nowrap">
+                  {type.rooms}
+                </td>
+                {type.byStatus.map((count) => (
+                  <td
+                    className="text-muted-foreground px-3 py-1 text-right tabular-nums whitespace-nowrap last:pr-0"
+                    key={count.status}
+                  >
+                    {count.rooms}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </DataTableFrame>
     </>
   );
 }
@@ -301,8 +301,8 @@ function Column({
       scope="col"
       className={
         align === "right"
-          ? "text-muted-foreground px-3 py-2 text-right text-xs font-normal tracking-caps uppercase first:pl-0 last:pr-0"
-          : "text-muted-foreground px-3 py-2 text-left text-xs font-normal tracking-caps uppercase first:pl-0 last:pr-0"
+          ? "text-muted-foreground px-3 py-2 text-right text-sm font-normal  uppercase first:pl-0 last:pr-0"
+          : "text-muted-foreground px-3 py-2 text-left text-sm font-normal  uppercase first:pl-0 last:pr-0"
       }
     >
       {children}

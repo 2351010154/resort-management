@@ -69,7 +69,7 @@ export function HousekeepingScreen() {
         title="Housekeeping"
         description={
           reading.status === "ready"
-            ? `Room readiness for ${formatLongDate(reading.businessDate)}. Tap a room to advance its state.`
+            ? `Room readiness for ${formatLongDate(reading.businessDate)}. Tap to advance.`
             : "Reading room readiness."
         }
       />
@@ -134,7 +134,7 @@ function FloorSection({
 }) {
   return (
     <section className="mt-8">
-      <h2 className="text-sm font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+      <h2 className="text-sm font-semibold  text-muted-foreground uppercase">
         {floorName(floor.floor)}
       </h2>
 
@@ -183,7 +183,7 @@ function RoomTile({
         <span className="grid h-9 min-w-14 place-items-center rounded-md border border-border bg-card px-2 text-lg font-semibold tabular-nums shadow-xs">
           {tile.roomNumber}
         </span>
-        <span className="text-xs font-semibold tracking-[0.06em] text-muted-foreground uppercase">
+        <span className="text-sm font-semibold  text-muted-foreground uppercase">
           {tile.roomTypeLabel}
         </span>
       </span>
@@ -193,7 +193,7 @@ function RoomTile({
         <span className="text-muted-foreground">{tile.occupancyLabel}</span>
       </span>
 
-      <span className="mt-auto pt-3 text-xs text-muted-foreground">
+      <span className="mt-auto pt-3 text-sm text-muted-foreground">
         {tile.touchedLabel}
       </span>
     </>
@@ -206,7 +206,7 @@ function RoomTile({
     return (
       <div className="flex min-h-36 flex-col rounded-lg border border-danger/30 bg-danger-soft p-4 text-left text-danger shadow-card">
         {face}
-        <span className="mt-1 text-xs">
+        <span className="mt-1 text-sm">
           {tile.noteLabel ?? "No reason recorded"}
         </span>
       </div>
@@ -234,7 +234,7 @@ function RoomTile({
       )}
     >
       {face}
-      <span className="mt-1 text-xs font-semibold">{tile.advanceLabel}</span>
+      <span className="mt-1 text-sm font-semibold">{tile.advanceLabel}</span>
     </button>
   );
 }

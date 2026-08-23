@@ -201,10 +201,7 @@ function DropdownMenuShortcut({
       /* The console is keyboard-first, so this is not decoration — for a lot
        * of operators it is how the menu is actually read. Set in the same
        * face as everything else, because everything else is already mono. */
-      className={cn(
-        "ml-auto text-xs tracking-widest text-muted-foreground",
-        className,
-      )}
+      className={cn("ml-auto text-sm  text-muted-foreground", className)}
       {...props}
     />
   );

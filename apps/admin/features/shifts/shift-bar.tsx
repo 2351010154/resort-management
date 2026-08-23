@@ -32,7 +32,7 @@ export function ShiftBar() {
           <CalendarDaysIcon aria-hidden="true" className="size-4" />
         </span>
         <span className="min-w-0 leading-tight">
-          <span className="block text-[11px] font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+          <span className="block text-sm font-semibold  text-muted-foreground uppercase">
             Hotel day
           </span>
           <span className="block truncate text-sm font-semibold">
@@ -93,7 +93,7 @@ function DrawerStatus({
 }) {
   if (pending) {
     return (
-      <span className="hidden text-xs text-muted-foreground lg:inline">
+      <span className="hidden text-sm text-muted-foreground lg:inline">
         Reading drawer
       </span>
     );
@@ -101,7 +101,7 @@ function DrawerStatus({
 
   if (failed) {
     return (
-      <span className="hidden text-xs text-danger lg:inline">
+      <span className="hidden text-sm text-danger lg:inline">
         Drawer unavailable
       </span>
     );

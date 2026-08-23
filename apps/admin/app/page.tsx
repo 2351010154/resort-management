@@ -11,16 +11,8 @@
 // The map itself is in `lib/auth/landing-route.ts`, where it is one tested
 // function rather than a branch in a component.
 //
-// **The destinations do not exist yet.** They are the paths the screen families
-// will occupy, and until each lands the redirect ends on a 404 — which is what
-// a console with a working session and no screens honestly is. Placeholder
-// screens behind them would be a second opinion about an inventory that has an
-// owner, and would look like progress that has not happened.
-//
-// It renders nothing of its own. The theme check this route used to carry —
-// every part of globals.css exercised by one page's utilities — moved to the
-// login screen, which is a real screen built out of the same steps, faces and
-// rhythm and is compiled by the same build.
+// Every role destination is a real screen under the authenticated shell. This
+// junction renders nothing of its own.
 //
 // A client component and not a server redirect: the session is a token in
 // memory and an httpOnly cookie on the *API's* origin, so a request to this

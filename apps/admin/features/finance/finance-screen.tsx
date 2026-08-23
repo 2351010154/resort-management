@@ -11,7 +11,12 @@ import {
 import type * as React from "react";
 import { useMemo, useRef, useState } from "react";
 
-import { DataTableFrame, EmptyState, PageHeader } from "@/components/console";
+import {
+  DataTableFrame,
+  EmptyState,
+  KeyHint,
+  PageHeader,
+} from "@/components/console";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -372,7 +377,7 @@ export function FinanceScreen() {
 
             <Problem said={problem} />
 
-            <div className="mt-rhythm-1 flex flex-wrap items-center gap-3">
+            <div className="mt-2 flex flex-wrap items-center gap-3">
               <Button type="submit">Show the book</Button>
               {exportsTheBook ? (
                 /* The label changes as well as the control disabling, which is
@@ -391,12 +396,14 @@ export function FinanceScreen() {
                     : "Export to Excel"}
                 </Button>
               ) : null}
-              <span className="text-muted-foreground text-xs">
+              <span className="text-muted-foreground flex flex-wrap items-center gap-2 text-sm">
                 {/* Said rather than implied: both ends are the trading day the
                     money moved on and not the day somebody typed it in, which is
                     what puts a Friday transfer entered on Monday in Friday's
                     month. */}
-                / reaches the first day · both ends are inclusive trading days
+                <KeyHint>/</KeyHint>
+                <span>First day</span>
+                <span>Inclusive trading days</span>
               </span>
             </div>
           </form>
@@ -479,7 +486,7 @@ function Total({
 }) {
   return (
     <div className="rounded-lg bg-card p-4 shadow-card">
-      <dt className="text-xs font-semibold tracking-[0.06em] text-muted-foreground uppercase">
+      <dt className="text-sm font-semibold  text-muted-foreground uppercase">
         {label}
       </dt>
       <dd
@@ -557,7 +564,7 @@ function EntryTable({
   return (
     <DataTableFrame className="mt-6 overflow-x-auto p-4">
       <table className="w-full min-w-[900px] border-collapse text-sm">
-        <caption className="text-muted-foreground mb-rhythm-1 text-left text-xs">
+        <caption className="text-muted-foreground mb-2 text-left text-sm">
           Every entry the filters matched, latest trading day first. A cash
           entry names the drawer it moved through, and its count has to account
           for those đồng; a correction is a row of its own and both stay in the
@@ -588,8 +595,8 @@ function EntryTable({
         </tbody>
       </table>
 
-      <div className="mt-rhythm-1 flex flex-wrap items-center gap-3">
-        <p className="text-muted-foreground text-xs">
+      <div className="mt-2 flex flex-wrap items-center gap-3">
+        <p className="text-muted-foreground text-sm">
           {window.first}–{window.last} of {window.total}
         </p>
         <Button
@@ -650,14 +657,14 @@ function EntryRows({
       <tr className="border-border align-top">
         <td className="py-1 pr-3 whitespace-nowrap first:pl-0">
           {formatShortDate(entry.businessDate)}
-          <span className="text-muted-foreground block text-xs">
+          <span className="text-muted-foreground block text-sm">
             {formatInstant(entry.recordedAt)}
           </span>
         </td>
         <td className="px-3 py-1">
           {CATEGORY_LABELS[entry.category]}
           {entry.reversesEntryId === null ? null : (
-            <span className="text-muted-foreground block text-xs">
+            <span className="text-muted-foreground block text-sm">
               A correction
             </span>
           )}
@@ -665,10 +672,10 @@ function EntryRows({
         <td className="px-3 py-1 whitespace-nowrap">
           {METHOD_LABELS[entry.method]}
         </td>
-        <td className="px-3 py-1 text-right font-mono whitespace-nowrap">
+        <td className="px-3 py-1 text-right tabular-nums whitespace-nowrap">
           {entry.direction === "INCOME" ? formatVnd(entry.amount) : null}
         </td>
-        <td className="px-3 py-1 text-right font-mono whitespace-nowrap">
+        <td className="px-3 py-1 text-right tabular-nums whitespace-nowrap">
           {entry.direction === "EXPENSE" ? formatVnd(entry.amount) : null}
         </td>
         <td className="px-3 py-1">{entry.recordedByName}</td>
@@ -697,7 +704,7 @@ function EntryRows({
           </span>
 
           {correcting ? (
-            <div className="mt-rhythm-1">
+            <div className="mt-2">
               <CorrectEntryForm
                 entry={entry}
                 drawers={drawers}
@@ -740,7 +747,7 @@ function Correction({
   onLeave(): void;
 }) {
   if (corrected) {
-    return <span className="text-muted-foreground text-xs">Corrected</span>;
+    return <span className="text-muted-foreground text-sm">Corrected</span>;
   }
 
   if (!stands) {
@@ -771,8 +778,8 @@ function Column({
       scope="col"
       className={
         align === "right"
-          ? "text-muted-foreground px-3 py-2 text-right text-xs font-normal tracking-caps uppercase first:pl-0 last:pr-0"
-          : "text-muted-foreground px-3 py-2 text-left text-xs font-normal tracking-caps uppercase first:pl-0 last:pr-0"
+          ? "text-muted-foreground px-3 py-2 text-right text-sm font-normal  uppercase first:pl-0 last:pr-0"
+          : "text-muted-foreground px-3 py-2 text-left text-sm font-normal  uppercase first:pl-0 last:pr-0"
       }
     >
       {children}

@@ -173,19 +173,21 @@ function Form({ businessDate, rooms, onCancel, onDone }: NewBookingFormProps) {
   if (taken !== null) {
     return (
       <div className="border-border border-t p-4">
-        <h2 className="font-display text-lg">{taken.reference} is confirmed</h2>
-        <dl className="mt-rhythm-1 grid gap-2 text-sm sm:grid-cols-2">
+        <h2 className="font-semibold text-lg">
+          {taken.reference} is confirmed
+        </h2>
+        <dl className="mt-2 grid gap-2 text-sm sm:grid-cols-2">
           <Fact label="State" value={taken.state} />
           <Fact label="Sold as" value={taken.roomType} />
           <Fact label="Arriving" value={formatLongDate(taken.checkIn)} />
           <Fact label="Leaving" value={formatLongDate(taken.checkOut)} />
         </dl>
-        <p className="text-muted-foreground mt-rhythm-1 text-sm">
+        <p className="text-muted-foreground mt-2 text-sm">
           It is in the arrivals queue on its date. Read the reference back to
           the guest — it is what they will give at the counter.
         </p>
 
-        <div className="mt-rhythm-1">
+        <div className="mt-2">
           <Button ref={doneControl} type="button" onClick={onDone}>
             Back to the bookings
           </Button>
@@ -294,8 +296,8 @@ function Form({ businessDate, rooms, onCancel, onDone }: NewBookingFormProps) {
           autoComplete="email"
           hint={
             fields.kind === "phone"
-              ? "Where the confirmation and any cancellation go."
-              : "Optional. A name on its own is taken; an address needs one beside it."
+              ? "Receives confirmation and cancellation notices."
+              : "Optional. Email requires a guest name."
           }
           onChange={(contactEmail) => {
             change({ contactEmail });
@@ -303,23 +305,23 @@ function Form({ businessDate, rooms, onCancel, onDone }: NewBookingFormProps) {
         />
       </div>
 
-      <p className="text-muted-foreground mt-rhythm-1 text-sm">
+      <p className="text-muted-foreground mt-2 text-sm">
         {fields.kind === "walk-in"
-          ? "The check-in follows straight on, at the counter."
-          : "The stay stops at confirmed and appears in arrivals on its date. Nobody is registered on it until they arrive."}
+          ? "Check-in follows immediately."
+          : "Confirmed stays appear in Arrivals on their date."}
       </p>
 
       {problem === null ? null : (
-        <p className="border-destructive text-destructive mt-rhythm-1 border-l-2 pl-3 text-sm">
+        <p className="border-destructive text-destructive mt-2 border-l-2 pl-3 text-sm">
           {problem}
         </p>
       )}
 
-      <div className="mt-rhythm-1 flex items-center gap-3">
+      <div className="mt-2 flex items-center gap-3">
         <Button type="submit" disabled={create.isPending}>
           Take the booking
         </Button>
-        <span className="text-muted-foreground text-xs">
+        <span className="text-muted-foreground text-sm">
           Escape abandons it. Nothing is written until the press.
         </span>
       </div>
@@ -380,7 +382,7 @@ function Choice<T extends string>({
     <div>
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-xs tracking-caps uppercase"
+        className="text-muted-foreground block text-sm  uppercase"
       >
         {label}
       </label>
@@ -438,7 +440,7 @@ function Field({
     <div>
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-xs tracking-caps uppercase"
+        className="text-muted-foreground block text-sm  uppercase"
       >
         {label}
       </label>
@@ -454,7 +456,7 @@ function Field({
         }}
       />
       {hint === undefined ? null : (
-        <p className="text-muted-foreground mt-1 text-xs">{hint}</p>
+        <p className="text-muted-foreground mt-1 text-sm">{hint}</p>
       )}
     </div>
   );
@@ -463,9 +465,7 @@ function Field({
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-muted-foreground text-xs tracking-caps uppercase">
-        {label}
-      </dt>
+      <dt className="text-muted-foreground text-sm  uppercase">{label}</dt>
       <dd>{value}</dd>
     </div>
   );

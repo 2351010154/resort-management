@@ -9,7 +9,7 @@
 // first and deliberately plain.
 //
 // So what this draws is the shape of the header that is about to land. Every
-// screen family opens the same way — `p-rhythm-3`, a caps kicker, a display
+// screen family opens the same way — `p-8`, a caps kicker, a display
 // line, and a rule under it — and this occupies exactly that geometry with the
 // kicker filled in and the rest still empty. The effect when the screen lands
 // is that the rule and the kicker stay where they are and the title fills in
@@ -40,14 +40,21 @@ export function ConsoleWait({ label = "Loading" }: { label?: string }) {
     // for the same reason — a transient fallback that adds a landmark leaves
     // anything reading the page in order with two answers to where the content
     // starts, and then takes one of them away again.
-    <div aria-live="polite" className="p-rhythm-3" role="status">
-      <p className="text-muted-foreground text-xs tracking-caps uppercase">
-        {label}
-      </p>
-      {/* Where the screen's own rule goes, at the offset the screen puts it.
-       * `border-t` on an empty div rather than an `hr`: it is the header's
-       * underline arriving early, not a thematic break between two things. */}
-      <div className="mt-rhythm-1 animate-pulse border-border border-t" />
+    <div
+      aria-live="polite"
+      className="mx-auto w-full max-w-[1600px] p-4 sm:p-6 lg:p-8"
+      role="status"
+    >
+      <span className="sr-only">{label}</span>
+      <Skeleton className="h-9 w-48" />
+      <Skeleton className="mt-2 h-5 w-80 max-w-full" />
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Skeleton className="h-40" />
+        <Skeleton className="h-40" />
+        <Skeleton className="h-40" />
+        <Skeleton className="h-40" />
+      </div>
     </div>
   );
 }
+import { Skeleton } from "@/components/ui/skeleton";

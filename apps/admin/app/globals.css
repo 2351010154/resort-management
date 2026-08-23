@@ -50,10 +50,7 @@
   --font-*: initial;
   --font-sans: var(--font-figtree), "Segoe UI", sans-serif;
   --font-ui: var(--font-figtree), "Segoe UI", sans-serif;
-  --font-display: var(--font-figtree), "Segoe UI", sans-serif;
-  --font-mono: var(--font-figtree), "Segoe UI", sans-serif;
 
-  --text-xs: 0.75rem;
   --text-sm: 0.875rem;
   --text-base: 0.9375rem;
   --text-lg: 1.0625rem;
@@ -73,32 +70,6 @@
   --shadow-raised: var(--console-shadow-raised);
 
   --ease-ui: var(--console-ease-out);
-
-  --spacing-rhythm-1: var(--console-space-2);
-  --spacing-rhythm-2: var(--console-space-4);
-  --spacing-rhythm-3: var(--console-space-8);
-  --spacing-rhythm-4: var(--console-space-12);
-  --spacing-rhythm-5: var(--console-space-16);
-}
-
-/* Compatibility utilities disappear as screens migrate to the console kit. */
-@utility text-display-sm {
-  font-size: var(--text-3xl);
-  line-height: 1.2;
-}
-
-@utility text-display {
-  font-size: var(--text-3xl);
-  line-height: 1.2;
-}
-
-@utility text-display-lg {
-  font-size: var(--text-3xl);
-  line-height: 1.2;
-}
-
-@utility tracking-caps {
-  letter-spacing: 0.06em;
 }
 
 @layer base {

@@ -1,9 +1,11 @@
 "use client";
 
 import type { StaffRole } from "@mariva/shared";
+import { ArrowUpRightIcon, ChartNoAxesCombinedIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+import { EmptyState, PageHeader } from "@/components/console";
 import { useCommands } from "@/features/command-palette";
 import { useStaffSession } from "@/lib/auth";
 
@@ -72,38 +74,39 @@ export function ReportsScreen() {
   );
 
   return (
-    <div className="p-rhythm-3">
-      <header>
-        <p className="text-muted-foreground text-xs tracking-caps uppercase">
-          Management
-        </p>
-        <h1 className="font-display text-display-sm mt-2">Reports</h1>
-        <p className="text-muted-foreground mt-rhythm-1 border-border border-t pt-2 max-w-prose">
-          Each report is a page with its own range, a chart and an Excel export.
-          Every one of them is stamped with the last business date the night
-          audit has closed — a boundary rather than a statement of source: what
-          it promises is that no page shows a day the audit has not closed, not
-          that every figure on it was read from a frozen row.
-        </p>
-      </header>
+    <div className="mx-auto w-full max-w-[1600px] p-4 sm:p-6 lg:p-8">
+      <PageHeader
+        title="Reports"
+        description="Named hotel reports with closed-day boundaries and Excel export."
+      />
 
       {offered.length === 0 ? (
-        <p className="text-muted-foreground mt-rhythm-2 max-w-prose text-sm">
-          No report is yours to open. What the property earned belongs to the
-          accountant and management, and where the rooms stand belongs to the
-          desk — this account holds neither.
-        </p>
+        <EmptyState
+          className="mt-6"
+          title="No reports available"
+          description="This role has no report access."
+        />
       ) : (
-        <ul className="mt-rhythm-2 max-w-prose">
+        <ul className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {offered.map((page) => (
-            <li className="border-border border-b" key={page.id}>
+            <li key={page.id}>
               <Link
-                className="focus-visible:ring-ring block py-rhythm-1 focus-visible:ring-2 focus-visible:outline-none"
+                className="group flex h-full min-h-44 flex-col rounded-lg bg-card p-5 shadow-card transition-[box-shadow,transform] duration-200 ease-ui hover:-translate-y-0.5 hover:shadow-raised active:translate-y-px"
                 href={page.href}
               >
-                <span className="font-display text-lg">{page.label}</span>
-                <span className="text-muted-foreground mt-1 block text-sm">
+                <span className="grid size-10 place-items-center rounded-md bg-accent-soft text-accent-strong">
+                  <ChartNoAxesCombinedIcon
+                    aria-hidden="true"
+                    className="size-5"
+                  />
+                </span>
+                <span className="mt-4 text-lg font-semibold">{page.label}</span>
+                <span className="mt-1 block text-sm text-muted-foreground">
                   {page.summary}
+                </span>
+                <span className="mt-auto flex items-center justify-between pt-4 text-sm font-semibold">
+                  Open report
+                  <ArrowUpRightIcon aria-hidden="true" className="size-4" />
                 </span>
               </Link>
             </li>

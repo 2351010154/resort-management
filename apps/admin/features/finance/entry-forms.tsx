@@ -209,10 +209,10 @@ export function RecordEntryForm({
         />
       </div>
 
-      <div className="mt-rhythm-1">
+      <div className="mt-2">
         <label
           htmlFor={noteId}
-          className="text-muted-foreground block text-xs tracking-caps uppercase"
+          className="text-muted-foreground block text-sm  uppercase"
         >
           What it was for
         </label>
@@ -229,7 +229,7 @@ export function RecordEntryForm({
         />
       </div>
 
-      <p className="text-muted-foreground mt-2 text-xs">
+      <p className="text-muted-foreground mt-2 text-sm">
         {/* Said before the press rather than after it, because it is the one
             property of this book that changes how carefully somebody types. */}
         The book cannot be edited. An entry that turns out to be wrong is undone
@@ -238,7 +238,7 @@ export function RecordEntryForm({
 
       <Problem said={problem} />
 
-      <div className="mt-rhythm-1">
+      <div className="mt-2">
         <Button type="submit" disabled={record.isPending}>
           Record it
         </Button>
@@ -329,10 +329,10 @@ export function CorrectEntryForm({
         </div>
       ) : null}
 
-      <div className="mt-rhythm-1">
+      <div className="mt-2">
         <label
           htmlFor={reasonId}
-          className="text-muted-foreground block text-xs tracking-caps uppercase"
+          className="text-muted-foreground block text-sm  uppercase"
         >
           Why it is being undone
         </label>
@@ -352,7 +352,7 @@ export function CorrectEntryForm({
 
       <Problem said={problem} />
 
-      <div className="mt-rhythm-1 flex flex-wrap items-center gap-3">
+      <div className="mt-2 flex flex-wrap items-center gap-3">
         <Button type="submit" disabled={reverse.isPending}>
           Record the correction
         </Button>
@@ -407,7 +407,7 @@ function DrawerChoice({
     <div>
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-xs tracking-caps uppercase"
+        className="text-muted-foreground block text-sm  uppercase"
       >
         Drawer
       </label>
@@ -454,7 +454,7 @@ export function Choice<T extends string>({
     <div>
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-xs tracking-caps uppercase"
+        className="text-muted-foreground block text-sm  uppercase"
       >
         {label}
       </label>
@@ -498,7 +498,7 @@ export function Field({
     <div>
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-xs tracking-caps uppercase"
+        className="text-muted-foreground block text-sm  uppercase"
       >
         {label}
       </label>
@@ -526,7 +526,7 @@ export function Problem({ said }: { said: string | null }) {
   }
 
   return (
-    <p className="border-destructive text-destructive mt-rhythm-1 border-l-2 pl-3 text-sm">
+    <p className="border-destructive text-destructive mt-2 border-l-2 pl-3 text-sm">
       {said}
     </p>
   );

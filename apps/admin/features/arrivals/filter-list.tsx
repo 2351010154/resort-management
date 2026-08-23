@@ -117,7 +117,7 @@ export function FilterList({
     <div>
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-xs tracking-caps uppercase"
+        className="text-muted-foreground block text-sm  uppercase"
       >
         {label}
       </label>
@@ -180,7 +180,7 @@ export function FilterList({
             >
               <span>{option.label}</span>
               {option.detail === undefined ? null : (
-                <span className="text-muted-foreground text-xs">
+                <span className="text-muted-foreground text-sm">
                   {option.detail}
                 </span>
               )}

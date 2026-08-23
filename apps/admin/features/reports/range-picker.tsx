@@ -4,6 +4,7 @@ import { REVENUE_BUCKETS } from "@mariva/shared";
 import type * as React from "react";
 import { useId } from "react";
 
+import { KeyHint } from "@/components/console";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -49,7 +50,7 @@ export function RangePicker({
 }) {
   return (
     <form
-      className="mt-rhythm-1"
+      className="mt-2"
       onSubmit={(event) => {
         event.preventDefault();
         onSubmit();
@@ -86,15 +87,17 @@ export function RangePicker({
         </div>
       </div>
 
-      <p className="text-muted-foreground mt-rhythm-1 text-xs">
+      <div className="text-muted-foreground mt-2 flex flex-wrap items-center gap-2 text-sm">
         {/* Said rather than implied: both ends are the trading day the property
             was working and not the calendar day the clock had reached, which is
             what puts a walk-in taken at 01:30 in the night it was sold. Leaving
             an end empty is a real question — "everything so far" — and the last
             day is cut at the boundary whatever is typed. */}
-        / reaches the first day · both ends are inclusive trading days · leave
-        either empty for no bound
-      </p>
+        <KeyHint>/</KeyHint>
+        <span>First day</span>
+        <span>Inclusive trading days</span>
+        <span>Empty means no bound</span>
+      </div>
     </form>
   );
 }
@@ -121,7 +124,7 @@ function Day({
     <div>
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-xs tracking-caps uppercase"
+        className="text-muted-foreground block text-sm  uppercase"
       >
         {label}
       </label>
@@ -155,7 +158,7 @@ function Cut({
     <div>
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-xs tracking-caps uppercase"
+        className="text-muted-foreground block text-sm  uppercase"
       >
         Grouped by
       </label>
