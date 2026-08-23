@@ -172,13 +172,22 @@ stands alone with no shell and no nav
 
 ### Console presentation
 
-The staff console uses its own presentation tokens in
-[`apps/admin/app/console-tokens.css`](../apps/admin/app/console-tokens.css); the
-guest-app token package remains shared but unchanged. Figtree is the console's
-only typeface. UI copy has a 14px minimum, regular-or-heavier weight, and no
-tracked or monospace body treatment.
+The staff console draws the brand's palette. Its semantic tokens live in
+[`apps/admin/app/console-tokens.css`](../apps/admin/app/console-tokens.css), and
+the colours behind them are the ivory, sand, stone, umber and dusk-amber of
+[`packages/tokens/tokens.css`](../packages/tokens/tokens.css) — restated there
+rather than imported, because that package also carries a type ramp the console
+overrides. What the console adds on top is vocabulary the brand has no opinion
+about: a card that sits above the ground, a border weight that is a real
+boundary, and four status colours. Every pair a screen can draw is checked
+against WCAG AA and the ratio is recorded beside the value. Dusk-amber is a
+marker, a fill and a tint rather than a button or a focus ring: it is 2.7:1 on
+ivory, so the ring and the strong text are darker ambers.
 
-The signed-in shell has a deep-spruce rail grouped as **Today**,
+Figtree is the console's only typeface. UI copy has a 14px minimum,
+regular-or-heavier weight, and no tracked or monospace body treatment.
+
+The signed-in shell has a light ivory-warm rail grouped as **Today**,
 **Reservations**, **Property**, **Money**, and **Management**. It collapses to
 an icon rail before the content becomes cramped. The top bar keeps the hotel
 business date, drawer state, handover action, and command-palette trigger in
@@ -204,6 +213,15 @@ folios, each count leading into its family screen. KPIs deliberately stay in
 Reports — the dashboard's main user, the receptionist, is denied occupancy,
 ADR and RevPAR by the RBAC matrix, and one screen must not serve two
 audiences.
+
+Under the four counts it carries what the same three answers already contain:
+every room by state as a tally and a proportion bar, the first few stays behind
+the arrivals and departures figures by name and room, and the operator's own
+drawer with the handover items the last shift left outstanding. None of it adds
+a request and none of it is a rate — room counts are facts about the building,
+where occupancy as a percentage is the KPI that stays in Reports. The drawer
+acts open the same surfaces the command palette opens, so the shift still never
+owns a screen visit.
 
 Arrivals is a worked queue, not a report. Picking a row opens a keyboard-driven
 check-in sequence in place — confirm the guest and their identity document
