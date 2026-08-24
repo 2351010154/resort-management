@@ -154,7 +154,11 @@ export {
   setConditionInput,
   setOutOfOrderInput,
 } from "./housekeeping.js";
-export { closeRoomInput, roomClosureSchema } from "./inventory.js";
+export {
+  closeRoomInput,
+  roomClosureQuery,
+  roomClosureSchema,
+} from "./inventory.js";
 export { jobRunSchema, triggerJobInput } from "./jobs.js";
 export {
   closeShiftInput,
@@ -178,6 +182,7 @@ export {
   LONGEST_PAYMENT_PAGE,
   listedPaymentSchema,
   listPaymentsInput,
+  listRefundCandidatesInput,
   openedPaymentSchema,
   openPaymentAttemptInput,
   PAYMENT_PAGE_SIZE,
@@ -185,6 +190,8 @@ export {
   paymentMethodSchema,
   paymentPageSchema,
   paymentStatusSchema,
+  refundCandidateSchema,
+  refundCandidatesPageSchema,
 } from "./payment.js";
 export {
   isUnrestricted,

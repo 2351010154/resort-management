@@ -70,3 +70,4 @@ apps/web/scripts/encode-threshold-video.mjs
 apps/web/scripts/measure-room-comp.mjs
 apps/web/scripts/prepare-arrival-images.mjs
 apps/web/scripts/prepare-room-images.mjs
+

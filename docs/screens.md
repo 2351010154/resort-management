@@ -191,8 +191,9 @@ The signed-in shell has a light ivory-warm rail grouped as **Today**,
 **Reservations**, **Property**, **Money**, and **Management**. It collapses to
 an icon rail before the content becomes cramped. The top bar keeps the hotel
 business date, drawer state, handover action, and command-palette trigger in
-reach. Navigation chords, screen hotkeys, roving focus, and the command registry
-remain the shared interaction layer; visible shortcuts use key chips.
+reach. Screen hotkeys, roving focus, and the command registry remain the shared
+interaction layer; visible shortcuts use key chips. Reaching a family by
+keyboard is the palette's `Go to` group rather than a navigation chord.
 
 Screens compose the console kit rather than defining another local shell:
 `PageHeader`, `FilterBar`, `DataTableFrame`, `DetailSheet`, `FormSection`,
@@ -266,6 +267,8 @@ cannot: the phone booking stops at `CONFIRMED` and surfaces in arrivals on its
 date, while the walk-in — whose booking and check-in are one conversation at
 the desk — flows straight from creation into the same check-in sequence
 arrivals uses. A guest standing at the desk is never parked in a queue.
+Bookings owns stay actions; Arrivals and Departures remain the worked check-in
+and checkout queues rather than alternate stay-detail screens.
 
 The housekeeping board is the console's one deliberate exception to
 keyboard-first: housekeepers walk the floors with a phone, so the board is a
@@ -292,6 +295,7 @@ state only, while *schedule closure* is manager-only, takes a date range and
 previews its hit to sellable inventory before confirming — because reducing
 `total_rooms` is a commercial act, not a cleaning one. One place answers "why
 is this room not sellable?", and permissions plus framing keep the acts apart.
+Rooms also owns the scheduled-closure list and its confirmed reopen action.
 
 Rates is a grid — days across, room types down — showing price and
 restrictions per cell, with range selection so a weekend uplift or a Tết
@@ -304,12 +308,17 @@ paired with what they reversed, under a pinned settled summary. Append-only is
 the product's integrity story, and the folio screen exists to make corrections
 reviewable — a net view that hid them would hide the screen's purpose. The
 guest's own read of the same folio stays the settled summary.
+Folios owns posting and reversals, including corrections outside checkout.
 
-Payments is organised around the reconciliation day: it opens on today's
-gateway transactions matched against ledger postings, discrepancies first,
-yesterday's reconciliation status in view. Refunds act from the payment row
-and split by role — policy-computed for the desk, discretionary for
-management — as the matrix requires.
+Payments gives receptionists a deliberately narrow list of successful payments
+that can still anchor a policy refund; reconciliation and discrepancy details
+remain with the accountant and management. For those roles it is organised
+around the reconciliation day: today's gateway transactions are matched against
+ledger postings, discrepancies first, with yesterday's reconciliation status in
+view. Refunds act from the payment row and split by role — policy-computed for
+the desk and accountant, override/discretionary for management — as the matrix
+requires.
+Payments owns stay-level refunds; the queues do not duplicate that action.
 
 Finance is strictly the money the folio system does not capture — categorised
 income and expense such as supplies, utilities and salaries. Stay revenue

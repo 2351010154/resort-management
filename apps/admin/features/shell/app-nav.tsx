@@ -21,18 +21,16 @@ import {
   WalletCardsIcon,
 } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 
-import { formatShortcut } from "@/features/command-palette";
 import { useStaffSession } from "@/lib/auth";
-import { detectPlatform, RovingFocusGroup } from "@/lib/keyboard";
+import { RovingFocusGroup } from "@/lib/keyboard";
 import { cn } from "@/lib/utils";
 import {
   isActivePath,
   NAV_GROUPS,
   type NavGroupId,
   navItemsFor,
-  navShortcut,
 } from "./nav-inventory";
 import { NavItem } from "./nav-item";
 import { UserMenu } from "./user-menu";
@@ -66,7 +64,6 @@ const OPEN_GROUPS: Record<NavGroupId, boolean> = {
 export function AppNav() {
   const session = useStaffSession();
   const pathname = usePathname();
-  const platform = useMemo(() => detectPlatform(), []);
   const [expanded, setExpanded] = useState(OPEN_GROUPS);
 
   if (session.status !== "authenticated") {
@@ -129,7 +126,6 @@ export function AppNav() {
                     item={item}
                     icon={NAV_ICONS[item.id] ?? DoorOpenIcon}
                     active={isActivePath(pathname, item.href)}
-                    hint={formatShortcut(navShortcut(item), platform)}
                   />
                 ))}
               </div>

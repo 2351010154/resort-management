@@ -26,12 +26,12 @@
 // registration after the children, like every other shell command.
 //
 // The navigation is here as a rail down the left, filtered by the session's
-// role, and as the `g` sequence and the palette rows that reach the same
-// places. It names fifteen families and **none of their routes exist yet** —
+// role, and as the palette rows that reach the same places. It names fifteen
+// families and **none of their routes exist yet** —
 // `features/shell/nav-inventory.ts` says why at length, and it is the same
 // reason `lib/auth/landing-route.ts` gives for the landings: the map is settled
-// and tested before the screens, and a placeholder behind each entry would be a
-// second opinion about an inventory that has an owner.
+// and tested before the screens, and a placeholder behind each entry would be
+// a second opinion about an inventory that has an owner.
 //
 // What must not happen is screens arriving first. The keyboard layer is a
 // property of every screen at once — focus order, an escape route from any
@@ -42,7 +42,7 @@ import {
   CommandPalette,
   CommandRegistryProvider,
 } from "@/features/command-palette";
-import { AppNav, NavShortcuts } from "@/features/shell";
+import { AppNav, NavCommands } from "@/features/shell";
 import {
   ShiftBar,
   ShiftCommands,
@@ -81,7 +81,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
               <div className="flex min-h-svh bg-background">
                 {/* Before the children in the markup, which is where a landmark
                  * belongs for anything reading the page in order. Its commands are
-                 * not registered here — see `NavShortcuts` below — so the shell's
+                 * not registered here — see `NavCommands` below — so the shell's
                  * registration order is unaffected by where the rail is drawn. */}
                 <AppNav />
                 {/* `min-w-0`, so a wide table inside a screen scrolls within the
@@ -117,7 +117,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                * a `nav.*` row by claiming its id. Inside the guard, so there is no
                * sign-out command and no navigation offered on a console nobody is
                * signed in to. */}
-              <NavShortcuts />
+              <NavCommands />
               <ShiftCommands />
               <SessionCommands />
             </ShiftSurfaceProvider>

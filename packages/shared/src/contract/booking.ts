@@ -10,10 +10,10 @@
 // exist twice over, and that reasoning is untouched.
 //
 // **The guard is not the record.** Which route a caller could reach is an
-// authorisation event: it decides who is admitted and leaves nothing on the
-// booking behind it, and no booking write files an `audit_entry` row — the
-// table is real, system config and the pricing writes are the only things that
-// put anything in it, and no trigger does it for anybody else. What separates a
+// authorisation event: it decides who is admitted. Migration 0041's row
+// triggers separately record booking writes with the request actor, so the
+// audit trail does not depend on each transition remembering to insert it.
+// What separates a
 // receptionist's cancellation from a manager's waiver afterwards is
 // `penalty_waived_at` and `penalty_waived_by`, written only by
 // {@link booking.cancelWithWaiver} and read by `folio.service.ts` when

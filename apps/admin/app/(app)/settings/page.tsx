@@ -2,10 +2,10 @@
 // the other.
 //
 // A shell around one component, like the routes beside it: the authenticated
-// layout above already mounts the session guard, the query cache, the rail, the
-// palette and the `g` sequence — `g n` included, bound from
-// `features/shell/nav-inventory.ts` for the whole inventory at once. What is left
-// for a route file is naming the screen it draws.
+// layout above already mounts the session guard, the query cache, the rail and
+// the palette — this family's `Go to` row included, registered from
+// `features/shell/nav-inventory.ts` for the whole inventory at once. What is
+// left for a route file is naming the screen it draws.
 //
 // A static route wins over the catch-all in `app/(app)/[...unbuilt]`, so this
 // file is also what stops Settings answering as an unbuilt screen.

@@ -461,6 +461,35 @@ export const paymentPageSchema = z.object({
   total: z.number().int().min(0),
 });
 
+/**
+ * The desk's deliberately narrow question: which successful payments can still
+ * anchor a policy refund. Status is not caller-selectable because anything but
+ * `SUCCESS` is ineligible by definition.
+ */
+export const listRefundCandidatesInput = listPaymentsInput.omit({
+  status: true,
+});
+
+/**
+ * A safe navigational row for the refund action. Gateway, folio,
+ * reconciliation and discrepancy identifiers intentionally do not cross this
+ * capability boundary.
+ */
+export const refundCandidateSchema = z.object({
+  paymentId: z.uuid(),
+  bookingId: z.uuid(),
+  bookingReference: z.string().min(1).max(32),
+  method: paymentMethodSchema,
+  amount: vndAmountSchema,
+  paidAt: z.iso.datetime(),
+  businessDate: isoStayDateSchema,
+});
+
+export const refundCandidatesPageSchema = z.object({
+  payments: z.array(refundCandidateSchema),
+  total: z.number().int().min(0),
+});
+
 export const payment = {
   openAttempt: oc
     .route({ method: "POST", path: "/bookings/{bookingId}/payment-attempts" })
@@ -499,4 +528,9 @@ export const payment = {
     .route({ method: "GET", path: "/payments" })
     .input(listPaymentsInput)
     .output(paymentPageSchema),
+
+  listRefundCandidates: oc
+    .route({ method: "GET", path: "/payments/refund-candidates" })
+    .input(listRefundCandidatesInput)
+    .output(refundCandidatesPageSchema),
 };

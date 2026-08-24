@@ -1,44 +1,30 @@
 import { STAFF_ROLES } from "@mariva/shared";
 import { describe, expect, it } from "vitest";
 import { LANDING_BY_ROLE } from "@/lib/auth/landing-route";
-import { hotkeyId } from "@/lib/keyboard/chord";
 
 import {
   isActivePath,
   NAV_GROUPS,
   NAV_ITEMS,
-  NAV_PREFIX,
   navCommandId,
   navItemsFor,
-  navShortcut,
 } from "./nav-inventory";
 
 /* The map, held to the two documents that own it.
  *
  * Nothing here renders anything. What is worth proving about navigation is
  * decidable without a DOM — which role is offered what, that no two entries
- * want the same key, and that the rail and the landing agree — and those are
+ * claim the same id or path, and that the rail and the landing agree — those are
  * exactly the facts that break silently when a family is added months from now.
  */
 
 describe("the navigation inventory", () => {
-  it("gives every entry a distinct id, path and sequence key", () => {
+  it("gives every entry a distinct id and path", () => {
     const ids = NAV_ITEMS.map((item) => item.id);
     const paths = NAV_ITEMS.map((item) => item.href);
-    const keys = NAV_ITEMS.map((item) => item.key);
 
     expect(new Set(ids).size).toBe(NAV_ITEMS.length);
     expect(new Set(paths).size).toBe(NAV_ITEMS.length);
-    expect(new Set(keys).size).toBe(NAV_ITEMS.length);
-  });
-
-  it("draws each sequence key from its own family's name", () => {
-    // The rule that makes a key memorable rather than assigned. A new family
-    // taking a letter it does not contain is the case this catches.
-    for (const item of NAV_ITEMS) {
-      expect(item.key).toMatch(/^[a-z]$/);
-      expect(item.label.toLowerCase()).toContain(item.key);
-    }
   });
 
   it("offers every entry to at least one role", () => {
@@ -111,28 +97,7 @@ describe("what a role is offered", () => {
   });
 });
 
-describe("the sequence a navigation chord is written as", () => {
-  it("writes the prefix and the key the way the registry reads them", () => {
-    const [dashboard] = NAV_ITEMS;
-
-    expect(dashboard.id).toBe("dashboard");
-    expect(navShortcut(dashboard)).toBe("g d");
-  });
-
-  it("parses each half as a bare unmodified key", () => {
-    // The sequence is two ordinary presses, and the registry only ever sees one
-    // of them at a time. A key that parsed to anything with a modifier on it
-    // would be bound as a chord nobody can reach by typing two letters.
-    expect(hotkeyId(NAV_PREFIX, "other")).toBe(NAV_PREFIX);
-
-    for (const item of NAV_ITEMS) {
-      const [prefix, key] = navShortcut(item).split(" ");
-
-      expect(prefix).toBe(NAV_PREFIX);
-      expect(hotkeyId(key, "other")).toBe(item.key);
-    }
-  });
-
+describe("the palette row an entry registers", () => {
   it("namespaces the palette id by the family", () => {
     for (const item of NAV_ITEMS) {
       expect(navCommandId(item)).toBe(`nav.${item.id}`);

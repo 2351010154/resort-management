@@ -1,6 +1,6 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 
-import { goByHotkey, signIn, tabIntoQueue } from "./support/console-keyboard";
+import { goByPalette, signIn, tabIntoQueue } from "./support/console-keyboard";
 import {
   describeSighting,
   entranceAnimations,
@@ -106,7 +106,7 @@ test("the arrivals queue answers the keyboard inside the budget", async ({
   page,
 }) => {
   await signIn(page);
-  await goByHotkey(page, "a", "/arrivals");
+  await goByPalette(page, "Arrivals", "/arrivals");
 
   const rows = await tabIntoQueue(page);
   const second = await rowSelector(rows.nth(1));
@@ -143,7 +143,7 @@ test("the departures queue answers the keyboard inside the budget", async ({
   page,
 }) => {
   await signIn(page);
-  await goByHotkey(page, "e", "/departures");
+  await goByPalette(page, "Departures", "/departures");
 
   const rows = await tabIntoQueue(page);
   const second = await rowSelector(rows.nth(1));
@@ -178,7 +178,7 @@ test("the bookings screen answers typing, a submission and a press inside the bu
   page,
 }) => {
   await signIn(page);
-  await goByHotkey(page, "b", "/bookings");
+  await goByPalette(page, "Bookings", "/bookings");
 
   const reference = page.locator('input[placeholder="BK-1042"]');
 

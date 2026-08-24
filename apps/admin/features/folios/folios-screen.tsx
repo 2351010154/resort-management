@@ -1,6 +1,6 @@
 "use client";
 
-import { FOLIO_PAGE_SIZE, formatVnd } from "@mariva/shared";
+import { FOLIO_PAGE_SIZE, formatVnd, type StaffRole } from "@mariva/shared";
 import { SearchIcon } from "lucide-react";
 import type * as React from "react";
 import { useId, useMemo, useRef, useState } from "react";
@@ -18,20 +18,31 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import type { FolioListQuery } from "@/features/dashboard/day-counts";
 import type { Folio } from "@/features/departures/departure-queue";
 /* The console's one rendering of an instant in the property's zone — the same
  * formatter `folio-ledger.ts` attributes a posting with, so the moment an
  * account was opened and the moment a line was written are read the same way. */
 import { formatInstant } from "@/features/guests/guest-record";
+import { useStaffSession } from "@/lib/auth";
 import { formatShortDate } from "@/lib/business-date";
 import {
   RovingFocusGroup,
   useHotkeys,
   useRovingFocusItem,
 } from "@/lib/keyboard";
+import {
+  enterSubmissionGate,
+  leaveSubmissionGate,
+} from "@/lib/submission-gate";
 import { cn } from "@/lib/utils";
-
+import {
+  chargeAttempt,
+  mayPostFolio,
+  mayReverseFolio,
+  serviceAttempt,
+} from "./folio-actions";
 import {
   CHARGE_BASIS_LABELS,
   correctionCount,
@@ -50,7 +61,14 @@ import {
   standing,
   standingLabel,
 } from "./folio-ledger";
-import { useFolioLedger, useFolioPage } from "./folios-queries";
+import {
+  useFolioLedger,
+  useFolioPage,
+  usePostCharge,
+  usePostServiceItem,
+  useReversePosting,
+  useServiceCatalog,
+} from "./folios-queries";
 
 /* The property's accounts, and the append-only ledger behind one of them.
  *
@@ -146,6 +164,8 @@ interface Asked {
 }
 
 export function FoliosScreen() {
+  const session = useStaffSession();
+  const role = session.status === "authenticated" ? session.user.role : null;
   const [fields, setFields] = useState<FolioFilterFields>(
     DEFAULT_FOLIO_FILTERS,
   );
@@ -389,7 +409,7 @@ export function FoliosScreen() {
           /* Keyed by the stay, so opening another account takes the whole of
              the previous ledger with it rather than repainting one folio's
              lines under another folio's balance while the read is in flight. */
-          <FolioDetail key={opened.bookingId} account={opened} />
+          <FolioDetail key={opened.bookingId} account={opened} role={role} />
         )}
       </div>
     </div>
@@ -502,7 +522,13 @@ function FolioRow({
 }
 
 /** One account's ledger: the summary it comes to, then every line of it. */
-function FolioDetail({ account }: { account: ListedFolio }) {
+function FolioDetail({
+  account,
+  role,
+}: {
+  account: ListedFolio;
+  role: StaffRole | null;
+}) {
   const ledger = useFolioLedger(account.bookingId);
   const folio = ledger.data;
 
@@ -585,6 +611,9 @@ function FolioDetail({ account }: { account: ListedFolio }) {
               below it are both always on screen. `min-h-0` is what makes it
               scroll rather than grow. */}
           <div className="min-h-0 flex-1 overflow-y-auto px-5">
+            {role !== null && mayPostFolio(role) && folio.state !== "CLOSED" ? (
+              <FolioActions bookingId={account.bookingId} />
+            ) : null}
             <LedgerNotice folio={folio} lines={lines} />
 
             <table className="mt-3 w-full border-collapse text-sm">
@@ -612,7 +641,16 @@ function FolioDetail({ account }: { account: ListedFolio }) {
                   </tr>
                 ) : (
                   lines.map((line) => (
-                    <LedgerRow key={line.posting.id} line={line} />
+                    <LedgerRow
+                      key={line.posting.id}
+                      line={line}
+                      bookingId={account.bookingId}
+                      mayReverse={
+                        folio.state !== "CLOSED" &&
+                        role !== null &&
+                        mayReverseFolio(role)
+                      }
+                    />
                   ))
                 )}
               </tbody>
@@ -620,17 +658,233 @@ function FolioDetail({ account }: { account: ListedFolio }) {
           </div>
 
           <p className="border-border border-t px-5 py-3 text-sm text-muted-foreground">
-            {/* Said rather than implied: an operator looking for a correction
-                control here is owed the reason there is none, and the reason is
-                that reviewing is this screen's whole job. */}
-            This screen reads. Posting a charge, reversing one, refunding and
-            agreeing the account are the checkout sequence's and the Payments
-            family's, each behind its own permission — and no screen anywhere
-            edits or deletes a posting, because the ledger has no such act.
+            New charges and corrections are appended to the account. Existing
+            postings are never edited or deleted.
           </p>
         </>
       )}
     </Card>
+  );
+}
+
+function FolioActions({ bookingId }: { bookingId: string }) {
+  const catalog = useServiceCatalog(true);
+  const charge = usePostCharge();
+  const service = usePostServiceItem();
+  const [chargeAmount, setChargeAmount] = useState("");
+  const [description, setDescription] = useState("");
+  const [code, setCode] = useState("");
+  const [quantity, setQuantity] = useState("1");
+  const [serviceAmount, setServiceAmount] = useState("");
+  const [chargeProblem, setChargeProblem] = useState<string | null>(null);
+  const [serviceProblem, setServiceProblem] = useState<string | null>(null);
+  const [chargeInvalid, setChargeInvalid] = useState<
+    "amount" | "description" | null
+  >(null);
+  const [serviceInvalid, setServiceInvalid] = useState<
+    "catalog" | "quantity" | "amount" | null
+  >(null);
+  const descriptionId = useId();
+  const chargeProblemId = useId();
+  const serviceProblemId = useId();
+  const chargeAmountRef = useRef<HTMLInputElement>(null);
+  const descriptionRef = useRef<HTMLTextAreaElement>(null);
+  const catalogRef = useRef<HTMLSelectElement>(null);
+  const quantityRef = useRef<HTMLInputElement>(null);
+  const serviceAmountRef = useRef<HTMLInputElement>(null);
+  const chargeGate = useRef(false);
+  const serviceGate = useRef(false);
+  const item =
+    catalog.data?.find((candidate) => candidate.code === code) ?? null;
+
+  return (
+    <section
+      className="mt-4 grid gap-4 rounded-lg border border-border p-4 lg:grid-cols-2"
+      aria-label="Post to this account"
+    >
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (charge.isPending) return;
+          const attempt = chargeAttempt(bookingId, chargeAmount, description);
+          if ("problem" in attempt) {
+            const message = attempt.problem ?? "Check the charge.";
+            setChargeProblem(message);
+            const invalid = message.startsWith("Describe")
+              ? "description"
+              : "amount";
+            setChargeInvalid(invalid);
+            requestAnimationFrame(() =>
+              (invalid === "description"
+                ? descriptionRef.current
+                : chargeAmountRef.current
+              )?.focus(),
+            );
+            return;
+          }
+          setChargeProblem(null);
+          setChargeInvalid(null);
+          if (!enterSubmissionGate(chargeGate)) return;
+          charge.mutate(attempt.input, {
+            onSuccess: () => {
+              setChargeAmount("");
+              setDescription("");
+            },
+            onSettled: () => leaveSubmissionGate(chargeGate),
+          });
+        }}
+      >
+        <h3 className="font-semibold">Ad-hoc charge</h3>
+        <Field
+          label="Gross amount"
+          value={chargeAmount}
+          placeholder="150000"
+          inputMode="numeric"
+          inputRef={chargeAmountRef}
+          ariaInvalid={chargeInvalid === "amount"}
+          describedBy={chargeInvalid === "amount" ? chargeProblemId : undefined}
+          onChange={setChargeAmount}
+        />
+        <label
+          htmlFor={descriptionId}
+          className="mt-3 block text-xs tracking-caps text-muted-foreground uppercase"
+        >
+          Description
+        </label>
+        <Textarea
+          id={descriptionId}
+          ref={descriptionRef}
+          aria-invalid={chargeInvalid === "description"}
+          aria-describedby={
+            chargeInvalid === "description" ? chargeProblemId : undefined
+          }
+          className="mt-1"
+          value={description}
+          onChange={(event) => setDescription(event.target.value)}
+        />
+        <Button className="mt-3" type="submit" disabled={charge.isPending}>
+          Post charge
+        </Button>
+        {chargeProblem === null ? null : (
+          <p
+            id={chargeProblemId}
+            className="mt-3 text-sm text-danger"
+            role="alert"
+          >
+            {chargeProblem}
+          </p>
+        )}
+      </form>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (service.isPending) return;
+          const attempt = serviceAttempt(
+            bookingId,
+            item,
+            quantity,
+            serviceAmount,
+          );
+          if ("problem" in attempt) {
+            const message = attempt.problem ?? "Check the service item.";
+            setServiceProblem(message);
+            const invalid = message.startsWith("Choose")
+              ? "catalog"
+              : message.startsWith("Quantity")
+                ? "quantity"
+                : "amount";
+            setServiceInvalid(invalid);
+            requestAnimationFrame(() =>
+              (invalid === "catalog"
+                ? catalogRef.current
+                : invalid === "quantity"
+                  ? quantityRef.current
+                  : serviceAmountRef.current
+              )?.focus(),
+            );
+            return;
+          }
+          setServiceProblem(null);
+          setServiceInvalid(null);
+          if (!enterSubmissionGate(serviceGate)) return;
+          service.mutate(attempt.input, {
+            onSuccess: () => {
+              setQuantity("1");
+              setServiceAmount("");
+            },
+            onSettled: () => leaveSubmissionGate(serviceGate),
+          });
+        }}
+      >
+        <h3 className="font-semibold">Service item</h3>
+        <label className="mt-2 block text-xs tracking-caps text-muted-foreground uppercase">
+          Catalog item
+          <select
+            ref={catalogRef}
+            aria-invalid={serviceInvalid === "catalog"}
+            aria-describedby={
+              serviceInvalid === "catalog" ? serviceProblemId : undefined
+            }
+            className="mt-1 h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+            value={code}
+            onChange={(event) => {
+              setCode(event.target.value);
+              setServiceAmount("");
+            }}
+          >
+            <option value="">Choose an item</option>
+            {catalog.data?.map((entry) => (
+              <option key={entry.code} value={entry.code}>
+                {entry.name} ·{" "}
+                {entry.unitPriceGross === null
+                  ? "price required"
+                  : formatVnd(entry.unitPriceGross)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <Field
+          label="Quantity"
+          value={quantity}
+          inputMode="numeric"
+          inputRef={quantityRef}
+          ariaInvalid={serviceInvalid === "quantity"}
+          describedBy={
+            serviceInvalid === "quantity" ? serviceProblemId : undefined
+          }
+          onChange={setQuantity}
+        />
+        {item?.unitPriceGross === null ? (
+          <Field
+            label="Agreed total"
+            value={serviceAmount}
+            inputMode="numeric"
+            inputRef={serviceAmountRef}
+            ariaInvalid={serviceInvalid === "amount"}
+            describedBy={
+              serviceInvalid === "amount" ? serviceProblemId : undefined
+            }
+            onChange={setServiceAmount}
+          />
+        ) : null}
+        <Button
+          className="mt-3"
+          type="submit"
+          disabled={service.isPending || catalog.isPending}
+        >
+          Post service item
+        </Button>
+        {serviceProblem === null ? null : (
+          <p
+            id={serviceProblemId}
+            className="mt-3 text-sm text-danger"
+            role="alert"
+          >
+            {serviceProblem}
+          </p>
+        )}
+      </form>
+    </section>
   );
 }
 
@@ -678,8 +932,17 @@ function LedgerNotice({
 }
 
 /** One posting, with whatever it is paired to. */
-function LedgerRow({ line }: { line: LedgerLine }) {
+function LedgerRow({
+  line,
+  bookingId,
+  mayReverse,
+}: {
+  line: LedgerLine;
+  bookingId: string;
+  mayReverse: boolean;
+}) {
   const { posting, levied, reverses, reversedBy } = line;
+  const reverse = useReversePosting();
 
   return (
     <tr className="border-border border-b align-top">
@@ -703,6 +966,25 @@ function LedgerRow({ line }: { line: LedgerLine }) {
             ) : null}
           </p>
           <p className="text-muted-foreground">{posting.description}</p>
+          {mayReverse && posting.type !== "REVERSAL" && reversedBy === null ? (
+            <Button
+              type="button"
+              size="xs"
+              variant="ghost"
+              aria-disabled={reverse.isPending}
+              onClick={() => {
+                if (
+                  !reverse.isPending &&
+                  window.confirm(
+                    `Reverse ${POSTING_LABELS[posting.type].toLowerCase()} “${posting.description}” from ${formatShortDate(posting.businessDate)} for ${formatVnd(posting.amount)} on stay ${bookingId}?`,
+                  )
+                )
+                  reverse.mutate({ bookingId, postingId: posting.id });
+              }}
+            >
+              Reverse posting
+            </Button>
+          ) : null}
 
           {posting.chargeBasis === null ? null : (
             <p className="text-muted-foreground">
@@ -781,10 +1063,18 @@ function Field({
   value,
   placeholder,
   onChange,
+  inputMode,
+  inputRef,
+  ariaInvalid,
+  describedBy,
 }: {
   label: string;
   value: string;
   placeholder?: string;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
+  inputRef?: React.Ref<HTMLInputElement>;
+  ariaInvalid?: boolean;
+  describedBy?: string;
   onChange(value: string): void;
 }) {
   // Associated by id rather than by nesting, so the association is one an
@@ -801,10 +1091,14 @@ function Field({
       </label>
       <Input
         id={fieldId}
+        ref={inputRef}
+        aria-invalid={ariaInvalid}
+        aria-describedby={describedBy}
         className="mt-1"
         value={value}
         placeholder={placeholder}
         autoComplete="off"
+        inputMode={inputMode}
         onChange={(event) => {
           onChange(event.target.value);
         }}
