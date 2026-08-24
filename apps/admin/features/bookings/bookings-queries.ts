@@ -93,6 +93,101 @@ export function useBusinessDate() {
   );
 }
 
+/** All staff stay writes, kept together so invalidation follows the affected fact. */
+export function useBookingActions() {
+  const queryClient = useQueryClient();
+  const refreshSearch = () =>
+    void queryClient.invalidateQueries({ queryKey: orpc.search.key() });
+  const refreshOperational = () => {
+    refreshSearch();
+    void queryClient.invalidateQueries({ queryKey: orpc.folio.key() });
+    void queryClient.invalidateQueries({
+      queryKey: orpc.housekeeping.board.key(),
+    });
+  };
+  return {
+    confirm: useMutation(
+      orpc.booking.confirm.mutationOptions({
+        meta: {
+          errorMessage: "The hold could not be confirmed.",
+        } satisfies ConsoleMeta,
+        onSuccess: refreshSearch,
+      }),
+    ),
+    cancel: useMutation(
+      orpc.booking.cancel.mutationOptions({
+        meta: {
+          errorMessage: "The booking could not be cancelled.",
+        } satisfies ConsoleMeta,
+        onSuccess: refreshOperational,
+      }),
+    ),
+    cancelWithWaiver: useMutation(
+      orpc.booking.cancelWithWaiver.mutationOptions({
+        meta: {
+          errorMessage: "The cancellation waiver could not be applied.",
+        } satisfies ConsoleMeta,
+        onSuccess: refreshOperational,
+      }),
+    ),
+    markNoShow: useMutation(
+      orpc.booking.markNoShow.mutationOptions({
+        meta: {
+          errorMessage: "The stay could not be marked no-show.",
+        } satisfies ConsoleMeta,
+        onSuccess: refreshOperational,
+      }),
+    ),
+    reinstate: useMutation(
+      orpc.booking.reinstate.mutationOptions({
+        meta: {
+          errorMessage: "The late arrival could not be reinstated.",
+        } satisfies ConsoleMeta,
+        onSuccess: refreshOperational,
+      }),
+    ),
+    moveRoom: useMutation(
+      orpc.booking.moveRoom.mutationOptions({
+        meta: {
+          errorMessage: "The room move was refused.",
+        } satisfies ConsoleMeta,
+        onSuccess: refreshOperational,
+      }),
+    ),
+    changeRoomType: useMutation(
+      orpc.booking.changeRoomType.mutationOptions({
+        meta: {
+          errorMessage: "The room type could not be changed.",
+        } satisfies ConsoleMeta,
+        onSuccess: refreshOperational,
+      }),
+    ),
+    extendStay: useMutation(
+      orpc.booking.extendStay.mutationOptions({
+        meta: {
+          errorMessage: "The stay could not be extended.",
+        } satisfies ConsoleMeta,
+        onSuccess: refreshOperational,
+      }),
+    ),
+    shortenStay: useMutation(
+      orpc.booking.shortenStay.mutationOptions({
+        meta: {
+          errorMessage: "The stay could not be shortened.",
+        } satisfies ConsoleMeta,
+        onSuccess: refreshOperational,
+      }),
+    ),
+    resendAccountLink: useMutation(
+      orpc.booking.resendAccountLink.mutationOptions({
+        meta: {
+          errorMessage: "The account link could not be resent.",
+        } satisfies ConsoleMeta,
+      }),
+    ),
+  };
+}
+
 /**
  * The stays on screen — today's, or whatever was searched for.
  *

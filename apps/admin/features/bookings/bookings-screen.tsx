@@ -42,6 +42,7 @@ import {
 } from "./booking-search";
 import { useBookingList } from "./bookings-queries";
 import { NewBookingForm } from "./new-booking-form";
+import { StayActionSheet } from "./stay-action-sheet";
 
 /* Every stay the property has, found and taken.
  *
@@ -110,6 +111,7 @@ export function BookingsScreen() {
   const [criteria, setCriteria] = useState<SearchCriteria | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [selectedStay, setSelectedStay] = useState<Stay | null>(null);
 
   const { businessDate, list, rooms } = useBookingList(criteria);
   const searchField = useRef<HTMLInputElement>(null);
@@ -128,7 +130,7 @@ export function BookingsScreen() {
       searchField.current?.focus();
       searchField.current?.select();
     },
-    { enabled: !creating },
+    { enabled: !creating && selectedStay === null },
   );
 
   useHotkeys(
@@ -139,10 +141,13 @@ export function BookingsScreen() {
     // The accountant is offered no creating control at all, so the key that
     // opens one is not bound for them either — a shortcut that answered 403
     // would be the console teaching a refusal.
-    { enabled: mayCreate && !creating },
+    { enabled: mayCreate && !creating && selectedStay === null },
   );
 
-  const columns = useMemo(() => bookingColumns(), []);
+  const columns = useMemo(
+    () => bookingColumns((stay) => setSelectedStay(stay)),
+    [],
+  );
 
   const table = useReactTable({
     data: stays,
@@ -414,6 +419,16 @@ export function BookingsScreen() {
           </RovingFocusGroup>
         </DataTableFrame>
       ) : null}
+      {selectedStay !== null && session.status === "authenticated" ? (
+        <StayActionSheet
+          stay={selectedStay}
+          role={session.user.role}
+          open
+          onOpenChange={(open) => {
+            if (!open) setSelectedStay(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -425,7 +440,7 @@ function BookingRow({ row }: { row: Row<Stay> }) {
   return (
     <tr
       {...roving}
-      className="border-border border-b transition-colors duration-150 ease-ui hover:bg-accent-soft/60 focus-visible:bg-accent-soft/60"
+      className="border-border border-b hover:bg-accent-soft/60 focus-visible:bg-accent-soft/60"
     >
       {row.getVisibleCells().map((cell) => (
         <td key={cell.id} className="px-4 py-3">
@@ -445,7 +460,7 @@ function BookingRow({ row }: { row: Row<Stay> }) {
  * column — this screen answers "what about this stay", and whether it is held,
  * confirmed, in house, gone or cancelled is most of that answer.
  */
-function bookingColumns(): ColumnDef<Stay>[] {
+function bookingColumns(onOpen: (stay: Stay) => void): ColumnDef<Stay>[] {
   return [
     {
       id: "reference",
@@ -508,6 +523,20 @@ function bookingColumns(): ColumnDef<Stay>[] {
         context.getValue<string | null>() ?? (
           <span className="text-muted-foreground">Unassigned</span>
         ),
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      cell: ({ row }) => (
+        <Button
+          type="button"
+          size="xs"
+          variant="ghost"
+          onClick={() => onOpen(row.original)}
+        >
+          Stay actions
+        </Button>
+      ),
     },
   ];
 }
