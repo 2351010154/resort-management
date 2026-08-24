@@ -6,6 +6,7 @@ export { FilterBar, type FilterBarProps } from "./filter-bar";
 export { FormSection, type FormSectionProps } from "./form-section";
 export { KeyHint } from "./key-hint";
 export { PageHeader, type PageHeaderProps } from "./page-header";
+export { Pager, type PagerProps } from "./pager";
 export { StatCard, type StatCardProps } from "./stat-card";
 export {
   StatusChip,
