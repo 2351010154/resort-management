@@ -233,6 +233,46 @@ describe("closing a room", () => {
     expect(held!.closureReason).toBe("Bathroom re-tiling");
   });
 
+  it("refuses the closure list to a receptionist", async () => {
+    await http()
+      .get("/inventory/room-closures")
+      .set("Authorization", `Bearer ${receptionistToken}`)
+      .expect(403);
+  });
+
+  it("lists a manager's closures through room and overlap filters", async () => {
+    const response = await http()
+      .get("/inventory/room-closures")
+      .set("Authorization", `Bearer ${managerToken}`)
+      .query({
+        roomNumber: SUPERIOR_ROOM,
+        checkIn: "2027-06-11",
+        checkOut: CHECK_OUT,
+      })
+      .expect(200);
+
+    expect(response.body).toEqual([
+      {
+        id: closureId,
+        roomNumber: SUPERIOR_ROOM,
+        checkIn: CHECK_IN,
+        checkOut: CHECK_OUT,
+        reason: "Bathroom re-tiling",
+        nightsWithdrawn: NIGHTS,
+      },
+    ]);
+  });
+
+  it("treats list boundaries as half-open", async () => {
+    const response = await http()
+      .get("/inventory/room-closures")
+      .set("Authorization", `Bearer ${managerToken}`)
+      .query({ roomNumber: SUPERIOR_ROOM, checkIn: CHECK_OUT })
+      .expect(200);
+
+    expect(response.body).toEqual([]);
+  });
+
   it("refuses a second closure overlapping the first", async () => {
     // Refused by `room_assignment_no_overlap` in Postgres, surfaced as a 409.
     // Not a fault: the room is genuinely taken, and the desk resolves it by

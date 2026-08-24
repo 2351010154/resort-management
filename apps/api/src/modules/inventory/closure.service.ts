@@ -24,10 +24,10 @@
 // a concurrent request can interleave; letting Postgres refuse the write is the
 // only version that is true under concurrency.
 
-import type { StayDate } from "@mariva/shared";
+import { stayDateSchema, type StayDate } from "@mariva/shared";
 import { Injectable } from "@nestjs/common";
 import { ORPCError } from "@orpc/nest";
-import { and, eq, gte, isNotNull, lt, sql } from "drizzle-orm";
+import { and, asc, eq, gt, gte, isNotNull, lt, sql } from "drizzle-orm";
 import type { DbExecutor } from "../../database/database.module.js";
 import {
   room,
@@ -51,6 +51,51 @@ export interface RoomClosure {
 
 @Injectable()
 export class ClosureService {
+  /** Reads commercial closures, narrowed by half-open range overlap when given. */
+  async list(
+    exec: DbExecutor,
+    query: { roomNumber?: string; checkIn?: StayDate; checkOut?: StayDate },
+  ): Promise<RoomClosure[]> {
+    const rows = await exec
+      .select({
+        id: roomAssignment.id,
+        roomNumber: room.number,
+        checkInDate: roomAssignment.checkInDate,
+        checkOutDate: roomAssignment.checkOutDate,
+        reason: roomAssignment.closureReason,
+      })
+      .from(roomAssignment)
+      .innerJoin(room, eq(room.id, roomAssignment.roomId))
+      .where(
+        and(
+          isNotNull(roomAssignment.closureReason),
+          query.roomNumber === undefined
+            ? undefined
+            : eq(room.number, query.roomNumber),
+          query.checkIn === undefined
+            ? undefined
+            : gt(roomAssignment.checkOutDate, query.checkIn.toString()),
+          query.checkOut === undefined
+            ? undefined
+            : lt(roomAssignment.checkInDate, query.checkOut.toString()),
+        ),
+      )
+      .orderBy(asc(roomAssignment.checkInDate), asc(room.number));
+
+    return rows.map((row) => {
+      const checkIn = stayDateSchema.parse(row.checkInDate);
+      const checkOut = stayDateSchema.parse(row.checkOutDate);
+      return {
+        id: row.id,
+        roomNumber: row.roomNumber,
+        checkIn,
+        checkOut,
+        reason: row.reason!,
+        nightsWithdrawn: nightsBetween(checkIn, checkOut),
+      };
+    });
+  }
+
   /**
    * Withdraws a room from sale across a range.
    *
