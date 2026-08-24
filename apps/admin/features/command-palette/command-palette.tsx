@@ -27,7 +27,7 @@ import {
   useHotkeys,
 } from "@/lib/keyboard";
 
-import { commandValue, type ConsoleCommand, groupCommands } from "./command";
+import { type ConsoleCommand, commandValue, groupCommands } from "./command";
 import { useRegisteredCommands } from "./command-registry";
 import { OPEN_COMMAND_PALETTE_EVENT } from "./palette-event";
 import { formatShortcut } from "./shortcut";

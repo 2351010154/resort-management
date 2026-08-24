@@ -4,6 +4,7 @@ import { formatVnd } from "@mariva/shared";
 import type * as React from "react";
 import { useEffect, useId, useRef, useState } from "react";
 
+import { KeyHint, StepTrail } from "@/components/console";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -57,6 +58,11 @@ import { FilterList, type FilterOption } from "./filter-list";
  * booking detail and back costs the operator their place in the queue every
  * time. So the row expands, the sequence is worked, and the queue is still
  * underneath it.
+ *
+ * It is drawn as a panel inset into the queue and not as more table. The rows
+ * around it are a list being read; this is the one stay being worked, and a
+ * block that bled the full width of the table with a hairline over it read as
+ * six more columns nobody had a heading for.
  *
  * ## The keyboard contract
  *
@@ -448,14 +454,28 @@ function Sequence({
   }
 
   return (
-    <div className="border-border border-t p-4">
-      <StepTrail steps={steps} current={step} />
+    // Two ceilings on the width. The first is a readable measure, because a
+    // form stretched across a sixteen-hundred-pixel queue is a form whose
+    // labels and fields are a hand's width apart. The second is the window: the
+    // queue behind this sets a minimum width and scrolls sideways under it, and
+    // a panel that inherited that would make a desk on a small screen scroll to
+    // reach the field they are typing into.
+    <div className="max-w-[min(48rem,calc(100vw_-_5rem))] rounded-lg border border-border bg-card p-4 shadow-sm sm:p-5">
+      <StepTrail
+        sequence="Check-in"
+        steps={steps}
+        current={step}
+        labels={STEP_LABELS}
+      />
 
       {step === "guest" ? (
+        // The field names itself and not the step. The trail immediately above
+        // already names this step "Guest", and a caps label under it saying
+        // GUEST again read as a stutter rather than as two different things.
         <FilterList
           inputRef={firstControl}
-          label="Guest"
-          hint="Search the document name first."
+          label="Name on the document"
+          hint="Whoever the property already holds, or a new record."
           placeholder="Nguyễn Thị Hương"
           query={guestQuery}
           onQueryChange={setGuestQuery}
@@ -482,7 +502,7 @@ function Sequence({
               : whatIsOnFile(known)}
           </p>
 
-          <div className="mt-2 grid gap-3 sm:grid-cols-2">
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
             {/* The name is the new guest's to give and the returning guest's
                 already: their record was found by it, and the transcription
                 route takes no name — a box that writes nothing is worse than
@@ -541,7 +561,7 @@ function Sequence({
       {step === "room" ? (
         <FilterList
           inputRef={firstControl}
-          label="Room"
+          label="Room number"
           hint={roomHint(arrival, roomNumber)}
           placeholder="204"
           query={roomQuery}
@@ -561,7 +581,7 @@ function Sequence({
             over — the rest stays outstanding.
           </p>
 
-          <div className="mt-2 grid gap-3 sm:grid-cols-2">
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <Field
               label="Amount"
               inputRef={firstControl}
@@ -596,8 +616,8 @@ function Sequence({
          * the description and the method the operator already chose stay on
          * screen, because the press below re-posts them. A form nested inside
          * another one is also not a form the browser will submit. */
-        <div className="border-border mt-2 border-t pt-2">
-          <p className="text-muted-foreground text-sm  uppercase">
+        <div className="border-border mt-4 border-t pt-3">
+          <p className="text-muted-foreground text-xs tracking-caps uppercase">
             Open a drawer
           </p>
           <OpenDrawerForm
@@ -621,7 +641,7 @@ function Sequence({
           confirm="Check in"
           confirmRef={confirmControl}
         >
-          <dl className="grid gap-2 text-sm sm:grid-cols-2">
+          <dl className="grid gap-3 text-sm sm:grid-cols-2">
             <Fact label="Stay" value={arrival.reference} />
             <Fact label="Guest" value={guest?.name ?? "Nobody named"} />
             <Fact label="Document" value={documentFact(guest, particulars)} />
@@ -639,7 +659,7 @@ function Sequence({
           </dl>
 
           {folio.isError ? (
-            <p className="border-destructive text-destructive mt-2 border-l-2 pl-3 text-sm">
+            <p className="border-destructive text-destructive mt-3 border-l-2 pl-3 text-sm">
               The account could not be read, so no deposit was offered. Check
               the folio after the guest is in the room.
             </p>
@@ -648,43 +668,35 @@ function Sequence({
       ) : null}
 
       {problem === null ? null : (
-        <p className="border-destructive text-destructive mt-2 border-l-2 pl-3 text-sm">
+        // Announced as well as written. The sentence arrives from a round trip
+        // the operator has already stopped watching for, and a refusal that
+        // only appears on screen is one a desk working by keyboard never hears.
+        <p
+          className="border-destructive text-destructive mt-3 border-l-2 pl-3 text-sm"
+          role="alert"
+        >
           {problem}
         </p>
       )}
 
-      <p className="text-muted-foreground mt-2 text-sm">
-        Escape abandons the check-in. Nothing already posted is undone by it.
+      {/* The two keys the whole sequence is worked with, drawn as chips rather
+          than described in a sentence — the console shows a shortcut the way
+          the shell and the palette show one. */}
+      <p className="text-muted-foreground mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-border border-t pt-3 text-sm">
+        <span className="inline-flex items-center gap-2">
+          <KeyHint>Enter</KeyHint>
+          finishes the step
+        </span>
+        <span className="inline-flex items-center gap-2">
+          <KeyHint>Esc</KeyHint>
+          abandons the check-in — nothing already posted is undone by it
+        </span>
       </p>
     </div>
   );
 }
 
-/** Where the operator is, and how much of the sequence is left. */
-function StepTrail({
-  steps,
-  current,
-}: {
-  steps: readonly CheckInStep[];
-  current: CheckInStep;
-}) {
-  return (
-    <ol className="mb-2 flex flex-wrap gap-3 text-sm  uppercase">
-      {steps.map((step) => (
-        <li
-          key={step}
-          aria-current={step === current ? "step" : undefined}
-          className={
-            step === current ? "text-foreground" : "text-muted-foreground"
-          }
-        >
-          {STEP_LABELS[step]}
-        </li>
-      ))}
-    </ol>
-  );
-}
-
+/** The words each step of a check-in is drawn with in the trail. */
 const STEP_LABELS: Record<CheckInStep, string> = {
   guest: "Guest",
   identity: "Document",
@@ -693,7 +705,17 @@ const STEP_LABELS: Record<CheckInStep, string> = {
   review: "Check in",
 };
 
-/** One step of the sequence: fields, and the press that finishes them. */
+/**
+ * One step of the sequence: fields, and the press that finishes them.
+ *
+ * The button in flight is `aria-disabled` and not `disabled`, and the second
+ * press is dropped here instead. A control that goes disabled under the
+ * operator's finger hands focus to `<body>`, which is exactly what the review
+ * step cannot afford: it is the one step whose first control *is* the button,
+ * so a refusal that leaves the sequence where it was would leave the desk with
+ * the sentence explaining it and nothing to press. Both spellings refuse the
+ * same second press, and only one of them keeps the keys.
+ */
 function Step({
   onSubmit,
   busy,
@@ -712,13 +734,24 @@ function Step({
     <form
       onSubmit={(event) => {
         event.preventDefault();
+
+        if (busy) {
+          return;
+        }
+
         void onSubmit();
       }}
     >
       {children}
 
-      <div className="mt-2">
-        <Button ref={confirmRef} type="submit" disabled={busy}>
+      <div className="mt-4">
+        <Button
+          ref={confirmRef}
+          type="submit"
+          aria-busy={busy || undefined}
+          aria-disabled={busy || undefined}
+          className="aria-disabled:pointer-events-none aria-disabled:opacity-50"
+        >
           {confirm}
         </Button>
       </div>
@@ -752,7 +785,7 @@ function Field({
     <div>
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-sm  uppercase"
+        className="text-muted-foreground block text-xs tracking-caps uppercase"
       >
         {label}
       </label>
@@ -808,8 +841,11 @@ function MethodChoice({
   const groupId = useId();
 
   return (
-    <fieldset className="mt-2">
-      <legend id={groupId} className="text-muted-foreground text-sm  uppercase">
+    <fieldset className="mt-4">
+      <legend
+        id={groupId}
+        className="text-muted-foreground text-xs tracking-caps uppercase"
+      >
         Method
       </legend>
       <RadioGroup
@@ -852,8 +888,10 @@ function MethodOption({ method }: { method: DeskPaymentMethod }) {
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-muted-foreground text-sm  uppercase">{label}</dt>
-      <dd>{value}</dd>
+      <dt className="text-muted-foreground text-xs tracking-caps uppercase">
+        {label}
+      </dt>
+      <dd className="mt-0.5">{value}</dd>
     </div>
   );
 }

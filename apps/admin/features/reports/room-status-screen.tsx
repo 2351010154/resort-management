@@ -230,7 +230,7 @@ function Reading({
             className="rounded-lg bg-card p-4 shadow-card"
             key={count.status}
           >
-            <dt className="text-sm font-semibold  text-muted-foreground uppercase">
+            <dt className="text-xs font-semibold tracking-caps text-muted-foreground uppercase">
               {ROOM_STATUS_LABELS[count.status]}
             </dt>
             <dd className="mt-2 text-2xl font-semibold tabular-nums">
@@ -301,8 +301,8 @@ function Column({
       scope="col"
       className={
         align === "right"
-          ? "text-muted-foreground px-3 py-2 text-right text-sm font-normal  uppercase first:pl-0 last:pr-0"
-          : "text-muted-foreground px-3 py-2 text-left text-sm font-normal  uppercase first:pl-0 last:pr-0"
+          ? "text-muted-foreground px-3 py-2 text-right text-xs font-normal tracking-caps uppercase first:pl-0 last:pr-0"
+          : "text-muted-foreground px-3 py-2 text-left text-xs font-normal tracking-caps uppercase first:pl-0 last:pr-0"
       }
     >
       {children}

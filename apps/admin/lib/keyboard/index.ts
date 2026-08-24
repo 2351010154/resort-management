@@ -18,8 +18,8 @@ export {
   detectPlatform,
   eventChordIds,
   hotkeyId,
-  parseChord,
   type Platform,
+  parseChord,
 } from "./chord";
 export { captureFocus, type FocusRestorer } from "./focus-restore";
 export { FocusTrap, type FocusTrapProps } from "./focus-trap";
@@ -37,4 +37,4 @@ export {
   useRovingFocusItem,
 } from "./roving-focus";
 export type { Jump, Orientation } from "./roving-geometry";
-export { useHotkeys, type UseHotkeysOptions } from "./use-hotkeys";
+export { type UseHotkeysOptions, useHotkeys } from "./use-hotkeys";

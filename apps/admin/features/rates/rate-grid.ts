@@ -662,6 +662,71 @@ export function verticalNeighbour(
 }
 
 /**
+ * The same room type one night left or right — the twin of
+ * {@link verticalNeighbour}, along the window's own dates.
+ *
+ * The horizontal axis is resolved here rather than left to the roving group for
+ * the reason its twin gives about the vertical one: the group steps through the
+ * members in document order, so right from the last night of `DELUXE` lands on
+ * the *first* night of `PREMIER`, four weeks back.
+ *
+ * `dates` is the window on screen. Null at either edge rather than wrapping,
+ * for the same reason as its twin: wrapping from the last night of the window
+ * to the first is disorienting on an axis the operator reads as a calendar. The
+ * window bar above the grid is how the next four weeks are reached.
+ */
+export function nightNeighbour(
+  dates: readonly string[],
+  from: CellRef,
+  step: number,
+): CellRef | null {
+  const index = dates.indexOf(from.date);
+  const target = index + step;
+
+  if (index === -1 || target < 0 || target >= dates.length) {
+    return null;
+  }
+
+  return { roomType: from.roomType, date: dates[target] };
+}
+
+/** A run of columns in one month, as the spanning heading over them. */
+export interface MonthSpan {
+  readonly label: string;
+  /** The first night of the run — its key, and never drawn. */
+  readonly from: string;
+  readonly nights: number;
+}
+
+/**
+ * The month headings, as runs rather than as a label per column.
+ *
+ * {@link nightColumns} names a month on the first column and again wherever one
+ * begins, which is the fact this needs: a new name opens a run, and every
+ * unnamed column after it belongs to the one before.
+ */
+export function monthSpans(columns: readonly NightColumn[]): MonthSpan[] {
+  const spans: MonthSpan[] = [];
+
+  for (const column of columns) {
+    const open = spans[spans.length - 1];
+
+    if (column.monthLabel !== null || open === undefined) {
+      spans.push({
+        label: column.monthLabel ?? "",
+        from: column.date,
+        nights: 1,
+      });
+      continue;
+    }
+
+    spans[spans.length - 1] = { ...open, nights: open.nights + 1 };
+  }
+
+  return spans;
+}
+
+/**
  * The selection after a press on a cell.
  *
  * `extending` is the shift key, which reaches this the same way from a mouse

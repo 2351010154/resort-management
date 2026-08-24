@@ -32,7 +32,7 @@ export function ShiftBar() {
           <CalendarDaysIcon aria-hidden="true" className="size-4" />
         </span>
         <span className="min-w-0 leading-tight">
-          <span className="block text-sm font-semibold  text-muted-foreground uppercase">
+          <span className="block text-xs font-semibold tracking-caps text-muted-foreground uppercase">
             Hotel day
           </span>
           <span className="block truncate text-sm font-semibold">

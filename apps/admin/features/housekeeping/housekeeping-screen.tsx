@@ -134,7 +134,7 @@ function FloorSection({
 }) {
   return (
     <section className="mt-8">
-      <h2 className="text-sm font-semibold  text-muted-foreground uppercase">
+      <h2 className="text-xs font-semibold tracking-caps text-muted-foreground uppercase">
         {floorName(floor.floor)}
       </h2>
 
@@ -183,7 +183,7 @@ function RoomTile({
         <span className="grid h-9 min-w-14 place-items-center rounded-md border border-border bg-card px-2 text-lg font-semibold tabular-nums shadow-xs">
           {tile.roomNumber}
         </span>
-        <span className="text-sm font-semibold  text-muted-foreground uppercase">
+        <span className="text-xs font-semibold tracking-caps text-muted-foreground uppercase">
           {tile.roomTypeLabel}
         </span>
       </span>

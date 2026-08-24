@@ -2,8 +2,8 @@
 
 import type { StaffRole } from "@mariva/shared";
 import { SearchIcon, UserRoundIcon } from "lucide-react";
-import { useId, useRef, useState } from "react";
 import type * as React from "react";
+import { useId, useRef, useState } from "react";
 
 import {
   EmptyState,

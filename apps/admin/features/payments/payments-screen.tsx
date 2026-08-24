@@ -358,7 +358,7 @@ function ComparedNights({
       className="mt-6 rounded-lg bg-card p-4 shadow-card"
       aria-label="Nights already compared"
     >
-      <p className="text-sm font-semibold  text-muted-foreground uppercase">
+      <p className="text-xs font-semibold tracking-caps text-muted-foreground uppercase">
         Compared
       </p>
       <ul className="mt-1 flex flex-wrap gap-2">
@@ -820,7 +820,7 @@ function Column({
     <th
       scope="col"
       className={cn(
-        "text-muted-foreground px-3 py-2 text-sm font-normal  uppercase first:pl-0 last:pr-0",
+        "text-muted-foreground px-3 py-2 text-xs font-normal tracking-caps uppercase first:pl-0 last:pr-0",
         align === "right" ? "text-right" : "text-left",
       )}
     >
@@ -851,7 +851,7 @@ function Field({
     <div>
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-sm  uppercase"
+        className="text-muted-foreground block text-xs tracking-caps uppercase"
       >
         {label}
       </label>
@@ -895,7 +895,7 @@ function Choice<T extends string>({
     <div>
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-sm  uppercase"
+        className="text-muted-foreground block text-xs tracking-caps uppercase"
       >
         {label}
       </label>
@@ -920,7 +920,9 @@ function Choice<T extends string>({
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-muted-foreground text-sm  uppercase">{label}</dt>
+      <dt className="text-muted-foreground text-xs tracking-caps uppercase">
+        {label}
+      </dt>
       <dd className="tabular-nums">{value}</dd>
     </div>
   );

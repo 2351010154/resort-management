@@ -22,6 +22,8 @@
 // which is the dependency direction `repository-structure.md` spends a section
 // keeping straight.
 
+import { Skeleton } from "@/components/ui/skeleton";
+
 /**
  * The console's waiting state: a kicker, a rule, and no claim about progress.
  *
@@ -57,4 +59,3 @@ export function ConsoleWait({ label = "Loading" }: { label?: string }) {
     </div>
   );
 }
-import { Skeleton } from "@/components/ui/skeleton";

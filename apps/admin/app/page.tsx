@@ -21,7 +21,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
 
-import { landingRouteFor, LOGIN_ROUTE, useSessionState } from "@/lib/auth";
+import { LOGIN_ROUTE, landingRouteFor, useSessionState } from "@/lib/auth";
 
 export default function ConsoleIndexPage() {
   const session = useSessionState();

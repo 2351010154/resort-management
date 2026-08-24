@@ -37,9 +37,9 @@
 
 import type { ApiClient } from "@mariva/api-client";
 import {
+  unmaskCccdInput as revealSchema,
   SEARCH_RESULT_LIMIT,
   type StaffRole,
-  unmaskCccdInput as revealSchema,
 } from "@mariva/shared";
 
 /* The search's own shapes, taken from the module that owns them rather than

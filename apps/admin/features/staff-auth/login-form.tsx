@@ -145,7 +145,7 @@ export function LoginForm({
               MARIVA
             </span>
           </div>
-          <p className="text-sm font-semibold  text-muted-foreground uppercase">
+          <p className="text-xs font-semibold tracking-caps text-muted-foreground uppercase">
             Staff access
           </p>
           <h1 className="mt-2 text-3xl font-semibold leading-9 tracking-[-0.02em]">
