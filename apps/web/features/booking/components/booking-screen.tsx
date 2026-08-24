@@ -138,9 +138,11 @@ const BOOKING_HORIZON_DAYS = 365;
 export function BookingScreen() {
   const params = useSearchParams();
   const reduced = useReducedMotion();
+  const query = params.toString();
+  const returnTo = query === "" ? "/booking" : `/booking?${query}`;
   const search = useMemo(
-    () => readBookingSearch(new URLSearchParams(params.toString())),
-    [params],
+    () => readBookingSearch(new URLSearchParams(query)),
+    [query],
   );
 
   const [picked, setPicked] = useState<RoomTypeCode | null>(null);
@@ -524,6 +526,7 @@ export function BookingScreen() {
           panelOpen={panelOpen}
           party={search.party}
           range={search.range}
+          returnTo={returnTo}
           stayLength={stayLength}
         />
       </m.main>,
@@ -619,7 +622,7 @@ export function BookingScreen() {
             laid on a picture, and a bar inside a plate is a header on a
             card — so it is back to the width of the window, standing on the
             room, on the same margin every plate below it stands on. */}
-        <FunnelNav />
+        <FunnelNav returnTo={returnTo} />
 
         {/* The room, edge to edge, behind everything.
             **Not keyed by the room, and that is the fix rather than an
