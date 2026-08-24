@@ -57,4 +57,5 @@ export function ConsoleWait({ label = "Loading" }: { label?: string }) {
     </div>
   );
 }
+
 import { Skeleton } from "@/components/ui/skeleton";

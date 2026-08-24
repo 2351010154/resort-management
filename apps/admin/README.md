@@ -41,8 +41,8 @@ animation.
 
 `components/ui/` holds the local shadcn/Radix primitives. `components/console/`
 is the product layer: page headers, key hints, status chips, stat cards, filter
-bars, table frames, detail sheets, form sections, fields, empty states, and
-toolbars.
+bars, table frames, detail sheets, form sections, fields, empty states, step
+trails, and toolbars.
 
 Import primitives from their deep paths on screens that need one or two. The UI
 barrel remains the inventory. Use console components for repeated product

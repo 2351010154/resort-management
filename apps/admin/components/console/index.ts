@@ -12,4 +12,5 @@ export {
   type StatusChipProps,
   type StatusTone,
 } from "./status-chip";
+export { StepTrail, type StepTrailProps } from "./step-trail";
 export { Toolbar } from "./toolbar";
