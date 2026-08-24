@@ -2,9 +2,10 @@
 
 // Act 5 — "The Invitation": the last full screen before the house's own pages.
 // One held photograph at dusk, a three-line address set small against the right
-// edge, and nothing else but the filled pill that hands over to the footer
-// (wolverine finale composition). The middle of the frame is left deliberately
-// empty so the last beat reads as calm rather than as more copy.
+// edge, and nothing else but the filled pill that hands over to the booking
+// funnel (wolverine finale composition). The middle is left deliberately
+// empty so the last beat reads as calm rather than as more copy. The pill is
+// the handoff into the booking funnel, not another stop in the arrival.
 //
 // The frame breathes rather than drifts one way: its scale is scrubbed off the
 // act's own progress, so scrolling down relaxes it and scrolling back up swells
@@ -22,8 +23,6 @@ import { useEffect, useRef } from "react";
 import { BorderGlowPill } from "@/features/arrival/components/act-5-invitation/border-glow-pill";
 import { arrivalImages } from "@/features/arrival/lib/image-manifest";
 import { tierSrc, tierSrcSet } from "@/features/arrival/lib/image-srcset";
-import { useLenis } from "@/features/arrival/lib/lenis-scroll-provider";
-import { scrollToAct } from "@/features/arrival/components/navigation/nav-hover-link";
 import { prefersReducedMotion } from "@/features/arrival/lib/webgl-support";
 import {
   DUR_SCENE,
@@ -54,7 +53,6 @@ const PLATE_SCALE = [1.14, 1.02, 1.1] as const;
 
 export function InvitationScreen() {
   const sectionRef = useRef<HTMLElement>(null);
-  const lenis = useLenis();
 
   useEffect(() => {
     const section = sectionRef.current;
@@ -169,9 +167,7 @@ export function InvitationScreen() {
           </div>
 
           <div className={styles.foot} data-invite-fade>
-            <BorderGlowPill onClick={() => scrollToAct(lenis, 6)}>
-              Begin your stay
-            </BorderGlowPill>
+            <BorderGlowPill href="/booking">Begin your stay</BorderGlowPill>
           </div>
         </div>
       </div>
