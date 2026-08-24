@@ -1337,15 +1337,19 @@ export class BookingService {
    * the same two columns and for the reason it gives: §4's table has no waiver
    * cell.
    *
-   * **The refund is read after the commit, and so is the balance it comes
-   * from.** What goes back to the guest is what the account is over-paid by once
-   * the penalty stands — the folio's own arithmetic, not a subtraction invented
-   * here — and asking for it out here has two properties worth the odd shape. It
-   * cannot fail the cancellation: `TransactionRunner` logs a post-commit failure
-   * and the commit stands, whereas a refused balance read inside the transaction
-   * would put the room back off the shelf because a mail could not be composed.
-   * And it is the balance as it stands once this cancellation is durable, which
-   * is the state the desk's later posting will read.
+   * **No balance is read, and no return is promised.** What the account is
+   * over-paid by once the penalty stands is owed to the guest — `property-and-
+   * tariff.md` §4 says so and nothing here changes it — but returning it is a
+   * staff act taken at the desk, through `folio.refund-policy` or
+   * `folio.refund-override`, and no code path in this process performs one. A
+   * mail that quoted the figure would commit the property, in the guest's inbox,
+   * to something nobody here sends.
+   *
+   * **The message still goes out after the commit.** It cannot fail the
+   * cancellation that way: `TransactionRunner` logs a post-commit failure and
+   * the commit stands, whereas a refused enqueue inside the transaction would
+   * put the room back off the shelf because the property could not write to
+   * somebody about it.
    */
   private async announceCancellation(
     exec: DbExecutor,
