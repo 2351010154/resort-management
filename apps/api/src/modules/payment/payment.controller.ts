@@ -441,6 +441,27 @@ export class PaymentController {
     });
   }
 
+  /** A refund worklist with none of reconciliation's sensitive columns. */
+  @RequiresCapability("folio.refund-policy", "read")
+  @Implement(contract.payment.listRefundCandidates)
+  listRefundCandidates() {
+    return implement(contract.payment.listRefundCandidates).handler(
+      async ({ input }) => {
+        const page = await this.transactions.run((exec) =>
+          this.payments.listRefundCandidates(exec, input),
+        );
+
+        return {
+          payments: page.payments.map((row) => ({
+            ...row,
+            paidAt: row.paidAt.toISOString(),
+          })),
+          total: page.total,
+        };
+      },
+    );
+  }
+
   /**
    * The gateway's own report of what became of an attempt — the delivery this
    * property acts on.

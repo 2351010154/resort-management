@@ -344,6 +344,86 @@ describe("the capability the payment list declares", () => {
   });
 });
 
+describe("the policy-refund candidate read", () => {
+  it("admits the receptionist and refuses housekeeping and a stranger", async () => {
+    expect((await as("RECEPTIONIST").get(refundCandidatesPath())).status).toBe(200);
+    expect((await as("HOUSEKEEPING").get(refundCandidatesPath())).status).toBe(403);
+    expect((await http().get(refundCandidatesPath())).status).toBe(401);
+  });
+
+  it("returns only currently refundable successes in the safe shape", async () => {
+    const response = await as("RECEPTIONIST")
+      .get(refundCandidatesPath())
+      .expect(200);
+
+    expect(response.body.total).toBe(3);
+    expect(
+      response.body.payments.map((row: { paymentId: string }) => row.paymentId),
+    ).toEqual([byTransfer.id, inCash.id, disputed.id]);
+    expect(Object.keys(response.body.payments[0]).sort()).toEqual([
+      "amount",
+      "bookingId",
+      "bookingReference",
+      "businessDate",
+      "method",
+      "paidAt",
+      "paymentId",
+    ]);
+    expect(response.body.payments[0].bookingReference).toMatch(/^MRV-/);
+    expect(JSON.stringify(response.body)).not.toMatch(
+      /folioId|gatewayTransactionId|discrepancyId|observation/i,
+    );
+  });
+
+  it("filters candidates by stay and method with matching totals", async () => {
+    const byStay = await as("RECEPTIONIST")
+      .get(refundCandidatesPath({ bookingId: otherStay }))
+      .expect(200);
+    const byMethod = await as("RECEPTIONIST")
+      .get(refundCandidatesPath({ method: "CASH" }))
+      .expect(200);
+    const empty = await as("RECEPTIONIST")
+      .get(refundCandidatesPath({ bookingId: NO_SUCH_BOOKING }))
+      .expect(200);
+
+    expect(byStay.body.total).toBe(1);
+    expect(byStay.body.payments.map((row: { paymentId: string }) => row.paymentId)).toEqual([
+      byTransfer.id,
+    ]);
+    expect(byMethod.body.total).toBe(1);
+    expect(byMethod.body.payments.map((row: { paymentId: string }) => row.paymentId)).toEqual([
+      inCash.id,
+    ]);
+    expect(empty.body).toEqual({ payments: [], total: 0 });
+  });
+
+  it("filters the half-open business day and pages without changing its count", async () => {
+    const first = await as("RECEPTIONIST")
+      .get(refundCandidatesPath({ businessDate: DISPUTED_DAY, limit: 1 }))
+      .expect(200);
+    const second = await as("RECEPTIONIST")
+      .get(
+        refundCandidatesPath({
+          businessDate: DISPUTED_DAY,
+          limit: 1,
+          offset: 1,
+        }),
+      )
+      .expect(200);
+
+    expect(first.body.total).toBe(2);
+    expect(second.body.total).toBe(2);
+    expect(first.body.payments).toHaveLength(1);
+    expect(second.body.payments).toHaveLength(1);
+    expect(first.body.payments[0].paymentId).not.toBe(
+      second.body.payments[0].paymentId,
+    );
+    expect(
+      [first.body.payments[0].paymentId, second.body.payments[0].paymentId].sort(),
+    ).toEqual([disputed.id, byTransfer.id].sort());
+  });
+});
+
 describe("what the property has been paid", () => {
   it("lists every payment newest first, whole", async () => {
     const response = await as("ACCOUNTANT").get(paymentsPath()).expect(200);
@@ -663,6 +743,18 @@ function paymentsPath(filters: Record<string, string | number> = {}): string {
   ).toString();
 
   return `/payments${query ? `?${query}` : ""}`;
+}
+
+function refundCandidatesPath(
+  filters: Record<string, string | number> = {},
+): string {
+  const query = new URLSearchParams(
+    Object.entries(filters).map(
+      ([key, value]) => [key, String(value)] as [string, string],
+    ),
+  ).toString();
+
+  return `/payments/refund-candidates${query ? `?${query}` : ""}`;
 }
 
 const idsOf = (response: { body: { payments: { id: string }[] } }) =>
