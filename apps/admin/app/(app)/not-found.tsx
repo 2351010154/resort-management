@@ -52,7 +52,7 @@ export default function AppNotFound() {
     // answers to where the content starts.
     <section className="flex min-h-[calc(100svh-3.5rem)] items-center justify-center p-4 sm:p-8">
       <Card className="w-full max-w-md p-6 text-center">
-        <p className="text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+        <p className="text-xs font-semibold tracking-caps text-muted-foreground uppercase">
           Mariva
         </p>
         <h1 className="mt-2 text-3xl font-semibold leading-9">

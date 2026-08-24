@@ -100,7 +100,7 @@ export function AppNav() {
                 id={`nav-group-${group.id}`}
                 type="button"
                 aria-expanded={isOpen}
-                className="hidden h-8 w-full items-center justify-between rounded-md px-3 text-left text-xs font-semibold tracking-[0.08em] text-nav-muted uppercase transition-colors duration-150 ease-ui hover:bg-nav-raised hover:text-nav-text xl:flex"
+                className="hidden h-8 w-full items-center justify-between rounded-md px-3 text-left text-xs font-semibold tracking-caps text-nav-muted uppercase transition-colors duration-150 ease-ui hover:bg-nav-raised hover:text-nav-text xl:flex"
                 onClick={() => {
                   setExpanded((current) => ({
                     ...current,

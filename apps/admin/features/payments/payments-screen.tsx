@@ -358,7 +358,7 @@ function ComparedNights({
       className="mt-6 rounded-lg bg-card p-4 shadow-card"
       aria-label="Nights already compared"
     >
-      <p className="text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+      <p className="text-xs font-semibold tracking-caps text-muted-foreground uppercase">
         Compared
       </p>
       <ul className="mt-1 flex flex-wrap gap-2">

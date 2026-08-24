@@ -201,7 +201,7 @@ export function RoomsScreen() {
               >
                 {shown.map((group) => (
                   <section key={group.roomType}>
-                    <h2 className="px-3 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+                    <h2 className="px-3 text-xs font-semibold tracking-caps text-muted-foreground uppercase">
                       {/* The code as the contract spells it. The console names
                         room types this way on every other screen — arrivals'
                         "Sold as" column, the new booking form's choices — and a
@@ -373,7 +373,7 @@ function RoomDetail({
           one sentence rather than two. */}
       <div className="flex flex-wrap items-center justify-between gap-3 border-border border-b p-5">
         <div>
-          <span className="block text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+          <span className="block text-xs font-semibold tracking-caps text-muted-foreground uppercase">
             Room
           </span>
           <h2 className="text-2xl font-semibold leading-8 tabular-nums">
