@@ -133,7 +133,7 @@ export function OpenDrawerForm({
         }}
       />
 
-      <p className="text-muted-foreground mt-2 text-xs">
+      <p className="text-muted-foreground mt-2 text-sm">
         Count the till before the first guest. Everything taken in cash on this
         drawer is held against this figure when it is counted out, so a float
         typed rather than counted is a variance somebody will be asked about.
@@ -141,7 +141,7 @@ export function OpenDrawerForm({
 
       <Problem said={problem} />
 
-      <div className="mt-rhythm-1">
+      <div className="mt-2">
         <Button type="submit" disabled={openDrawer.isPending}>
           {confirm}
         </Button>
@@ -211,7 +211,7 @@ export function CloseDrawerForm({
     >
       <DrawerFigures shift={shift} />
 
-      <div className="mt-rhythm-1">
+      <div className="mt-2">
         <MoneyField
           label="Counted out"
           inputRef={countField}
@@ -223,10 +223,10 @@ export function CloseDrawerForm({
         />
       </div>
 
-      <div className="mt-rhythm-1">
+      <div className="mt-2">
         <label
           htmlFor={noteId}
-          className="text-muted-foreground block text-xs tracking-caps uppercase"
+          className="text-muted-foreground block text-sm  uppercase"
         >
           Handover note
         </label>
@@ -244,7 +244,7 @@ export function CloseDrawerForm({
 
       <Problem said={problem} />
 
-      <div className="mt-rhythm-1">
+      <div className="mt-2">
         <Button type="submit" disabled={closeDrawer.isPending}>
           Close the drawer
         </Button>
@@ -323,7 +323,7 @@ export function ClosedDrawer({ shift }: { shift: Shift }) {
       </dl>
 
       {shift.handoverNote === null ? null : (
-        <p className="text-muted-foreground mt-rhythm-1 border-border border-l-2 pl-3 text-sm whitespace-pre-wrap">
+        <p className="text-muted-foreground mt-2 border-border border-l-2 pl-3 text-sm whitespace-pre-wrap">
           {shift.handoverNote}
         </p>
       )}
@@ -397,7 +397,7 @@ export function PendingItems({
 
   return (
     <section>
-      <h3 className="text-muted-foreground text-xs tracking-caps uppercase">
+      <h3 className="text-muted-foreground text-sm  uppercase">
         Outstanding {items.data === undefined ? null : `· ${items.data.total}`}
       </h3>
 
@@ -430,7 +430,7 @@ export function PendingItems({
 
       {readOnly === true ? null : (
         <form
-          className="mt-rhythm-1"
+          className="mt-2"
           onSubmit={(event) => {
             event.preventDefault();
             void submit();
@@ -453,7 +453,7 @@ export function PendingItems({
               </Button>
             </div>
           ) : (
-            <p className="text-muted-foreground mt-2 text-xs">
+            <p className="text-muted-foreground mt-2 text-sm">
               An item is raised by the drawer that found it, so opening one is
               what makes this writable. The list above is readable either way —
               it is every shift's problem until somebody clears it.
@@ -481,7 +481,7 @@ function PendingItemRow({
     <li className="border-border flex items-start justify-between gap-3 border-b py-1 text-sm">
       <span>
         {item.description}
-        <span className="text-muted-foreground block text-xs">
+        <span className="text-muted-foreground block text-sm">
           Raised {formatInstant(item.createdAt)}
         </span>
       </span>
@@ -555,7 +555,7 @@ function Field({
     <div>
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-xs tracking-caps uppercase"
+        className="text-muted-foreground block text-sm  uppercase"
       >
         {label}
       </label>
@@ -588,10 +588,8 @@ export function Fact({
 }) {
   return (
     <div>
-      <dt className="text-muted-foreground text-xs tracking-caps uppercase">
-        {label}
-      </dt>
-      <dd className={emphasis ? "font-mono" : undefined}>{value}</dd>
+      <dt className="text-muted-foreground text-sm  uppercase">{label}</dt>
+      <dd className={emphasis ? "tabular-nums" : undefined}>{value}</dd>
     </div>
   );
 }
@@ -604,7 +602,7 @@ export function Problem({ said }: { said: string | null }) {
   }
 
   return (
-    <p className="border-destructive text-destructive mt-rhythm-1 border-l-2 pl-3 text-sm">
+    <p className="border-destructive text-destructive mt-2 border-l-2 pl-3 text-sm">
       {said}
     </p>
   );

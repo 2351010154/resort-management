@@ -22,5 +22,6 @@ export {
 } from "./command";
 export { CommandPalette } from "./command-palette";
 export { CommandRegistryProvider } from "./command-registry";
+export { openCommandPalette } from "./palette-event";
 export { formatShortcut } from "./shortcut";
 export { useCommands } from "./use-commands";

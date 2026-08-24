@@ -104,7 +104,7 @@ export function ShiftPanel({
     >
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle className="font-display">
+          <DialogTitle className="font-semibold">
             {INTENT_TITLES[intent]}
           </DialogTitle>
           <DialogDescription>{INTENT_DESCRIPTIONS[intent]}</DialogDescription>
@@ -156,7 +156,7 @@ function Act({
     return (
       <div>
         {intent === "open" ? null : (
-          <p className="text-muted-foreground mb-rhythm-1 text-sm">
+          <p className="text-muted-foreground mb-2 text-sm">
             There is no drawer open in your name, so there is nothing to{" "}
             {intent === "count" ? "count" : "close"} yet.
           </p>
@@ -183,10 +183,10 @@ function Act({
           {formatInstant(shift.openedAt)} on the trading day{" "}
           {formatLongDate(shift.openingBusinessDate)}.
         </p>
-        <div className="mt-rhythm-1">
+        <div className="mt-2">
           <DrawerFigures shift={shift} />
         </div>
-        <div className="mt-rhythm-1 flex flex-wrap gap-3">
+        <div className="mt-2 flex flex-wrap gap-3">
           <Button
             type="button"
             variant="ghost"
@@ -214,13 +214,13 @@ function Act({
     return (
       <div>
         <DrawerFigures shift={shift} />
-        <p className="text-muted-foreground mt-rhythm-1 text-sm">
+        <p className="text-muted-foreground mt-2 text-sm">
           Opened {formatInstant(shift.openedAt)}, on the trading day{" "}
           {formatLongDate(shift.openingBusinessDate)}. Count the till against{" "}
           {formatVnd(expectedInDrawer(shift))} — if it does not agree, the
           difference is worth finding now rather than at the handover.
         </p>
-        <div className="mt-rhythm-1">
+        <div className="mt-2">
           <Button
             type="button"
             onClick={() => {
@@ -235,7 +235,7 @@ function Act({
   }
 
   return (
-    <div className="flex flex-col gap-rhythm-2">
+    <div className="flex flex-col gap-4">
       <CloseDrawerForm shift={shift} onClosed={onClosed} />
       <PendingItems onDrawer offered />
     </div>
@@ -248,12 +248,12 @@ function CountedOut({ shift, onDismiss }: { shift: Shift; onDismiss(): void }) {
   return (
     <div>
       <ClosedDrawer shift={shift} />
-      <p className="text-muted-foreground mt-rhythm-1 text-sm">
+      <p className="text-muted-foreground mt-2 text-sm">
         The drawer is closed and the shift has joined the history, where a
         manager reads it. Anything still outstanding stays on the backlog for
         whoever takes the desk next.
       </p>
-      <div className="mt-rhythm-1">
+      <div className="mt-2">
         <Button type="button" onClick={onDismiss}>
           Done
         </Button>

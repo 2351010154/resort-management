@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
  * IBM Plex Mono at 300 and 400 only, so a 500 would be synthesised by the
  * browser. 400 against the body's 300 is the console's real emphasis step. */
 const buttonVariants = cva(
-  "inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-normal whitespace-nowrap transition-all disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "relative inline-flex shrink-0 items-center justify-center gap-2 rounded-md text-sm font-semibold whitespace-nowrap transition-[background-color,color,box-shadow,transform] duration-200 ease-ui active:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
@@ -32,24 +32,26 @@ const buttonVariants = cva(
          * destructive button in this console says the verb — "Cancel booking",
          * "Void folio" — never "OK" and never "Confirm". */
         destructive:
-          "border-2 border-destructive bg-background text-destructive hover:bg-destructive hover:text-destructive-foreground focus-visible:bg-destructive focus-visible:text-destructive-foreground",
+          "bg-danger-soft text-danger hover:bg-danger-soft/70 focus-visible:bg-danger-soft/70",
 
         outline:
-          "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground",
+          "border border-border bg-card shadow-xs hover:bg-muted hover:text-foreground",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
-        ghost: "hover:bg-accent hover:text-accent-foreground",
-        link: "text-primary underline-offset-4 hover:underline",
+        ghost: "hover:bg-muted hover:text-foreground",
+        link: "text-accent-strong underline-offset-4 hover:underline",
       },
       size: {
-        default: "h-9 px-4 py-2 has-[>svg]:px-3",
-        xs: "h-6 gap-1 rounded-md px-2 text-xs has-[>svg]:px-1.5 [&_svg:not([class*='size-'])]:size-3",
-        sm: "h-8 gap-1.5 rounded-md px-3 has-[>svg]:px-2.5",
-        lg: "h-10 rounded-md px-6 has-[>svg]:px-4",
-        icon: "size-9",
-        "icon-xs": "size-6 rounded-md [&_svg:not([class*='size-'])]:size-3",
-        "icon-sm": "size-8",
-        "icon-lg": "size-10",
+        default: "h-11 px-4 has-[>svg]:px-3",
+        xs: "h-9 gap-1 px-2 text-sm before:absolute before:-inset-1 before:content-[''] has-[>svg]:px-2 [&_svg:not([class*='size-'])]:size-3",
+        sm: "h-10 gap-1.5 px-3 before:absolute before:-inset-0.5 before:content-[''] has-[>svg]:px-2.5",
+        lg: "h-12 px-6 has-[>svg]:px-4",
+        icon: "size-11",
+        "icon-xs":
+          "size-9 before:absolute before:-inset-1 before:content-[''] [&_svg:not([class*='size-'])]:size-3",
+        "icon-sm":
+          "size-10 before:absolute before:-inset-0.5 before:content-['']",
+        "icon-lg": "size-12",
       },
     },
     defaultVariants: {

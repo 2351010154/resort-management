@@ -28,6 +28,7 @@ import { useRouter } from "next/navigation";
 import { useSyncExternalStore } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { DEFAULT_LANDING, LOGIN_ROUTE, staffSession } from "@/lib/auth";
 
 export default function NotFound() {
@@ -45,20 +46,22 @@ export default function NotFound() {
   const signedIn = session.status === "authenticated";
 
   return (
-    <main className="flex min-h-svh items-center justify-center p-rhythm-3">
-      <div className="w-full max-w-sm">
-        <p className="text-muted-foreground text-xs tracking-caps uppercase">
+    <main className="flex min-h-svh items-center justify-center p-4 sm:p-8">
+      <Card className="w-full max-w-md p-6 text-center">
+        <p className="text-sm font-semibold  text-muted-foreground uppercase">
           Mariva
         </p>
-        <h1 className="font-display text-display-sm mt-2">Console</h1>
-        <p className="text-muted-foreground mt-rhythm-1 border-border border-t pt-2">
+        <h1 className="mt-2 text-3xl font-semibold leading-9">
+          Page not found
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
           {signedIn
             ? "This screen has not been built yet."
             : "There is nothing at this address."}
         </p>
 
         <Button
-          className="mt-rhythm-2"
+          className="mt-6"
           onClick={() => {
             // A session is never spent to leave a 404. Someone signed in who
             // reaches this page is one navigation away from the console they
@@ -70,7 +73,7 @@ export default function NotFound() {
         >
           {signedIn ? "Back to the console" : "Go to sign in"}
         </Button>
-      </div>
+      </Card>
     </main>
   );
 }

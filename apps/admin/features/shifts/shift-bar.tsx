@@ -1,142 +1,129 @@
 "use client";
 
 import { formatVnd } from "@mariva/shared";
+import { CalendarDaysIcon, SearchIcon } from "lucide-react";
+import { useMemo } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Kbd } from "@/components/ui/kbd";
+import { useBusinessDate } from "@/features/bookings/bookings-queries";
+import { formatShortcut, openCommandPalette } from "@/features/command-palette";
 import { useStaffSession } from "@/lib/auth";
+import { formatLongDate } from "@/lib/business-date";
+import { detectPlatform } from "@/lib/keyboard";
 
 import { expectedInDrawer, mayWorkADrawer, type Shift } from "./shift-day";
 import { useCurrentShift } from "./shift-queries";
 import { useShiftSurface } from "./shift-surface";
 
-/* Whether this operator is on a drawer, on every screen they are on.
- *
- * `screens.md` §"Staff surfaces": "The current shift lives in the shell's top
- * bar." It is there because of what it couples to — "every cash payment belongs
- * to an open shift, or drawer variance means nothing" — and a receptionist who
- * cannot tell at a glance that they are on no drawer will find out when a guest
- * is holding out money for a bill.
- *
- * ## Why it is not a screen and not a rail entry
- *
- * The rail is the console's map and every entry on it is a place. This is a
- * state, and the state changes twice a day: putting it in the rail would give a
- * fact a door, and putting it on a screen would make an operator visit one to
- * learn something they need to know while working somewhere else.
- *
- * ## Four states, and none of them is a red toast
- *
- * On a drawer, on none, unable to tell, and not yet asked. "On none" is the
- * ordinary state of a receptionist who has just signed in and is not a failure —
- * `contract/operations.ts` says so in as many words, which is why the route
- * answers null rather than refusing. "Unable to tell" is drawn here rather than
- * being reported centrally, because this read sits above every screen at once:
- * a toast for it would be the same red sentence over whatever the operator was
- * doing, once per screen change.
- *
- * The acts themselves belong to the palette and the panel it opens. What the bar
- * offers is the shortest way into the one act its own state implies — opening a
- * drawer when there is none, counting one when there is — because an operator
- * reading "no drawer open" at the moment they need one should not have to know
- * which command it is filed under.
- */
-
 export function ShiftBar() {
   const session = useStaffSession();
-
+  const businessDate = useBusinessDate();
+  const platform = useMemo(() => detectPlatform(), []);
   const offered =
     session.status === "authenticated" && mayWorkADrawer(session.user.role);
-
-  // Called unconditionally and held on nothing for the roles the drawer row is
-  // not granted to — a housekeeper's console would otherwise spend a request on
-  // a 403 on every screen they open.
   const drawer = useCurrentShift(offered);
   const surface = useShiftSurface();
 
-  if (!offered) {
-    // The accountant's grant on this row is a read of the *history*, which is a
-    // screen and is where they are offered it; the housekeeper holds neither
-    // row. Neither of them works a till, so neither is told about one — and the
-    // strip goes with the fact rather than standing empty above their screens.
-    // That is why the strip is drawn here rather than by the layout: a wrapper
-    // up there would rule a border across the top of a console holding nothing.
-    return null;
-  }
-
   return (
-    <div className="border-border flex h-10 shrink-0 items-center justify-end gap-3 border-b px-rhythm-2 text-sm">
-      {drawer.isPending ? (
-        <span className="text-muted-foreground text-xs" aria-busy>
-          Reading the drawer
+    <div className="sticky top-0 z-30 flex min-h-14 shrink-0 items-center gap-3 border-border border-b bg-card/95 px-3 shadow-xs backdrop-blur sm:px-5">
+      <div className="flex min-w-0 items-center gap-2">
+        <span className="grid size-8 shrink-0 place-items-center rounded-md bg-accent-soft text-accent-strong">
+          <CalendarDaysIcon aria-hidden="true" className="size-4" />
         </span>
-      ) : drawer.isError ? (
-        <span className="border-destructive text-destructive border-l-2 pl-2 text-xs">
-          The drawer could not be read
-        </span>
-      ) : drawer.data ? (
-        <OpenDrawer
-          shift={drawer.data}
-          onCount={() => {
-            surface.open("count");
-          }}
-          onClose={() => {
-            surface.open("close");
-          }}
-        />
-      ) : (
-        <>
-          <span className="text-muted-foreground text-xs tracking-caps uppercase">
-            No drawer open
+        <span className="min-w-0 leading-tight">
+          <span className="block text-sm font-semibold  text-muted-foreground uppercase">
+            Hotel day
           </span>
-          <Button
-            type="button"
-            variant="ghost"
-            size="xs"
-            onClick={() => {
+          <span className="block truncate text-sm font-semibold">
+            {businessDate.isPending
+              ? "Reading date"
+              : businessDate.data
+                ? formatLongDate(businessDate.data.businessDate)
+                : "Date unavailable"}
+          </span>
+        </span>
+      </div>
+
+      <div className="ml-auto flex items-center gap-2">
+        {offered ? (
+          <DrawerStatus
+            pending={drawer.isPending}
+            failed={drawer.isError}
+            shift={drawer.data ?? null}
+            onOpen={() => {
               surface.open("open");
             }}
-          >
-            Open one
-          </Button>
-        </>
-      )}
+            onCount={() => {
+              surface.open("count");
+            }}
+          />
+        ) : null}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          aria-label="Open command palette"
+          onClick={openCommandPalette}
+          className="bg-background"
+        >
+          <SearchIcon aria-hidden="true" />
+          <span className="hidden sm:inline">Quick find</span>
+          <Kbd className="hidden md:inline-flex">
+            {formatShortcut("mod+k", platform)}
+          </Kbd>
+        </Button>
+      </div>
     </div>
   );
 }
 
-/**
- * The drawer that is open, and what it should be holding.
- *
- * The expected figure rather than the float or the takings alone, because it is
- * the only one that answers the question somebody glancing up asks: if I counted
- * this now, what should be in it. Its three terms are on the shift and the panel
- * prints them separately for anybody who wants them — including what the
- * property itself spent from this till, which the desk may not record and has to
- * be able to see.
- */
-function OpenDrawer({
+function DrawerStatus({
+  pending,
+  failed,
   shift,
+  onOpen,
   onCount,
-  onClose,
 }: {
-  shift: Shift;
+  pending: boolean;
+  failed: boolean;
+  shift: Shift | null;
+  onOpen(): void;
   onCount(): void;
-  onClose(): void;
 }) {
+  if (pending) {
+    return (
+      <span className="hidden text-sm text-muted-foreground lg:inline">
+        Reading drawer
+      </span>
+    );
+  }
+
+  if (failed) {
+    return (
+      <span className="hidden text-sm text-danger lg:inline">
+        Drawer unavailable
+      </span>
+    );
+  }
+
+  if (shift) {
+    return (
+      <Button type="button" variant="ghost" size="sm" onClick={onCount}>
+        <span className="size-2 rounded-full bg-success" aria-hidden="true" />
+        <span className="hidden lg:inline">Drawer</span>
+        <span className="hidden font-semibold tabular-nums md:inline">
+          {formatVnd(expectedInDrawer(shift))}
+        </span>
+      </Button>
+    );
+  }
+
   return (
-    <>
-      <span className="text-muted-foreground text-xs tracking-caps uppercase">
-        Drawer open
-      </span>
-      <span className="font-mono text-xs">
-        {formatVnd(expectedInDrawer(shift))}
-      </span>
-      <Button type="button" variant="ghost" size="xs" onClick={onCount}>
-        Count
-      </Button>
-      <Button type="button" variant="ghost" size="xs" onClick={onClose}>
-        Close
-      </Button>
-    </>
+    <Button type="button" variant="ghost" size="sm" onClick={onOpen}>
+      <span className="size-2 rounded-full bg-warning" aria-hidden="true" />
+      <span className="hidden sm:inline">Open drawer</span>
+      <span className="sm:hidden">Drawer</span>
+    </Button>
   );
 }

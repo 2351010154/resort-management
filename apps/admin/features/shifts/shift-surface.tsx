@@ -154,7 +154,7 @@ export function ShiftCommands() {
           },
           {
             id: "shifts.hand-over",
-            label: "Hand over — outstanding items",
+            label: "Open handover",
             group: "actions" as const,
             keywords: ["pending", "backlog", "bàn giao", "notes"],
             action: () => {

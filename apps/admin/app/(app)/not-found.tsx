@@ -27,6 +27,7 @@ import Link from "next/link";
 import { useSyncExternalStore } from "react";
 
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { DEFAULT_LANDING, landingRouteFor, staffSession } from "@/lib/auth";
 
 export default function AppNotFound() {
@@ -49,21 +50,22 @@ export default function AppNotFound() {
     // A section and not a `main`: the layout already drew one around this, and
     // a second landmark would leave anything reading the page in order with two
     // answers to where the content starts.
-    <section className="flex min-h-svh items-center justify-center p-rhythm-3">
-      <div className="w-full max-w-sm">
-        <p className="text-muted-foreground text-xs tracking-caps uppercase">
+    <section className="flex min-h-[calc(100svh-3.5rem)] items-center justify-center p-4 sm:p-8">
+      <Card className="w-full max-w-md p-6 text-center">
+        <p className="text-sm font-semibold  text-muted-foreground uppercase">
           Mariva
         </p>
-        <h1 className="font-display text-display-sm mt-2">Not built yet</h1>
-        <p className="text-muted-foreground mt-rhythm-1 border-border border-t pt-2">
-          This screen has not been built yet. The console it belongs to is still
-          open behind this page.
+        <h1 className="mt-2 text-3xl font-semibold leading-9">
+          Page not found
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          This address is not part of the staff console.
         </p>
 
-        <Button asChild className="mt-rhythm-2">
+        <Button asChild className="mt-6">
           <Link href={landing}>Back to the console</Link>
         </Button>
-      </div>
+      </Card>
     </section>
   );
 }

@@ -1,6 +1,13 @@
 "use client";
 
-import { Fragment, useCallback, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import {
   CommandDialog,
@@ -22,6 +29,7 @@ import {
 
 import { commandValue, type ConsoleCommand, groupCommands } from "./command";
 import { useRegisteredCommands } from "./command-registry";
+import { OPEN_COMMAND_PALETTE_EVENT } from "./palette-event";
 import { formatShortcut } from "./shortcut";
 
 /* The console's command centre.
@@ -84,6 +92,17 @@ export function CommandPalette() {
       after?.();
     });
   }, []);
+
+  useEffect(() => {
+    const openFromShell = () => {
+      change(true);
+    };
+
+    window.addEventListener(OPEN_COMMAND_PALETTE_EVENT, openFromShell);
+    return () => {
+      window.removeEventListener(OPEN_COMMAND_PALETTE_EVENT, openFromShell);
+    };
+  }, [change]);
 
   // `enableInFormField` is on, and this is the exception that proves the rule
   // the registry defaults to. A bare letter must not fire while a receptionist

@@ -10,7 +10,10 @@ import {
 import type * as React from "react";
 import { useMemo, useRef, useState } from "react";
 
+import { DataTableFrame, EmptyState, PageHeader } from "@/components/console";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 /* The property's day, from the hook the rest of the console already asks it
  * with: one route through the same `orpc` utils is one cache entry, so the day a
  * typed range is resolved against here is the day the desk is working, without a
@@ -179,23 +182,14 @@ export function RevenueScreen() {
   }
 
   return (
-    <div className="p-rhythm-3">
-      <header>
-        <p className="text-muted-foreground text-xs tracking-caps uppercase">
-          Reports
-        </p>
-        <h1 className="font-display text-display-sm mt-2">Revenue</h1>
-        <p className="text-muted-foreground mt-rhythm-1 border-border border-t pt-2 max-w-prose">
-          What the property earned over a stretch of closed trading days: net
-          room charges and everything else it sold, both read from the night
-          audit's frozen figures, with what cancellations and no-shows forfeited
-          summed from the folio ledger beside them. A forfeited booking is not a
-          sale, which is why it is a column of its own rather than folded in.
-        </p>
-      </header>
+    <div className="mx-auto w-full max-w-[1600px] p-4 sm:p-6 lg:p-8">
+      <PageHeader
+        title="Revenue"
+        description="Room, other, and forfeited revenue over closed trading days."
+      />
 
       {!offered ? (
-        <p className="text-muted-foreground mt-rhythm-2 max-w-prose text-sm">
+        <p className="text-muted-foreground mt-4 max-w-prose text-sm">
           What the property earned belongs to the accountant and management. The
           desk holds the drawer and reads its own shift; the takings are read by
           whoever accounts for them. Where the rooms stand is the report open to
@@ -203,7 +197,7 @@ export function RevenueScreen() {
         </p>
       ) : (
         <>
-          <section className="mt-rhythm-2">
+          <Card className="mt-6 p-4">
             <RangePicker
               fields={fields}
               firstDayField={firstDayField}
@@ -213,12 +207,12 @@ export function RevenueScreen() {
             />
 
             {problem === null ? null : (
-              <p className="border-destructive text-destructive mt-rhythm-1 border-l-2 pl-3 text-sm">
+              <p className="border-destructive text-destructive mt-2 border-l-2 pl-3 text-sm">
                 {problem}
               </p>
             )}
 
-            <div className="mt-rhythm-1 flex flex-wrap items-center gap-3">
+            <div className="mt-2 flex flex-wrap items-center gap-3">
               <Stamp
                 pending={report.isPending}
                 failed={report.isError}
@@ -242,7 +236,7 @@ export function RevenueScreen() {
                 </Button>
               ) : null}
             </div>
-          </section>
+          </Card>
 
           <Reading
             pending={report.isPending}
@@ -280,7 +274,7 @@ function Stamp({
   }
 
   return (
-    <span className="text-muted-foreground text-xs">
+    <span className="text-muted-foreground text-sm">
       {pending ? "Reading the report." : boundaryNote(lastClosedBusinessDate)}
     </span>
   );
@@ -306,34 +300,32 @@ function Reading({
     // The console's error device is a rule on the leading edge rather than a
     // colour: --color-destructive and --color-primary are the same umber.
     return (
-      <p className="border-destructive text-destructive mt-rhythm-2 border-l-2 pl-3 text-sm">
-        The revenue report could not be read. Nothing here is a statement about
-        what the property earned.
+      <p
+        className="mt-6 border-danger border-l-2 pl-3 text-sm text-danger"
+        role="alert"
+      >
+        The revenue report could not be loaded.
       </p>
     );
   }
 
   if (pending) {
-    return (
-      <p className="text-muted-foreground mt-rhythm-2 text-sm" aria-busy>
-        Reading the report.
-      </p>
-    );
+    return <Skeleton className="mt-6 h-80" aria-busy />;
   }
 
   if (buckets.length === 0 || totals === null) {
     return (
-      <p className="text-muted-foreground mt-rhythm-2 max-w-prose text-sm">
-        No closed trading day falls in that range. A report with nothing in it
-        is either a range the property was not open for or a range the night
-        audit has not reached — the stamp above says which.
-      </p>
+      <EmptyState
+        className="mt-6"
+        title="No closed days in range"
+        description="Adjust the range or check the audit boundary above."
+      />
     );
   }
 
   return (
     <>
-      <dl className="mt-rhythm-2 grid gap-2 text-sm sm:grid-cols-4">
+      <dl className="mt-6 grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
         <Total
           label={REVENUE_SERIES_LABELS.room}
           value={formatVnd(totals.roomRevenueVnd)}
@@ -349,49 +341,51 @@ function Reading({
         <Total label="Total" value={formatVnd(totals.totalVnd)} emphasis />
       </dl>
 
-      <section className="mt-rhythm-2">
+      <section className="mt-6 rounded-lg bg-card p-4 shadow-card">
         <RevenueChart bars={bars} />
       </section>
 
-      <table className="mt-rhythm-2 w-full border-collapse text-sm">
-        <caption className="text-muted-foreground mb-rhythm-1 text-left text-xs">
-          Every bucket the range reached, earliest first. `From` and `To` are
-          the first and last day the audit closed inside the bucket rather than
-          its calendar span, so a month the audit has only reached the twentieth
-          of says so — and `Closed days` is how many nights the figures beside
-          it were assembled from.
-        </caption>
-        <thead>
-          <tr className="border-border border-b">
-            <Column>Bucket</Column>
-            <Column>From</Column>
-            <Column>To</Column>
-            <Column align="right">Closed days</Column>
-            <Column align="right">{REVENUE_SERIES_LABELS.room}</Column>
-            <Column align="right">{REVENUE_SERIES_LABELS.other}</Column>
-            <Column align="right">{REVENUE_SERIES_LABELS.penalties}</Column>
-            <Column align="right">Total</Column>
-          </tr>
-        </thead>
-        <tbody>
-          {buckets.map((held) => (
-            <tr className="border-border border-b" key={held.from}>
-              <td className="py-1 pr-3 whitespace-nowrap first:pl-0">
-                {bucketLabel(held.from, bucket)}
-              </td>
-              <td className="px-3 py-1 whitespace-nowrap">{held.from}</td>
-              <td className="px-3 py-1 whitespace-nowrap">{held.to}</td>
-              <td className="px-3 py-1 text-right font-mono whitespace-nowrap">
-                {held.closedDays}
-              </td>
-              <Money amount={held.roomRevenueVnd} />
-              <Money amount={held.otherRevenueVnd} />
-              <Money amount={held.penaltyRevenueVnd} />
-              <Money amount={held.totalVnd} emphasis />
+      <DataTableFrame className="mt-6 overflow-x-auto p-4">
+        <table className="w-full min-w-[900px] border-collapse text-sm">
+          <caption className="text-muted-foreground mb-2 text-left text-sm">
+            Every bucket the range reached, earliest first. `From` and `To` are
+            the first and last day the audit closed inside the bucket rather
+            than its calendar span, so a month the audit has only reached the
+            twentieth of says so — and `Closed days` is how many nights the
+            figures beside it were assembled from.
+          </caption>
+          <thead>
+            <tr className="border-border border-b">
+              <Column>Bucket</Column>
+              <Column>From</Column>
+              <Column>To</Column>
+              <Column align="right">Closed days</Column>
+              <Column align="right">{REVENUE_SERIES_LABELS.room}</Column>
+              <Column align="right">{REVENUE_SERIES_LABELS.other}</Column>
+              <Column align="right">{REVENUE_SERIES_LABELS.penalties}</Column>
+              <Column align="right">Total</Column>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {buckets.map((held) => (
+              <tr className="border-border border-b" key={held.from}>
+                <td className="py-1 pr-3 whitespace-nowrap first:pl-0">
+                  {bucketLabel(held.from, bucket)}
+                </td>
+                <td className="px-3 py-1 whitespace-nowrap">{held.from}</td>
+                <td className="px-3 py-1 whitespace-nowrap">{held.to}</td>
+                <td className="px-3 py-1 text-right tabular-nums whitespace-nowrap">
+                  {held.closedDays}
+                </td>
+                <Money amount={held.roomRevenueVnd} />
+                <Money amount={held.otherRevenueVnd} />
+                <Money amount={held.penaltyRevenueVnd} />
+                <Money amount={held.totalVnd} emphasis />
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </DataTableFrame>
     </>
   );
 }
@@ -404,8 +398,8 @@ function Money({ amount, emphasis }: { amount: bigint; emphasis?: boolean }) {
     <td
       className={
         emphasis
-          ? "px-3 py-1 text-right font-mono whitespace-nowrap last:pr-0"
-          : "text-muted-foreground px-3 py-1 text-right font-mono whitespace-nowrap last:pr-0"
+          ? "px-3 py-1 text-right tabular-nums whitespace-nowrap last:pr-0"
+          : "text-muted-foreground px-3 py-1 text-right tabular-nums whitespace-nowrap last:pr-0"
       }
     >
       {formatVnd(amount)}
@@ -423,12 +417,16 @@ function Total({
   emphasis?: boolean;
 }) {
   return (
-    <div>
-      <dt className="text-muted-foreground text-xs tracking-caps uppercase">
+    <div className="rounded-lg bg-card p-4 shadow-card">
+      <dt className="text-sm font-semibold  text-muted-foreground uppercase">
         {label}
       </dt>
       <dd
-        className={emphasis ? "font-mono" : "font-mono text-muted-foreground"}
+        className={
+          emphasis
+            ? "mt-2 text-2xl font-semibold tabular-nums"
+            : "mt-2 text-2xl font-semibold text-muted-foreground tabular-nums"
+        }
       >
         {value}
       </dd>
@@ -448,8 +446,8 @@ function Column({
       scope="col"
       className={
         align === "right"
-          ? "text-muted-foreground px-3 py-2 text-right text-xs font-normal tracking-caps uppercase first:pl-0 last:pr-0"
-          : "text-muted-foreground px-3 py-2 text-left text-xs font-normal tracking-caps uppercase first:pl-0 last:pr-0"
+          ? "text-muted-foreground px-3 py-2 text-right text-sm font-normal  uppercase first:pl-0 last:pr-0"
+          : "text-muted-foreground px-3 py-2 text-left text-sm font-normal  uppercase first:pl-0 last:pr-0"
       }
     >
       {children}

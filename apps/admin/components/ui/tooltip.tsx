@@ -49,7 +49,7 @@ function TooltipContent({
          * console a tooltip is often read by tabbing to the control, and a
          * delay there is a pause with nothing on screen. */
         className={cn(
-          "z-50 w-fit rounded-md bg-foreground px-3 py-1.5 text-xs text-balance text-background",
+          "z-50 w-fit rounded-md bg-foreground px-3 py-1.5 text-sm text-balance text-background",
           className,
         )}
         {...props}
