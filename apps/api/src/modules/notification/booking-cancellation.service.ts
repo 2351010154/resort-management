@@ -18,14 +18,18 @@
 // body is the only at-rest copy of two spendable credentials. There is no such
 // thing here: a cancelled stay has no page worth opening and no account step to
 // offer, so this body carries no link at all. What a job row holds is a name, a
-// reference and two amounts the property has already decided — the same class of
+// reference and an amount the property has already decided — the same class of
 // fact as the row the mail was composed from.
 //
-// **It is told, not asked.** The penalty and the refund arrive as amounts. §4's
-// grid is `cancellation-calculator.ts`'s, the waiver that sets it aside is a
-// column on the booking, and the money is the folio's; a service that worked any
-// of them out here would be a second answer to a figure the guest has already
-// been quoted.
+// **It is told, not asked.** The penalty arrives as an amount. §4's grid is
+// `cancellation-calculator.ts`'s and the waiver that sets it aside is a column
+// on the booking; a service that worked either of them out here would be a
+// second answer to a figure the guest has already been quoted.
+//
+// **Nothing here says money is coming back.** A guest's entitlement under §4 is
+// untouched, but returning the money is a staff act taken out of band and no
+// code path in this process performs it. So the mail carries the charge and not
+// a promise, and this service has no refund to forward.
 
 import { Injectable } from "@nestjs/common";
 import { InjectPinoLogger, type PinoLogger } from "nestjs-pino";
@@ -58,9 +62,8 @@ export class BookingCancellationService {
    * write to somebody about it.
    *
    * Nothing of the message is logged but its recipient and the reference. The
-   * body says what a guest was charged and what is coming back to them, and a
-   * log is read by more people, for longer, than the mailbox it was addressed
-   * to.
+   * body says what a guest was charged, and a log is read by more people, for
+   * longer, than the mailbox it was addressed to.
    */
   async enqueue(mail: BookingCancellationEmailParams): Promise<void> {
     try {

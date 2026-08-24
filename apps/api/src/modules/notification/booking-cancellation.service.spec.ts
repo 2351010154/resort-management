@@ -2,7 +2,7 @@
 //
 // Two behaviours, and the second is the one worth a file. Nothing is added on the
 // way past: the composed message reaches the queue exactly once, unaltered, with
-// both amounts still on it. And a queue that refuses is swallowed — because the
+// what §4 charged still on it. And a queue that refuses is swallowed — because the
 // caller is `BookingService.cancel`, which has already released the stay's
 // inventory by the time this is reached, so a rejection here would put a room
 // back off the shelf because the property could not write to somebody about it.
@@ -29,7 +29,6 @@ const MAIL: BookingCancellationEmailParams = {
   reference: "MRV-2027-0042",
   reason: "GUEST_REQUEST",
   penalty: 1_850_000n,
-  refund: 3_700_000n,
 };
 
 /** Records what the service logs, so "it said nothing about the body" is a
@@ -69,7 +68,7 @@ describe("handing a cancellation over", () => {
     expect(enqueue.mock.calls[0]).toHaveLength(1);
   });
 
-  it("carries both amounts through to the message", async () => {
+  it("carries the charge through to the message, and no promise of money back", async () => {
     const enqueue = vi.fn().mockResolvedValue(undefined);
 
     await queueing(enqueue).enqueue(MAIL);
@@ -77,7 +76,10 @@ describe("handing a cancellation over", () => {
     const sent = enqueue.mock.calls[0]![0];
 
     expect(sent.text).toContain("1.850.000");
-    expect(sent.text).toContain("3.700.000");
+    // Returning money is a staff act taken out of band, and nothing this
+    // service can reach performs one. What goes on the queue may not say
+    // otherwise.
+    expect(sent.text).not.toMatch(/refund/i);
   });
 });
 
@@ -99,8 +101,7 @@ describe("a queue that will not take it", () => {
     const [context] = logger.error.mock.calls[0]!;
 
     expect(context).toMatchObject({ to: MAIL.to, reference: MAIL.reference });
-    // What a guest was charged and what is coming back to them is not something
-    // a log needs a copy of.
+    // What a guest was charged is not something a log needs a copy of.
     expect(JSON.stringify(context)).not.toContain("1850000");
     expect(JSON.stringify(context)).not.toContain("Cancellation charge");
   });

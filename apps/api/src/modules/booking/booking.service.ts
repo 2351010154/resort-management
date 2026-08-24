@@ -1387,20 +1387,18 @@ export class BookingService {
       return;
     }
 
+    // What §4 charged is the whole of what this mail states. The folio is not
+    // read for a balance to promise back: §4's entitlement stands, but returning
+    // money is a staff act taken at the desk and out of band, and no code path
+    // here starts one. A message that quoted a refund would commit the property,
+    // in the guest's inbox, to something nothing in this process performs.
     await afterCommit(exec, async () => {
-      const settled = (await this.folio.getBalance(row.id)) + charge.amount;
-
       await this.cancellations.enqueue({
         to,
         guestName,
         reference: row.reference,
         reason,
         penalty: charge.amount,
-        // Negative is the property holding money that is not its own —
-        // `schema/folio.ts` on the sign convention — and that figure, exactly,
-        // is what goes back. Zero or positive is a stay that still owes, and
-        // there is nothing to hand back.
-        refund: settled < 0n ? -settled : null,
       });
     });
   }

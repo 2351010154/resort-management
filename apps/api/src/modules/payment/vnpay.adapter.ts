@@ -225,6 +225,15 @@ export class VnpayAdapter implements PaymentGateway {
     };
   }
 
+  // Implemented, tested, and deliberately called by nothing. `FR-PAY-01` puts
+  // `refund` on the `PaymentGateway` port for every implementation, and `ASM-05`
+  // secured sandbox access precisely so it could be proven before production —
+  // so it is kept whole rather than stubbed. What does not exist is a caller:
+  // `property-and-tariff.md` §4 prices a cancellation and stops there, and
+  // handing the money back is a staff act through `folio.refund-policy` or
+  // `folio.refund-override`, performed out of band. No cancellation, no-show or
+  // early-departure path reaches this method, and wiring one to it would make
+  // the grid move money the desk never authorised.
   async refund(input: RefundInput): Promise<RefundResult> {
     const transactionNo = Number(input.gatewayTransactionId);
 
