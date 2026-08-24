@@ -8,24 +8,24 @@ import { describe, expect, it } from "vitest";
 import {
   type ConfigEditAttempt,
   type ConfigFields,
+  type ConfigurationEdit,
   configEdit,
   configFingerprint,
-  type ConfigurationEdit,
   dongLabel,
   fieldsFrom,
   lastSignedInLabel,
   mayEditConfiguration,
   mayManageStaffAccounts,
   mayReadConfiguration,
-  NO_STAFF_ACCOUNT_FIELDS,
   type NewStaffAccount,
+  NO_STAFF_ACCOUNT_FIELDS,
   rateLabel,
   resolvedWindowEnd,
   rolloverLabel,
   type StaffAccountFields,
+  type SystemConfiguration,
   staffAccountAttempt,
   staffAccountsFrom,
-  type SystemConfiguration,
 } from "./settings-form";
 
 /* The settings screen's decisions, held to the rules the module states.

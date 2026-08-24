@@ -12,8 +12,8 @@
  * from: one file to read to know the whole set, and one place that breaks if a
  * primitive is renamed. */
 
-export { Button, buttonVariants } from "./button";
 export { Badge, badgeVariants } from "./badge";
+export { Button, buttonVariants } from "./button";
 export {
   Card,
   CardContent,
@@ -76,7 +76,6 @@ export {
   PopoverTrigger,
 } from "./popover";
 export { RadioGroup, RadioGroupItem } from "./radio-group";
-export { Separator } from "./separator";
 export {
   Select,
   SelectContent,
@@ -89,7 +88,7 @@ export {
   SelectTrigger,
   SelectValue,
 } from "./select";
-export { Toaster } from "./sonner";
+export { Separator } from "./separator";
 export {
   Sheet,
   SheetBody,
@@ -104,6 +103,7 @@ export {
   SheetTrigger,
 } from "./sheet";
 export { Skeleton } from "./skeleton";
+export { Toaster } from "./sonner";
 export { Switch } from "./switch";
 export {
   Table,

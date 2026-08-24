@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   COMMAND_GROUP_ORDER,
-  commandValue,
   type ConsoleCommand,
+  commandValue,
   groupCommands,
 } from "./command";
 

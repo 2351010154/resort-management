@@ -7,13 +7,20 @@ import {
   type Row,
   useReactTable,
 } from "@tanstack/react-table";
+import { ChevronRight } from "lucide-react";
 import type * as React from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { DataTableFrame, EmptyState, PageHeader } from "@/components/console";
+import {
+  DataTableFrame,
+  EmptyState,
+  KeyHint,
+  PageHeader,
+} from "@/components/console";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatLongDate, formatShortDate } from "@/lib/business-date";
 import { RovingFocusGroup, useRovingFocusItem } from "@/lib/keyboard";
+import { cn } from "@/lib/utils";
 
 import { CheckoutSequence } from "./checkout-sequence";
 import { type Departure, departureAfter } from "./departure-queue";
@@ -137,16 +144,20 @@ export function DeparturesScreen() {
       />
 
       {queue.status === "pending" ? (
-        <div className="mt-6 space-y-2" aria-busy>
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
-          <Skeleton className="h-12 w-full" />
-        </div>
+        // In the frame the queue itself arrives in, so the screen does not
+        // change shape underneath the operator when it does.
+        <DataTableFrame className="mt-6 space-y-2 p-4" aria-busy>
+          <Skeleton className="h-11 w-full" />
+          <Skeleton className="h-11 w-full" />
+          <Skeleton className="h-11 w-full" />
+        </DataTableFrame>
       ) : null}
 
       {queue.status === "failed" ? (
-        // The console's error device is a rule on the leading edge rather than
-        // a colour: --color-destructive and --color-primary are the same umber.
+        // The console's error device is a rule on the leading edge as much as
+        // the colour: --color-danger is a warm red-brown a shade off the umber
+        // every other line on the screen is set in, and a sentence that
+        // differed only in that would be read as ordinary copy.
         <p
           className="mt-6 border-danger border-l-2 pl-3 text-sm text-danger"
           role="alert"
@@ -164,73 +175,97 @@ export function DeparturesScreen() {
       ) : null}
 
       {queue.status === "ready" && departures.length > 0 ? (
-        // The wrapper carries the ref rather than the group: the group spreads
-        // the props it does not name onto its own container, and a `ref` passed
-        // through would replace the one its arrow handling reads the list from.
-        <DataTableFrame ref={queueRef} className="mt-6 overflow-x-auto">
-          <RovingFocusGroup
-            // The table already says what it is, so the group claims nothing
-            // over it — `roving-focus.tsx`'s own note about a queue of rows.
-            role="presentation"
-          >
-            <table className="w-full min-w-[760px] border-collapse text-sm">
-              <caption className="sr-only">
-                Today's departures. Arrow keys move between stays, Enter opens
-                the checkout.
-              </caption>
-              <thead>
-                {table.getHeaderGroups().map((group) => (
-                  <tr
-                    key={group.id}
-                    className="border-border border-b bg-surface-muted/70"
-                  >
-                    {group.headers.map((header) => (
-                      <th
-                        key={header.id}
-                        scope="col"
-                        className="px-4 py-3 text-left text-sm font-semibold  text-muted-foreground uppercase"
-                      >
-                        {flexRender(
-                          header.column.columnDef.header,
-                          header.getContext(),
-                        )}
-                      </th>
-                    ))}
-                  </tr>
-                ))}
-              </thead>
-              <tbody>
-                {table.getRowModel().rows.map((row) => (
-                  <DepartureRow
-                    key={row.id}
-                    row={row}
-                    columnCount={columns.length}
-                    open={openId === row.id}
-                    onOpen={() => {
-                      setOpenId(row.id);
-                    }}
-                  >
-                    <CheckoutSequence
-                      departure={row.original}
-                      onCancel={() => {
-                        abandon(row.id);
-                      }}
-                      onCheckedOut={() => {
-                        checkedOut(row.id);
-                      }}
-                    />
-                  </DepartureRow>
-                ))}
-              </tbody>
-            </table>
+        <>
+          {/* What the queue is worked with, said in the chips the shell and the
+              palette use for a shortcut. The table's caption says the same
+              thing to a screen reader; this is the half a receptionist can
+              see. */}
+          <p className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted-foreground">
+            <span className="inline-flex items-center gap-2">
+              <KeyHint>↑</KeyHint>
+              <KeyHint>↓</KeyHint>
+              move through the queue
+            </span>
+            <span className="inline-flex items-center gap-2">
+              <KeyHint>Enter</KeyHint>
+              opens the checkout
+            </span>
+          </p>
 
-            {queue.truncated ? (
-              <p className="border-border border-t px-4 py-3 text-sm text-muted-foreground">
-                Showing the first fifty departures.
-              </p>
-            ) : null}
-          </RovingFocusGroup>
-        </DataTableFrame>
+          {/* The wrapper carries the ref rather than the group: the group
+              spreads the props it does not name onto its own container, and a
+              `ref` passed through would replace the one its arrow handling
+              reads the list from. */}
+          <DataTableFrame ref={queueRef} className="mt-3 overflow-x-auto">
+            <RovingFocusGroup
+              // The table already says what it is, so the group claims nothing
+              // over it — `roving-focus.tsx`'s own note about a queue of rows.
+              role="presentation"
+            >
+              <table className="w-full min-w-[760px] border-collapse text-sm">
+                <caption className="sr-only">
+                  Today's departures. Arrow keys move between stays, Enter opens
+                  the checkout.
+                </caption>
+                <thead>
+                  {table.getHeaderGroups().map((group) => (
+                    <tr
+                      key={group.id}
+                      className="border-border border-b bg-surface-muted"
+                    >
+                      {group.headers.map((header) => (
+                        // The console's label tier, which is what a column
+                        // heading is: it names the cells under it and has to
+                        // sit beneath them, not compete with them at body
+                        // weight. The last column holds the row's own
+                        // affordance and shrinks to it.
+                        <th
+                          key={header.id}
+                          scope="col"
+                          className="px-4 py-2.5 text-left text-xs font-normal tracking-caps text-muted-foreground uppercase last:w-px"
+                        >
+                          {flexRender(
+                            header.column.columnDef.header,
+                            header.getContext(),
+                          )}
+                        </th>
+                      ))}
+                    </tr>
+                  ))}
+                </thead>
+                <tbody>
+                  {table.getRowModel().rows.map((row) => (
+                    <DepartureRow
+                      key={row.id}
+                      row={row}
+                      columnCount={columns.length}
+                      open={openId === row.id}
+                      onOpen={() => {
+                        setOpenId(row.id);
+                      }}
+                    >
+                      <CheckoutSequence
+                        departure={row.original}
+                        onCancel={() => {
+                          abandon(row.id);
+                        }}
+                        onCheckedOut={() => {
+                          checkedOut(row.id);
+                        }}
+                      />
+                    </DepartureRow>
+                  ))}
+                </tbody>
+              </table>
+
+              {queue.truncated ? (
+                <p className="border-border border-t px-4 py-3 text-sm text-muted-foreground">
+                  Showing the first fifty departures.
+                </p>
+              ) : null}
+            </RovingFocusGroup>
+          </DataTableFrame>
+        </>
       ) : null}
     </div>
   );
@@ -257,7 +292,16 @@ function DepartureRow({
       <tr
         {...roving}
         aria-expanded={open}
-        className="border-border border-b transition-colors duration-150 ease-ui hover:bg-accent-soft/60 focus-visible:bg-accent-soft/60"
+        // Three states and not one colour for all of them. Hover is the
+        // lightest, because a pointer passing over a row has decided nothing;
+        // focus and the open row are the full tint, because those are where the
+        // operator actually is. The focus outline is drawn inside the row —
+        // the frame around the queue clips what hangs over its edge, and an
+        // outline offset outwards loses its left and right sides to that.
+        className={cn(
+          "group cursor-pointer border-border border-b transition-colors duration-150 ease-ui hover:bg-accent-soft/50 focus-visible:bg-accent-soft focus-visible:[outline-offset:-3px]",
+          open && "bg-accent-soft",
+        )}
         onKeyDown={(event) => {
           // Only the row's own press. Once the sequence is open the operator is
           // typing inside it, and every Enter in there bubbles through here on
@@ -279,7 +323,7 @@ function DepartureRow({
         }}
       >
         {row.getVisibleCells().map((cell) => (
-          <td key={cell.id} className="px-4 py-3">
+          <td key={cell.id} className="px-4 py-3 last:w-px">
             {flexRender(cell.column.columnDef.cell, cell.getContext())}
           </td>
         ))}
@@ -289,9 +333,13 @@ function DepartureRow({
         <tr>
           {/* The sequence spans the row it belongs to rather than sitting in
               one column, and it comes after that row in the document — which is
-              what makes Tab from the row land in the first control of the
-              step. */}
-          <td colSpan={columnCount} className="border-border border-b p-0">
+              what makes Tab from the row land in the first control of the step.
+              The cell is the tinted well the panel sits in, carrying the open
+              row's own colour across the join so the two read as one thing. */}
+          <td
+            colSpan={columnCount}
+            className="border-border border-b bg-accent-soft p-3 sm:p-4"
+          >
             {children}
           </td>
         </tr>
@@ -315,9 +363,7 @@ function departureColumns(): ColumnDef<Departure>[] {
       header: "Room",
       accessorFn: (departure) => departure.roomNumber,
       cell: (context) =>
-        context.getValue<string | null>() ?? (
-          <span className="text-muted-foreground">None held</span>
-        ),
+        context.getValue<string | null>() ?? <Nothing>None held</Nothing>,
     },
     {
       id: "reference",
@@ -333,7 +379,7 @@ function departureColumns(): ColumnDef<Departure>[] {
       accessorFn: (departure) => departure.guestNames.join(", "),
       cell: (context) =>
         context.getValue<string>() === "" ? (
-          <span className="text-muted-foreground">Nobody registered</span>
+          <Nothing>Nobody registered</Nothing>
         ) : (
           context.getValue<string>()
         ),
@@ -344,10 +390,36 @@ function departureColumns(): ColumnDef<Departure>[] {
       accessorFn: (departure) => departure.roomType,
     },
     {
+      // The heading names what the cell holds. It said "Nights" over a pair of
+      // dates, which is a different fact and one this column does not carry.
       id: "stay",
-      header: "Nights",
+      header: "Dates",
       accessorFn: (departure) =>
         `${formatShortDate(departure.checkIn)} to ${formatShortDate(departure.checkOut)}`,
     },
+    {
+      /* That the row opens, said in the place a list says it: a marker on the
+       * trailing edge that turns to point at the sequence underneath once it
+       * has. Drawn off the row's own `aria-expanded` rather than passed the
+       * open stay, so the column stays the constant this list is memoised on.
+       * Static, because `NFR-04` allows a state transition and not a row that
+       * an operator watches finish arriving. */
+      id: "open",
+      header: () => <span className="sr-only">Checkout</span>,
+      cell: () => (
+        <ChevronRight
+          aria-hidden="true"
+          className="size-4 text-muted-foreground group-aria-expanded:rotate-90"
+          strokeWidth={1.8}
+        />
+      ),
+    },
   ];
+}
+
+/** A cell the property has no answer for yet, in the words the checkout itself
+ *  uses for the same absence — a desk reads "None held" in the row and "None
+ *  held" on the settlement step, rather than two spellings of one fact. */
+function Nothing({ children }: { children: string }) {
+  return <span className="text-muted-foreground">{children}</span>;
 }
