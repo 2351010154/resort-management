@@ -1,10 +1,10 @@
 /* What the console's navigation offers, and to whom.
  *
- * The inventory is data rather than markup, and it is pure, because three
+ * The inventory is data rather than markup, and it is pure, because two
  * different surfaces read the same list and must not disagree: the rail draws
- * it, the palette's `Go to` group registers it, and the `g` sequence binds it.
- * A rail that listed a family the palette could not reach — or a chord that
- * went somewhere no role may look — would be three opinions about one map.
+ * it and the palette's `Go to` group registers it. A rail that listed a family
+ * the palette could not reach — or an entry that went somewhere no role may
+ * look — would be two opinions about one map.
  *
  * The families are the ones named by `docs/screens.md` §"Staff surfaces" and
  * `docs/architecture/repository-structure.md` §`apps/admin`, in that document's
@@ -18,22 +18,6 @@
 
 import type { StaffRole } from "@mariva/shared";
 
-/**
- * The key that opens a navigation sequence. `g` then a letter — "go to".
- *
- * A prefix rather than a modifier because every modified chord worth having is
- * already spoken for by the browser or the operating system, and because two
- * unmodified letters are the fastest thing a touch typist can do. It is bound
- * from the shell and only while no sequence is in progress, so it costs a
- * screen the bare `g` and nothing else.
- */
-export const NAV_PREFIX = "g";
-
-/** How long a sequence waits for its second key before it gives up. Long
- *  enough for a deliberate two-finger press, short enough that a `g` typed by
- *  accident is not still armed when the operator's next real key arrives. */
-export const NAV_SEQUENCE_TIMEOUT_MS = 1_500;
-
 export interface NavItem {
   /** The family, lowercase. Also the value the roving list tracks the entry
    *  by, and the second half of the command id. */
@@ -44,16 +28,6 @@ export interface NavItem {
   label: string;
   /** Where the family lives once it is built. */
   href: string;
-  /**
-   * The second key of the sequence — `g d` is the dashboard.
-   *
-   * Written out per entry rather than derived from the label, because a derived
-   * key moves when a family is added above it and the whole value of a
-   * navigation chord is that it does not move. Every one of them is a letter in
-   * its own family's name, and `nav-inventory.spec.ts` holds the set to that
-   * rule and to being collision-free.
-   */
-  key: string;
   /**
    * The roles offered this family — `docs/architecture/rbac-matrix.md` §3.
    *
@@ -114,7 +88,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
     group: "today",
     label: "Dashboard",
     href: "/dashboard",
-    key: "d",
     // The launchpad's counts are arrivals, departures, rooms not ready and
     // unsettled folios — the desk's day. The accountant and the housekeeper
     // each land on the one screen their own day happens on instead.
@@ -126,7 +99,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
     group: "today",
     label: "Arrivals",
     href: "/arrivals",
-    key: "a",
     roles: DESK,
     keywords: ["check in", "khách đến", "nhận phòng"],
   },
@@ -135,7 +107,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
     group: "today",
     label: "Departures",
     href: "/departures",
-    key: "e",
     roles: DESK,
     keywords: ["check out", "trả phòng", "khách đi"],
   },
@@ -144,7 +115,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
     group: "reservations",
     label: "Bookings",
     href: "/bookings",
-    key: "b",
     // The accountant reads bookings and does not act on them — matrix
     // §"Bookings and front desk", *Read any booking*.
     roles: LEDGER,
@@ -155,7 +125,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
     group: "reservations",
     label: "Guests",
     href: "/guests",
-    key: "g",
     roles: LEDGER,
     keywords: ["profiles", "cccd", "khách"],
   },
@@ -164,7 +133,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
     group: "property",
     label: "Rooms",
     href: "/rooms",
-    key: "r",
     // The receptionist is here for a room's state — marking one out of order —
     // while room and room-type CRUD and the closures that reduce sellable
     // inventory are the manager's. Both live on the room's detail, so the door
@@ -177,7 +145,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
     group: "property",
     label: "Housekeeping",
     href: "/housekeeping",
-    key: "h",
     roles: ["HOUSEKEEPING", ...DESK],
     keywords: ["board", "clean", "dọn phòng", "buồng phòng"],
   },
@@ -186,7 +153,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
     group: "property",
     label: "Rates",
     href: "/rates",
-    key: "t",
     // The desk and the accountant read the rate calendar; only management
     // edits it. One door, and the grid decides what is editable in it.
     roles: LEDGER,
@@ -197,7 +163,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
     group: "money",
     label: "Folios",
     href: "/folios",
-    key: "f",
     roles: LEDGER,
     keywords: ["charges", "ledger", "hóa đơn tạm"],
   },
@@ -206,7 +171,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
     group: "money",
     label: "Payments",
     href: "/payments",
-    key: "p",
     roles: LEDGER,
     keywords: ["refunds", "reconciliation", "thanh toán"],
   },
@@ -215,7 +179,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
     group: "money",
     label: "Shifts",
     href: "/shifts",
-    key: "s",
     roles: LEDGER,
     keywords: ["cash drawer", "handover", "ca làm việc"],
   },
@@ -224,7 +187,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
     group: "money",
     label: "Finance",
     href: "/finance",
-    key: "i",
     roles: ["ACCOUNTANT", ...MANAGEMENT],
     keywords: ["income", "expense", "thu chi"],
   },
@@ -233,7 +195,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
     group: "management",
     label: "Reports",
     href: "/reports",
-    key: "o",
     roles: LEDGER,
     keywords: ["revenue", "occupancy", "adr", "revpar", "báo cáo"],
   },
@@ -242,7 +203,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
     group: "management",
     label: "Audit",
     href: "/audit",
-    key: "u",
     // The accountant's read is limited to financial entries; the screen scopes
     // that, and the matrix's ⚠ is about what is in the list rather than about
     // reaching it.
@@ -254,7 +214,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
     group: "management",
     label: "Settings",
     href: "/settings",
-    key: "n",
     // Staff accounts are the administrator's alone and system configuration is
     // the manager's to read. Both are behind this one door and neither is
     // anybody else's.
@@ -266,13 +225,6 @@ export const NAV_ITEMS: readonly NavItem[] = [
 /** What this role is offered, in the inventory's order. */
 export function navItemsFor(role: StaffRole): readonly NavItem[] {
   return NAV_ITEMS.filter((item) => item.roles.includes(role));
-}
-
-/** The written chord for an entry, in the spelling `useHotkeys` takes and
- *  `formatShortcut` renders. Derived rather than authored so the hint beside a
- *  rail entry cannot advertise a key the sequence does not answer to. */
-export function navShortcut(item: NavItem): string {
-  return `${NAV_PREFIX} ${item.key}`;
 }
 
 /** The palette id an entry registers under. Namespaced like every other

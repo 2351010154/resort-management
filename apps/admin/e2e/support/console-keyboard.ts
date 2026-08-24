@@ -73,20 +73,38 @@ async function refusalText(page: Page): Promise<string> {
 }
 
 /**
- * To a console family by its `g` sequence, and nothing else.
+ * To a console family through the command palette, and nothing else.
  *
- * `features/shell/nav-inventory.ts` owns the letters; this only presses them.
- * The two keys go through `page.keyboard`, which drives Chromium's real input
- * pipeline, so a binding that silently stopped working fails here rather than
- * being papered over by a `page.goto`.
+ * ⌘K, the family's name, Enter. `features/shell/nav-inventory.ts` owns the
+ * labels; this only types one. Every key goes through `page.keyboard`, which
+ * drives Chromium's real input pipeline, so navigation that silently stopped
+ * working by keyboard fails here rather than being papered over by a
+ * `page.goto`.
  */
-export async function goByHotkey(
+export async function goByPalette(
   page: Page,
-  key: string,
+  label: string,
   path: string,
 ): Promise<void> {
-  await page.keyboard.press("g");
-  await page.keyboard.press(key);
+  // The palette resolves `mod` against the machine it runs on, and so does
+  // Playwright: one spelling, right on a Linux runner and on a Mac.
+  await page.keyboard.press("ControlOrMeta+k");
+
+  const search = page.getByPlaceholder("Type a command…");
+
+  // The dialog focuses its own input. Waiting for that rather than clicking it
+  // is the point — a palette that stopped doing it would drop the name on the
+  // screen underneath.
+  await expect(search).toBeFocused();
+  await search.pressSequentially(label);
+
+  // The row has to be on screen before Enter, or the press lands while the
+  // list is still the unfiltered one and runs whatever was highlighted in it.
+  await expect(
+    page.getByRole("option", { name: label, exact: true }),
+  ).toBeVisible();
+  await page.keyboard.press("Enter");
+
   await expect(page).toHaveURL(new RegExp(`${path}$`));
 }
 
