@@ -12,8 +12,10 @@ import {
   mayEditRestrictions,
   mayReadRates,
   mayReadRestrictions,
+  monthSpans,
   NO_RESTRICTION_FIELDS,
   nightColumns,
+  nightNeighbour,
   nightWindow,
   type PlanFields,
   parseCellKey,
@@ -688,6 +690,71 @@ describe("verticalNeighbour", () => {
     expect(
       verticalNeighbour(rows, { roomType: "PANORAMA_SUITE", date: MONDAY }, -1),
     ).toBeNull();
+  });
+});
+
+describe("nightNeighbour", () => {
+  const dates = ["2026-08-17", "2026-08-18", "2026-08-19"] as const;
+
+  it("keeps the type and moves the night", () => {
+    // The axis the roving group would get wrong in the other direction: one
+    // step through the members in document order from the last night of a type
+    // is the first night of the next one, four weeks back.
+    expect(
+      nightNeighbour(dates, { roomType: "DELUXE", date: "2026-08-18" }, 1),
+    ).toEqual({ roomType: "DELUXE", date: "2026-08-19" });
+
+    expect(
+      nightNeighbour(dates, { roomType: "DELUXE", date: "2026-08-18" }, -1),
+    ).toEqual({ roomType: "DELUXE", date: "2026-08-17" });
+  });
+
+  it("stops at either end of the window rather than wrapping", () => {
+    expect(
+      nightNeighbour(dates, { roomType: "DELUXE", date: "2026-08-17" }, -1),
+    ).toBeNull();
+    expect(
+      nightNeighbour(dates, { roomType: "DELUXE", date: "2026-08-19" }, 1),
+    ).toBeNull();
+  });
+
+  it("answers nothing for a night the window does not hold", () => {
+    expect(
+      nightNeighbour(dates, { roomType: "DELUXE", date: "2026-09-01" }, 1),
+    ).toBeNull();
+  });
+});
+
+describe("monthSpans", () => {
+  it("gathers a named column and the unnamed ones after it into one run", () => {
+    const spans = monthSpans(
+      nightColumns(["2026-08-30", "2026-08-31", "2026-09-01", "2026-09-02"]),
+    );
+
+    expect(spans).toEqual([
+      { label: "Aug", from: "2026-08-30", nights: 2 },
+      { label: "Sept", from: "2026-09-01", nights: 2 },
+    ]);
+  });
+
+  it("covers every column exactly once", () => {
+    // The runs are a heading row over the dates, so a night in two spans or in
+    // none would put the whole second header row out of step with the first.
+    const columns = nightColumns([
+      "2026-08-30",
+      "2026-08-31",
+      "2026-09-01",
+      "2026-09-02",
+      "2026-09-03",
+    ]);
+
+    expect(
+      monthSpans(columns).reduce((total, span) => total + span.nights, 0),
+    ).toBe(columns.length);
+  });
+
+  it("answers nothing for a window with no nights in it", () => {
+    expect(monthSpans([])).toEqual([]);
   });
 });
 
