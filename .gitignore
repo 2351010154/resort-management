@@ -79,3 +79,9 @@ apps/web/scripts/encode-threshold-video.mjs
 apps/web/scripts/measure-room-comp.mjs
 apps/web/scripts/prepare-arrival-images.mjs
 apps/web/scripts/prepare-room-images.mjs
+
+# Scratch worktrees an orchestrated run clones for its parallel jobs. Each one
+# is a full copy of this repository, so the directory reaches gigabytes within
+# a single session and none of it is authored here — the work lands back in the
+# tracked tree or it did not happen.
+.codex-orchestrate/
