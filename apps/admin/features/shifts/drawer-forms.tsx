@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { formatInstant } from "@/features/guests/guest-record";
 
 import {
+  CASH_BOOK_TERM,
   type CloseDrawerFields,
   closeDrawerAttempt,
   expectedInDrawer,
@@ -93,6 +94,15 @@ export function OpenDrawerForm({
   }, []);
 
   async function submit() {
+    // The refusal the press only looks like it makes. The control carries
+    // `aria-disabled` rather than `disabled` so it keeps focus while the API is
+    // answering, which means a second Enter arrives here and is dropped —
+    // a disabled button drops focus on `<body>`, and an operator who has just
+    // pressed Enter on a form is exactly who cannot afford that.
+    if (openDrawer.isPending) {
+      return;
+    }
+
     const attempt = openDrawerAttempt(fields);
 
     if ("problem" in attempt) {
@@ -141,8 +151,13 @@ export function OpenDrawerForm({
 
       <Problem said={problem} />
 
-      <div className="mt-2">
-        <Button type="submit" disabled={openDrawer.isPending}>
+      <div className="mt-4">
+        <Button
+          type="submit"
+          aria-disabled={openDrawer.isPending}
+          aria-busy={openDrawer.isPending}
+          className="aria-disabled:pointer-events-none aria-disabled:opacity-50"
+        >
           {confirm}
         </Button>
       </div>
@@ -183,6 +198,13 @@ export function CloseDrawerForm({
   }, []);
 
   async function submit() {
+    // The second press, dropped here rather than by a `disabled` attribute that
+    // would take the operator's focus with it. Counting a drawer out twice is
+    // the one repeat this form must not let through.
+    if (closeDrawer.isPending) {
+      return;
+    }
+
     const attempt = closeDrawerAttempt(shift.id, fields);
 
     if ("problem" in attempt) {
@@ -211,7 +233,7 @@ export function CloseDrawerForm({
     >
       <DrawerFigures shift={shift} />
 
-      <div className="mt-2">
+      <div className="mt-4">
         <MoneyField
           label="Counted out"
           inputRef={countField}
@@ -223,10 +245,10 @@ export function CloseDrawerForm({
         />
       </div>
 
-      <div className="mt-2">
+      <div className="mt-4">
         <label
           htmlFor={noteId}
-          className="text-muted-foreground block text-sm  uppercase"
+          className="text-muted-foreground block text-xs tracking-caps uppercase"
         >
           Handover note
         </label>
@@ -244,9 +266,14 @@ export function CloseDrawerForm({
 
       <Problem said={problem} />
 
-      <div className="mt-2">
-        <Button type="submit" disabled={closeDrawer.isPending}>
-          Close the drawer
+      <div className="mt-4">
+        <Button
+          type="submit"
+          aria-disabled={closeDrawer.isPending}
+          aria-busy={closeDrawer.isPending}
+          className="aria-disabled:pointer-events-none aria-disabled:opacity-50"
+        >
+          {closeDrawer.isPending ? "Closing the drawer" : "Close the drawer"}
         </Button>
       </div>
     </form>
@@ -273,7 +300,7 @@ export function DrawerFigures({ shift }: { shift: Shift }) {
     <dl className="grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
       <Fact label="Opening float" value={formatVnd(shift.openingFloat)} />
       <Fact label="Cash taken" value={formatVnd(shift.cashTaken)} />
-      <Fact label="Thu chi" value={formatVnd(shift.cashBookNet)} />
+      <Fact label={CASH_BOOK_TERM} value={formatVnd(shift.cashBookNet)} />
       <Fact
         label="Should hold"
         value={formatVnd(expectedInDrawer(shift))}
@@ -355,6 +382,7 @@ export function PendingItems({
   onDrawer,
   offered,
   readOnly,
+  heading = "h3",
 }: {
   /** True when this operator has a drawer open, which is what an item is
    *  attributed to. */
@@ -364,14 +392,25 @@ export function PendingItems({
   offered: boolean;
   /** True where the backlog is being read rather than worked. */
   readOnly?: boolean;
+  /** What this list is under. It is a panel of its own beside the history and a
+   *  block inside the drawer panel's dialog, and a document whose headings skip
+   *  a level is one a screen reader's outline cannot be walked with. */
+  heading?: "h2" | "h3";
 }) {
   const [said, setSaid] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
   const items = usePendingItems(offered);
   const raise = useRaisePendingItem();
   const resolve = useResolvePendingItem();
+  const Heading = heading;
 
   async function submit() {
+    // Dropped here rather than by a `disabled` attribute, which would take the
+    // operator's focus to `<body>` on the press that started the write.
+    if (raise.isPending) {
+      return;
+    }
+
     const attempt = pendingItemAttempt(said);
 
     if ("problem" in attempt) {
@@ -397,23 +436,43 @@ export function PendingItems({
 
   return (
     <section>
-      <h3 className="text-muted-foreground text-sm  uppercase">
+      <Heading className="text-muted-foreground text-xs tracking-caps uppercase">
         Outstanding {items.data === undefined ? null : `· ${items.data.total}`}
-      </h3>
+      </Heading>
 
       {items.isPending && offered ? (
-        <p className="text-muted-foreground mt-2 text-sm" aria-busy>
+        <p
+          className="text-muted-foreground mt-3 text-sm"
+          aria-busy
+          role="status"
+        >
           Reading what is outstanding.
         </p>
       ) : null}
 
-      {outstanding.length === 0 && !items.isPending ? (
-        <p className="text-muted-foreground mt-2 text-sm">
+      {/* A read that failed is not an empty backlog, and this is the one list in
+          the console where the difference is the whole point: "nothing is
+          outstanding" told to a shift taking the desk over is a statement
+          somebody acts on. */}
+      {items.isError ? (
+        <p
+          className="mt-3 border-danger border-l-2 pl-3 text-sm text-danger"
+          role="alert"
+        >
+          What is outstanding could not be read, so nothing here is a statement
+          about the backlog. Ask the last shift what they left.
+        </p>
+      ) : null}
+
+      {items.data !== undefined && outstanding.length === 0 ? (
+        <p className="text-muted-foreground mt-3 text-sm">
           Nothing is outstanding. That is a real answer and a good one — the
           desk is handed over with nothing owed to the next shift.
         </p>
-      ) : (
-        <ul className="mt-2 flex flex-col gap-1">
+      ) : null}
+
+      {outstanding.length === 0 ? null : (
+        <ul className="mt-3 flex flex-col">
           {outstanding.map((item) => (
             <PendingItemRow
               key={item.id}
@@ -430,7 +489,7 @@ export function PendingItems({
 
       {readOnly === true ? null : (
         <form
-          className="mt-2"
+          className="mt-4"
           onSubmit={(event) => {
             event.preventDefault();
             void submit();
@@ -447,13 +506,19 @@ export function PendingItems({
           <Problem said={problem} />
 
           {onDrawer ? (
-            <div className="mt-2">
-              <Button type="submit" variant="ghost" disabled={raise.isPending}>
+            <div className="mt-3">
+              <Button
+                type="submit"
+                variant="ghost"
+                aria-disabled={raise.isPending}
+                aria-busy={raise.isPending}
+                className="aria-disabled:pointer-events-none aria-disabled:opacity-50"
+              >
                 Add to the handover
               </Button>
             </div>
           ) : (
-            <p className="text-muted-foreground mt-2 text-sm">
+            <p className="text-muted-foreground mt-3 text-sm">
               An item is raised by the drawer that found it, so opening one is
               what makes this writable. The list above is readable either way —
               it is every shift's problem until somebody clears it.
@@ -478,10 +543,12 @@ function PendingItemRow({
   onResolve(): void;
 }) {
   return (
-    <li className="border-border flex items-start justify-between gap-3 border-b py-1 text-sm">
-      <span>
+    <li className="border-border flex items-start justify-between gap-3 border-b py-2 text-sm last:border-b-0">
+      <span className="min-w-0">
         {item.description}
-        <span className="text-muted-foreground block text-sm">
+        {/* When it was raised, a tier under what was raised: level with the
+            description it competed with the sentence somebody has to act on. */}
+        <span className="text-muted-foreground mt-0.5 block text-xs">
           Raised {formatInstant(item.createdAt)}
         </span>
       </span>
@@ -491,8 +558,20 @@ function PendingItemRow({
           type="button"
           variant="ghost"
           size="xs"
-          disabled={busy}
-          onClick={onResolve}
+          // `aria-disabled` rather than `disabled`: clearing one item disables
+          // every other row's press while the write is in flight, and a
+          // disabled button cannot hold the focus of the operator who is
+          // standing on it. The repeat is dropped in the handler instead.
+          aria-disabled={busy}
+          aria-busy={busy}
+          className="aria-disabled:pointer-events-none aria-disabled:opacity-50"
+          onClick={() => {
+            if (busy) {
+              return;
+            }
+
+            onResolve();
+          }}
         >
           Cleared
         </Button>
@@ -555,7 +634,7 @@ function Field({
     <div>
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-sm  uppercase"
+        className="text-muted-foreground block text-xs tracking-caps uppercase"
       >
         {label}
       </label>
@@ -588,21 +667,34 @@ export function Fact({
 }) {
   return (
     <div>
-      <dt className="text-muted-foreground text-sm  uppercase">{label}</dt>
+      <dt className="text-muted-foreground text-xs tracking-caps uppercase">
+        {label}
+      </dt>
       <dd className={emphasis ? "tabular-nums" : undefined}>{value}</dd>
     </div>
   );
 }
 
-/** The console's error device: a rule on the leading edge rather than a colour
- *  — `--color-destructive` and `--color-primary` are the same umber. */
+/**
+ * The console's error device: a rule on the leading edge as much as the colour
+ * — `--color-danger` is a warm red-brown a shade off the umber every other line
+ * is set in, and a sentence that differed only in that would be read as
+ * ordinary copy.
+ *
+ * `role="alert"` because these are refusals rather than captions: the sentence
+ * appears after a press, on a surface the operator is already standing on, and
+ * a refusal nobody is told about is a form that did nothing.
+ */
 export function Problem({ said }: { said: string | null }) {
   if (said === null) {
     return null;
   }
 
   return (
-    <p className="border-destructive text-destructive mt-2 border-l-2 pl-3 text-sm">
+    <p
+      className="border-danger text-danger mt-2 border-l-2 pl-3 text-sm"
+      role="alert"
+    >
       {said}
     </p>
   );

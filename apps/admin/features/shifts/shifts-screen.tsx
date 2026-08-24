@@ -13,18 +13,21 @@ import { useId, useMemo, useRef, useState } from "react";
 import {
   DataTableFrame,
   EmptyState,
+  FilterBar,
   KeyHint,
   PageHeader,
+  StatusChip,
 } from "@/components/console";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useCommands } from "@/features/command-palette";
 /* The property's day, from the hook the rest of the console already asks it
  * with: one route through the same `orpc` utils is one cache entry, so the day a
  * typed filter is resolved against here is the day the desk is working, without
  * a second request and without a second opinion about what its failure says. */
 import { useBusinessDate } from "@/features/bookings/bookings-queries";
+import { useCommands } from "@/features/command-palette";
 import { pageWindow } from "@/features/folios/folio-ledger";
 /* The console's one rendering of an instant in the property's zone, and of a
  * trading day, taken from the modules that already own them rather than a third
@@ -47,6 +50,7 @@ import { cn } from "@/lib/utils";
 
 import { PendingItems } from "./drawer-forms";
 import {
+  CASH_BOOK_TERM,
   DEFAULT_HISTORY_FIELDS,
   type HistoryFields,
   historyQuestion,
@@ -104,7 +108,7 @@ import { useShiftHistory } from "./shift-queries";
  * the only things that answer a press are the filters and the pager.
  *
  * **No animation.** Operational surfaces carry no entrance motion — the filters
- * paint their own pending line and the pager disables in place.
+ * paint their own pending line and the pager refuses a second press in place.
  */
 
 /** What the screen is currently asking the history for. */
@@ -219,9 +223,14 @@ export function ShiftsScreen() {
    * this screen does not narrow it a second time, for the reason
    * `shift-day.ts` gives about the picker it already declines to offer them. */
   function takeTheHistory() {
-    if (query !== null) {
-      historyExport.mutate(query);
+    // The refusal the press only *looks* like it makes: the control carries
+    // `aria-disabled` so it keeps focus, so the second press arrives here and
+    // is dropped rather than writing the file twice.
+    if (query === null || historyExport.isPending) {
+      return;
     }
+
+    historyExport.mutate(query);
   }
 
   /* One path for every change of question, because the filters and the pager
@@ -248,86 +257,105 @@ export function ShiftsScreen() {
       />
 
       {!offered ? (
-        <p className="mt-6 max-w-prose text-sm text-muted-foreground">
-          Shift history is available to front desk, accounting, and management.
-        </p>
+        <EmptyState
+          className="mt-6"
+          title="Drawer history is not part of this role"
+          description="What a till came to is a cash record, and this console offers it to front desk, accounting, and management."
+        />
       ) : (
         <>
-          <form
-            className="mt-6 rounded-lg bg-card p-4 shadow-card"
+          <FilterBar
+            className="mt-6"
+            fieldsClassName="lg:grid-cols-3"
+            actions={
+              <>
+                <Button type="submit">Show shifts</Button>
+                {exportsTheHistory ? (
+                  /* The label changes as well as the control refusing: a file
+                     of a year of desk is one the API is still writing, and a
+                     control that only greyed out would read as broken for as
+                     long as it took. `aria-disabled` rather than `disabled`,
+                     which is this console's standing answer to a control that
+                     stops being pressable under somebody's finger — see
+                     {@link Pager}. */
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    aria-disabled={query === null || historyExport.isPending}
+                    aria-busy={historyExport.isPending}
+                    className="aria-disabled:pointer-events-none aria-disabled:opacity-50"
+                    onClick={takeTheHistory}
+                  >
+                    {historyExport.isPending
+                      ? "Writing the file"
+                      : "Export to Excel"}
+                  </Button>
+                ) : null}
+              </>
+            }
             onSubmit={(event) => {
               event.preventDefault();
               ask(fields, 0);
             }}
           >
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              <Field
-                label="From"
-                value={fields.from}
-                placeholder="the first trading day"
-                inputRef={firstDayField}
-                onChange={(from) => {
-                  setFields((current) => ({ ...current, from }));
+            <Field
+              label="From"
+              value={fields.from}
+              placeholder="the first trading day"
+              inputRef={firstDayField}
+              onChange={(from) => {
+                setFields((current) => ({ ...current, from }));
+              }}
+            />
+            <Field
+              label="To"
+              value={fields.to}
+              placeholder="the last, inclusive"
+              onChange={(to) => {
+                setFields((current) => ({ ...current, to }));
+              }}
+            />
+
+            {picksOperator ? (
+              <OperatorChoice
+                choices={choices}
+                value={fields.operator}
+                onChange={(operator) => {
+                  setFields((current) => ({ ...current, operator }));
                 }}
               />
-              <Field
-                label="To"
-                value={fields.to}
-                placeholder="the last, inclusive"
-                onChange={(to) => {
-                  setFields((current) => ({ ...current, to }));
-                }}
-              />
+            ) : null}
+          </FilterBar>
 
-              {picksOperator ? (
-                <OperatorChoice
-                  choices={choices}
-                  value={fields.operator}
-                  onChange={(operator) => {
-                    setFields((current) => ({ ...current, operator }));
-                  }}
-                />
-              ) : null}
-            </div>
+          {problem === null ? null : (
+            // The console's error device is a rule on the leading edge as much
+            // as the colour: --color-danger is a warm red-brown a shade off the
+            // umber every other line on the screen is set in, and a sentence
+            // that differed only in that would be read as ordinary copy.
+            <p
+              className="mt-3 border-danger border-l-2 pl-3 text-sm text-danger"
+              role="alert"
+            >
+              {problem}
+            </p>
+          )}
 
-            {problem === null ? null : (
-              <p className="border-destructive text-destructive mt-2 border-l-2 pl-3 text-sm">
-                {problem}
-              </p>
-            )}
+          {/* What the key does, then the one thing a reader has to know before
+              they believe a date: both ends are the trading day the shift
+              opened on and not the instant it opened at, which is what puts a
+              night shift's variance on the day it was answerable for. */}
+          <p className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-muted-foreground">
+            <span className="inline-flex items-center gap-2">
+              <KeyHint>/</KeyHint>
+              focuses the first day
+            </span>
+            <span>Both ends are trading days, and both are included.</span>
+            {picksOperator ? null : <span>Your own shifts only.</span>}
+          </p>
 
-            <div className="mt-2 flex flex-wrap items-center gap-3">
-              <Button type="submit">Show shifts</Button>
-              {exportsTheHistory ? (
-                /* The label changes as well as the control disabling: a file of
-                   a year of desk is one the API is still writing, and a control
-                   that only greyed out would read as broken for as long as it
-                   took. */
-                <Button
-                  type="button"
-                  variant="ghost"
-                  disabled={query === null || historyExport.isPending}
-                  onClick={takeTheHistory}
-                >
-                  {historyExport.isPending
-                    ? "Writing the file"
-                    : "Export to Excel"}
-                </Button>
-              ) : null}
-              <span className="text-muted-foreground flex flex-wrap items-center gap-2 text-sm">
-                {/* Said rather than implied: both ends are the trading day the
-                    shift opened on and not the instant it opened at, which is
-                    what puts a night shift's variance on the day it was
-                    answerable for. */}
-                <KeyHint>/</KeyHint>
-                <span>First day</span>
-                <span>Inclusive trading days</span>
-                {picksOperator ? null : <span>Your shifts only</span>}
-              </span>
-            </div>
-          </form>
-
-          <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
+          {/* `items-start`, so the backlog beside the history is as tall as it
+              is rather than as tall as a page of fifty shifts. */}
+          <div className="mt-6 grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
             <ShiftTable
               shifts={shifts}
               pending={history.isPending}
@@ -339,12 +367,20 @@ export function ShiftsScreen() {
               }}
             />
 
+            {/* The backlog beside the history, and read-only here. An item
+                outlives the shift that found it, so "what is still
+                outstanding" is the other half of what a handover left — and
+                clearing one is an act, which belongs where the acts are.
+
+                Carded, because it stands beside a carded table: a bare list on
+                the page ground beside a raised surface reads as something that
+                fell out of it, and the two tops only line up when both are
+                drawn on the same ground. Inside the palette's panel it stays
+                bare, which is why the card is here and not in the component. */}
             <aside>
-              {/* The backlog beside the history, and read-only here. An item
-                  outlives the shift that found it, so "what is still
-                  outstanding" is the other half of what a handover left — and
-                  clearing one is an act, which belongs where the acts are. */}
-              <PendingItems onDrawer={false} offered readOnly />
+              <Card className="p-4">
+                <PendingItems onDrawer={false} offered readOnly heading="h2" />
+              </Card>
             </aside>
           </div>
         </>
@@ -370,8 +406,10 @@ function ShiftTable({
   onPage(offset: number): void;
 }) {
   if (failed) {
-    // The console's error device is a rule on the leading edge rather than a
-    // colour: --color-destructive and --color-primary are the same umber.
+    // The console's error device is a rule on the leading edge as much as the
+    // colour: --color-danger is a warm red-brown a shade off the umber every
+    // other line on the screen is set in, and a sentence that differed only in
+    // that would be read as ordinary copy.
     return (
       <p
         className="border-danger border-l-2 pl-3 text-sm text-danger"
@@ -383,12 +421,14 @@ function ShiftTable({
   }
 
   if (pending) {
+    // In the frame the page itself arrives in, so the screen does not change
+    // shape underneath the reader when the history lands.
     return (
-      <div className="space-y-2" aria-busy>
+      <DataTableFrame className="space-y-2 p-4" aria-busy>
         <Skeleton className="h-12" />
         <Skeleton className="h-12" />
         <Skeleton className="h-12" />
-      </div>
+      </DataTableFrame>
     );
   }
 
@@ -404,58 +444,110 @@ function ShiftTable({
   const window = pageWindow(total, shifts.length, offset, SHIFT_PAGE_SIZE);
 
   return (
-    <DataTableFrame className="overflow-x-auto p-4">
-      <table className="w-full min-w-[900px] border-collapse text-sm">
-        <caption className="text-muted-foreground mb-2 text-left text-sm">
-          Every shift the filters matched, newest opening first. What the drawer
-          should have held is the opening float, plus the cash taken on it, plus
-          what the property recorded through it; the variance is the property's
-          own figure, computed when the drawer was counted out.
-        </caption>
-        <thead>
-          <tr className="border-border border-b">
-            <Column>Trading day</Column>
-            <Column>Operator</Column>
-            <Column align="right">Float</Column>
-            <Column align="right">Cash taken</Column>
-            <Column align="right">Thu chi</Column>
-            <Column align="right">Counted out</Column>
-            <Column>Variance</Column>
-          </tr>
-        </thead>
-        <tbody>
-          {shifts.map((shift) => (
-            <ShiftRows key={shift.id} shift={shift} />
-          ))}
-        </tbody>
-      </table>
+    <DataTableFrame>
+      {/* Above the scrollport rather than in the table's own `<caption>`: a
+          caption is as wide as the table it belongs to, and this table is 900px
+          at its narrowest — so a sentence set in one was a sentence the reader
+          had to scroll sideways to finish. What is left of it is the half a
+          reader cannot work out from the column headings; the sum the headings
+          already name is not restated. */}
+      <p className="px-4 pt-4 text-sm text-muted-foreground">
+        Every shift the filters matched, newest opening first. The variance is
+        the property's own figure, taken when the drawer was counted out.
+      </p>
 
-      <div className="mt-2 flex flex-wrap items-center gap-3">
-        <p className="text-muted-foreground text-sm">
+      {/* Bounded, so the pager under it stays on screen and the headings stay
+          above the figures: a page is fifty shifts, each of which may carry a
+          note, and a table that ran the page down took its own column names off
+          the top of it. Both axes scroll here — the figures need 900px — and
+          the headings pin to the top of this element because `sticky` belongs
+          to the nearest scrolling ancestor. */}
+      <div className="mt-3 max-h-[70svh] overflow-auto px-4 pb-4">
+        <table className="w-full min-w-[900px] border-collapse text-sm">
+          <caption className="sr-only">
+            Shift history: trading day, operator, and what the drawer held.
+          </caption>
+          <thead className="sticky top-0 z-10">
+            <tr>
+              <Column>Trading day</Column>
+              <Column>Operator</Column>
+              <Column align="right">Float</Column>
+              <Column align="right">Cash taken</Column>
+              <Column align="right">{CASH_BOOK_TERM}</Column>
+              <Column align="right">Counted out</Column>
+              <Column>Variance</Column>
+            </tr>
+          </thead>
+          <tbody>
+            {shifts.map((shift) => (
+              <ShiftRows key={shift.id} shift={shift} />
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {/* How much history there is and the two presses that reach the rest of
+          it, outside the scrollport: a pager that scrolled sideways with the
+          figures was a control an operator had to go looking for. */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-border border-t px-4 py-3 text-sm text-muted-foreground">
+        <p>
           {window.first}–{window.last} of {window.total}
         </p>
-        <Button
-          type="button"
-          variant="ghost"
-          disabled={!window.hasPrevious}
-          onClick={() => {
-            onPage(window.previousOffset);
-          }}
-        >
-          Previous
-        </Button>
-        <Button
-          type="button"
-          variant="ghost"
-          disabled={!window.hasNext}
-          onClick={() => {
-            onPage(window.nextOffset);
-          }}
-        >
-          Next
-        </Button>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          <Pager
+            label="Previous"
+            offered={window.hasPrevious}
+            onPage={() => {
+              onPage(window.previousOffset);
+            }}
+          />
+          <Pager
+            label="Next"
+            offered={window.hasNext}
+            onPage={() => {
+              onPage(window.nextOffset);
+            }}
+          />
+        </div>
       </div>
     </DataTableFrame>
+  );
+}
+
+/**
+ * One press of the pager.
+ *
+ * `aria-disabled` and not `disabled`, which is the console's standing answer to
+ * a control that stops being pressable while somebody is standing on it: a
+ * disabled button cannot hold focus, so the browser drops it on `<body>` — and
+ * an operator who reached the last page with Enter would be left nowhere. The
+ * refusal is the same; it is made in the handler instead.
+ */
+function Pager({
+  label,
+  offered,
+  onPage,
+}: {
+  label: string;
+  offered: boolean;
+  onPage(): void;
+}) {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      aria-disabled={!offered}
+      className="aria-disabled:pointer-events-none aria-disabled:opacity-50"
+      onClick={() => {
+        if (!offered) {
+          return;
+        }
+
+        onPage();
+      }}
+    >
+      {label}
+    </Button>
   );
 }
 
@@ -478,20 +570,29 @@ function ShiftRows({ shift }: { shift: Shift }) {
           shift.handoverNote === null ? "border-b" : null,
         )}
       >
-        <td className="py-1 pr-3 whitespace-nowrap first:pl-0">
-          {formatShortDate(shift.openingBusinessDate)}
-          <span className="text-muted-foreground block text-sm">
+        <td className="py-2.5 pr-3 whitespace-nowrap first:pl-0">
+          {/* The drawer's state as a chip beside the day rather than as a word
+              in the money columns to the right of it: those two columns hold
+              figures, and a drawer nobody has counted has no figure to put in
+              them. This is where the row says so. */}
+          <span className="flex items-center gap-2">
+            {formatShortDate(shift.openingBusinessDate)}
+            {shift.closedAt === null ? (
+              <StatusChip tone="info">Open</StatusChip>
+            ) : null}
+          </span>
+          <span className="text-muted-foreground mt-0.5 block text-xs">
             {formatInstant(shift.openedAt)}
             {shift.closedAt === null
-              ? " · still open"
+              ? null
               : ` – ${formatInstant(shift.closedAt)}`}
           </span>
         </td>
-        <td className="px-3 py-1">{shift.operatorName}</td>
-        <td className="px-3 py-1 text-right tabular-nums whitespace-nowrap">
+        <td className="px-3 py-2.5">{shift.operatorName}</td>
+        <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap">
           {formatVnd(shift.openingFloat)}
         </td>
-        <td className="px-3 py-1 text-right tabular-nums whitespace-nowrap">
+        <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap">
           {formatVnd(shift.cashTaken)}
         </td>
         {/* The property's own money through the same till — `FR-OPS-02`. A term
@@ -499,23 +600,23 @@ function ShiftRows({ shift }: { shift: Shift }) {
             than folded into it: one is what the desk took and the other is what
             the property spent from the till, and a manager reading a variance
             asks which. */}
-        <td className="px-3 py-1 text-right tabular-nums whitespace-nowrap">
+        <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap">
           {formatVnd(shift.cashBookNet)}
         </td>
-        <td className="px-3 py-1 text-right tabular-nums whitespace-nowrap">
+        <td className="px-3 py-2.5 text-right tabular-nums whitespace-nowrap">
           {shift.closingCount === null ? (
-            <span className="text-muted-foreground">Not counted</span>
+            <NoFigure said="Not counted yet" />
           ) : (
             formatVnd(shift.closingCount)
           )}
         </td>
-        <td className="py-1 pl-3 whitespace-nowrap last:pr-0">
+        <td className="py-2.5 pl-3 whitespace-nowrap last:pr-0">
           {variance === null ? (
-            <span className="text-muted-foreground">Open</span>
+            <NoFigure said="No variance until the drawer is counted out" />
           ) : variance.tone === "square" ? (
             VARIANCE_LABELS.square
           ) : (
-            <span className="text-destructive">
+            <span className="font-semibold text-danger">
               {VARIANCE_LABELS[variance.tone]} {formatVnd(variance.amount)}
             </span>
           )}
@@ -525,11 +626,19 @@ function ShiftRows({ shift }: { shift: Shift }) {
       {shift.handoverNote === null ? null : (
         <tr className="border-border border-b">
           <td
-            className="text-muted-foreground pb-2 text-sm first:pl-0"
+            className="text-muted-foreground pb-3 text-sm first:pl-0"
             colSpan={7}
           >
-            <span className="border-border block border-l-2 pl-3 whitespace-pre-wrap">
-              {shift.handoverNote}
+            <span className="border-border block border-l-2 pl-3">
+              {/* Named, because the block is prose in a table of figures and a
+                  manager scanning down the column of days needs to know at a
+                  glance which shift left it and what it is. */}
+              <span className="block text-xs tracking-caps uppercase">
+                Handover note
+              </span>
+              <span className="mt-0.5 block whitespace-pre-wrap">
+                {shift.handoverNote}
+              </span>
             </span>
           </td>
         </tr>
@@ -560,13 +669,16 @@ function OperatorChoice({
     <div>
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-sm  uppercase"
+        className="text-muted-foreground block text-xs tracking-caps uppercase"
       >
         Operator
       </label>
+      {/* The boxes' own height, so the filter row sits on one baseline and the
+          picker clears the 44px a finger needs: `h-9` was two controls in a bar
+          of three sitting 8px short of the dates beside them. */}
       <select
         id={fieldId}
-        className="border-input mt-1 h-9 w-full rounded-md border bg-transparent px-3 text-sm"
+        className="border-input mt-1 h-11 w-full rounded-md border bg-card px-3 text-sm shadow-xs"
         value={value?.id ?? ""}
         onChange={(event) => {
           const picked = event.target.value;
@@ -606,7 +718,7 @@ function Field({
     <div>
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-sm  uppercase"
+        className="text-muted-foreground block text-xs tracking-caps uppercase"
       >
         {label}
       </label>
@@ -625,6 +737,32 @@ function Field({
   );
 }
 
+/**
+ * A money column with no figure in it yet.
+ *
+ * A rule rather than a word. "Open" and "Not counted" are facts about the
+ * drawer, and set in a column of đồng they are read as though they were the
+ * figure — a column of money is scanned, not read. The state is on the row
+ * already, as the chip beside the trading day, so what is said here is said to
+ * a screen reader, which has no column to scan.
+ */
+function NoFigure({ said }: { said: string }) {
+  return (
+    <span className="text-muted-foreground">
+      <span aria-hidden="true">—</span>
+      <span className="sr-only">{said}</span>
+    </span>
+  );
+}
+
+/**
+ * One column heading, pinned to the top of the history's scrollport.
+ *
+ * The background and the rule are on the cell rather than on the row: a sticky
+ * `<thead>` is lifted out of the table's own painting order, so a rule declared
+ * on the row is one the headings scroll away from and a row underneath shows
+ * through them.
+ */
 function Column({
   children,
   align = "left",
@@ -636,7 +774,7 @@ function Column({
     <th
       scope="col"
       className={cn(
-        "text-muted-foreground px-3 py-2 text-sm font-normal  uppercase first:pl-0 last:pr-0",
+        "border-border border-b bg-card px-3 py-2 align-bottom text-xs font-normal tracking-caps text-muted-foreground uppercase first:pl-0 last:pr-0",
         align === "right" ? "text-right" : "text-left",
       )}
     >

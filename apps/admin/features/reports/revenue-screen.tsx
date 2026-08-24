@@ -418,7 +418,7 @@ function Total({
 }) {
   return (
     <div className="rounded-lg bg-card p-4 shadow-card">
-      <dt className="text-sm font-semibold  text-muted-foreground uppercase">
+      <dt className="text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
         {label}
       </dt>
       <dd
@@ -446,8 +446,8 @@ function Column({
       scope="col"
       className={
         align === "right"
-          ? "text-muted-foreground px-3 py-2 text-right text-sm font-normal  uppercase first:pl-0 last:pr-0"
-          : "text-muted-foreground px-3 py-2 text-left text-sm font-normal  uppercase first:pl-0 last:pr-0"
+          ? "text-muted-foreground px-3 py-2 text-right text-xs font-normal tracking-caps uppercase first:pl-0 last:pr-0"
+          : "text-muted-foreground px-3 py-2 text-left text-xs font-normal tracking-caps uppercase first:pl-0 last:pr-0"
       }
     >
       {children}

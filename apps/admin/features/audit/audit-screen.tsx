@@ -543,7 +543,7 @@ function ChangePanel({ reading }: { reading: ChangeReading }) {
   if (reading.status === "closed") {
     return (
       <Card className="p-5 text-sm text-muted-foreground">
-        <p className="text-sm  uppercase">The change</p>
+        <p className="text-xs tracking-caps uppercase">The change</p>
         <p className="mt-2">
           Press a row to read the record it names, column by column, on either
           side of the change. The columns that moved come first.
@@ -577,7 +577,9 @@ function ChangePanel({ reading }: { reading: ChangeReading }) {
 
   return (
     <Card className="p-5">
-      <p className="text-muted-foreground text-sm  uppercase">The change</p>
+      <p className="text-muted-foreground text-xs tracking-caps uppercase">
+        The change
+      </p>
       <p className="mt-2 text-sm">
         {actorLabel(change)} · {ACTION_LABELS[change.action]} ·{" "}
         {formatInstant(change.occurredAt)}
@@ -617,7 +619,7 @@ function FieldRow({ field }: { field: ChangedField }) {
       <dt className="tabular-nums text-sm">
         {field.column}
         {field.changed ? null : (
-          <span className="ml-2  uppercase">unchanged</span>
+          <span className="ml-2 tracking-caps uppercase">unchanged</span>
         )}
       </dt>
       <dd className="mt-1 tabular-nums text-sm break-all">
@@ -643,7 +645,7 @@ function Column({ children }: { children: React.ReactNode }) {
   return (
     <th
       scope="col"
-      className="text-muted-foreground py-1 text-left text-sm font-normal  uppercase first:pl-0 last:pr-0"
+      className="text-muted-foreground py-1 text-left text-xs font-normal tracking-caps uppercase first:pl-0 last:pr-0"
     >
       {children}
     </th>
@@ -672,7 +674,7 @@ function Field({
     <div>
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-sm  uppercase"
+        className="text-muted-foreground block text-xs tracking-caps uppercase"
       >
         {label}
       </label>
@@ -716,7 +718,7 @@ function Choice<T extends string>({
     <div>
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-sm  uppercase"
+        className="text-muted-foreground block text-xs tracking-caps uppercase"
       >
         {label}
       </label>

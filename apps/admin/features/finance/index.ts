@@ -18,18 +18,18 @@ export {
   type BookFields,
   bookQuestion,
   byMethod,
+  CATEGORY_LABELS,
   type CashBookEntry,
   type CashBookPage,
   type CashBookQuery,
-  CATEGORY_LABELS,
   categoriesFor,
   DEFAULT_BOOK_FIELDS,
   DEFAULT_ENTRY_FIELDS,
   DIRECTION_LABELS,
   type EntryFields,
   entryAttempt,
-  mayKeepTheBook,
   METHOD_LABELS,
+  mayKeepTheBook,
   netOfTheBook,
   type OpenDrawer,
   onSide,
@@ -41,9 +41,9 @@ export {
   theOnlyOpenDrawer,
 } from "./cash-book";
 export { CorrectEntryForm, RecordEntryForm } from "./entry-forms";
-export { FinanceScreen } from "./finance-screen";
 export {
   useCashBook,
   useRecordCashBookEntry,
   useReverseCashBookEntry,
 } from "./finance-queries";
+export { FinanceScreen } from "./finance-screen";

@@ -117,7 +117,7 @@ export function FilterList({
     <div>
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-sm  uppercase"
+        className="text-muted-foreground block text-xs tracking-caps uppercase"
       >
         {label}
       </label>
