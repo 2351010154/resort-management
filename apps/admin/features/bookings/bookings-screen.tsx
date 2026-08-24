@@ -1,6 +1,6 @@
 "use client";
 
-import type { StaffRole } from "@mariva/shared";
+import { BOOKING_STATES, type StaffRole } from "@mariva/shared";
 import {
   type ColumnDef,
   flexRender,
@@ -469,7 +469,18 @@ function bookingColumns(
   role: StaffRole | null,
   onOpen: (stay: Stay) => void,
 ): ColumnDef<Stay>[] {
-  return [
+  // Whether this role acts on stays at all, as opposed to whether it acts on
+  // the one in front of it. A role the matrix gives no stay act in any state —
+  // the accountant, who reads bookings, and housekeeping, who is not offered
+  // this family at all — gets no column rather than a heading over an empty
+  // strip of cells. Both reach this screen by typing the path.
+  const acts =
+    role !== null &&
+    BOOKING_STATES.some(
+      (state) => visibleBookingActions(role, state).length > 0,
+    );
+
+  const columns: ColumnDef<Stay>[] = [
     {
       id: "reference",
       header: "Stay",
@@ -532,14 +543,16 @@ function bookingColumns(
           <span className="text-muted-foreground">Unassigned</span>
         ),
     },
-    {
+  ];
+
+  if (acts) {
+    columns.push({
       id: "actions",
       header: "Actions",
-      // The door is drawn only where there is something behind it. A role the
-      // matrix gives no stay act to — the accountant, who reads bookings, and
-      // housekeeping, who is not offered this family at all — reaches this
-      // screen by typing the path, and a button that opens an empty sheet is
-      // the same false promise as one that answers 403.
+      // And within the column, the button only where this stay's own state
+      // leaves something behind it: a cancelled booking is nobody's to act on,
+      // and a press that opens an empty sheet is the same false promise as one
+      // that answers 403.
       cell: ({ row }) =>
         role === null ||
         visibleBookingActions(role, row.original.state).length === 0 ? null : (
@@ -552,8 +565,10 @@ function bookingColumns(
             Stay actions
           </Button>
         ),
-    },
-  ];
+    });
+  }
+
+  return columns;
 }
 
 function SearchField({
