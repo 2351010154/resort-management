@@ -37,7 +37,14 @@ import {
   departureCriteria,
   departuresAwaitingCheckout,
   type FolioListQuery,
+  type HouseTally,
+  houseTally,
+  type Reading,
+  reading,
   roomsNotReady,
+  type StaySample,
+  staysDueIn,
+  staysDueOut,
   unsettledFolios,
 } from "./day-counts";
 
@@ -102,7 +109,17 @@ export function useUnsettledFolios() {
   );
 }
 
-/** The screen's whole data layer: the property's day, and four honest numbers. */
+/**
+ * The screen's whole data layer: the property's day, four honest numbers, and
+ * the three panels cut from the same three answers.
+ *
+ * **Nothing below adds a request.** The tally is the board the rooms card
+ * already counted, read by state instead of by readiness; the two samples are
+ * the searches the arrivals and departures cards already ran, whose fifty rows
+ * were being reduced to a length and thrown away. A dashboard that fetched
+ * again to draw the same facts twice would be the `GET /dashboard` the header
+ * of this file argues against, assembled on the client.
+ */
 export interface DayCounts {
   /** The day the counts were taken against, once the board has said. */
   readonly businessDate: string | null;
@@ -110,6 +127,12 @@ export interface DayCounts {
   readonly departures: CountReading;
   readonly roomsNotReady: CountReading;
   readonly unsettledFolios: CountReading;
+  /** Every room by state, for the strip under the cards. */
+  readonly house: Reading<HouseTally>;
+  /** The first few stays behind the arrivals figure. */
+  readonly dueIn: Reading<StaySample>;
+  /** The first few behind the departures figure. */
+  readonly dueOut: Reading<StaySample>;
 }
 
 /**
@@ -161,6 +184,20 @@ export function useDayCounts(): DayCounts {
     unsettledFolios: countReading(
       { failed: folios.isError, data: folios.data },
       unsettledFolios,
+    ),
+
+    house: reading({ failed: board.isError, data: board.data }, houseTally),
+
+    dueIn: reading(
+      { failed: board.isError || arrivals.isError, data: arrivals.data },
+      (results) =>
+        businessDate === undefined ? null : staysDueIn(results, businessDate),
+    ),
+
+    dueOut: reading(
+      { failed: board.isError || departures.isError, data: departures.data },
+      (results) =>
+        businessDate === undefined ? null : staysDueOut(results, businessDate),
     ),
   };
 }

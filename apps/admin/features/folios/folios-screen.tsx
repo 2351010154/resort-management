@@ -1,11 +1,20 @@
 "use client";
 
 import { FOLIO_PAGE_SIZE, formatVnd } from "@mariva/shared";
+import { SearchIcon } from "lucide-react";
 import type * as React from "react";
 import { useId, useMemo, useRef, useState } from "react";
 
+import {
+  EmptyState,
+  FilterBar,
+  KeyHint,
+  PageHeader,
+} from "@/components/console";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { FolioListQuery } from "@/features/dashboard/day-counts";
 import type { Folio } from "@/features/departures/departure-queue";
 /* The console's one rendering of an instant in the property's zone — the same
@@ -153,111 +162,113 @@ export function FoliosScreen() {
   }
 
   return (
-    <div className="p-rhythm-3">
-      <header>
-        <p className="text-muted-foreground text-xs tracking-caps uppercase">
-          Money
-        </p>
-        <h1 className="font-display text-display-sm mt-2">Folios</h1>
-        <p className="text-muted-foreground mt-rhythm-1 border-border border-t pt-2">
-          Every charge, payment and correction on a stay's account. The ledger
-          is append-only: a mistake is answered by a reversing entry, so nothing
-          on this screen has ever been edited away — and nothing on it can be.
-        </p>
-      </header>
+    <div className="mx-auto w-full max-w-[1600px] p-4 sm:p-6 lg:p-8">
+      <PageHeader
+        title="Folios"
+        description="Append-only guest accounts with every charge, payment, and correction."
+      />
 
-      <form
-        className="mt-rhythm-2"
+      <FilterBar
+        className="mt-6"
+        actions={
+          <Button type="submit">
+            <SearchIcon aria-hidden="true" />
+            Show accounts
+          </Button>
+        }
         onSubmit={(event) => {
           event.preventDefault();
           ask(fields, 0);
         }}
       >
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <Choice
-            label="Balance"
-            value={fields.balance}
-            selectRef={firstFilter}
-            options={[
-              { value: "OUTSTANDING", label: "Does not balance" },
-              { value: "ANY", label: "Any balance" },
-            ]}
-            onChange={(balance) => {
-              setFields((current) => ({ ...current, balance }));
-            }}
-          />
-          <Choice
-            label="State"
-            value={fields.state}
-            options={[
-              { value: "ANY", label: "Open and closed" },
-              { value: "OPEN", label: FOLIO_STATE_LABELS.OPEN },
-              { value: "CLOSED", label: FOLIO_STATE_LABELS.CLOSED },
-            ]}
-            onChange={(state) => {
-              setFields((current) => ({ ...current, state }));
-            }}
-          />
-          <Field
-            label="From"
-            value={fields.from}
-            placeholder="-7d"
-            onChange={(from) => {
-              setFields((current) => ({ ...current, from }));
-            }}
-          />
-          <Field
-            label="To"
-            value={fields.to}
-            placeholder="today"
-            onChange={(to) => {
-              setFields((current) => ({ ...current, to }));
-            }}
-          />
-        </div>
+        <Choice
+          label="Balance"
+          value={fields.balance}
+          selectRef={firstFilter}
+          options={[
+            { value: "OUTSTANDING", label: "Does not balance" },
+            { value: "ANY", label: "Any balance" },
+          ]}
+          onChange={(balance) => {
+            setFields((current) => ({ ...current, balance }));
+          }}
+        />
+        <Choice
+          label="State"
+          value={fields.state}
+          options={[
+            { value: "ANY", label: "Open and closed" },
+            { value: "OPEN", label: FOLIO_STATE_LABELS.OPEN },
+            { value: "CLOSED", label: FOLIO_STATE_LABELS.CLOSED },
+          ]}
+          onChange={(state) => {
+            setFields((current) => ({ ...current, state }));
+          }}
+        />
+        <Field
+          label="From"
+          value={fields.from}
+          placeholder="-7d"
+          onChange={(from) => {
+            setFields((current) => ({ ...current, from }));
+          }}
+        />
+        <Field
+          label="To"
+          value={fields.to}
+          placeholder="today"
+          onChange={(to) => {
+            setFields((current) => ({ ...current, to }));
+          }}
+        />
+      </FilterBar>
 
-        {problem === null ? null : (
-          <p className="border-destructive text-destructive mt-rhythm-1 border-l-2 pl-3 text-sm">
-            {problem}
-          </p>
-        )}
+      {problem === null ? null : (
+        <p
+          className="mt-3 border-danger border-l-2 pl-3 text-sm text-danger"
+          role="alert"
+        >
+          {problem}
+        </p>
+      )}
 
-        <div className="mt-rhythm-1 flex flex-wrap items-center gap-3">
-          <Button type="submit">Show accounts</Button>
-          <span className="text-muted-foreground text-xs">
-            {/* Said rather than implied: the days are the trading days the
-                account had lines on, and the balance beside each row is still
-                the whole account's rather than the window's. */}
-            / reaches the filters · the days are the ones the account was posted
-            to, and the balance is always the account's own
-          </span>
-        </div>
-      </form>
+      <p className="mt-3 text-sm text-muted-foreground">
+        <KeyHint>/</KeyHint> focuses filters. Balances always cover the full
+        account.
+      </p>
 
-      <div className="mt-rhythm-2 grid gap-rhythm-2 lg:grid-cols-[20rem_1fr]">
-        <div>
+      <div className="mt-6 grid gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
+        <Card className="min-h-72 p-3">
           {page.status === "pending" ? (
-            <p className="text-muted-foreground text-sm" aria-busy>
-              Reading the property's accounts.
-            </p>
+            <div className="space-y-2" aria-busy>
+              <Skeleton className="h-16" />
+              <Skeleton className="h-16" />
+              <Skeleton className="h-16" />
+            </div>
           ) : null}
 
           {page.status === "failed" ? (
             // The console's error device is a rule on the leading edge rather
             // than a colour: --color-destructive and --color-primary are the
             // same umber.
-            <p className="border-destructive text-destructive border-l-2 pl-3 text-sm">
-              The accounts could not be read. Nothing here is a statement about
-              what the property is owed.
+            <p
+              className="border-danger border-l-2 pl-3 text-sm text-danger"
+              role="alert"
+            >
+              Folios could not be loaded.
             </p>
           ) : null}
 
           {page.status === "ready" && page.folios.length === 0 ? (
-            <p className="text-muted-foreground text-sm">
-              {asked.fields.balance === "OUTSTANDING"
-                ? "Every account these filters cover balances. Nothing is outstanding and nothing is over-paid."
-                : "No account matches. A folio is opened when a stay checks in, so a booking nobody has arrived for has none yet."}
-            </p>
+            <EmptyState
+              title="No matching folios"
+              description={
+                asked.fields.balance === "OUTSTANDING"
+                  ? "Every account in this window balances."
+                  : "Folios open when a stay checks in."
+              }
+              className="px-4 py-10 shadow-none"
+            />
           ) : null}
 
           {page.status === "ready" && page.folios.length > 0 ? (
@@ -277,8 +288,8 @@ export function FoliosScreen() {
                 </ul>
               </RovingFocusGroup>
 
-              <div className="mt-rhythm-1 flex flex-wrap items-center gap-3">
-                <p className="text-muted-foreground text-xs">
+              <div className="mt-3 flex flex-wrap items-center gap-2 border-border border-t px-2 pt-3">
+                <p className="text-muted-foreground text-sm">
                   {page.window.first}–{page.window.last} of {page.window.total}
                 </p>
                 <Button
@@ -304,12 +315,13 @@ export function FoliosScreen() {
               </div>
             </>
           ) : null}
-        </div>
+        </Card>
 
         {opened === null ? (
-          <p className="text-muted-foreground text-sm">
-            Pick an account to read its ledger.
-          </p>
+          <EmptyState
+            title="Choose a folio"
+            description="Select an account to read its complete ledger."
+          />
         ) : (
           /* Keyed by the stay, so opening another account takes the whole of
              the previous ledger with it rather than repainting one folio's
@@ -345,8 +357,8 @@ function FolioRow({
         aria-current={opened}
         onClick={onOpen}
         className={cn(
-          "hover:bg-accent/40 focus-visible:bg-accent/40 flex w-full flex-col gap-0.5 rounded-sm px-2 py-1.5 text-left text-sm",
-          opened ? "bg-accent/60" : null,
+          "flex min-h-16 w-full flex-col justify-center gap-0.5 rounded-md px-3 text-left text-sm transition-colors duration-150 ease-ui hover:bg-accent-soft/60 focus-visible:bg-accent-soft/60",
+          opened ? "bg-accent-soft" : null,
         )}
       >
         <span className="flex flex-wrap items-baseline justify-between gap-x-2">
@@ -356,14 +368,16 @@ function FolioRow({
               The instant crosses into the property's zone rather than being
               sliced out of the ISO text: an account opened at 21:00 in Ho Chi
               Minh City is a UTC timestamp on the day before. */}
-          <span>Opened {formatInstant(folio.openedAt)}</span>
-          <span className="text-muted-foreground text-xs">
+          <span className="font-semibold">
+            Opened {formatInstant(folio.openedAt)}
+          </span>
+          <span className="text-muted-foreground text-sm">
             {FOLIO_STATE_LABELS[folio.state]}
           </span>
         </span>
         <span
           className={cn(
-            "font-mono text-xs",
+            "tabular-nums text-sm",
             short ? "text-destructive" : "text-muted-foreground",
           )}
         >
@@ -388,7 +402,7 @@ function FolioDetail({ account }: { account: ListedFolio }) {
   );
 
   return (
-    <div className="border-border border-l pl-4">
+    <Card className="overflow-hidden p-5">
       {ledger.isPending ? (
         <p className="text-muted-foreground text-sm" aria-busy>
           Reading the account.
@@ -407,11 +421,11 @@ function FolioDetail({ account }: { account: ListedFolio }) {
           {/* Pinned, which is `screens.md`'s word: a ledger is read by scrolling
               down it, and the figures it is being checked against have to stay
               where the reader can see them. */}
-          <div className="bg-background sticky top-0 z-10 pb-2">
-            <h2 className="font-display text-2xl">
+          <div className="sticky top-14 z-10 bg-card pb-3">
+            <h2 className="text-2xl font-semibold leading-8">
               {FOLIO_STATE_LABELS[folio.state]} account
             </h2>
-            <p className="text-muted-foreground mt-1 text-xs">
+            <p className="text-muted-foreground mt-1 text-sm">
               {/* When it opened, when it was agreed, and the stay it belongs
                   to. The stay is a uuid because that is the whole of what the
                   contract attaches to an account — there is no reference and no
@@ -422,9 +436,9 @@ function FolioDetail({ account }: { account: ListedFolio }) {
               {folio.closedAt === null
                 ? null
                 : ` · agreed ${formatInstant(folio.closedAt)}`}{" "}
-              · stay <span className="font-mono">{folio.bookingId}</span>
+              · stay <span className="tabular-nums">{folio.bookingId}</span>
             </p>
-            <dl className="mt-rhythm-1 grid gap-3 text-sm sm:grid-cols-3">
+            <dl className="mt-2 grid gap-3 text-sm sm:grid-cols-3">
               <Fact label="Charged" value={formatVnd(folio.summary.charged)} />
               <Fact label="Paid" value={formatVnd(folio.summary.credited)} />
               <Fact
@@ -437,8 +451,8 @@ function FolioDetail({ account }: { account: ListedFolio }) {
 
           <LedgerNotice folio={folio} lines={lines} />
 
-          <table className="mt-rhythm-1 w-full border-collapse text-sm">
-            <caption className="text-muted-foreground mb-rhythm-1 text-left text-xs">
+          <table className="mt-2 w-full border-collapse text-sm">
+            <caption className="text-muted-foreground mb-2 text-left text-sm">
               Every posting on the account, oldest first. A correction is a line
               of its own and the line it corrects is still here, with the amount
               it was written for.
@@ -466,7 +480,7 @@ function FolioDetail({ account }: { account: ListedFolio }) {
             </tbody>
           </table>
 
-          <p className="text-muted-foreground mt-rhythm-2 text-xs">
+          <p className="text-muted-foreground mt-4 text-sm">
             {/* Said rather than implied: an operator looking for a correction
                 control here is owed the reason there is none, and the reason is
                 that reviewing is this screen's whole job. */}
@@ -477,7 +491,7 @@ function FolioDetail({ account }: { account: ListedFolio }) {
           </p>
         </>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -496,7 +510,7 @@ function LedgerNotice({
       {ledgerAgrees(lines, folio.summary) ? null : (
         // Two derivations of one figure disagreeing is not something to paint
         // over. `folio-ledger.ts` says why this is worth a rule down the side.
-        <p className="border-destructive text-destructive mt-rhythm-1 border-l-2 pl-3 text-sm">
+        <p className="border-destructive text-destructive mt-2 border-l-2 pl-3 text-sm">
           These lines do not come to the balance above them. Something has been
           lost between the account and this screen — check the folio against the
           API before acting on either figure.
@@ -504,7 +518,7 @@ function LedgerNotice({
       )}
 
       {corrections > 0 ? (
-        <p className="text-muted-foreground mt-rhythm-1 text-sm">
+        <p className="text-muted-foreground mt-2 text-sm">
           {corrections === 1
             ? "One correction stands on this account."
             : `${corrections} corrections stand on this account.`}{" "}
@@ -528,7 +542,7 @@ function LedgerRow({ line }: { line: LedgerLine }) {
       <td className={cn("px-3 py-1", levied ? "pl-6" : null)}>
         <span>{POSTING_LABELS[posting.type]}</span>
         {levied ? (
-          <span className="text-muted-foreground text-xs">
+          <span className="text-muted-foreground text-sm">
             {" "}
             · levied on the charge above
           </span>
@@ -536,13 +550,13 @@ function LedgerRow({ line }: { line: LedgerLine }) {
         <p className="text-muted-foreground">{posting.description}</p>
 
         {posting.chargeBasis === null ? null : (
-          <p className="text-muted-foreground text-xs">
+          <p className="text-muted-foreground text-sm">
             {CHARGE_BASIS_LABELS[posting.chargeBasis]}
           </p>
         )}
 
         {reverses === null ? null : (
-          <p className="text-xs">
+          <p className="text-sm">
             Reverses the {POSTING_LABELS[reverses.type].toLowerCase()} of{" "}
             {formatShortDate(reverses.businessDate)} —{" "}
             {formatVnd(reverses.amount)}. That line stays on the account.
@@ -550,19 +564,19 @@ function LedgerRow({ line }: { line: LedgerLine }) {
         )}
 
         {reversedBy === null ? null : (
-          <p className="text-xs">
+          <p className="text-sm">
             Reversed by a correction of{" "}
             {formatShortDate(reversedBy.businessDate)}. This line keeps the
             amount it was written for.
           </p>
         )}
 
-        <p className="text-muted-foreground text-xs">{postedLabel(posting)}</p>
+        <p className="text-muted-foreground text-sm">{postedLabel(posting)}</p>
       </td>
-      <td className="px-3 py-1 text-right font-mono whitespace-nowrap">
+      <td className="px-3 py-1 text-right tabular-nums whitespace-nowrap">
         {formatVnd(posting.amount)}
       </td>
-      <td className="text-muted-foreground py-1 pl-3 text-right font-mono whitespace-nowrap last:pr-0">
+      <td className="text-muted-foreground py-1 pl-3 text-right tabular-nums whitespace-nowrap last:pr-0">
         {formatVnd(line.runningTotal)}
       </td>
     </tr>
@@ -580,7 +594,7 @@ function Column({
     <th
       scope="col"
       className={cn(
-        "text-muted-foreground px-3 py-2 text-xs font-normal tracking-caps uppercase first:pl-0 last:pr-0",
+        "text-muted-foreground px-3 py-2 text-sm font-normal  uppercase first:pl-0 last:pr-0",
         align === "right" ? "text-right" : "text-left",
       )}
     >
@@ -609,7 +623,7 @@ function Field({
     <div>
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-xs tracking-caps uppercase"
+        className="text-muted-foreground block text-sm  uppercase"
       >
         {label}
       </label>
@@ -654,7 +668,7 @@ function Choice<T extends string>({
     <div>
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-xs tracking-caps uppercase"
+        className="text-muted-foreground block text-sm  uppercase"
       >
         {label}
       </label>
@@ -688,10 +702,8 @@ function Fact({
 }) {
   return (
     <div>
-      <dt className="text-muted-foreground text-xs tracking-caps uppercase">
-        {label}
-      </dt>
-      <dd className={cn("font-mono", loud ? "text-destructive" : null)}>
+      <dt className="text-muted-foreground text-sm  uppercase">{label}</dt>
+      <dd className={cn("tabular-nums", loud ? "text-destructive" : null)}>
         {value}
       </dd>
     </div>

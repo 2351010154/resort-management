@@ -4,11 +4,13 @@ import { STAFF_ROLES, type StaffRole } from "@mariva/shared";
 import type * as React from "react";
 import { useId, useState } from "react";
 
+import { DataTableFrame, EmptyState, PageHeader } from "@/components/console";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useStaffSession } from "@/lib/auth";
 import { cn } from "@/lib/utils";
 
@@ -89,25 +91,18 @@ export function SettingsScreen() {
   const configuration = role !== null && mayReadConfiguration(role);
 
   return (
-    <div className="p-rhythm-3">
-      <header>
-        <p className="text-muted-foreground text-xs tracking-caps uppercase">
-          Property
-        </p>
-        <h1 className="font-display text-display-sm mt-2">Settings</h1>
-        <p className="text-muted-foreground mt-rhythm-1 border-border border-t pt-2">
-          Two things, kept apart: who may work in the console, and the figures
-          every posting reads. Payment-gateway credentials are in neither — they
-          live in the environment, not in a table a screen can read.
-        </p>
-      </header>
+    <div className="mx-auto w-full max-w-[1600px] p-4 sm:p-6 lg:p-8">
+      <PageHeader
+        title="Settings"
+        description="Staff access and property configuration."
+      />
 
       {/* An `ADMIN` holds both rows and is the only role that does, so the tab
           strip is exactly the administrator's view. A manager holds the
           configuration row alone and gets that half with no strip over it,
           rather than a chooser with one choice on it. */}
       {staffAccess ? (
-        <Tabs defaultValue="staff" className="mt-rhythm-2">
+        <Tabs defaultValue="staff" className="mt-6">
           <TabsList variant="line">
             <TabsTrigger value="staff">Staff access</TabsTrigger>
             <TabsTrigger value="configuration">
@@ -126,17 +121,17 @@ export function SettingsScreen() {
       ) : null}
 
       {!staffAccess && configuration ? (
-        <div className="mt-rhythm-2">
+        <div className="mt-6">
           <ConfigurationPanel mayEdit={false} />
         </div>
       ) : null}
 
       {!staffAccess && !configuration ? (
-        <p className="text-muted-foreground mt-rhythm-2 text-sm">
-          Staff accounts and the property's configuration are management's.
-          Neither is anybody else's to read, so there is nothing on this screen
-          for this account.
-        </p>
+        <EmptyState
+          className="mt-6"
+          title="No settings available"
+          description="Staff access and configuration are limited to management."
+        />
       ) : null}
     </div>
   );
@@ -150,8 +145,8 @@ function StaffAccessPanel() {
   const accounts = useStaffAccounts();
 
   return (
-    <section className="mt-rhythm-2">
-      <h2 className="font-display text-2xl">Staff access</h2>
+    <section className="mt-6 rounded-lg bg-card p-5 shadow-card">
+      <h2 className="text-2xl font-semibold leading-8">Staff access</h2>
       <p className="text-muted-foreground mt-1 max-w-prose text-sm">
         Every account that can sign in, and the role each one works under. A
         staff token carries exactly one role, so an account is not a set of
@@ -160,17 +155,20 @@ function StaffAccessPanel() {
       </p>
 
       {accounts.isPending ? (
-        <p className="text-muted-foreground mt-rhythm-2 text-sm" aria-busy>
-          Reading the property's staff accounts.
-        </p>
+        <div className="mt-6 space-y-2" aria-busy>
+          <Skeleton className="h-12" />
+          <Skeleton className="h-12" />
+        </div>
       ) : null}
 
       {accounts.isError ? (
         // The console's error device is a rule on the leading edge rather than
         // a colour: --color-destructive and --color-primary are the same umber.
-        <p className="border-destructive text-destructive mt-rhythm-2 border-l-2 pl-3 text-sm">
-          The staff accounts could not be read. Nothing here is a statement
-          about who can sign in.
+        <p
+          className="mt-6 border-danger border-l-2 pl-3 text-sm text-danger"
+          role="alert"
+        >
+          Staff accounts could not be loaded.
         </p>
       ) : null}
 
@@ -187,47 +185,52 @@ function StaffAccessPanel() {
 function AccountList({ accounts }: { accounts: readonly StaffAccount[] }) {
   if (accounts.length === 0) {
     return (
-      <p className="text-muted-foreground mt-rhythm-2 text-sm">
-        No account is listed, which cannot include this one. Read that as a list
-        that did not arrive rather than as a property nobody works at.
-      </p>
+      <EmptyState
+        className="mt-6"
+        title="No staff accounts"
+        description="No account is available in this list."
+      />
     );
   }
 
   return (
-    <table className="mt-rhythm-2 w-full border-collapse text-sm">
-      <caption className="text-muted-foreground mb-rhythm-1 text-left text-xs">
-        In the order they were created. A deactivated account is listed rather
-        than hidden: the first question about one is usually whether it still
-        exists.
-      </caption>
-      <thead>
-        <tr className="border-border border-b">
-          <Column>Name</Column>
-          <Column>Address</Column>
-          <Column>Role</Column>
-          <Column>Last signed in</Column>
-          <Column>State</Column>
-        </tr>
-      </thead>
-      <tbody>
-        {accounts.map((account) => (
-          <tr key={account.id} className="border-border border-b">
-            <Cell>{account.fullName}</Cell>
-            <Cell>{account.email}</Cell>
-            {/* The wire spelling, which is the matrix's own row name. The rail
+    <DataTableFrame className="mt-6 overflow-x-auto p-4">
+      <table className="w-full min-w-[760px] border-collapse text-sm">
+        <caption className="text-muted-foreground mb-2 text-left text-sm">
+          In the order they were created. A deactivated account is listed rather
+          than hidden: the first question about one is usually whether it still
+          exists.
+        </caption>
+        <thead>
+          <tr className="border-border border-b">
+            <Column>Name</Column>
+            <Column>Address</Column>
+            <Column>Role</Column>
+            <Column>Last signed in</Column>
+            <Column>State</Column>
+          </tr>
+        </thead>
+        <tbody>
+          {accounts.map((account) => (
+            <tr key={account.id} className="border-border border-b">
+              <Cell>{account.fullName}</Cell>
+              <Cell>{account.email}</Cell>
+              {/* The wire spelling, which is the matrix's own row name. The rail
                 writes a role as a job title because that is where an operator
                 reads their own; here an administrator is choosing a capability
                 set, and `docs/architecture/rbac-matrix.md` names it this way. */}
-            <Cell className="font-mono text-xs">{account.role}</Cell>
-            <Cell>{lastSignedInLabel(account.lastSignedInAt)}</Cell>
-            <Cell className={account.isActive ? undefined : "text-destructive"}>
-              {account.isActive ? "Active" : "Deactivated"}
-            </Cell>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+              <Cell className="tabular-nums text-sm">{account.role}</Cell>
+              <Cell>{lastSignedInLabel(account.lastSignedInAt)}</Cell>
+              <Cell
+                className={account.isActive ? undefined : "text-destructive"}
+              >
+                {account.isActive ? "Active" : "Deactivated"}
+              </Cell>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </DataTableFrame>
   );
 }
 
@@ -274,21 +277,18 @@ function NewAccountForm() {
 
   return (
     <form
-      className="mt-rhythm-3 border-border border-t pt-rhythm-2"
+      className="mt-8 border-border border-t pt-4"
       onSubmit={(event) => {
         event.preventDefault();
         submit();
       }}
     >
       <h3 className="text-sm">New account</h3>
-      <p className="text-muted-foreground mt-1 max-w-prose text-xs">
-        There is no self-service path to this: a staff account is made by an
-        administrator, which is why this control exists at all. The property's
-        first administrator came from a command-line bootstrap instead, because
-        an API that requires one cannot create the first.
+      <p className="text-muted-foreground mt-1 max-w-prose text-sm">
+        Administrators create staff accounts. Roles cannot be edited later.
       </p>
 
-      <div className="mt-rhythm-1 flex flex-wrap items-start gap-4">
+      <div className="mt-2 flex flex-wrap items-start gap-4">
         <Field
           label="Address"
           value={fields.email}
@@ -301,7 +301,7 @@ function NewAccountForm() {
         <Field
           label="Name"
           value={fields.fullName}
-          hint="The person holding the account, as the desk would say it."
+          hint="Account holder's display name."
           onChange={(fullName) => {
             change({ fullName });
           }}
@@ -309,7 +309,7 @@ function NewAccountForm() {
         <Field
           label="Password"
           value={fields.password}
-          hint="At least 12 characters. It travels once, on this request."
+          hint="At least 12 characters. Sent once."
           type="password"
           onChange={(password) => {
             change({ password });
@@ -317,10 +317,10 @@ function NewAccountForm() {
         />
       </div>
 
-      <fieldset className="mt-rhythm-2">
+      <fieldset className="mt-4">
         <legend
           id={roleGroupId}
-          className="text-muted-foreground text-xs tracking-caps uppercase"
+          className="text-muted-foreground text-sm  uppercase"
         >
           Role
         </legend>
@@ -338,14 +338,12 @@ function NewAccountForm() {
             <RoleChoice key={role} role={role} />
           ))}
         </RadioGroup>
-        <p className="text-muted-foreground mt-2 max-w-prose text-xs">
-          One role, fixed at creation. Nothing in the contract changes an
-          account's role, resets its password or deactivates it, so an account
-          in the wrong role is replaced rather than edited.
+        <p className="text-muted-foreground mt-2 max-w-prose text-sm">
+          Roles are fixed at creation. Replace incorrectly assigned accounts.
         </p>
       </fieldset>
 
-      <div className="mt-rhythm-2 flex items-center gap-3">
+      <div className="mt-4 flex items-center gap-3">
         <Button type="submit" disabled={create.isPending}>
           Create account
         </Button>
@@ -357,7 +355,7 @@ function NewAccountForm() {
       </div>
 
       {problem === null ? null : (
-        <p className="border-destructive text-destructive mt-rhythm-1 border-l-2 pl-3 text-sm">
+        <p className="border-destructive text-destructive mt-2 border-l-2 pl-3 text-sm">
           {problem}
         </p>
       )}
@@ -372,7 +370,7 @@ function RoleChoice({ role }: { role: StaffRole }) {
   return (
     <div className="flex items-center gap-2">
       <RadioGroupItem id={choiceId} value={role} />
-      <label htmlFor={choiceId} className="font-mono text-xs">
+      <label htmlFor={choiceId} className="tabular-nums text-sm">
         {role}
       </label>
     </div>
@@ -387,26 +385,25 @@ function ConfigurationPanel({ mayEdit }: { mayEdit: boolean }) {
   const { businessDate, reading } = useConfiguration();
 
   return (
-    <section className="mt-rhythm-2">
-      <h2 className="font-display text-2xl">Property configuration</h2>
+    <section className="mt-6 rounded-lg bg-card p-5 shadow-card">
+      <h2 className="text-2xl font-semibold leading-8">
+        Property configuration
+      </h2>
       <p className="text-muted-foreground mt-1 max-w-prose text-sm">
-        One row, read at the moment it is needed rather than at a deploy: the
-        tax figures when a folio posting splits a gross amount, the rollover
-        hour on every question about what day the property is having, the
-        loyalty figures when a folio closes and when tiers are derived. A change
-        here is read by the next request, and by no invoice already issued.
+        Controls posting, business dates, and loyalty. Saved changes apply to
+        new requests.
       </p>
 
       {reading.status === "pending" ? (
-        <p className="text-muted-foreground mt-rhythm-2 text-sm" aria-busy>
-          Reading the property's configuration.
-        </p>
+        <Skeleton className="mt-6 h-64" aria-busy />
       ) : null}
 
       {reading.status === "failed" ? (
-        <p className="border-destructive text-destructive mt-rhythm-2 border-l-2 pl-3 text-sm">
-          The configuration could not be read. Nothing here is a statement about
-          what the property charges.
+        <p
+          className="mt-6 border-danger border-l-2 pl-3 text-sm text-danger"
+          role="alert"
+        >
+          Property configuration could not be loaded.
         </p>
       ) : null}
 
@@ -495,7 +492,7 @@ function ConfigurationForm({
 
   return (
     <form
-      className="mt-rhythm-2"
+      className="mt-4"
       onSubmit={(event) => {
         event.preventDefault();
         submit();
@@ -503,12 +500,12 @@ function ConfigurationForm({
     >
       <Group
         title="Tax"
-        note="ASM-01 is answered from published sources and not yet confirmed by a practising accountant, which is exactly why these are a row and not a constant."
+        note="Confirm statutory rates with the property's accountant."
       >
         <Figure
           label="Standard VAT rate"
           value={fields.standardVatRateBps}
-          hint="Basis points. The rate on every date the relief period does not cover."
+          hint="Basis points outside the relief period."
           echo={rateLabel(fields.standardVatRateBps)}
           disabled={!mayEdit}
           onChange={(standardVatRateBps) => {
@@ -518,7 +515,7 @@ function ConfigurationForm({
         <Figure
           label="Reduced VAT rate"
           value={fields.reducedVatRateBps}
-          hint="Basis points. The rate on the dates the relief period covers, and on no other."
+          hint="Basis points within the relief period."
           echo={rateLabel(fields.reducedVatRateBps)}
           disabled={!mayEdit}
           onChange={(reducedVatRateBps) => {
@@ -554,7 +551,7 @@ function ConfigurationForm({
         <Figure
           label="Service-charge rate"
           value={fields.serviceChargeRateBps}
-          hint="Basis points. Zero is a property that levies none."
+          hint="Basis points. Zero disables the charge."
           echo={rateLabel(fields.serviceChargeRateBps)}
           disabled={!mayEdit}
           onChange={(serviceChargeRateBps) => {
@@ -563,7 +560,7 @@ function ConfigurationForm({
         />
         <Flag
           label="VAT base includes the service charge"
-          hint="Whether the service-charge line is inside the amount VAT is computed on."
+          hint="Include service charge in the VAT base."
           checked={fields.vatIncludesServiceCharge}
           disabled={!mayEdit}
           onChange={(vatIncludesServiceCharge) => {
@@ -574,12 +571,12 @@ function ConfigurationForm({
 
       <Group
         title="Operating clock"
-        note="The hour only. Moving the property's day forward is the night audit, not a setting."
+        note="Sets when the property's trading day changes."
       >
         <Figure
           label="Rollover hour"
           value={fields.businessDateRolloverHour}
-          hint="0 to 23, in the property's own zone. At 4, the day turns at 04:00 and 01:30 is still yesterday."
+          hint="Property hour, from 0 through 23."
           echo={rolloverLabel(fields.businessDateRolloverHour)}
           disabled={!mayEdit}
           onChange={(businessDateRolloverHour) => {
@@ -590,12 +587,12 @@ function ConfigurationForm({
 
       <Group
         title="Loyalty accrual"
-        note="Read when a folio closes. Changing the rate defines what a point is worth from then on and reprices nothing already earned."
+        note="New accruals use saved values. Existing points remain unchanged."
       >
         <Figure
           label="Points per unit"
           value={fields.loyaltyPointsPerUnit}
-          hint="Points earned for each earn unit of net room revenue."
+          hint="Points earned per net room revenue unit."
           echo={null}
           disabled={!mayEdit}
           onChange={(loyaltyPointsPerUnit) => {
@@ -605,7 +602,7 @@ function ConfigurationForm({
         <Figure
           label="Earn unit"
           value={fields.loyaltyEarnUnitVnd}
-          hint="Whole đồng of net room revenue one lot of points costs. Net is before VAT and service charge."
+          hint="Net room revenue required per points lot."
           echo={dongLabel(fields.loyaltyEarnUnitVnd)}
           disabled={!mayEdit}
           onChange={(loyaltyEarnUnitVnd) => {
@@ -616,7 +613,7 @@ function ConfigurationForm({
 
       <Group
         title="Tier thresholds"
-        note="Rungs a tier is derived from over a trailing twelve months, each reached by stays or by revenue. Nothing here holds a tier: a guest below Silver is a Member, which is the absence of a match."
+        note="Tiers use trailing twelve-month stays or revenue."
       >
         <Figure
           label="Silver — stays"
@@ -641,7 +638,7 @@ function ConfigurationForm({
         <Figure
           label="Gold — stays"
           value={fields.tierGoldStays}
-          hint="On or above Silver's. Equal is a ladder; below it collapses the rung beneath."
+          hint="Must equal or exceed Silver stays."
           echo={null}
           disabled={!mayEdit}
           onChange={(tierGoldStays) => {
@@ -651,7 +648,7 @@ function ConfigurationForm({
         <Figure
           label="Gold — revenue"
           value={fields.tierGoldRevenueVnd}
-          hint="On or above Silver's, and compared only against Silver's revenue."
+          hint="Must equal or exceed Silver revenue."
           echo={dongLabel(fields.tierGoldRevenueVnd)}
           disabled={!mayEdit}
           onChange={(tierGoldRevenueVnd) => {
@@ -661,7 +658,7 @@ function ConfigurationForm({
       </Group>
 
       {mayEdit ? (
-        <div className="mt-rhythm-2 border-border border-t pt-rhythm-1">
+        <div className="mt-4 border-border border-t pt-2">
           <div className="flex flex-wrap items-center gap-3">
             <Button
               type="submit"
@@ -674,29 +671,27 @@ function ConfigurationForm({
 
             {attempt !== null && "unchanged" in attempt ? (
               <p className="text-muted-foreground text-sm">
-                Nothing has changed. Every figure is as the property has it.
+                No saved values changed.
               </p>
             ) : null}
 
             {attempt !== null && "input" in attempt ? (
               <p className="text-sm">
-                Sends {attempt.changed.length} of thirteen figures:{" "}
-                {attempt.changed.join(", ")}. The rest are left exactly where
-                they stand.
+                Updates {attempt.changed.length} fields:{" "}
+                {attempt.changed.join(", ")}.
               </p>
             ) : null}
           </div>
 
           {problem === null ? null : (
-            <p className="border-destructive text-destructive mt-rhythm-1 border-l-2 pl-3 text-sm">
+            <p className="border-destructive text-destructive mt-2 border-l-2 pl-3 text-sm">
               {problem}
             </p>
           )}
         </div>
       ) : (
-        <p className="text-muted-foreground mt-rhythm-2 border-border border-t pt-rhythm-1 text-sm">
-          These figures are an administrator's to change. What is here is what
-          every posting, accrual and tier derivation will read.
+        <p className="text-muted-foreground mt-4 border-border border-t pt-2 text-sm">
+          Only administrators can change these values.
         </p>
       )}
     </form>
@@ -716,12 +711,10 @@ function Group({
   children: React.ReactNode;
 }) {
   return (
-    <fieldset className="mt-rhythm-2">
+    <fieldset className="mt-4">
       <legend className="text-sm">{title}</legend>
-      <p className="text-muted-foreground mt-1 max-w-prose text-xs">{note}</p>
-      <div className="mt-rhythm-1 flex flex-wrap items-start gap-4">
-        {children}
-      </div>
+      <p className="text-muted-foreground mt-1 max-w-prose text-sm">{note}</p>
+      <div className="mt-2 flex flex-wrap items-start gap-4">{children}</div>
     </fieldset>
   );
 }
@@ -756,13 +749,13 @@ function Figure({
     <div className="w-56">
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-xs tracking-caps uppercase"
+        className="text-muted-foreground block text-sm  uppercase"
       >
         {label}
       </label>
       <Input
         id={fieldId}
-        className="mt-1 font-mono"
+        className="mt-1 tabular-nums"
         // Whole digits, so a numeric keypad is the right one and a spinner is
         // not: the arrows on a `type="number"` field would step a basis-point
         // figure by one, which is a hundredth of a percent per press.
@@ -773,8 +766,8 @@ function Figure({
           onChange(event.target.value);
         }}
       />
-      {echo === null ? null : <p className="mt-1 text-xs">{echo}</p>}
-      <p className="text-muted-foreground mt-1 text-xs">{hint}</p>
+      {echo === null ? null : <p className="mt-1 text-sm">{echo}</p>}
+      <p className="text-muted-foreground mt-1 text-sm">{hint}</p>
     </div>
   );
 }
@@ -817,7 +810,7 @@ function WindowEnd({
     <div className="w-56">
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-xs tracking-caps uppercase"
+        className="text-muted-foreground block text-sm  uppercase"
       >
         {label}
       </label>
@@ -828,13 +821,13 @@ function WindowEnd({
           disabled={disabled}
           onCheckedChange={onBound}
         />
-        <label htmlFor={switchId} className="text-xs">
+        <label htmlFor={switchId} className="text-sm">
           {bound ? "Bounded" : "Unbounded"}
         </label>
       </div>
       <Input
         id={fieldId}
-        className="mt-1 font-mono"
+        className="mt-1 tabular-nums"
         value={value}
         disabled={disabled || !bound}
         onChange={(event) => {
@@ -842,12 +835,12 @@ function WindowEnd({
         }}
       />
       {bound && resolved !== null ? (
-        <p className="mt-1 text-xs">{resolved}</p>
+        <p className="mt-1 text-sm">{resolved}</p>
       ) : null}
-      <p className="text-muted-foreground mt-1 text-xs">
+      <p className="text-muted-foreground mt-1 text-sm">
         {bound
           ? "31/12/2026, 2026-12-31 — inclusive."
-          : "No bound on this side. Every date outside the period takes the standard rate."}
+          : "Unbounded. Standard rate applies outside the period."}
       </p>
     </div>
   );
@@ -880,12 +873,12 @@ function Flag({
         />
         <label
           htmlFor={switchId}
-          className="text-muted-foreground text-xs tracking-caps uppercase"
+          className="text-muted-foreground text-sm  uppercase"
         >
           {label}
         </label>
       </div>
-      <p className="text-muted-foreground mt-1 text-xs">{hint}</p>
+      <p className="text-muted-foreground mt-1 text-sm">{hint}</p>
     </div>
   );
 }
@@ -912,7 +905,7 @@ function Field({
     <div className="w-64">
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-xs tracking-caps uppercase"
+        className="text-muted-foreground block text-sm  uppercase"
       >
         {label}
       </label>
@@ -926,7 +919,7 @@ function Field({
           onChange(event.target.value);
         }}
       />
-      <p className="text-muted-foreground mt-1 text-xs">{hint}</p>
+      <p className="text-muted-foreground mt-1 text-sm">{hint}</p>
     </div>
   );
 }
@@ -935,7 +928,7 @@ function Column({ children }: { children: React.ReactNode }) {
   return (
     <th
       scope="col"
-      className="text-muted-foreground px-3 py-2 text-left text-xs font-normal tracking-caps uppercase first:pl-0 last:pr-0"
+      className="text-muted-foreground px-3 py-2 text-left text-sm font-normal  uppercase first:pl-0 last:pr-0"
     >
       {children}
     </th>

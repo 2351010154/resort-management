@@ -11,11 +11,9 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@fontsource-variable/cormorant-garamond": "5.3.0",
-    "@fontsource/ibm-plex-mono": "5.3.0",
+    "@fontsource-variable/figtree": "5.3.0",
     "@mariva/api-client": "workspace:*",
     "@mariva/shared": "workspace:*",
-    "@mariva/tokens": "workspace:*",
     "@orpc/tanstack-query": "1.14.10",
     "@tanstack/react-query": "^5.101.4",
     "@tanstack/react-table": "^8.21.3",

@@ -39,12 +39,12 @@ function BarYAxisLabel({
            `--color-zinc-500`, and neither exists in this console: the theme
            deletes the stock palette outright and names its own colour
            `--color-foreground`. Both are the chart vocabulary now, which is a
-           `var()` into @mariva/tokens like everything else here. */
+           semantic `var()` into the console palette like everything else here. */
         animate={{
           opacity: isHovered ? 1 : 0.7,
           color: isHovered ? "var(--chart-foreground)" : "var(--chart-label)",
         }}
-        className={cn("truncate whitespace-nowrap text-right text-xs")}
+        className={cn("truncate whitespace-nowrap text-right text-sm")}
         initial={{
           opacity: 0.7,
           color: "var(--chart-label)",

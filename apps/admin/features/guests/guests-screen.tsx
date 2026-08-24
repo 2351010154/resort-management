@@ -1,11 +1,20 @@
 "use client";
 
 import type { StaffRole } from "@mariva/shared";
+import { SearchIcon, UserRoundIcon } from "lucide-react";
 import { useId, useRef, useState } from "react";
 import type * as React from "react";
 
+import {
+  EmptyState,
+  FilterBar,
+  KeyHint,
+  PageHeader,
+} from "@/components/console";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { SearchCriteria } from "@/features/bookings/booking-search";
 import { useStaffSession } from "@/lib/auth";
 import {
@@ -128,88 +137,93 @@ export function GuestsScreen() {
   }
 
   return (
-    <div className="p-rhythm-3">
-      <header>
-        <p className="text-muted-foreground text-xs tracking-caps uppercase">
-          Front desk
-        </p>
-        <h1 className="font-display text-display-sm mt-2">Guests</h1>
-        <p className="text-muted-foreground mt-rhythm-1 border-border border-t pt-2">
-          Find a guest by name or telephone number, and read their record. The
-          identity number is masked until it is deliberately revealed, and every
-          reading is recorded.
-        </p>
-      </header>
+    <div className="mx-auto w-full max-w-[1600px] p-4 sm:p-6 lg:p-8">
+      <PageHeader
+        title="Guests"
+        description="Find guests by name or telephone. Identity details stay masked."
+      />
 
-      <form
-        className="mt-rhythm-2"
+      <FilterBar
+        className="mt-6"
+        fieldsClassName="lg:max-w-2xl lg:grid-cols-2"
+        actions={
+          <Button type="submit">
+            <SearchIcon aria-hidden="true" />
+            Search
+          </Button>
+        }
         onSubmit={(event) => {
           event.preventDefault();
           runSearch();
         }}
       >
-        <div className="grid gap-3 sm:grid-cols-2 lg:max-w-2xl">
-          <Field
-            label="Guest name"
-            value={fields.fullName}
-            inputRef={nameField}
-            onChange={(fullName) => {
-              setFields((current) => ({ ...current, fullName }));
-            }}
-          />
-          <Field
-            label="Telephone"
-            value={fields.phone}
-            onChange={(phone) => {
-              setFields((current) => ({ ...current, phone }));
-            }}
-          />
-        </div>
+        <Field
+          label="Guest name"
+          value={fields.fullName}
+          inputRef={nameField}
+          onChange={(fullName) => {
+            setFields((current) => ({ ...current, fullName }));
+          }}
+        />
+        <Field
+          label="Telephone"
+          value={fields.phone}
+          onChange={(phone) => {
+            setFields((current) => ({ ...current, phone }));
+          }}
+        />
+      </FilterBar>
 
-        {problem === null ? null : (
-          <p className="border-destructive text-destructive mt-rhythm-1 border-l-2 pl-3 text-sm">
-            {problem}
-          </p>
-        )}
+      {problem === null ? null : (
+        <p
+          className="mt-3 border-danger border-l-2 pl-3 text-sm text-danger"
+          role="alert"
+        >
+          {problem}
+        </p>
+      )}
 
-        <div className="mt-rhythm-1 flex flex-wrap items-center gap-3">
-          <Button type="submit">Search</Button>
-          <span className="text-muted-foreground text-xs">
-            / searches. The identity number is not searchable.
-          </span>
-        </div>
-      </form>
+      <p className="mt-3 text-sm text-muted-foreground">
+        <KeyHint>/</KeyHint> focuses search. Identity numbers are not
+        searchable.
+      </p>
 
-      <div className="mt-rhythm-2 grid gap-rhythm-2 lg:grid-cols-[18rem_1fr]">
-        <div>
+      <div className="mt-6 grid gap-4 lg:grid-cols-[320px_minmax(0,1fr)]">
+        <Card className="min-h-72 p-3">
           {list.status === "idle" ? (
-            <p className="text-muted-foreground text-sm">
-              Nobody yet. A guest is found by the name or the number the desk
-              was given — there is no list of everybody the property has.
-            </p>
+            <EmptyState
+              title="Search for a guest"
+              description="Enter a name or telephone number."
+              className="px-4 py-10 shadow-none"
+            />
           ) : null}
 
           {list.status === "pending" ? (
-            <p className="text-muted-foreground text-sm" aria-busy>
-              Looking for the guest.
-            </p>
+            <div className="space-y-2" aria-busy>
+              <Skeleton className="h-14" />
+              <Skeleton className="h-14" />
+              <Skeleton className="h-14" />
+            </div>
           ) : null}
 
           {list.status === "failed" ? (
             // The console's error device is a rule on the leading edge rather
             // than a colour: --color-destructive and --color-primary are the
             // same umber.
-            <p className="border-destructive text-destructive border-l-2 pl-3 text-sm">
-              The search could not be run. Nothing here is a statement about who
-              the property has on file.
+            <p
+              className="border-danger border-l-2 pl-3 text-sm text-danger"
+              role="alert"
+            >
+              Guest search could not be run.
             </p>
           ) : null}
 
           {list.status === "ready" && list.guests.length === 0 ? (
-            <p className="text-muted-foreground text-sm">
-              Nobody matches. A guest is on file once they have been registered
-              at check-in, so somebody arriving tomorrow may not be here yet.
-            </p>
+            <EmptyState
+              title="No matching guests"
+              description="Guests appear after registration. Try a fuller name or telephone number."
+              className="px-4 py-10 shadow-none"
+            />
           ) : null}
 
           {list.status === "ready" && list.guests.length > 0 ? (
@@ -230,20 +244,20 @@ export function GuestsScreen() {
               </RovingFocusGroup>
 
               {list.truncated ? (
-                <p className="text-muted-foreground mt-rhythm-1 text-sm">
-                  The search answers at most fifty people and has no second
-                  page, so there may be somebody this list does not show. Narrow
-                  it with a fuller name or the telephone number.
+                <p className="mt-3 border-border border-t px-2 pt-3 text-sm text-muted-foreground">
+                  Showing the first fifty guests. Narrow the search to find
+                  more.
                 </p>
               ) : null}
             </>
           ) : null}
-        </div>
+        </Card>
 
         {selected === null || role === null ? (
-          <p className="text-muted-foreground text-sm">
-            Pick a guest to read their record.
-          </p>
+          <EmptyState
+            title="Choose a guest"
+            description="Select a search result to read the guest record."
+          />
         ) : (
           /* Keyed by the guest, so choosing another person takes the whole of
              the previous record with it — a revealed number included. This is
@@ -279,12 +293,12 @@ function GuestRow({
         aria-current={selected}
         onClick={onSelect}
         className={cn(
-          "hover:bg-accent/40 focus-visible:bg-accent/40 flex w-full flex-col gap-0.5 rounded-sm px-2 py-1.5 text-left text-sm",
-          selected ? "bg-accent/60" : null,
+          "flex min-h-14 w-full flex-col justify-center gap-0.5 rounded-md px-3 text-left text-sm transition-colors duration-150 ease-ui hover:bg-accent-soft/60 focus-visible:bg-accent-soft/60",
+          selected ? "bg-accent-soft text-accent-strong" : null,
         )}
       >
-        <span>{guest.fullName}</span>
-        <span className="text-muted-foreground font-mono text-xs">
+        <span className="font-semibold">{guest.fullName}</span>
+        <span className="text-sm text-muted-foreground">
           {/* What distinguishes one candidate from another, which is what the
               search is allowed to disclose. The masked number is here because
               two people with one name are told apart by it at the desk, with a
@@ -303,27 +317,35 @@ function GuestDetail({ guest, role }: { guest: GuestHit; role: StaffRole }) {
   const record = useGuestRecord(guest.id);
 
   return (
-    <div className="border-border border-l pl-4">
-      <h2 className="font-display text-2xl">
-        {record.data?.fullName ?? guest.fullName}
-      </h2>
+    <Card className="overflow-hidden">
+      <div className="flex items-center gap-4 border-border border-b p-5">
+        <span className="grid size-12 place-items-center rounded-lg bg-accent-soft text-accent-strong">
+          <UserRoundIcon aria-hidden="true" className="size-5" />
+        </span>
+        <h2 className="text-2xl font-semibold leading-8">
+          {record.data?.fullName ?? guest.fullName}
+        </h2>
+      </div>
 
       {record.isPending ? (
-        <p className="text-muted-foreground mt-rhythm-1 text-sm" aria-busy>
-          Reading the record.
-        </p>
+        <div className="space-y-2 p-5" aria-busy>
+          <Skeleton className="h-8" />
+          <Skeleton className="h-8" />
+        </div>
       ) : null}
 
       {record.isError ? (
-        <p className="border-destructive text-destructive mt-rhythm-1 border-l-2 pl-3 text-sm">
-          The record could not be read. What the search showed is all this
-          screen knows about this guest.
+        <p
+          className="m-5 border-danger border-l-2 pl-3 text-sm text-danger"
+          role="alert"
+        >
+          The guest record could not be read.
         </p>
       ) : null}
 
       {record.data === undefined ? null : (
         <>
-          <dl className="mt-rhythm-1 grid gap-3 text-sm sm:grid-cols-2">
+          <dl className="grid gap-4 p-5 text-sm sm:grid-cols-2">
             {guestFacts(record.data).map((fact) => (
               <Fact key={fact.label} fact={fact} />
             ))}
@@ -331,7 +353,7 @@ function GuestDetail({ guest, role }: { guest: GuestHit; role: StaffRole }) {
 
           <IdentityNumber record={record.data} role={role} />
 
-          <p className="text-muted-foreground mt-rhythm-2 text-xs">
+          <p className="text-muted-foreground mt-4 text-sm">
             {/* Said rather than implied: an operator looking for a stay list or
                 a scan on this screen is owed the reason there is none. */}
             This record is the person, not their stays — a guest's bookings are
@@ -341,7 +363,7 @@ function GuestDetail({ guest, role }: { guest: GuestHit; role: StaffRole }) {
           </p>
         </>
       )}
-    </div>
+    </Card>
   );
 }
 
@@ -371,7 +393,7 @@ function IdentityNumber({
 
   if (record.cccdMasked === null) {
     return (
-      <section className="mt-rhythm-2">
+      <section className="mt-4">
         <h3 className="text-sm">Identity number</h3>
         <p className="text-muted-foreground mt-1 text-sm">
           None on file. It is taken from the document at check-in.
@@ -395,10 +417,10 @@ function IdentityNumber({
   }
 
   return (
-    <section className="mt-rhythm-2">
+    <section className="mt-4">
       <h3 className="text-sm">Identity number</h3>
 
-      <p className="mt-1 font-mono text-lg">
+      <p className="mt-1 tabular-nums text-lg">
         {/* In place: the masked value and the revealed one occupy the same line,
             so an operator reading a document against the screen does not have
             to look somewhere else once they have pressed. */}
@@ -406,20 +428,20 @@ function IdentityNumber({
       </p>
 
       {revealed === undefined ? null : (
-        <p className="text-muted-foreground mt-1 text-xs">
+        <p className="text-muted-foreground mt-1 text-sm">
           {revealNotice(revealed)} It is masked again as soon as you leave this
           record, and reading it a second time is a second entry.
         </p>
       )}
 
       {!mayRevealCccd(role) ? (
-        <p className="text-muted-foreground mt-rhythm-1 text-xs">
+        <p className="text-muted-foreground mt-2 text-sm">
           Reading the number itself is the desk's act, and a manager's. This
           account reads the record with the number masked.
         </p>
       ) : revealed === undefined ? (
         <form
-          className="mt-rhythm-1 flex flex-wrap items-end gap-2"
+          className="mt-2 flex flex-wrap items-end gap-2"
           onSubmit={(event) => {
             event.preventDefault();
             press();
@@ -428,7 +450,7 @@ function IdentityNumber({
           <Field
             label="Reason"
             value={reason}
-            hint="Optional — checking a document, a police request. Who looked and when is recorded either way."
+            hint="Optional. Every reveal is recorded."
             onChange={(typed) => {
               setReason(typed);
               setProblem(null);
@@ -441,7 +463,7 @@ function IdentityNumber({
       ) : null}
 
       {problem === null ? null : (
-        <p className="border-destructive text-destructive mt-rhythm-1 border-l-2 pl-3 text-sm">
+        <p className="border-destructive text-destructive mt-2 border-l-2 pl-3 text-sm">
           {problem}
         </p>
       )}
@@ -471,7 +493,7 @@ function Field({
     <div>
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-xs tracking-caps uppercase"
+        className="block text-sm font-semibold text-muted-foreground"
       >
         {label}
       </label>
@@ -486,7 +508,7 @@ function Field({
         }}
       />
       {hint === undefined ? null : (
-        <p className="text-muted-foreground mt-1 max-w-64 text-xs">{hint}</p>
+        <p className="text-muted-foreground mt-1 max-w-64 text-sm">{hint}</p>
       )}
     </div>
   );
@@ -495,7 +517,7 @@ function Field({
 function Fact({ fact }: { fact: GuestFact }) {
   return (
     <div>
-      <dt className="text-muted-foreground text-xs tracking-caps uppercase">
+      <dt className="text-sm font-semibold text-muted-foreground">
         {fact.label}
       </dt>
       <dd>{fact.value}</dd>

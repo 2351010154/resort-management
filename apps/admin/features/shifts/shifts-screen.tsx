@@ -10,8 +10,15 @@ import {
 import type * as React from "react";
 import { useId, useMemo, useRef, useState } from "react";
 
+import {
+  DataTableFrame,
+  EmptyState,
+  KeyHint,
+  PageHeader,
+} from "@/components/console";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useCommands } from "@/features/command-palette";
 /* The property's day, from the hook the rest of the console already asks it
  * with: one route through the same `orpc` utils is one cache entry, so the day a
@@ -234,30 +241,20 @@ export function ShiftsScreen() {
   }
 
   return (
-    <div className="p-rhythm-3">
-      <header>
-        <p className="text-muted-foreground text-xs tracking-caps uppercase">
-          Operations
-        </p>
-        <h1 className="font-display text-display-sm mt-2">Shifts</h1>
-        <p className="text-muted-foreground mt-rhythm-1 border-border border-t pt-2">
-          The desk's days as they were counted out: who was answerable, what the
-          drawer should have held, what it did hold, and what the shift told the
-          one after it. A drawer is opened and closed from the command palette
-          on whatever screen the desk is working — this is the record of it.
-        </p>
-      </header>
+    <div className="mx-auto w-full max-w-[1600px] p-4 sm:p-6 lg:p-8">
+      <PageHeader
+        title="Shifts"
+        description="Drawer history, variances, and handover notes."
+      />
 
       {!offered ? (
-        <p className="text-muted-foreground mt-rhythm-2 max-w-prose text-sm">
-          The cash drawer belongs to the desk, the accountant and management. A
-          housekeeper's day is worked on the board, which is the one screen it
-          happens on.
+        <p className="mt-6 max-w-prose text-sm text-muted-foreground">
+          Shift history is available to front desk, accounting, and management.
         </p>
       ) : (
         <>
           <form
-            className="mt-rhythm-2"
+            className="mt-6 rounded-lg bg-card p-4 shadow-card"
             onSubmit={(event) => {
               event.preventDefault();
               ask(fields, 0);
@@ -294,12 +291,12 @@ export function ShiftsScreen() {
             </div>
 
             {problem === null ? null : (
-              <p className="border-destructive text-destructive mt-rhythm-1 border-l-2 pl-3 text-sm">
+              <p className="border-destructive text-destructive mt-2 border-l-2 pl-3 text-sm">
                 {problem}
               </p>
             )}
 
-            <div className="mt-rhythm-1 flex flex-wrap items-center gap-3">
+            <div className="mt-2 flex flex-wrap items-center gap-3">
               <Button type="submit">Show shifts</Button>
               {exportsTheHistory ? (
                 /* The label changes as well as the control disabling: a file of
@@ -317,20 +314,20 @@ export function ShiftsScreen() {
                     : "Export to Excel"}
                 </Button>
               ) : null}
-              <span className="text-muted-foreground text-xs">
+              <span className="text-muted-foreground flex flex-wrap items-center gap-2 text-sm">
                 {/* Said rather than implied: both ends are the trading day the
                     shift opened on and not the instant it opened at, which is
                     what puts a night shift's variance on the day it was
                     answerable for. */}
-                / reaches the first day · both ends are inclusive trading days
-                {picksOperator
-                  ? ""
-                  : " · the history you are shown is your own"}
+                <KeyHint>/</KeyHint>
+                <span>First day</span>
+                <span>Inclusive trading days</span>
+                {picksOperator ? null : <span>Your shifts only</span>}
               </span>
             </div>
           </form>
 
-          <div className="mt-rhythm-2 grid gap-rhythm-2 lg:grid-cols-[1fr_22rem]">
+          <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
             <ShiftTable
               shifts={shifts}
               pending={history.isPending}
@@ -376,37 +373,40 @@ function ShiftTable({
     // The console's error device is a rule on the leading edge rather than a
     // colour: --color-destructive and --color-primary are the same umber.
     return (
-      <p className="border-destructive text-destructive border-l-2 pl-3 text-sm">
-        The shift history could not be read. Nothing here is a statement about
-        what happened at the desk.
+      <p
+        className="border-danger border-l-2 pl-3 text-sm text-danger"
+        role="alert"
+      >
+        Shift history could not be loaded.
       </p>
     );
   }
 
   if (pending) {
     return (
-      <p className="text-muted-foreground text-sm" aria-busy>
-        Reading the desk's days.
-      </p>
+      <div className="space-y-2" aria-busy>
+        <Skeleton className="h-12" />
+        <Skeleton className="h-12" />
+        <Skeleton className="h-12" />
+      </div>
     );
   }
 
   if (shifts.length === 0) {
     return (
-      <p className="text-muted-foreground text-sm">
-        No shift matches. A stretch of days with no shift on it is a property
-        nobody opened a drawer at, which is an ordinary answer for a quiet week
-        and a question worth asking on a busy one.
-      </p>
+      <EmptyState
+        title="No matching shifts"
+        description="Try a wider date range or another operator."
+      />
     );
   }
 
   const window = pageWindow(total, shifts.length, offset, SHIFT_PAGE_SIZE);
 
   return (
-    <div>
-      <table className="w-full border-collapse text-sm">
-        <caption className="text-muted-foreground mb-rhythm-1 text-left text-xs">
+    <DataTableFrame className="overflow-x-auto p-4">
+      <table className="w-full min-w-[900px] border-collapse text-sm">
+        <caption className="text-muted-foreground mb-2 text-left text-sm">
           Every shift the filters matched, newest opening first. What the drawer
           should have held is the opening float, plus the cash taken on it, plus
           what the property recorded through it; the variance is the property's
@@ -430,8 +430,8 @@ function ShiftTable({
         </tbody>
       </table>
 
-      <div className="mt-rhythm-1 flex flex-wrap items-center gap-3">
-        <p className="text-muted-foreground text-xs">
+      <div className="mt-2 flex flex-wrap items-center gap-3">
+        <p className="text-muted-foreground text-sm">
           {window.first}–{window.last} of {window.total}
         </p>
         <Button
@@ -455,7 +455,7 @@ function ShiftTable({
           Next
         </Button>
       </div>
-    </div>
+    </DataTableFrame>
   );
 }
 
@@ -480,7 +480,7 @@ function ShiftRows({ shift }: { shift: Shift }) {
       >
         <td className="py-1 pr-3 whitespace-nowrap first:pl-0">
           {formatShortDate(shift.openingBusinessDate)}
-          <span className="text-muted-foreground block text-xs">
+          <span className="text-muted-foreground block text-sm">
             {formatInstant(shift.openedAt)}
             {shift.closedAt === null
               ? " · still open"
@@ -488,10 +488,10 @@ function ShiftRows({ shift }: { shift: Shift }) {
           </span>
         </td>
         <td className="px-3 py-1">{shift.operatorName}</td>
-        <td className="px-3 py-1 text-right font-mono whitespace-nowrap">
+        <td className="px-3 py-1 text-right tabular-nums whitespace-nowrap">
           {formatVnd(shift.openingFloat)}
         </td>
-        <td className="px-3 py-1 text-right font-mono whitespace-nowrap">
+        <td className="px-3 py-1 text-right tabular-nums whitespace-nowrap">
           {formatVnd(shift.cashTaken)}
         </td>
         {/* The property's own money through the same till — `FR-OPS-02`. A term
@@ -499,10 +499,10 @@ function ShiftRows({ shift }: { shift: Shift }) {
             than folded into it: one is what the desk took and the other is what
             the property spent from the till, and a manager reading a variance
             asks which. */}
-        <td className="px-3 py-1 text-right font-mono whitespace-nowrap">
+        <td className="px-3 py-1 text-right tabular-nums whitespace-nowrap">
           {formatVnd(shift.cashBookNet)}
         </td>
-        <td className="px-3 py-1 text-right font-mono whitespace-nowrap">
+        <td className="px-3 py-1 text-right tabular-nums whitespace-nowrap">
           {shift.closingCount === null ? (
             <span className="text-muted-foreground">Not counted</span>
           ) : (
@@ -560,7 +560,7 @@ function OperatorChoice({
     <div>
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-xs tracking-caps uppercase"
+        className="text-muted-foreground block text-sm  uppercase"
       >
         Operator
       </label>
@@ -606,7 +606,7 @@ function Field({
     <div>
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-xs tracking-caps uppercase"
+        className="text-muted-foreground block text-sm  uppercase"
       >
         {label}
       </label>
@@ -636,7 +636,7 @@ function Column({
     <th
       scope="col"
       className={cn(
-        "text-muted-foreground px-3 py-2 text-xs font-normal tracking-caps uppercase first:pl-0 last:pr-0",
+        "text-muted-foreground px-3 py-2 text-sm font-normal  uppercase first:pl-0 last:pr-0",
         align === "right" ? "text-right" : "text-left",
       )}
     >

@@ -78,7 +78,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
              * way every other shell command is. It renders the panel itself, so
              * neither surface owns one the other opens. */}
             <ShiftSurfaceProvider>
-              <div className="flex min-h-svh">
+              <div className="flex min-h-svh bg-background">
                 {/* Before the children in the markup, which is where a landmark
                  * belongs for anything reading the page in order. Its commands are
                  * not registered here — see `NavShortcuts` below — so the shell's
@@ -87,7 +87,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 {/* `min-w-0`, so a wide table inside a screen scrolls within the
                  * main region instead of stretching the flex row and pushing the
                  * rail off the left of the window. */}
-                <div className="flex min-w-0 flex-1 flex-col">
+                <div className="flex min-w-0 flex-1 flex-col bg-background">
                   {/* The top bar `screens.md` puts the current shift in. It
                    * holds one state and no navigation: the rail is the map, and
                    * whether the operator is on a drawer is a fact they need
@@ -106,7 +106,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                    * of its own — two of those in one document is a landmark list
                    * nobody can navigate by. */}
                   <ShiftBar />
-                  <main className="min-w-0 flex-1">{children}</main>
+                  <main className="min-w-0 flex-1 overflow-x-clip">
+                    {children}
+                  </main>
                 </div>
               </div>
               {/* After the children for the same reason the palette is: React

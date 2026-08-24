@@ -1,10 +1,14 @@
 "use client";
 
 import type { StaffRole } from "@mariva/shared";
+import { BedDoubleIcon } from "lucide-react";
 import { useId, useMemo, useState } from "react";
 
+import { EmptyState, PageHeader, StatusChip } from "@/components/console";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { BoardRoom } from "@/features/housekeeping";
 import { boardTile, CONDITION_LABELS } from "@/features/housekeeping";
 import { useStaffSession } from "@/lib/auth";
@@ -100,47 +104,46 @@ export function RoomsScreen() {
       .find((one) => one.roomNumber === selected) ?? null;
 
   return (
-    <div className="p-rhythm-3">
-      <header>
-        <p className="text-muted-foreground text-xs tracking-caps uppercase">
-          Property
-        </p>
-        <h1 className="font-display text-display-sm mt-2">Rooms</h1>
-        <p className="text-muted-foreground mt-rhythm-1 border-border border-t pt-2">
-          Every room the property has, by what it is sold as. Pick one to shut
-          it for maintenance or to withdraw it from sale.
-        </p>
-      </header>
+    <div className="mx-auto w-full max-w-[1600px] p-4 sm:p-6 lg:p-8">
+      <PageHeader
+        title="Rooms"
+        description="Room condition, occupancy, and inventory closures."
+      />
 
       {list.status === "pending" ? (
-        <p className="text-muted-foreground mt-rhythm-2 text-sm" aria-busy>
-          Reading the property's rooms.
-        </p>
+        <div className="mt-6 grid gap-4 lg:grid-cols-[300px_1fr]" aria-busy>
+          <Skeleton className="h-80" />
+          <Skeleton className="h-80" />
+        </div>
       ) : null}
 
       {list.status === "failed" ? (
         // The console's error device is a rule on the leading edge rather than
         // a colour: --color-destructive and --color-primary are the same umber.
-        <p className="border-destructive text-destructive mt-rhythm-2 border-l-2 pl-3 text-sm">
-          The rooms could not be loaded. Nothing here is a statement about what
-          the property has to sell.
+        <p
+          className="mt-6 border-danger border-l-2 pl-3 text-sm text-danger"
+          role="alert"
+        >
+          Rooms could not be loaded. Inventory details are unavailable.
         </p>
       ) : null}
 
       {list.status === "ready" ? (
-        <div className="mt-rhythm-2 grid gap-rhythm-2 lg:grid-cols-[16rem_1fr]">
-          <div className="flex flex-col gap-4">
+        <div className="mt-6 grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
+          <Card className="flex flex-col gap-4 p-4">
             <Field
               label="Find a room"
               value={query}
-              hint="A number, a type, or a condition — 402, deluxe, out of order."
+              hint="Number, type, or condition."
               onChange={setQuery}
             />
 
             {shown.length === 0 ? (
-              <p className="text-muted-foreground text-sm">
-                No room answers that. Clear the field to see the property again.
-              </p>
+              <EmptyState
+                title="No matching room"
+                description="Clear the search to see every room."
+                className="px-4 py-8 shadow-none"
+              />
             ) : null}
 
             <RovingFocusGroup
@@ -149,7 +152,7 @@ export function RoomsScreen() {
             >
               {shown.map((group) => (
                 <section key={group.roomType}>
-                  <h2 className="text-muted-foreground text-xs tracking-caps uppercase">
+                  <h2 className="px-2 text-sm font-semibold  text-muted-foreground uppercase">
                     {/* The code as the contract spells it. The console names room
                       types this way on every other screen — arrivals' "Sold as"
                       column, the new booking form's choices — and a second
@@ -157,7 +160,7 @@ export function RoomsScreen() {
                       catalogue. */}
                     {group.roomType}
                   </h2>
-                  <ul className="mt-1">
+                  <ul className="mt-1 space-y-1">
                     {group.rooms.map((one) => (
                       <RoomRow
                         key={one.roomNumber}
@@ -172,12 +175,13 @@ export function RoomsScreen() {
                 </section>
               ))}
             </RovingFocusGroup>
-          </div>
+          </Card>
 
           {room === null || role === null ? (
-            <p className="text-muted-foreground text-sm">
-              Pick a room to see its state, and what can be done about it.
-            </p>
+            <EmptyState
+              title="Choose a room"
+              description="Select a room to view its state and available actions."
+            />
           ) : (
             /* Keyed by the room, so choosing another one resets the two forms
                below with it. A reason typed for 402 must not still be sitting in
@@ -218,21 +222,27 @@ function RoomRow({
         aria-current={selected}
         onClick={onSelect}
         className={cn(
-          "hover:bg-accent/40 focus-visible:bg-accent/40 flex w-full items-baseline justify-between gap-2 rounded-sm px-2 py-1.5 text-left text-sm",
-          selected ? "bg-accent/60" : null,
+          "flex min-h-12 w-full items-center justify-between gap-3 rounded-md px-3 text-left text-sm transition-colors duration-150 ease-ui hover:bg-accent-soft/60 focus-visible:bg-accent-soft/60",
+          selected ? "bg-accent-soft text-accent-strong" : null,
         )}
       >
-        <span className="font-mono">{room.roomNumber}</span>
-        <span
-          className={cn(
-            "text-xs",
+        <span className="flex items-center gap-3">
+          <span className="grid h-8 min-w-12 place-items-center rounded-md border border-border bg-card px-2 font-semibold tabular-nums shadow-xs">
+            {room.roomNumber}
+          </span>
+          <span className="text-muted-foreground">{room.roomType}</span>
+        </span>
+        <StatusChip
+          tone={
             room.status === "OUT_OF_ORDER"
-              ? "text-destructive"
-              : "text-muted-foreground",
-          )}
+              ? "danger"
+              : room.isReady
+                ? "success"
+                : "warning"
+          }
         >
           {roomStateLabel(room)}
-        </span>
+        </StatusChip>
       </button>
     </li>
   );
@@ -251,12 +261,22 @@ function RoomDetail({
   const isShut = room.status === "OUT_OF_ORDER";
 
   return (
-    <div className="border-border border-l pl-4">
-      <h2 className="font-display text-2xl">
-        Room <span className="font-mono">{room.roomNumber}</span>
-      </h2>
+    <Card className="overflow-hidden">
+      <div className="flex items-center gap-4 border-border border-b p-5">
+        <span className="grid size-12 place-items-center rounded-lg bg-accent-soft text-accent-strong">
+          <BedDoubleIcon aria-hidden="true" className="size-5" />
+        </span>
+        <span>
+          <span className="block text-sm font-semibold  text-muted-foreground uppercase">
+            Room
+          </span>
+          <h2 className="text-2xl font-semibold leading-8 tabular-nums">
+            {room.roomNumber}
+          </h2>
+        </span>
+      </div>
 
-      <dl className="mt-rhythm-1 grid gap-3 text-sm sm:grid-cols-2">
+      <dl className="grid gap-4 p-5 text-sm sm:grid-cols-2 xl:grid-cols-3">
         <Fact label="Sold as" value={room.roomType} />
         <Fact label="Floor" value={String(room.floor)} />
         <Fact
@@ -264,16 +284,12 @@ function RoomDetail({
           value={
             isShut
               ? CONDITION_LABELS.OUT_OF_ORDER
-              : `${CONDITION_LABELS[room.status]}${room.isReady ? " — a guest can be walked in" : ""}`
+              : `${CONDITION_LABELS[room.status]}${room.isReady ? ", ready for a guest" : ""}`
           }
         />
         <Fact
           label="Assignment"
-          value={
-            room.isOccupied
-              ? "Occupied — a stay is in the room"
-              : "Vacant — no stay holds it"
-          }
+          value={room.isOccupied ? "Occupied" : "Vacant"}
         />
         {/* The board's own attribution, not a second rendering of it: the tile
             already answers who last set a room and when, in the property's zone,
@@ -288,15 +304,16 @@ function RoomDetail({
         ) : null}
       </dl>
 
-      <p className="text-muted-foreground mt-rhythm-1 text-xs">
-        Which stay is in the room is the booking's, not the room's — the board
-        answers occupancy and never who is in it. Rooms and room types
-        themselves are seeded and are not edited here.
+      <p className="mx-5 border-border border-t pt-4 text-sm text-muted-foreground">
+        Guest details stay with the booking. Room catalogue changes are not
+        available here.
       </p>
 
-      <OutOfOrderControl room={room} role={role} />
-      <ClosureControl room={room} role={role} businessDate={businessDate} />
-    </div>
+      <div className="grid gap-4 p-5 xl:grid-cols-2">
+        <OutOfOrderControl room={room} role={role} />
+        <ClosureControl room={room} role={role} businessDate={businessDate} />
+      </div>
+    </Card>
   );
 }
 
@@ -342,15 +359,14 @@ function OutOfOrderControl({
   }
 
   return (
-    <section className="mt-rhythm-2">
-      <h3 className="text-sm">Out of order</h3>
-      <p className="text-muted-foreground mt-1 text-xs">
-        Immediate, and room state only. The property still has the same number
-        of {room.roomType} rooms to sell on every date.
+    <section className="rounded-lg bg-surface-muted p-4">
+      <h3 className="font-semibold">Out of order</h3>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Immediate room state. Sellable inventory does not change.
       </p>
 
       {isShut ? (
-        <div className="mt-rhythm-1">
+        <div className="mt-4">
           <Button
             type="button"
             disabled={outOfOrder.isPending}
@@ -360,14 +376,13 @@ function OutOfOrderControl({
           >
             Return to service
           </Button>
-          <p className="text-muted-foreground mt-1 text-xs">
-            The room comes back as dirty rather than clean: somebody has been
-            working in there, and housekeeping releases it.
+          <p className="mt-2 text-sm text-muted-foreground">
+            The room returns as dirty for housekeeping release.
           </p>
         </div>
       ) : (
         <form
-          className="mt-rhythm-1 flex flex-wrap items-end gap-2"
+          className="mt-4 flex flex-wrap items-end gap-2"
           onSubmit={(event) => {
             event.preventDefault();
             act(true);
@@ -376,7 +391,7 @@ function OutOfOrderControl({
           <Field
             label="Reason"
             value={reason}
-            hint="Shower mixer leaking, repainting — the desk will be asked why."
+            hint="For example: shower mixer leaking."
             onChange={setReason}
           />
           {/* The doubled rule rather than a colour, because the console's
@@ -393,7 +408,7 @@ function OutOfOrderControl({
       )}
 
       {problem === null ? null : (
-        <p className="border-destructive text-destructive mt-rhythm-1 border-l-2 pl-3 text-sm">
+        <p className="mt-3 border-danger border-l-2 pl-3 text-sm text-danger">
           {problem}
         </p>
       )}
@@ -424,7 +439,7 @@ function ClosureControl({
 
   if (!mayCloseRooms(role)) {
     return (
-      <p className="text-muted-foreground mt-rhythm-2 text-xs">
+      <p className="rounded-lg bg-surface-muted p-4 text-sm text-muted-foreground">
         Withdrawing a room from sale for a range of nights is a manager's act.
       </p>
     );
@@ -465,15 +480,14 @@ function ClosureControl({
   }
 
   return (
-    <section className="mt-rhythm-2">
-      <h3 className="text-sm">Schedule closure</h3>
-      <p className="text-muted-foreground mt-1 text-xs">
-        Withdraws the room from sale for a range of nights. This is a commercial
-        act: it changes what a guest can buy and touches no cleaning state.
+    <section className="rounded-lg bg-surface-muted p-4">
+      <h3 className="font-semibold">Schedule closure</h3>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Withdraws nights from sale without changing cleaning state.
       </p>
 
       <form
-        className="mt-rhythm-1 flex flex-wrap items-end gap-2"
+        className="mt-4 grid gap-3 sm:grid-cols-2"
         onSubmit={(event) => {
           event.preventDefault();
           submit();
@@ -508,22 +522,22 @@ function ClosureControl({
       </form>
 
       {attempt !== null && "input" in attempt ? (
-        <p className="mt-rhythm-1 text-sm">
+        <p className="mt-2 text-sm">
           Withdraws {attempt.nights} {attempt.nights === 1 ? "night" : "nights"}{" "}
-          of {room.roomType} from sale —{" "}
+          of {room.roomType} from sale, from{" "}
           {formatShortDate(attempt.input.checkIn)} up to{" "}
           {formatShortDate(attempt.input.checkOut)}, which stays on sale.
         </p>
       ) : null}
 
       {problem === null ? null : (
-        <p className="border-destructive text-destructive mt-rhythm-1 border-l-2 pl-3 text-sm">
+        <p className="mt-3 border-danger border-l-2 pl-3 text-sm text-danger">
           {problem}
         </p>
       )}
 
       {closeRoom.data === undefined ? null : (
-        <p className="text-muted-foreground mt-rhythm-1 text-sm">
+        <p className="text-muted-foreground mt-2 text-sm">
           Closed {formatLongDate(closeRoom.data.checkIn)} to{" "}
           {formatLongDate(closeRoom.data.checkOut)}:{" "}
           {closeRoom.data.nightsWithdrawn} nights withdrawn from sale.
@@ -553,7 +567,7 @@ function Field({
     <div>
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-xs tracking-caps uppercase"
+        className="block text-sm font-semibold text-muted-foreground"
       >
         {label}
       </label>
@@ -566,7 +580,7 @@ function Field({
         }}
       />
       {hint === undefined ? null : (
-        <p className="text-muted-foreground mt-1 max-w-64 text-xs">{hint}</p>
+        <p className="text-muted-foreground mt-1 max-w-64 text-sm">{hint}</p>
       )}
     </div>
   );
@@ -575,9 +589,7 @@ function Field({
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-muted-foreground text-xs tracking-caps uppercase">
-        {label}
-      </dt>
+      <dt className="text-sm font-semibold text-muted-foreground">{label}</dt>
       <dd>{value}</dd>
     </div>
   );

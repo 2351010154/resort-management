@@ -239,3 +239,145 @@ export function roomsNotReady(board: HousekeepingBoard): DayCount {
 export function unsettledFolios(page: FolioPage): DayCount {
   return { count: page.total, truncated: false };
 }
+
+/**
+ * What one panel knows about its own answer, for the answers that are not a
+ * number.
+ *
+ * {@link CountReading}'s three states, generalised. The four cards read a
+ * figure and the panels below them read a tally or a handful of stays, but all
+ * of them owe the operator the same distinction: an answer, or an honest
+ * sentence about why there isn't one. Two shapes for that would be two places
+ * for "failed" to be forgotten.
+ */
+export type Reading<T> =
+  | { readonly status: "pending" }
+  | { readonly status: "failed" }
+  | { readonly status: "read"; readonly value: T };
+
+/** {@link countReading}, for a derivation that answers with something else. */
+export function reading<S, T>(
+  source: CountSource<S>,
+  derive: (data: S) => T | null,
+): Reading<T> {
+  if (source.failed) {
+    return { status: "failed" };
+  }
+
+  if (source.data === undefined) {
+    return { status: "pending" };
+  }
+
+  const answer = derive(source.data);
+
+  return answer === null
+    ? { status: "failed" }
+    : { status: "read", value: answer };
+}
+
+/**
+ * Every room in the property, in the four states the desk sorts them into.
+ *
+ * Disjoint and exhaustive, so the four add up to `total` and the bar drawn from
+ * them fills. Occupancy is settled first because it outranks condition on this
+ * panel: a dirty room with a guest in it is a stayover the floor will service,
+ * not a room the desk is waiting on, and counting it as "to clean" would put it
+ * in the queue a receptionist reads as "rooms I am about to be able to sell".
+ *
+ * That ordering is also why this is not `roomsNotReady` with more categories.
+ * The card above counts rooms nobody can be walked into, occupied ones
+ * included; this counts what each room *is*.
+ */
+export interface HouseTally {
+  readonly occupied: number;
+  readonly readyVacant: number;
+  readonly toClean: number;
+  readonly outOfOrder: number;
+  readonly total: number;
+}
+
+export function houseTally(board: HousekeepingBoard): HouseTally {
+  let occupied = 0;
+  let readyVacant = 0;
+  let toClean = 0;
+  let outOfOrder = 0;
+
+  for (const room of board.rooms) {
+    if (room.isOccupied) {
+      occupied += 1;
+    } else if (room.status === "OUT_OF_ORDER") {
+      outOfOrder += 1;
+    } else if (room.isReady) {
+      readyVacant += 1;
+    } else {
+      toClean += 1;
+    }
+  }
+
+  return {
+    occupied,
+    readyVacant,
+    toClean,
+    outOfOrder,
+    total: board.rooms.length,
+  };
+}
+
+/** A sample of stays, and how many the sample was cut from. */
+export interface StaySample {
+  readonly stays: readonly BookingHit[];
+  readonly total: number;
+  /** True when the search itself was capped, so `total` is a floor. */
+  readonly truncated: boolean;
+}
+
+/**
+ * How many stays a preview panel draws before it stops and points at the queue.
+ *
+ * Four, because the panel is a glance and the queue is the screen for working
+ * through: a preview long enough to work from is the arrivals screen with a
+ * worse keyboard story.
+ */
+export const STAY_PREVIEW_LIMIT = 4;
+
+/**
+ * The stays behind the arrivals figure, as rows rather than a number.
+ *
+ * The order is the search's own. There is no arrival-time dimension on
+ * `search.operational` — a stay knows the day it starts and nothing finer — so
+ * there is no "next four" to sort for, and inventing a priority here would be
+ * the console telling a receptionist which guest matters most on evidence it
+ * does not have. What the panel offers is a sample and a total; which one to
+ * take is the queue's question.
+ */
+export function staysDueIn(
+  results: SearchResults,
+  businessDate: string,
+): StaySample | null {
+  return sampleStays(results, (stay) => stay.checkIn === businessDate);
+}
+
+/** The stays behind the departures figure, on the same terms. */
+export function staysDueOut(
+  results: SearchResults,
+  businessDate: string,
+): StaySample | null {
+  return sampleStays(results, (stay) => stay.checkOut === businessDate);
+}
+
+function sampleStays(
+  results: SearchResults,
+  matches: (stay: BookingHit) => boolean,
+): StaySample | null {
+  if (results.scope !== "everything") {
+    return null;
+  }
+
+  const matched = results.bookings.filter(matches);
+
+  return {
+    stays: matched.slice(0, STAY_PREVIEW_LIMIT),
+    total: matched.length,
+    truncated: results.bookings.length >= SEARCH_RESULT_LIMIT,
+  };
+}

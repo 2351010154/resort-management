@@ -9,7 +9,10 @@ import {
 import type * as React from "react";
 import { useMemo, useRef, useState } from "react";
 
+import { DataTableFrame, EmptyState, PageHeader } from "@/components/console";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 /* The property's day, from the hook the rest of the console already asks it
  * with — the revenue page's reason, unchanged: one route through the same
  * `orpc` utils is one cache entry, so a typed range is resolved against the day
@@ -164,25 +167,14 @@ export function PerformanceScreen() {
   }
 
   return (
-    <div className="p-rhythm-3">
-      <header>
-        <p className="text-muted-foreground text-xs tracking-caps uppercase">
-          Reports
-        </p>
-        <h1 className="font-display text-display-sm mt-2">
-          Occupancy, ADR and RevPAR
-        </h1>
-        <p className="text-muted-foreground mt-rhythm-1 border-border border-t pt-2 max-w-prose">
-          How full the property was over a stretch of closed trading days, what
-          it sold a room for, and what each room it could have sold earned. All
-          three are divisions of what the night audit froze: rooms sellable,
-          rooms sold, and net room charges — cancellation penalties stand
-          outside them, because a booking that did not happen sold no room.
-        </p>
-      </header>
+    <div className="mx-auto w-full max-w-[1600px] p-4 sm:p-6 lg:p-8">
+      <PageHeader
+        title="Performance"
+        description="Hotel performance over closed trading days."
+      />
 
       {!offered ? (
-        <p className="text-muted-foreground mt-rhythm-2 max-w-prose text-sm">
+        <p className="text-muted-foreground mt-4 max-w-prose text-sm">
           How the property performed belongs to the accountant and management.
           The desk sells the rooms and reads its own shift; what the selling
           came to is read by whoever answers for it. Where the rooms stand is
@@ -190,7 +182,7 @@ export function PerformanceScreen() {
         </p>
       ) : (
         <>
-          <section className="mt-rhythm-2">
+          <Card className="mt-6 p-4">
             <RangePicker
               fields={fields}
               firstDayField={firstDayField}
@@ -200,12 +192,12 @@ export function PerformanceScreen() {
             />
 
             {problem === null ? null : (
-              <p className="border-destructive text-destructive mt-rhythm-1 border-l-2 pl-3 text-sm">
+              <p className="border-destructive text-destructive mt-2 border-l-2 pl-3 text-sm">
                 {problem}
               </p>
             )}
 
-            <div className="mt-rhythm-1 flex flex-wrap items-center gap-3">
+            <div className="mt-2 flex flex-wrap items-center gap-3">
               <Stamp
                 pending={report.isPending}
                 failed={report.isError}
@@ -227,7 +219,7 @@ export function PerformanceScreen() {
                 </Button>
               ) : null}
             </div>
-          </section>
+          </Card>
 
           <Reading
             pending={report.isPending}
@@ -262,7 +254,7 @@ function Stamp({
   }
 
   return (
-    <span className="text-muted-foreground text-xs">
+    <span className="text-muted-foreground text-sm">
       {pending ? "Reading the report." : boundaryNote(lastClosedBusinessDate)}
     </span>
   );
@@ -283,28 +275,26 @@ function Reading({
     // The console's error device is a rule on the leading edge rather than a
     // colour: --color-destructive and --color-primary are the same umber.
     return (
-      <p className="border-destructive text-destructive mt-rhythm-2 border-l-2 pl-3 text-sm">
-        The performance report could not be read. Nothing here is a statement
-        about how the property performed.
+      <p
+        className="mt-6 border-danger border-l-2 pl-3 text-sm text-danger"
+        role="alert"
+      >
+        The performance report could not be loaded.
       </p>
     );
   }
 
   if (pending || report === null) {
-    return (
-      <p className="text-muted-foreground mt-rhythm-2 text-sm" aria-busy>
-        Reading the report.
-      </p>
-    );
+    return <Skeleton className="mt-6 h-80" aria-busy />;
   }
 
   if (report.buckets.length === 0) {
     return (
-      <p className="text-muted-foreground mt-rhythm-2 max-w-prose text-sm">
-        No closed trading day falls in that range. A report with nothing in it
-        is either a range the property was not open for or a range the night
-        audit has not reached — the stamp above says which.
-      </p>
+      <EmptyState
+        className="mt-6"
+        title="No closed days in range"
+        description="Adjust the range or check the audit boundary above."
+      />
     );
   }
 
@@ -315,7 +305,7 @@ function Reading({
       {/* The range's own figures, counted over every closed day it reached
           rather than averaged from the buckets — which is why they can be read
           beside the chart without contradicting it. */}
-      <dl className="mt-rhythm-2 grid gap-2 text-sm sm:grid-cols-4">
+      <dl className="mt-6 grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
         <Total
           label={PERFORMANCE_FIGURE_LABELS.OCCUPANCY}
           value={formatOccupancy(whole.occupancy)}
@@ -335,37 +325,41 @@ function Reading({
         />
       </dl>
 
-      <section className="mt-rhythm-2">
+      <section className="mt-6 rounded-lg bg-card p-4 shadow-card">
         <PerformanceChart report={report} />
       </section>
 
-      <table className="mt-rhythm-2 w-full border-collapse text-sm">
-        <caption className="text-muted-foreground mb-rhythm-1 text-left text-xs">
-          What each room type came to over the whole range. These are the
-          range's own counts rather than the buckets averaged, so a type's rate
-          here is what its rooms actually sold for across every closed day. Per
-          bucket and per type is what the Excel export carries — five types
-          across a year of days is a table worth reading and a chart nobody
-          could. A figure with no answer — a type nothing was on sale for, a
-          type nothing sold from — is a dash rather than a zero.
-        </caption>
-        <thead>
-          <tr className="border-border border-b">
-            <Column>Room type</Column>
-            <Column align="right">Sellable rooms</Column>
-            <Column align="right">Rooms sold</Column>
-            <Column align="right">Net room revenue</Column>
-            <Column align="right">{PERFORMANCE_FIGURE_LABELS.OCCUPANCY}</Column>
-            <Column align="right">{PERFORMANCE_FIGURE_LABELS.ADR}</Column>
-            <Column align="right">{PERFORMANCE_FIGURE_LABELS.REVPAR}</Column>
-          </tr>
-        </thead>
-        <tbody>
-          {report.totals.byType.map((type) => (
-            <TypeRow key={type.roomType} type={type} />
-          ))}
-        </tbody>
-      </table>
+      <DataTableFrame className="mt-6 overflow-x-auto p-4">
+        <table className="w-full min-w-[900px] border-collapse text-sm">
+          <caption className="text-muted-foreground mb-2 text-left text-sm">
+            What each room type came to over the whole range. These are the
+            range's own counts rather than the buckets averaged, so a type's
+            rate here is what its rooms actually sold for across every closed
+            day. Per bucket and per type is what the Excel export carries — five
+            types across a year of days is a table worth reading and a chart
+            nobody could. A figure with no answer — a type nothing was on sale
+            for, a type nothing sold from — is a dash rather than a zero.
+          </caption>
+          <thead>
+            <tr className="border-border border-b">
+              <Column>Room type</Column>
+              <Column align="right">Sellable rooms</Column>
+              <Column align="right">Rooms sold</Column>
+              <Column align="right">Net room revenue</Column>
+              <Column align="right">
+                {PERFORMANCE_FIGURE_LABELS.OCCUPANCY}
+              </Column>
+              <Column align="right">{PERFORMANCE_FIGURE_LABELS.ADR}</Column>
+              <Column align="right">{PERFORMANCE_FIGURE_LABELS.REVPAR}</Column>
+            </tr>
+          </thead>
+          <tbody>
+            {report.totals.byType.map((type) => (
+              <TypeRow key={type.roomType} type={type} />
+            ))}
+          </tbody>
+        </table>
+      </DataTableFrame>
     </>
   );
 }
@@ -393,7 +387,7 @@ function TypeRow({ type }: { type: PerformanceTypeRow }) {
 /** A whole number of rooms. */
 function Count({ value }: { value: number }) {
   return (
-    <td className="text-muted-foreground px-3 py-1 text-right font-mono whitespace-nowrap">
+    <td className="text-muted-foreground px-3 py-1 text-right tabular-nums whitespace-nowrap">
       {value}
     </td>
   );
@@ -408,8 +402,8 @@ function Figure({ value, emphasis }: { value: string; emphasis?: boolean }) {
     <td
       className={
         emphasis
-          ? "px-3 py-1 text-right font-mono whitespace-nowrap last:pr-0"
-          : "text-muted-foreground px-3 py-1 text-right font-mono whitespace-nowrap last:pr-0"
+          ? "px-3 py-1 text-right tabular-nums whitespace-nowrap last:pr-0"
+          : "text-muted-foreground px-3 py-1 text-right tabular-nums whitespace-nowrap last:pr-0"
       }
     >
       {value}
@@ -427,12 +421,16 @@ function Total({
   emphasis?: boolean;
 }) {
   return (
-    <div>
-      <dt className="text-muted-foreground text-xs tracking-caps uppercase">
+    <div className="rounded-lg bg-card p-4 shadow-card">
+      <dt className="text-sm font-semibold  text-muted-foreground uppercase">
         {label}
       </dt>
       <dd
-        className={emphasis ? "font-mono" : "font-mono text-muted-foreground"}
+        className={
+          emphasis
+            ? "mt-2 text-2xl font-semibold tabular-nums"
+            : "mt-2 text-2xl font-semibold text-muted-foreground tabular-nums"
+        }
       >
         {value}
       </dd>
@@ -452,8 +450,8 @@ function Column({
       scope="col"
       className={
         align === "right"
-          ? "text-muted-foreground px-3 py-2 text-right text-xs font-normal tracking-caps uppercase first:pl-0 last:pr-0"
-          : "text-muted-foreground px-3 py-2 text-left text-xs font-normal tracking-caps uppercase first:pl-0 last:pr-0"
+          ? "text-muted-foreground px-3 py-2 text-right text-sm font-normal  uppercase first:pl-0 last:pr-0"
+          : "text-muted-foreground px-3 py-2 text-left text-sm font-normal  uppercase first:pl-0 last:pr-0"
       }
     >
       {children}

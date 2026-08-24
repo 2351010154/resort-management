@@ -3,8 +3,10 @@
 import type { StaffRole } from "@mariva/shared";
 import { useId, useRef, useState } from "react";
 
+import { DataTableFrame, KeyHint, PageHeader } from "@/components/console";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useStaffSession } from "@/lib/auth";
@@ -127,40 +129,32 @@ export function RatesScreen() {
   const businessDate = day.data?.businessDate ?? null;
 
   return (
-    <div className="p-rhythm-3">
-      <header>
-        <p className="text-muted-foreground text-xs tracking-caps uppercase">
-          Tariff
-        </p>
-        <h1 className="font-display text-display-sm mt-2">Rates</h1>
-        <p className="text-muted-foreground mt-rhythm-1 border-border border-t pt-2">
-          What every room type costs each night, and the rules attached to those
-          nights. Select a block of cells to price a weekend or a season in one
-          edit.
-        </p>
-      </header>
+    <div className="mx-auto w-full max-w-[1600px] p-4 sm:p-6 lg:p-8">
+      <PageHeader
+        title="Rates"
+        description="Edit nightly prices and restrictions across room types and dates."
+      />
 
       {role !== null && !mayReadRates(role) ? (
-        <p className="text-muted-foreground mt-rhythm-2 text-sm">
-          The property's tariff is not part of this role. Room condition is on
-          the housekeeping board.
+        <p className="mt-6 text-sm text-muted-foreground">
+          Rate management is not available for this role.
         </p>
       ) : null}
 
       {day.isError ? (
         // The console's error device is a rule on the leading edge rather than
         // a colour: --color-destructive and --color-primary are the same umber.
-        <p className="border-destructive text-destructive mt-rhythm-2 border-l-2 pl-3 text-sm">
-          The property's day could not be read, so there is no night to open the
-          grid on. Nothing here is a statement about what a night costs.
+        <p
+          className="mt-6 border-danger border-l-2 pl-3 text-sm text-danger"
+          role="alert"
+        >
+          The hotel day could not be read. Rates are unavailable.
         </p>
       ) : null}
 
       {role !== null && mayReadRates(role) && !day.isError ? (
         businessDate === null ? (
-          <p className="text-muted-foreground mt-rhythm-2 text-sm" aria-busy>
-            Reading the property's day.
-          </p>
+          <Skeleton className="mt-6 h-80" aria-busy />
         ) : (
           <RateBoard businessDate={businessDate} role={role} />
         )
@@ -259,13 +253,13 @@ function RateBoard({
       />
 
       {grid.status === "pending" ? (
-        <p className="text-muted-foreground mt-rhythm-2 text-sm" aria-busy>
+        <p className="text-muted-foreground mt-4 text-sm" aria-busy>
           Reading the tariff for these nights.
         </p>
       ) : null}
 
       {grid.status === "failed" ? (
-        <p className="border-destructive text-destructive mt-rhythm-2 border-l-2 pl-3 text-sm">
+        <p className="border-destructive text-destructive mt-4 border-l-2 pl-3 text-sm">
           No room type's prices could be read for these nights. Nothing below is
           a statement about the tariff.
         </p>
@@ -282,7 +276,7 @@ function RateBoard({
           {/* The grid scrolls in its own box rather than the page: twenty-eight
               legible columns are wider than a laptop, and a page that scrolled
               sideways would take the edit panel and the plans with it. */}
-          <div className="mt-rhythm-1 overflow-x-auto">
+          <DataTableFrame className="mt-4 overflow-x-auto p-4">
             <RovingFocusGroup
               // The table already says what it is, so the group claims nothing
               // over it — `roving-focus.tsx`'s own note about a table of rows,
@@ -297,18 +291,24 @@ function RateBoard({
                 ref={table}
                 className="w-max border-separate border-spacing-0 text-sm"
               >
-                <caption className="text-muted-foreground mb-rhythm-1 text-left text-xs">
+                <caption className="text-muted-foreground mb-2 text-left text-sm">
                   {/* Said rather than implied: the whole grid is one Tab stop,
                       and an operator arriving in it needs to know the arrows
                       walk it and that Shift is what widens a selection. */}
-                  Arrow keys move between nights and room types. Enter selects a
-                  night; Shift+Enter extends the selection to it.
+                  <span className="flex flex-wrap items-center gap-2">
+                    <KeyHint>↑↓←→</KeyHint>
+                    <span>Move grid</span>
+                    <KeyHint>Enter</KeyHint>
+                    <span>Select</span>
+                    <KeyHint>Shift+Enter</KeyHint>
+                    <span>Extend</span>
+                  </span>
                 </caption>
                 <thead>
                   <tr>
                     <th
                       scope="col"
-                      className="text-muted-foreground w-36 pb-1 text-left text-xs font-normal tracking-caps uppercase"
+                      className="text-muted-foreground w-36 pb-1 text-left text-sm font-normal  uppercase"
                     >
                       Room type
                     </th>
@@ -317,7 +317,7 @@ function RateBoard({
                         key={column.date}
                         scope="col"
                         className={cn(
-                          "w-16 pb-1 text-center text-xs font-normal",
+                          "w-16 pb-1 text-center text-sm font-normal",
                           column.isWeekend
                             ? "text-foreground"
                             : "text-muted-foreground",
@@ -330,7 +330,7 @@ function RateBoard({
                           {column.monthLabel ?? "\u00a0"}
                         </span>
                         <span className="block">{column.weekdayLabel}</span>
-                        <span className="block font-mono">
+                        <span className="block tabular-nums">
                           {column.dayLabel}
                         </span>
                       </th>
@@ -354,15 +354,13 @@ function RateBoard({
                 </tbody>
               </table>
             </RovingFocusGroup>
-          </div>
+          </DataTableFrame>
         </>
       ) : null}
 
       {span === null ? (
-        <p className="text-muted-foreground mt-rhythm-2 text-sm">
-          Press a cell to select a night. Shift and a press — or Shift+Enter
-          from the keyboard — extends the selection across nights and types, and
-          one edit then covers all of it.
+        <p className="text-muted-foreground mt-4 text-sm">
+          Select cells to edit rates and restrictions.
         </p>
       ) : (
         <SelectionPanel
@@ -409,10 +407,10 @@ function WindowBar({
   }
 
   return (
-    <section className="mt-rhythm-2">
+    <section className="mt-4">
       <div className="flex flex-wrap items-end gap-2">
         <div>
-          <p className="text-muted-foreground text-xs tracking-caps uppercase">
+          <p className="text-muted-foreground text-sm  uppercase">
             Nights on screen
           </p>
           <p className="mt-1 text-sm">
@@ -468,7 +466,7 @@ function WindowBar({
       </div>
 
       {problem === null ? null : (
-        <p className="border-destructive text-destructive mt-rhythm-1 border-l-2 pl-3 text-sm">
+        <p className="border-destructive text-destructive mt-2 border-l-2 pl-3 text-sm">
           {problem}
         </p>
       )}
@@ -487,8 +485,8 @@ function Legend({
   unreadRules: readonly string[];
 }) {
   return (
-    <div className="mt-rhythm-2">
-      <p className="text-muted-foreground text-xs">
+    <div className="mt-4">
+      <p className="text-muted-foreground text-sm">
         Prices in thousands of đồng, gross. A dashed cell is a night the
         property has not published — unpriced, not sold out.
         {mayReadRestrictions(role)
@@ -497,14 +495,14 @@ function Legend({
       </p>
 
       {unreadPrices.length > 0 ? (
-        <p className="border-destructive text-destructive mt-rhythm-1 border-l-2 pl-3 text-sm">
+        <p className="border-destructive text-destructive mt-2 border-l-2 pl-3 text-sm">
           Prices could not be read for {unreadPrices.join(", ")}. Those rows say
           nothing about the tariff.
         </p>
       ) : null}
 
       {unreadRules.length > 0 ? (
-        <p className="border-destructive text-destructive mt-rhythm-1 border-l-2 pl-3 text-sm">
+        <p className="border-destructive text-destructive mt-2 border-l-2 pl-3 text-sm">
           Stay restrictions could not be read for {unreadRules.join(", ")}.
           Those nights are not necessarily unrestricted.
         </p>
@@ -529,7 +527,7 @@ function GridRow({
     <tr>
       <th
         scope="row"
-        className="w-36 py-1 pr-2 text-left text-xs font-normal break-words"
+        className="w-36 py-1 pr-2 text-left text-sm font-normal break-words"
       >
         {row.roomType}
         {row.rulesUnread ? (
@@ -550,7 +548,7 @@ function GridRow({
       ) : (
         <td
           colSpan={columns.length}
-          className="text-muted-foreground py-1 text-xs"
+          className="text-muted-foreground py-1 text-sm"
         >
           {row.status === "failed"
             ? "These prices could not be read."
@@ -612,7 +610,7 @@ function GridCell({
           selected ? "bg-accent/60" : "hover:bg-accent/30",
         )}
       >
-        <span className="font-mono text-sm">{cell.priceLabel}</span>
+        <span className="tabular-nums text-sm">{cell.priceLabel}</span>
         <span className="text-muted-foreground h-3 text-[0.625rem] leading-3">
           {cell.restrictionMarks.join(" ")}
         </span>
@@ -635,16 +633,16 @@ function SelectionPanel({
   const mayRestrict = mayEditRestrictions(role);
 
   return (
-    <section className="border-border mt-rhythm-2 border-l pl-4">
+    <section className="border-border mt-4 border-l pl-4">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="font-display text-2xl">Selected nights</h2>
+        <h2 className="font-semibold text-2xl">Selected nights</h2>
         <Button type="button" variant="ghost" onClick={onClear}>
           Clear selection
         </Button>
       </div>
 
       <p className="mt-1 text-sm">{spanLabel(span)}</p>
-      <p className="text-muted-foreground mt-1 text-xs">
+      <p className="text-muted-foreground mt-1 text-sm">
         {span.cells} {span.cells === 1 ? "night" : "nights"} in all, written in{" "}
         {span.roomTypes.length}{" "}
         {span.roomTypes.length === 1 ? "request" : "requests"} — one per room
@@ -652,7 +650,7 @@ function SelectionPanel({
       </p>
 
       {!mayPrice && !mayRestrict ? (
-        <p className="text-muted-foreground mt-rhythm-1 text-sm">
+        <p className="text-muted-foreground mt-2 text-sm">
           Pricing a night and closing it to arrival are both a manager's acts.
           This selection is here to be read.
         </p>
@@ -663,7 +661,7 @@ function SelectionPanel({
         <Tabs
           key={`${span.from}:${span.to}:${span.roomTypes.join(",")}`}
           defaultValue={mayPrice ? "price" : "rules"}
-          className="mt-rhythm-1"
+          className="mt-2"
         >
           <TabsList>
             {mayPrice ? <TabsTrigger value="price">Price</TabsTrigger> : null}
@@ -724,7 +722,7 @@ function PriceForm({ span }: { span: SelectionSpan }) {
       <Field
         label="Gross per night"
         value={typed}
-        hint="Whole đồng — 1850000, or 1.850.000."
+        hint="Whole đồng: 1850000 or 1.850.000."
         onChange={(value) => {
           setTyped(value);
           setProblem(null);
@@ -825,7 +823,7 @@ function RulesForm({ span }: { span: SelectionSpan }) {
 
       <div className="basis-full">
         {"clears" in edit && edit.clears ? (
-          <p className="text-muted-foreground text-xs">
+          <p className="text-muted-foreground text-sm">
             Nothing is constrained, so this removes any rule on those nights
             rather than storing one that says nothing.
           </p>
@@ -861,8 +859,8 @@ function RatePlansSection({ role }: { role: StaffRole }) {
   const plans = useRatePlans(mayReadRates(role));
 
   return (
-    <section className="mt-rhythm-3">
-      <h2 className="font-display text-2xl">Rate plans</h2>
+    <section className="mt-8">
+      <h2 className="font-semibold text-2xl">Rate plans</h2>
       <p className="text-muted-foreground mt-1 max-w-prose text-sm">
         Three plans, each priced off the calendar above rather than beside it. A
         fourth is a migration and not a form — the codes are a database enum,
@@ -870,19 +868,19 @@ function RatePlansSection({ role }: { role: StaffRole }) {
       </p>
 
       {plans.status === "pending" ? (
-        <p className="text-muted-foreground mt-rhythm-1 text-sm" aria-busy>
+        <p className="text-muted-foreground mt-2 text-sm" aria-busy>
           Reading the plans.
         </p>
       ) : null}
 
       {plans.status === "failed" ? (
-        <p className="border-destructive text-destructive mt-rhythm-1 border-l-2 pl-3 text-sm">
+        <p className="border-destructive text-destructive mt-2 border-l-2 pl-3 text-sm">
           The plans could not be read.
         </p>
       ) : null}
 
       {plans.status === "ready" ? (
-        <div className="mt-rhythm-1 grid gap-rhythm-2 lg:grid-cols-3">
+        <div className="mt-2 grid gap-4 lg:grid-cols-3">
           {plans.plans.map((plan) => (
             /* Keyed by the plan as it currently stands, so a PATCH that lands
                reseeds this form from the row the API wrote — and the breakfast
@@ -940,9 +938,9 @@ function PlanCard({ plan, mayEdit }: { plan: RatePlan; mayEdit: boolean }) {
   return (
     <div className="border-border border-l pl-4">
       <h3 className="text-sm">
-        <span className="font-mono">{plan.code}</span> · {plan.name}
+        <span className="tabular-nums">{plan.code}</span> · {plan.name}
       </h3>
-      <dl className="mt-1 text-xs">
+      <dl className="mt-1 text-sm">
         <div className="flex gap-2">
           <dt className="text-muted-foreground">Adjustment</dt>
           <dd>{percentLabel(plan.percentAdjustment)} of the calendar price</dd>
@@ -954,12 +952,12 @@ function PlanCard({ plan, mayEdit }: { plan: RatePlan; mayEdit: boolean }) {
       </dl>
 
       {!mayEdit ? (
-        <p className="text-muted-foreground mt-rhythm-1 text-xs">
+        <p className="text-muted-foreground mt-2 text-sm">
           Changing a plan is a manager's act.
         </p>
       ) : (
         <form
-          className="mt-rhythm-1 flex flex-col gap-3"
+          className="mt-2 flex flex-col gap-3"
           onSubmit={(event) => {
             event.preventDefault();
             submit();
@@ -983,7 +981,7 @@ function PlanCard({ plan, mayEdit }: { plan: RatePlan; mayEdit: boolean }) {
           <Field
             label="Breakfast a head"
             value={fields.breakfastPerPersonGross}
-            hint="Empty leaves breakfast exactly as it is."
+            hint="Empty keeps the current breakfast amount."
             onChange={(breakfastPerPersonGross) => {
               change({ breakfastPerPersonGross });
             }}
@@ -997,7 +995,7 @@ function PlanCard({ plan, mayEdit }: { plan: RatePlan; mayEdit: boolean }) {
           />
 
           {"changes" in patch ? (
-            <ul className="text-muted-foreground text-xs">
+            <ul className="text-muted-foreground text-sm">
               {patch.changes.map((said) => (
                 <li key={said}>{said}</li>
               ))}
@@ -1015,13 +1013,13 @@ function PlanCard({ plan, mayEdit }: { plan: RatePlan; mayEdit: boolean }) {
       )}
 
       {problem === null ? null : (
-        <p className="border-destructive text-destructive mt-rhythm-1 border-l-2 pl-3 text-sm">
+        <p className="border-destructive text-destructive mt-2 border-l-2 pl-3 text-sm">
           {problem}
         </p>
       )}
 
       {update.data === undefined ? null : (
-        <p className="text-muted-foreground mt-rhythm-1 text-xs">
+        <p className="text-muted-foreground mt-2 text-sm">
           Saved. {update.data.name} now runs at{" "}
           {percentLabel(update.data.percentAdjustment)},{" "}
           {breakfastLabel(update.data)}.
@@ -1052,7 +1050,7 @@ function Field({
     <div>
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-xs tracking-caps uppercase"
+        className="text-muted-foreground block text-sm  uppercase"
       >
         {label}
       </label>
@@ -1065,7 +1063,7 @@ function Field({
         }}
       />
       {hint === undefined ? null : (
-        <p className="text-muted-foreground mt-1 max-w-64 text-xs">{hint}</p>
+        <p className="text-muted-foreground mt-1 max-w-64 text-sm">{hint}</p>
       )}
     </div>
   );
@@ -1086,7 +1084,7 @@ function Toggle({
   return (
     <div className="flex items-center gap-2">
       <Switch id={toggleId} checked={checked} onCheckedChange={onChange} />
-      <label htmlFor={toggleId} className="text-xs">
+      <label htmlFor={toggleId} className="text-sm">
         {label}
       </label>
     </div>
