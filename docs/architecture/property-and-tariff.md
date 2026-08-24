@@ -299,6 +299,35 @@ No-show is driven by the **business date**, not by a wall clock. The transition
 is `booking-state-machine.md`'s, and this table supplies only the amount — which
 is why that document's §7 says the grid is not a state-machine question.
 
+### Paying the money back
+
+**The grid prices the penalty; it does not move money.** Applying §4 posts the
+charge and leaves the account wherever that leaves it, and whatever the folio is
+then over-paid by is owed to the guest. That is the entitlement, and nothing
+above this line is changed by anything below it — the four rows and both columns
+say what is forfeited, and the remainder was never the property's.
+
+**Returning it is a staff act, through the two routes that already exist.** A
+priced return goes through `folio.refund-policy` and a discretionary one through
+`folio.refund-override`, which is the same split the grid opens with. Both write
+the ledger; the transfer itself is performed outside this system, by a person,
+against an external service. It is rare, it is not reversible by re-running
+anything, and it is nobody's decision but the desk's.
+
+**There is no automatic gateway refund and none is intended.** The payment port
+carries `refund` because `FR-PAY-01` says every gateway must expose one, and the
+VNPay adapter implements and tests it — but no cancellation, no-show or early
+departure calls it, and none should be wired to. A folio marked `REFUNDED` is
+this ledger recording that a collection was undone; it is not evidence that
+money reached a card. Wiring the grid to a gateway would make the software
+perform an act the property has decided a person performs.
+
+**So the guest-facing surfaces state the charge and promise no return.** A guest
+cancelling is told what §4 costs them; they are not told a refund is coming,
+because on this side none is coming until staff send it. Re-adding that promise
+to a guest surface would be the software claiming something only a person can
+do — change this subsection first if the property ever decides otherwise.
+
 ## 5. Charges and the tax model — structure only
 
 The structural half of `D2`. Rates live in §8.
