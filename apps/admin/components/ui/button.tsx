@@ -21,18 +21,26 @@ const buttonVariants = cva(
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-primary/90",
 
-        /* --color-destructive and --color-primary are the same number, so this
-         * variant cannot differ from `default` by colour — it has to differ by
-         * shape. It is the only variant drawn as a doubled rule on the page
-         * ground, which reads as a control asking to be read rather than the
-         * confident filled one beside it, and it fills on hover and focus so
-         * the committed state still looks committed.
+        /* The one variant that differs from `default` by shape rather than
+         * by colour, because colour is not available to it: --color-destructive
+         * is a warm red-brown and --color-primary the umber a shade off it, so
+         * a solid destructive button beside a solid default one — which is
+         * exactly where it stands, an act and its safe neighbour — would be two
+         * dark slabs an operator has to read the label of to tell apart.
+         *
+         * So it is the only variant drawn as a doubled rule on the ground it
+         * stands on, which reads as a control asking to be read rather than the
+         * confident filled one beside it, and it fills on hover and on
+         * focus-visible so a committed state still looks committed. Danger on
+         * the card is 7.1:1 as text and as a 2px rule; the fill inverts to
+         * --color-destructive-foreground at the same ratio, so neither state
+         * spends the contrast the other had.
          *
          * The shape is half the signal. The other half is the label: a
          * destructive button in this console says the verb — "Cancel booking",
          * "Void folio" — never "OK" and never "Confirm". */
         destructive:
-          "bg-danger-soft text-danger hover:bg-danger-soft/70 focus-visible:bg-danger-soft/70",
+          "border-2 border-danger bg-transparent text-danger hover:bg-danger hover:text-destructive-foreground focus-visible:bg-danger focus-visible:text-destructive-foreground",
 
         outline:
           "border border-border bg-card shadow-xs hover:bg-muted hover:text-foreground",
