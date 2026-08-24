@@ -166,6 +166,7 @@ import {
   desc,
   eq,
   gte,
+  isNotNull,
   isNull,
   lt,
   type SQL,
@@ -434,6 +435,23 @@ export interface ListedPayment {
  */
 export interface PaymentPage {
   readonly payments: readonly ListedPayment[];
+  readonly total: number;
+}
+
+export type RefundCandidateQuery = Omit<PaymentListQuery, "status">;
+
+export interface RefundCandidate {
+  readonly paymentId: string;
+  readonly bookingId: string;
+  readonly bookingReference: string;
+  readonly method: PaymentRow["method"];
+  readonly amount: VndAmount;
+  readonly paidAt: Date;
+  readonly businessDate: string;
+}
+
+export interface RefundCandidatesPage {
+  readonly payments: readonly RefundCandidate[];
   readonly total: number;
 }
 
@@ -896,6 +914,87 @@ export class PaymentService {
       payments: page.map((row) => dated(row, dates)),
       total: counted?.total ?? 0,
     };
+  }
+
+  /**
+   * Lists only payments that may currently anchor a policy refund. This is a
+   * separate projection from reconciliation reads: the query never selects a
+   * gateway transaction, folio, discrepancy, or observation field.
+   */
+  async listRefundCandidates(
+    exec: DbExecutor,
+    query: RefundCandidateQuery,
+  ): Promise<RefundCandidatesPage> {
+    const dates = await this.businessDates.rule(exec);
+    const narrowed: SQL[] = [
+      eq(payment.status, "SUCCESS"),
+      isNotNull(payment.paidAt),
+    ];
+
+    if (query.bookingId) narrowed.push(eq(folio.bookingId, query.bookingId));
+    if (query.method) narrowed.push(eq(payment.method, query.method));
+    if (query.businessDate) {
+      narrowed.push(
+        gte(
+          payment.paidAt,
+          startOfDayUtc(query.businessDate.subtract({ days: 1 })),
+        ),
+        lt(payment.paidAt, startOfDayUtc(query.businessDate.add({ days: 2 }))),
+      );
+    }
+
+    const where = and(...narrowed);
+    const matching = () =>
+      exec
+        .select({
+          paymentId: payment.id,
+          bookingId: folio.bookingId,
+          bookingReference: booking.reference,
+          method: payment.method,
+          amount: payment.amount,
+          paidAt: payment.paidAt,
+        })
+        .from(payment)
+        .innerJoin(folio, eq(folio.id, payment.folioId))
+        .innerJoin(booking, eq(booking.id, folio.bookingId))
+        .where(where)
+        .orderBy(desc(payment.createdAt), desc(payment.id));
+
+    type CandidateQueryRow = Awaited<ReturnType<typeof matching>>[number];
+    const onWire = (row: CandidateQueryRow): RefundCandidate => {
+      // `isNotNull` keeps page and count on the same predicate. Drizzle does
+      // not narrow nullable column types from SQL predicates, so this assertion
+      // records the query invariant at the projection boundary.
+      const paidAt = row.paidAt as Date;
+      return {
+        ...row,
+        paidAt,
+        businessDate: dates.on(paidAt).toString(),
+      };
+    };
+
+    if (query.businessDate) {
+      const day = query.businessDate.toString();
+      const all = (await matching())
+        .map(onWire)
+        .filter((row) => row.businessDate === day);
+      return {
+        payments: all.slice(query.offset, query.offset + query.limit),
+        total: all.length,
+      };
+    }
+
+    const page = (await matching().limit(query.limit).offset(query.offset)).map(
+      onWire,
+    );
+    const [counted] = await exec
+      .select({ total: count() })
+      .from(payment)
+      .innerJoin(folio, eq(folio.id, payment.folioId))
+      .innerJoin(booking, eq(booking.id, folio.bookingId))
+      .where(where);
+
+    return { payments: page, total: counted?.total ?? 0 };
   }
 
   /**

@@ -90,6 +90,7 @@ const REFERENCE = "0123456789abcdef".repeat(4);
  * answer independently of the arithmetic the handler does to reach it.
  */
 const STAY_IN_REFERENCE = "01234567-89ab-cdef-0123-456789abcdef";
+const SAFE_BOOKING = "01234567-89ab-4def-8123-456789abcdef";
 
 /** What the gateway says it moved, in đồng. */
 const AN_AMOUNT = 1_200_000n;
@@ -111,17 +112,22 @@ const A_CALLBACK = {
 let app: INestApplication;
 let handleIpn: Mock<PaymentService["handleIpn"]>;
 let createPaymentRequest: Mock<PaymentService["createPaymentRequest"]>;
+let listRefundCandidates: Mock<PaymentService["listRefundCandidates"]>;
 let verifyCallback: Mock<PaymentGateway["verifyCallback"]>;
 
 beforeEach(async () => {
   handleIpn = vi.fn<PaymentService["handleIpn"]>();
   createPaymentRequest = vi.fn<PaymentService["createPaymentRequest"]>();
+  listRefundCandidates = vi.fn<PaymentService["listRefundCandidates"]>();
   verifyCallback = vi.fn<PaymentGateway["verifyCallback"]>();
 
   const moduleRef = await Test.createTestingModule({
     controllers: [PaymentController],
     providers: [
-      { provide: PaymentService, useValue: { handleIpn, createPaymentRequest } },
+      {
+        provide: PaymentService,
+        useValue: { handleIpn, createPaymentRequest, listRefundCandidates },
+      },
       {
         provide: PAYMENT_GATEWAY,
         useValue: {
@@ -148,7 +154,9 @@ beforeEach(async () => {
       },
       {
         provide: TransactionRunner,
-        useValue: { run: unreached("opens a transaction") },
+        useValue: {
+          run: async (work: (exec: never) => Promise<unknown>) => work(undefined as never),
+        },
       },
       { provide: ENV, useValue: environment() },
       // The handler logs on every path; the assertions are about what it
@@ -564,6 +572,63 @@ describe("what the five routes declare about access", () => {
 
       expect(reflector.get(UNGUARDED_KEY, route)).toBeUndefined();
     }
+  });
+
+  it("the refund worklist names policy refund, not reconciliation", () => {
+    expect(
+      reflector.get<CapabilityRequirement>(
+        CAPABILITY_KEY,
+        PaymentController.prototype.listRefundCandidates,
+      ),
+    ).toEqual({ key: "folio.refund-policy", action: "read" });
+  });
+});
+
+describe("the policy-refund worklist", () => {
+  it("returns only the safe row and passes paging filters to the service", async () => {
+    listRefundCandidates.mockResolvedValue({
+      payments: [
+        {
+          paymentId: A_BOOKING,
+          bookingId: SAFE_BOOKING,
+          bookingReference: "MRV-20271102-0001",
+          method: "VNPAY",
+          amount: AN_AMOUNT,
+          paidAt: new Date("2027-11-02T02:10:00Z"),
+          businessDate: "2027-11-01",
+        },
+      ],
+      total: 1,
+    });
+
+    const response = await request(app.getHttpServer())
+      .get("/payments/refund-candidates")
+      .query({ method: "VNPAY", businessDate: "2027-11-01", limit: 1, offset: 2 });
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      payments: [
+        {
+          paymentId: A_BOOKING,
+          bookingId: SAFE_BOOKING,
+          bookingReference: "MRV-20271102-0001",
+          method: "VNPAY",
+          amount: AN_AMOUNT.toString(),
+          paidAt: "2027-11-02T02:10:00.000Z",
+          businessDate: "2027-11-01",
+        },
+      ],
+      total: 1,
+    });
+    expect(listRefundCandidates).toHaveBeenCalledWith(undefined, {
+      method: "VNPAY",
+      businessDate: expect.objectContaining({ year: 2027, month: 11, day: 1 }),
+      limit: 1,
+      offset: 2,
+    });
+    expect(JSON.stringify(response.body)).not.toMatch(
+      /folioId|gatewayTransactionId|discrepancyId|observation/i,
+    );
   });
 });
 
