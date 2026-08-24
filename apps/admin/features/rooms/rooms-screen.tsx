@@ -1,10 +1,15 @@
 "use client";
 
 import type { StaffRole } from "@mariva/shared";
-import { BedDoubleIcon } from "lucide-react";
 import { useId, useMemo, useState } from "react";
 
-import { EmptyState, PageHeader, StatusChip } from "@/components/console";
+import {
+  EmptyState,
+  KeyHint,
+  PageHeader,
+  StatusChip,
+  type StatusTone,
+} from "@/components/console";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -64,6 +69,14 @@ import { useCloseRoom, useRoomList, useSetOutOfOrder } from "./rooms-queries";
  * the detail beside it — a reason half-typed for 402 must survive the operator
  * searching for 403 to check something.
  *
+ * The rail scrolls inside itself rather than running the page down, and it stays
+ * put while the detail beside it is worked. Forty rooms at a row apiece is twice
+ * the height of the panel they open, so a rail that grew with its list would put
+ * the closure form the operator is typing into off the top of the window by the
+ * time they had reached the room at the bottom of it. The count under the list
+ * is the other half of that: a list that ends mid-row is only obviously scrolled
+ * if something says how many rooms there are.
+ *
  * `g r` is not bound here. `features/shell/nav-inventory.ts` carries this family
  * and `nav-shortcuts.tsx` binds the whole inventory's sequence from the shell.
  *
@@ -103,6 +116,9 @@ export function RoomsScreen() {
       .flatMap((group) => group.rooms)
       .find((one) => one.roomNumber === selected) ?? null;
 
+  const roomCount = countRooms(groups);
+  const shownCount = countRooms(shown);
+
   return (
     <div className="mx-auto w-full max-w-[1600px] p-4 sm:p-6 lg:p-8">
       <PageHeader
@@ -111,15 +127,35 @@ export function RoomsScreen() {
       />
 
       {list.status === "pending" ? (
-        <div className="mt-6 grid gap-4 lg:grid-cols-[300px_1fr]" aria-busy>
-          <Skeleton className="h-80" />
-          <Skeleton className="h-80" />
+        // In the two cards the screen itself arrives in, and in the same grid,
+        // so nothing changes shape underneath the operator when the board
+        // answers. Row-height blocks in the rail rather than one tall one: what
+        // is coming is a list, and a single slab says a paragraph is.
+        <div
+          className="mt-6 grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]"
+          aria-busy
+        >
+          <Card className="flex flex-col gap-2 p-4">
+            <Skeleton className="mb-2 h-11 w-full" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+            <Skeleton className="h-12 w-full" />
+          </Card>
+          <Card className="flex flex-col gap-4 p-5">
+            <Skeleton className="h-14 w-40" />
+            <Skeleton className="h-24 w-full" />
+            <Skeleton className="h-40 w-full" />
+          </Card>
         </div>
       ) : null}
 
       {list.status === "failed" ? (
-        // The console's error device is a rule on the leading edge rather than
-        // a colour: --color-destructive and --color-primary are the same umber.
+        // The console's error device is a rule on the leading edge as much as
+        // the colour: --color-danger is a warm red-brown a shade off the umber
+        // every other line on the screen is set in, and a sentence that
+        // differed only in that would be read as ordinary copy.
         <p
           className="mt-6 border-danger border-l-2 pl-3 text-sm text-danger"
           role="alert"
@@ -130,7 +166,13 @@ export function RoomsScreen() {
 
       {list.status === "ready" ? (
         <div className="mt-6 grid gap-4 lg:grid-cols-[300px_minmax(0,1fr)]">
-          <Card className="flex flex-col gap-4 p-4">
+          {/* Bounded and sticky rather than as tall as the property. `self-start`
+              is what lets it be either: a grid item stretches to the row by
+              default, which is a rail as tall as the panel beside it and a
+              `sticky` that can never move. `overflow-hidden` is the containment
+              — a chip or a tinted row is drawn inside the rounded card or not at
+              all. */}
+          <Card className="flex max-h-[70svh] flex-col gap-3 overflow-hidden p-4 lg:sticky lg:top-6 lg:max-h-[calc(100svh_-_3rem)] lg:self-start">
             <Field
               label="Find a room"
               value={query}
@@ -144,37 +186,64 @@ export function RoomsScreen() {
                 description="Clear the search to see every room."
                 className="px-4 py-8 shadow-none"
               />
-            ) : null}
+            ) : (
+              /* The list is the scrollport, and the negative margin with the
+                 padding that cancels it is what keeps the focus ring inside it:
+                 a scrollport clips whatever hangs over its edge, and the
+                 console's outline is 3px drawn 2px outside the row. `min-h-0`
+                 is what makes it scroll rather than grow — a flex item's
+                 automatic minimum is its content, so without it the rail would
+                 be forty rows tall and the max-height above would decide
+                 nothing. */
+              <RovingFocusGroup
+                aria-label="Rooms"
+                className="-mx-1.5 flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-1.5"
+              >
+                {shown.map((group) => (
+                  <section key={group.roomType}>
+                    <h2 className="px-3 text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+                      {/* The code as the contract spells it. The console names
+                        room types this way on every other screen — arrivals'
+                        "Sold as" column, the new booking form's choices — and a
+                        second spelling here would be a second opinion about the
+                        catalogue.
 
-            <RovingFocusGroup
-              aria-label="Rooms"
-              className="flex flex-col gap-4"
-            >
-              {shown.map((group) => (
-                <section key={group.roomType}>
-                  <h2 className="px-2 text-sm font-semibold  text-muted-foreground uppercase">
-                    {/* The code as the contract spells it. The console names room
-                      types this way on every other screen — arrivals' "Sold as"
-                      column, the new booking form's choices — and a second
-                      spelling here would be a second opinion about the
-                      catalogue. */}
-                    {group.roomType}
-                  </h2>
-                  <ul className="mt-1 space-y-1">
-                    {group.rooms.map((one) => (
-                      <RoomRow
-                        key={one.roomNumber}
-                        room={one}
-                        selected={one.roomNumber === selected}
-                        onSelect={() => {
-                          setSelected(one.roomNumber);
-                        }}
-                      />
-                    ))}
-                  </ul>
-                </section>
-              ))}
-            </RovingFocusGroup>
+                        It is also the only place the type is written: this
+                        heading names every row under it, so a row repeating it
+                        would be the same word twice on one line — and it was the
+                        word that pushed the state chip out through the side of
+                        the rail. */}
+                      {group.roomType}
+                    </h2>
+                    <ul className="mt-1 space-y-1">
+                      {group.rooms.map((one) => (
+                        <RoomRow
+                          key={one.roomNumber}
+                          room={one}
+                          selected={one.roomNumber === selected}
+                          onSelect={() => {
+                            setSelected(one.roomNumber);
+                          }}
+                        />
+                      ))}
+                    </ul>
+                  </section>
+                ))}
+              </RovingFocusGroup>
+            )}
+
+            {/* How much list there is, and what moves through it. A rail that
+                ends mid-row has said "there is more below" only to somebody who
+                already knew — the count says it in words, and the chips are the
+                console's own way of naming a key. */}
+            <p className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 border-border border-t pt-3 text-sm text-muted-foreground">
+              <span>{roomCountLabel(shownCount, roomCount)}</span>
+              <span className="inline-flex items-center gap-1.5">
+                <KeyHint>↑</KeyHint>
+                <KeyHint>↓</KeyHint>
+                move
+              </span>
+            </p>
           </Card>
 
           {room === null || role === null ? (
@@ -199,6 +268,37 @@ export function RoomsScreen() {
   );
 }
 
+/** How many rooms a set of groups holds. */
+function countRooms(groups: readonly RoomTypeGroup[]): number {
+  return groups.reduce((total, group) => total + group.rooms.length, 0);
+}
+
+/** The list's own size, and how much of it the search left. */
+function roomCountLabel(shown: number, total: number): string {
+  const rooms = total === 1 ? "room" : "rooms";
+
+  return shown === total
+    ? `${total} ${rooms}`
+    : `${shown} of ${total} ${rooms}`;
+}
+
+/**
+ * The colour a room's state is drawn in.
+ *
+ * One place rather than two, because the row and the detail's header say the
+ * same sentence about the same room and a chip that was amber in the list and
+ * green beside it would be the screen disagreeing with itself. Out of order is
+ * the only state the console draws in danger: it is the one an operator is being
+ * told to stop at.
+ */
+function roomTone(room: BoardRoom): StatusTone {
+  if (room.status === "OUT_OF_ORDER") {
+    return "danger";
+  }
+
+  return room.isReady ? "success" : "warning";
+}
+
 /** One room in the list. */
 function RoomRow({
   room,
@@ -221,26 +321,29 @@ function RoomRow({
         // rather than "checked".
         aria-current={selected}
         onClick={onSelect}
+        // Three states and not one value for all of them, the arrangement the
+        // desk queues use: hover is the lightest because a pointer passing over
+        // a room has decided nothing, while focus and the chosen room are the
+        // full tint because those are where the operator actually is.
+        //
+        // Neither child may shrink and neither needs to: the number is fixed
+        // and the chip is one of a handful of known sentences, so the row's
+        // width is the rail's to hold rather than something to truncate.
+        //
+        // The chip follows the number rather than being pushed to the far edge.
+        // Pushed, its left edge moved with the length of its own sentence — a
+        // ragged column of states — and below the two-pane breakpoint, where the
+        // rail is the width of the window, it ended up half a screen away from
+        // the room it describes.
         className={cn(
-          "flex min-h-12 w-full items-center justify-between gap-3 rounded-md px-3 text-left text-sm transition-colors duration-150 ease-ui hover:bg-accent-soft/60 focus-visible:bg-accent-soft/60",
+          "flex min-h-12 w-full items-center gap-3 rounded-md px-3 py-1.5 text-left text-sm transition-colors duration-150 ease-ui hover:bg-accent-soft/50 focus-visible:bg-accent-soft",
           selected ? "bg-accent-soft text-accent-strong" : null,
         )}
       >
-        <span className="flex items-center gap-3">
-          <span className="grid h-8 min-w-12 place-items-center rounded-md border border-border bg-card px-2 font-semibold tabular-nums shadow-xs">
-            {room.roomNumber}
-          </span>
-          <span className="text-muted-foreground">{room.roomType}</span>
+        <span className="grid h-8 min-w-12 shrink-0 place-items-center rounded-md border border-border bg-card px-2 font-semibold tabular-nums shadow-xs">
+          {room.roomNumber}
         </span>
-        <StatusChip
-          tone={
-            room.status === "OUT_OF_ORDER"
-              ? "danger"
-              : room.isReady
-                ? "success"
-                : "warning"
-          }
-        >
+        <StatusChip className="shrink-0" tone={roomTone(room)}>
           {roomStateLabel(room)}
         </StatusChip>
       </button>
@@ -262,18 +365,22 @@ function RoomDetail({
 
   return (
     <Card className="overflow-hidden">
-      <div className="flex items-center gap-4 border-border border-b p-5">
-        <span className="grid size-12 place-items-center rounded-lg bg-accent-soft text-accent-strong">
-          <BedDoubleIcon aria-hidden="true" className="size-5" />
-        </span>
-        <span>
-          <span className="block text-sm font-semibold  text-muted-foreground uppercase">
+      {/* No glyph. A bed tile is the same picture on all forty rooms, so it
+          names nothing the word beside it does not — and it pushed the number
+          out of the column every label under it is set in. What earns the
+          trailing edge instead is the state, in the chip the row was chosen
+          from, so the list and the panel answer "what is this room doing?" in
+          one sentence rather than two. */}
+      <div className="flex flex-wrap items-center justify-between gap-3 border-border border-b p-5">
+        <div>
+          <span className="block text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
             Room
           </span>
           <h2 className="text-2xl font-semibold leading-8 tabular-nums">
             {room.roomNumber}
           </h2>
-        </span>
+        </div>
+        <StatusChip tone={roomTone(room)}>{roomStateLabel(room)}</StatusChip>
       </div>
 
       <dl className="grid gap-4 p-5 text-sm sm:grid-cols-2 xl:grid-cols-3">
@@ -304,12 +411,18 @@ function RoomDetail({
         ) : null}
       </dl>
 
-      <p className="mx-5 border-border border-t pt-4 text-sm text-muted-foreground">
+      {/* Its own band with a rule across the card, like the header's, rather
+          than an inset hairline floating between two blocks of padding. */}
+      <p className="border-border border-t px-5 py-4 text-sm text-muted-foreground">
         Guest details stay with the booking. Room catalogue changes are not
         available here.
       </p>
 
-      <div className="grid gap-4 p-5 xl:grid-cols-2">
+      {/* `items-start`, so each act is as tall as it is. Stretched to a shared
+          row, the shorter of the two — one field and a press — carried a hand's
+          width of empty tint under it, which reads as a control that failed to
+          load rather than as one that is simply smaller. */}
+      <div className="grid items-start gap-4 px-5 pb-5 xl:grid-cols-2">
         <OutOfOrderControl room={room} role={role} />
         <ClosureControl room={room} role={role} businessDate={businessDate} />
       </div>
@@ -337,12 +450,22 @@ function OutOfOrderControl({
   const [reason, setReason] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
   const isShut = room.status === "OUT_OF_ORDER";
+  const busy = outOfOrder.isPending;
 
   if (!mayMarkOutOfOrder(role)) {
     return null;
   }
 
   function act(shutting: boolean) {
+    // The press that arrives while the last one is still in flight. Dropped
+    // here rather than by `disabled` on the button: a disabled control is
+    // unfocusable, and the browser answers that by moving focus to <body> — so
+    // an operator who pressed Enter on this button would be left nowhere, with
+    // the refusal sentence beside a control they can no longer reach.
+    if (outOfOrder.isPending) {
+      return;
+    }
+
     const attempt = outOfOrderAttempt(room.roomNumber, shutting, reason);
 
     if ("problem" in attempt) {
@@ -369,7 +492,9 @@ function OutOfOrderControl({
         <div className="mt-4">
           <Button
             type="button"
-            disabled={outOfOrder.isPending}
+            aria-disabled={busy}
+            aria-busy={busy}
+            className="aria-disabled:pointer-events-none aria-disabled:opacity-50"
             onClick={() => {
               act(false);
             }}
@@ -381,8 +506,11 @@ function OutOfOrderControl({
           </p>
         </div>
       ) : (
+        /* Stacked, and the press on its own line under the field it acts on.
+           Beside the field it sat on the input's baseline with the label above
+           it, which reads as a second control belonging to the same row. */
         <form
-          className="mt-4 flex flex-wrap items-end gap-2"
+          className="mt-4"
           onSubmit={(event) => {
             event.preventDefault();
             act(true);
@@ -391,16 +519,19 @@ function OutOfOrderControl({
           <Field
             label="Reason"
             value={reason}
-            hint="For example: shower mixer leaking."
+            placeholder="Shower mixer leaking"
+            hint="Required — the desk is asked why the room is shut."
             onChange={setReason}
           />
           {/* The doubled rule rather than a colour, because the console's
-              destructive and primary umber are the same number. Shutting a room
-              is the verb that variant is for. */}
+              danger and primary are a warm brown and an umber a shade apart.
+              Shutting a room is the verb that variant is for. */}
           <Button
+            className="mt-3 aria-disabled:pointer-events-none aria-disabled:opacity-50"
             type="submit"
             variant="destructive"
-            disabled={outOfOrder.isPending}
+            aria-disabled={busy}
+            aria-busy={busy}
           >
             Mark out of order
           </Button>
@@ -408,7 +539,12 @@ function OutOfOrderControl({
       )}
 
       {problem === null ? null : (
-        <p className="mt-3 border-danger border-l-2 pl-3 text-sm text-danger">
+        // Announced, not only drawn. A refusal an operator who had looked away
+        // never hears is a press that did nothing and said nothing.
+        <p
+          className="mt-3 border-danger border-l-2 pl-3 text-sm text-danger"
+          role="alert"
+        >
           {problem}
         </p>
       )}
@@ -436,12 +572,19 @@ function ClosureControl({
   const closeRoom = useCloseRoom();
   const [fields, setFields] = useState<ClosureFields>(NO_CLOSURE_FIELDS);
   const [problem, setProblem] = useState<string | null>(null);
+  const busy = closeRoom.isPending;
 
   if (!mayCloseRooms(role)) {
+    // The act still named, in the shape the act itself would take. A bare
+    // sentence where the other control has a titled panel reads as something
+    // that failed rather than as something withheld.
     return (
-      <p className="rounded-lg bg-surface-muted p-4 text-sm text-muted-foreground">
-        Withdrawing a room from sale for a range of nights is a manager's act.
-      </p>
+      <section className="rounded-lg bg-surface-muted p-4">
+        <h3 className="font-semibold">Schedule closure</h3>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Withdrawing a room from sale for a range of nights is a manager's act.
+        </p>
+      </section>
     );
   }
 
@@ -459,6 +602,13 @@ function ClosureControl({
   }
 
   function submit() {
+    // The repeat press, dropped here rather than by `disabled` on the button,
+    // for the reason `OutOfOrderControl` states: a disabled control cannot hold
+    // focus, and the browser drops it on <body>.
+    if (closeRoom.isPending) {
+      return;
+    }
+
     if (attempt === null) {
       setProblem("The property's day has not been read yet. Try again.");
       return;
@@ -487,57 +637,86 @@ function ClosureControl({
       </p>
 
       <form
-        className="mt-4 grid gap-3 sm:grid-cols-2"
+        className="mt-4"
         onSubmit={(event) => {
           event.preventDefault();
           submit();
         }}
       >
-        <Field
-          label="First night"
-          value={fields.checkIn}
-          hint="15/3, 2026-03-15, today, +2d"
-          onChange={(checkIn) => {
-            change({ checkIn });
-          }}
-        />
-        <Field
-          label="Back on sale"
-          value={fields.checkOut}
-          hint="The night the room sells again."
-          onChange={(checkOut) => {
-            change({ checkOut });
-          }}
-        />
-        <Field
-          label="Reason"
-          value={fields.reason}
-          onChange={(reason) => {
-            change({ reason });
-          }}
-        />
-        <Button type="submit" disabled={closeRoom.isPending}>
+        {/* The three fields are the form; the press is not one of them. In the
+            same grid it took a cell beside the reason and aligned to the top of
+            it, which put the button a label's height above the input next to
+            it. */}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field
+            label="First night"
+            value={fields.checkIn}
+            /* An example rather than a list of every accepted spelling. The
+               console teaches this parser the same way on every screen that
+               takes a typed date — a placeholder shows one, and the refusal
+               names the rest — and a row of formats sitting under an empty
+               field reads as a value somebody entered. */
+            placeholder="15/3"
+            hint="The first night withdrawn from sale."
+            onChange={(checkIn) => {
+              change({ checkIn });
+            }}
+          />
+          <Field
+            label="Back on sale"
+            value={fields.checkOut}
+            placeholder="+2d"
+            hint="The night the room sells again."
+            onChange={(checkOut) => {
+              change({ checkOut });
+            }}
+          />
+          <Field
+            className="sm:col-span-2"
+            label="Reason"
+            value={fields.reason}
+            placeholder="Bathroom retiling"
+            onChange={(reason) => {
+              change({ reason });
+            }}
+          />
+        </div>
+
+        {/* Between the range and the press, which is where the count is worth
+            reading: it is the hit to sellable inventory, and after the button it
+            would be a figure the manager passed on their way out. */}
+        {attempt !== null && "input" in attempt ? (
+          <p className="mt-3 text-sm">
+            Withdraws {attempt.nights}{" "}
+            {attempt.nights === 1 ? "night" : "nights"} of {room.roomType} from
+            sale, from {formatShortDate(attempt.input.checkIn)} up to{" "}
+            {formatShortDate(attempt.input.checkOut)}, which stays on sale.
+          </p>
+        ) : null}
+
+        <Button
+          className="mt-4 aria-disabled:pointer-events-none aria-disabled:opacity-50"
+          type="submit"
+          aria-disabled={busy}
+          aria-busy={busy}
+        >
           Schedule closure
         </Button>
       </form>
 
-      {attempt !== null && "input" in attempt ? (
-        <p className="mt-2 text-sm">
-          Withdraws {attempt.nights} {attempt.nights === 1 ? "night" : "nights"}{" "}
-          of {room.roomType} from sale, from{" "}
-          {formatShortDate(attempt.input.checkIn)} up to{" "}
-          {formatShortDate(attempt.input.checkOut)}, which stays on sale.
-        </p>
-      ) : null}
-
       {problem === null ? null : (
-        <p className="mt-3 border-danger border-l-2 pl-3 text-sm text-danger">
+        <p
+          className="mt-3 border-danger border-l-2 pl-3 text-sm text-danger"
+          role="alert"
+        >
           {problem}
         </p>
       )}
 
       {closeRoom.data === undefined ? null : (
-        <p className="text-muted-foreground mt-2 text-sm">
+        // What the API took, said out loud. Not an alert: nothing is wrong and
+        // nothing is owed, so it waits for the reader rather than interrupting.
+        <p className="mt-3 text-sm text-muted-foreground" role="status">
           Closed {formatLongDate(closeRoom.data.checkIn)} to{" "}
           {formatLongDate(closeRoom.data.checkOut)}:{" "}
           {closeRoom.data.nightsWithdrawn} nights withdrawn from sale.
@@ -549,22 +728,27 @@ function ClosureControl({
 
 /** One typed field, labelled. */
 function Field({
+  className,
   label,
   value,
+  placeholder,
   hint,
   onChange,
 }: {
+  className?: string;
   label: string;
   value: string;
+  placeholder?: string;
   hint?: string;
   onChange(value: string): void;
 }) {
   // Associated by id rather than by nesting, so the association is one an
   // element inspector and a linter can both see.
   const fieldId = useId();
+  const hintId = `${fieldId}-hint`;
 
   return (
-    <div>
+    <div className={cn("min-w-0", className)}>
       <label
         htmlFor={fieldId}
         className="block text-sm font-semibold text-muted-foreground"
@@ -573,14 +757,20 @@ function Field({
       </label>
       <Input
         id={fieldId}
+        // Named as well as drawn. A hint that only exists visually is guidance
+        // the operator this console is built for never receives.
+        aria-describedby={hint === undefined ? undefined : hintId}
         className="mt-1"
+        placeholder={placeholder}
         value={value}
         onChange={(event) => {
           onChange(event.target.value);
         }}
       />
       {hint === undefined ? null : (
-        <p className="text-muted-foreground mt-1 max-w-64 text-sm">{hint}</p>
+        <p id={hintId} className="mt-1 text-sm text-muted-foreground">
+          {hint}
+        </p>
       )}
     </div>
   );
@@ -590,7 +780,7 @@ function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div>
       <dt className="text-sm font-semibold text-muted-foreground">{label}</dt>
-      <dd>{value}</dd>
+      <dd className="mt-0.5">{value}</dd>
     </div>
   );
 }

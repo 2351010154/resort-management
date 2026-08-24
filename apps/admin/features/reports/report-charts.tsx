@@ -224,7 +224,7 @@ export function PerformanceChart({
       <fieldset>
         <legend
           id={groupId}
-          className="text-muted-foreground text-sm  uppercase"
+          className="text-muted-foreground text-xs tracking-caps uppercase"
         >
           Figure
         </legend>

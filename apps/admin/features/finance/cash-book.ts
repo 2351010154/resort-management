@@ -113,13 +113,32 @@ export function categoriesFor(
   return direction === "INCOME" ? INCOME_CATEGORIES : EXPENSE_CATEGORIES;
 }
 
-/** What each side of the book is called on screen. A `Record` over the union
- *  rather than a lookup with a fallback: a third direction added to the contract
- *  stops this file compiling, where a `?? direction` would print a database enum
- *  at an accountant. */
+/**
+ * What each side of the book is called on screen, in both languages the desk
+ * uses.
+ *
+ * A `Record` over the union rather than a lookup with a fallback: a third
+ * direction added to the contract stops this file compiling, where a `??
+ * direction` would print a database enum at an accountant.
+ *
+ * Glossed the way {@link CATEGORY_LABELS} is, and for the same reason. *Thu* and
+ * *chi* are the two halves of *thu chi*, the commercial term the contracts and
+ * `rbac-matrix.md` name this book by, so the Vietnamese stays — but bare, in a
+ * select whose other options and whose sibling fields are English, it is a word
+ * an operator has to already know to answer with. The contract's own `INCOME`
+ * and `EXPENSE` are what the pairing adds, so the option says which way the
+ * money went and still carries the accountant's term.
+ */
 export const DIRECTION_LABELS: Record<CashBookDirection, string> = {
-  INCOME: "Thu",
-  EXPENSE: "Chi",
+  INCOME: "Income · thu",
+  EXPENSE: "Expense · chi",
+};
+
+/** The same two sides mid-sentence, where a gloss would read as a stutter. Not
+ *  exported: nothing outside this file writes prose about a side. */
+const DIRECTION_IN_PROSE: Record<CashBookDirection, string> = {
+  INCOME: "income",
+  EXPENSE: "an expense",
 };
 
 /** And how the money moved. Its own map rather than the desk's, which is a fact
@@ -319,7 +338,7 @@ export function entryAttempt(
 
   if (!categorySuitsDirection(fields.category, fields.direction)) {
     return {
-      problem: `${CATEGORY_LABELS[fields.category]} is not booked as ${DIRECTION_LABELS[fields.direction].toLowerCase()}. A category belongs to one side of the book, so that the month reads.`,
+      problem: `${CATEGORY_LABELS[fields.category]} is not booked as ${DIRECTION_IN_PROSE[fields.direction]}. A category belongs to one side of the book, so that the month reads.`,
     };
   }
 

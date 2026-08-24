@@ -382,7 +382,7 @@ function Choice<T extends string>({
     <div>
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-sm  uppercase"
+        className="text-muted-foreground block text-xs tracking-caps uppercase"
       >
         {label}
       </label>
@@ -440,7 +440,7 @@ function Field({
     <div>
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-sm  uppercase"
+        className="text-muted-foreground block text-xs tracking-caps uppercase"
       >
         {label}
       </label>
@@ -465,7 +465,9 @@ function Field({
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-muted-foreground text-sm  uppercase">{label}</dt>
+      <dt className="text-muted-foreground text-xs tracking-caps uppercase">
+        {label}
+      </dt>
       <dd>{value}</dd>
     </div>
   );

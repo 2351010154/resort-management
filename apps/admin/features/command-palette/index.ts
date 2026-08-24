@@ -12,12 +12,12 @@
  */
 
 export {
-  type CommandGroup,
   COMMAND_GROUP_LABELS,
   COMMAND_GROUP_ORDER,
+  type CommandGroup,
   type CommandGroupId,
-  commandValue,
   type ConsoleCommand,
+  commandValue,
   groupCommands,
 } from "./command";
 export { CommandPalette } from "./command-palette";

@@ -4,6 +4,7 @@ import { formatVnd } from "@mariva/shared";
 import type * as React from "react";
 import { useEffect, useId, useRef, useState } from "react";
 
+import { KeyHint, StepTrail } from "@/components/console";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -22,6 +23,7 @@ import {
   OFFERED_PAYMENT_METHODS,
 } from "@/lib/desk-payment";
 import { KeyboardLayer, useHotkeys } from "@/lib/keyboard";
+import { cn } from "@/lib/utils";
 
 import {
   balanceDue,
@@ -54,6 +56,12 @@ import {
  * families exist for work *outside* a checkout, so nothing here sends the
  * operator to them: a detour costs the desk its place in the queue during the
  * one part of the day it cannot afford to lose it.
+ *
+ * It is drawn as a panel inset into the queue and not as more table, which is
+ * the arrangement the arrivals sequence arrived at for the same reason: the
+ * rows around it are a list being read, this is the one stay being worked, and
+ * a block that bled the full width of the table with a hairline over it read as
+ * five more columns nobody had a heading for.
  *
  * ## The order of the writes, and why the last press does two of them
  *
@@ -177,7 +185,11 @@ function Sequence({
   // press is disabled until it is — a disabled button cannot take focus, so
   // focusing on the step alone would leave the operator's focus on the row for
   // the length of one request and quietly break the handover the sequence
-  // promises. This is why the read's arrival is an event of its own here.
+  // promises. This is why the read's arrival is an event of its own here. It is
+  // also the one press in the sequence that is disabled outright rather than
+  // `aria-disabled`: nothing has been pressed yet, so there is no focus to
+  // lose, and a button that can be pressed before the charges exist is a button
+  // that agrees an account nobody has read.
   const reading = folio.isPending;
 
   /* biome-ignore lint/correctness/useExhaustiveDependencies: neither dependency
@@ -354,13 +366,26 @@ function Sequence({
   }
 
   return (
-    <div className="border-border border-t p-4">
-      <StepTrail steps={steps} current={step} />
+    // Two ceilings on the width, the pair the arrivals sequence settled on.
+    // The first is a readable measure, because a form stretched across a
+    // sixteen-hundred-pixel queue is a form whose labels and fields are a
+    // hand's width apart. The second is the window: the queue behind this sets
+    // a minimum width and scrolls sideways under it, and a panel that inherited
+    // that would make a desk on a small screen scroll to reach the field they
+    // are typing into.
+    <div className="max-w-[min(48rem,calc(100vw_-_5rem))] rounded-lg border border-border bg-card p-4 shadow-sm sm:p-5">
+      <StepTrail
+        sequence="Checkout"
+        steps={steps}
+        current={step}
+        labels={STEP_LABELS}
+      />
 
       {step === "account" ? (
         <Step
           onSubmit={agreeCharges}
-          busy={busy || folio.isPending}
+          busy={busy}
+          unread={reading}
           confirm={due > 0n ? "Take the balance" : "Charges agreed"}
           confirmRef={confirmControl}
         >
@@ -388,7 +413,7 @@ function Sequence({
             over — the stay cannot be checked out until it balances.
           </p>
 
-          <div className="mt-2 grid gap-3 sm:grid-cols-2">
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <Field
               label="Amount"
               inputRef={firstControl}
@@ -425,8 +450,8 @@ function Sequence({
          * what the press below re-posts. A form that replaced them would look
          * like the payment had been thrown away, and a form nested inside
          * another one is not a form the browser will submit. */
-        <div className="border-border mt-2 border-t pt-2">
-          <p className="text-muted-foreground text-sm  uppercase">
+        <div className="border-border mt-4 border-t pt-3">
+          <p className="text-muted-foreground text-xs tracking-caps uppercase">
             Open a drawer
           </p>
           <OpenDrawerForm
@@ -451,7 +476,7 @@ function Sequence({
           confirm="Close and check out"
           confirmRef={confirmControl}
         >
-          <dl className="grid gap-2 text-sm sm:grid-cols-2">
+          <dl className="grid gap-3 text-sm sm:grid-cols-2">
             <Fact label="Stay" value={departure.reference} />
             <Fact label="Room" value={departure.roomNumber ?? "None held"} />
             <Fact
@@ -468,7 +493,7 @@ function Sequence({
             />
           </dl>
 
-          <p className="text-muted-foreground mt-2 text-sm">
+          <p className="text-muted-foreground mt-3 text-sm">
             {agreed || closed
               ? "The account is already agreed and its invoice is with the property's invoice job. This press ends the stay."
               : "This agrees the account, which is what puts the stay in the invoice queue, and then ends it. The invoice number is issued out of band — there is nothing here to wait for."}
@@ -477,14 +502,30 @@ function Sequence({
       ) : null}
 
       {problem === null ? null : (
-        <p className="border-destructive text-destructive mt-2 border-l-2 pl-3 text-sm">
+        // Announced as well as written. The sentence arrives from a round trip
+        // the operator has already stopped watching for, and a refusal that
+        // only appears on screen is one a desk working by keyboard never hears.
+        <p
+          className="border-destructive text-destructive mt-3 border-l-2 pl-3 text-sm"
+          role="alert"
+        >
           {problem}
         </p>
       )}
 
-      <p className="text-muted-foreground mt-2 text-sm">
-        Escape abandons the checkout. Nothing already posted or agreed is undone
-        by it.
+      {/* The two keys the whole sequence is worked with, drawn as chips rather
+          than described in a sentence — the console shows a shortcut the way
+          the shell and the palette show one. */}
+      <p className="text-muted-foreground mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border-border border-t pt-3 text-sm">
+        <span className="inline-flex items-center gap-2">
+          <KeyHint>Enter</KeyHint>
+          finishes the step
+        </span>
+        <span className="inline-flex items-center gap-2">
+          <KeyHint>Esc</KeyHint>
+          abandons the checkout — nothing already posted or agreed is undone by
+          it
+        </span>
       </p>
     </div>
   );
@@ -496,38 +537,81 @@ function Sequence({
  * Every line rather than a total, because that is what agreeing the account
  * means: the ledger is append-only and a correction is a reversal, so the lines
  * a guest is being asked about are the lines that will be on the invoice.
+ *
+ * What the stay comes to is the same table's footer rather than a row of labels
+ * under it. Three figures beside a ledger are read as a settlement — charged,
+ * paid, and what is left — and the only place they can be read that way is the
+ * column the lines they total are already set in. Standing apart from it they
+ * were three captions with money under them, aligned with nothing, and the
+ * figure the whole sequence turns on sat furthest from the ledger that produced
+ * it.
  */
 function AccountSummary({ folio }: { folio: Folio }) {
   return (
-    <>
-      <table className="w-full border-collapse text-sm">
-        <caption className="text-muted-foreground text-left text-sm  uppercase">
-          Charges and payments
-        </caption>
-        <tbody>
-          {folio.postings.length === 0 ? (
-            <tr>
-              <td className="text-muted-foreground py-2" colSpan={3}>
-                Nothing has been posted to this stay.
-              </td>
-            </tr>
-          ) : (
-            folio.postings.map((posting) => (
-              <PostingRow key={posting.id} posting={posting} />
-            ))
-          )}
-        </tbody>
-      </table>
-
-      <dl className="mt-2 grid gap-2 text-sm sm:grid-cols-3">
-        <Fact label="Charged" value={formatVnd(folio.summary.charged)} />
-        <Fact label="Paid" value={formatVnd(folio.summary.credited)} />
-        <Fact
+    <table className="w-full border-collapse text-sm">
+      {/* The ledger's own title, and a tier above the column headings under it
+          rather than beside them: three lines of muted caps stacked — the
+          trail's count, the caption, the headings — read as one block of
+          annotation with no ledger in it. */}
+      <caption className="text-foreground pb-2 text-left text-sm font-semibold">
+        Charges and payments
+      </caption>
+      <thead>
+        <tr className="border-border border-b">
+          <ColumnHeading>Date</ColumnHeading>
+          <ColumnHeading>Description</ColumnHeading>
+          <ColumnHeading align="right">Amount</ColumnHeading>
+        </tr>
+      </thead>
+      <tbody>
+        {folio.postings.length === 0 ? (
+          <tr>
+            <td className="text-muted-foreground py-2" colSpan={3}>
+              Nothing has been posted to this stay.
+            </td>
+          </tr>
+        ) : (
+          folio.postings.map((posting) => (
+            <PostingRow key={posting.id} posting={posting} />
+          ))
+        )}
+      </tbody>
+      <tfoot>
+        <SettlementRow
+          label="Charged"
+          value={formatVnd(folio.summary.charged)}
+          first
+        />
+        <SettlementRow label="Paid" value={formatVnd(folio.summary.credited)} />
+        <SettlementRow
           label="Outstanding"
           value={formatVnd(folio.summary.outstanding)}
+          total
         />
-      </dl>
-    </>
+      </tfoot>
+    </table>
+  );
+}
+
+/** A column of the ledger, named in the console's label tier — a heading sits
+ *  beneath the cells it names rather than competing with them. */
+function ColumnHeading({
+  align,
+  children,
+}: {
+  align?: "right";
+  children: string;
+}) {
+  return (
+    <th
+      scope="col"
+      className={cn(
+        "text-muted-foreground py-1 pr-3 text-xs font-normal tracking-caps uppercase",
+        align === "right" ? "pr-0 text-right" : "text-left",
+      )}
+    >
+      {children}
+    </th>
   );
 }
 
@@ -545,47 +629,103 @@ function PostingRow({ posting }: { posting: FolioPosting }) {
   );
 }
 
-/** Where the operator is, and how much of the sequence is left. */
-function StepTrail({
-  steps,
-  current,
+/**
+ * One figure of what the stay comes to, under the ledger's own money column.
+ *
+ * The name spans the date and description columns because it names a total and
+ * not a line, and the total is the row heading rather than a cell — `th
+ * scope="row"` is what tells a screen reader that the đồng beside it belong to
+ * "Outstanding" and not to another posting.
+ */
+function SettlementRow({
+  label,
+  value,
+  first,
+  total,
 }: {
-  steps: readonly CheckoutStep[];
-  current: CheckoutStep;
+  label: string;
+  value: string;
+  /** Divided off the postings above by the heavier of the two rules. */
+  first?: boolean;
+  /** The figure the rest of the sequence turns on, set to be found first. */
+  total?: boolean;
 }) {
+  // The rule that divides the totals off the ledger is drawn on the cells and
+  // not on the row. The table collapses its borders, and where two rows meet
+  // with a rule each of the same width the one declared on a cell is the one
+  // that survives — declared on the row, the heavier line would lose its colour
+  // to the hairline under the last posting.
+  const divider = first === true ? "border-line border-t pt-2" : "";
+
   return (
-    <ol className="mb-2 flex flex-wrap gap-3 text-sm  uppercase">
-      {steps.map((step) => (
-        <li
-          key={step}
-          aria-current={step === current ? "step" : undefined}
-          className={
-            step === current ? "text-foreground" : "text-muted-foreground"
-          }
-        >
-          {STEP_LABELS[step]}
-        </li>
-      ))}
-    </ol>
+    <tr>
+      <th
+        scope="row"
+        colSpan={2}
+        className={cn(
+          "py-1 pr-3 text-left text-xs tracking-caps uppercase",
+          total === true
+            ? "text-foreground font-semibold"
+            : "text-muted-foreground font-normal",
+          divider,
+        )}
+      >
+        {label}
+      </th>
+      <td
+        className={cn(
+          "py-1 text-right tabular-nums whitespace-nowrap",
+          total === true && "text-foreground font-semibold",
+          divider,
+        )}
+      >
+        {value}
+      </td>
+    </tr>
   );
 }
 
+/** The words each step of a checkout is drawn with in the trail. */
 const STEP_LABELS: Record<CheckoutStep, string> = {
   account: "Charges",
   payment: "Balance",
   settlement: "Check out",
 };
 
-/** One step of the sequence: fields, and the press that finishes them. */
+/**
+ * One step of the sequence: fields, and the press that finishes them.
+ *
+ * The button in flight is `aria-disabled` and not `disabled`, and the second
+ * press is dropped here instead. A control that goes disabled under the
+ * operator's finger hands focus to `<body>`, which is exactly what the charges
+ * and settlement steps cannot afford: they are the two steps whose first
+ * control *is* the button, so a refusal that leaves the sequence where it was —
+ * a check-out the API turns down over an account that moved, which routes back
+ * to the step it was already on — would leave the desk with the sentence
+ * explaining it and nothing to press. Both spellings refuse the same second
+ * press, and only one of them keeps the keys.
+ *
+ * A step waiting on a read it has not had yet is the other case and takes the
+ * other spelling — see {@link Step.unread}.
+ */
 function Step({
   onSubmit,
   busy,
+  unread,
   confirm,
   confirmRef,
   children,
 }: {
   onSubmit(): void | Promise<void>;
+  /** A write this step asked for is in flight. */
   busy: boolean;
+  /**
+   * There is nothing here to confirm yet, because what the step shows has not
+   * arrived. Disabled outright and not `aria-disabled`: no press has been made,
+   * so there is no focus to strand, and the focus effect above is written to
+   * come back when the read lands.
+   */
+  unread?: boolean;
   /** The words on the press that finishes this step. */
   confirm: string;
   confirmRef?: React.Ref<HTMLButtonElement>;
@@ -595,13 +735,25 @@ function Step({
     <form
       onSubmit={(event) => {
         event.preventDefault();
+
+        if (busy) {
+          return;
+        }
+
         void onSubmit();
       }}
     >
       {children}
 
-      <div className="mt-2">
-        <Button ref={confirmRef} type="submit" disabled={busy}>
+      <div className="mt-4">
+        <Button
+          ref={confirmRef}
+          type="submit"
+          disabled={unread}
+          aria-busy={busy || undefined}
+          aria-disabled={busy || undefined}
+          className="aria-disabled:pointer-events-none aria-disabled:opacity-50"
+        >
           {confirm}
         </Button>
       </div>
@@ -635,7 +787,7 @@ function Field({
     <div>
       <label
         htmlFor={fieldId}
-        className="text-muted-foreground block text-sm  uppercase"
+        className="text-muted-foreground block text-xs tracking-caps uppercase"
       >
         {label}
       </label>
@@ -690,8 +842,11 @@ function MethodChoice({
   const groupId = useId();
 
   return (
-    <fieldset className="mt-2">
-      <legend id={groupId} className="text-muted-foreground text-sm  uppercase">
+    <fieldset className="mt-4">
+      <legend
+        id={groupId}
+        className="text-muted-foreground text-xs tracking-caps uppercase"
+      >
         Method
       </legend>
       <RadioGroup
@@ -734,8 +889,10 @@ function MethodOption({ method }: { method: DeskPaymentMethod }) {
 function Fact({ label, value }: { label: string; value: string }) {
   return (
     <div>
-      <dt className="text-muted-foreground text-sm  uppercase">{label}</dt>
-      <dd>{value}</dd>
+      <dt className="text-muted-foreground text-xs tracking-caps uppercase">
+        {label}
+      </dt>
+      <dd className="mt-0.5">{value}</dd>
     </div>
   );
 }

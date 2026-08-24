@@ -197,6 +197,20 @@ export function varianceReading(shift: Shift): VarianceReading | null {
     : { tone: "short", amount: -shift.variance };
 }
 
+/**
+ * What `cashBookNet` is called on screen, in both languages the desk uses.
+ *
+ * *Thu chi* is what the property's own book is called — `FR-OPS-02` and
+ * `rbac-matrix.md` both name the row in Vietnamese, and `docs/README.md` keeps a
+ * commercial term in the language the people who use it use. On its own among
+ * `Trading day` and `Cash taken` it is a word an English-reading manager cannot
+ * place, so it is glossed the way `features/finance/cash-book.ts` glosses every
+ * category it prints: the English first, the term the accountant asks for after
+ * it. One constant because the history's column and the drawer's figures are the
+ * same figure, and two spellings of it would drift.
+ */
+export const CASH_BOOK_TERM = "Cash book · thu chi";
+
 /** What each way a drawer can be out is called on screen. */
 export const VARIANCE_LABELS: Record<VarianceTone, string> = {
   square: "Square",
