@@ -15,7 +15,7 @@ describe("what a row of the grid says", () => {
 
     expect(price.cost).toBe("Cancelling this stay costs nothing.");
     expect(price.amount).toBeNull();
-    expect(price.refund).toBe("Everything you have paid comes back to you.");
+    expect(price.refund).toBeNull();
   });
 
   it("names the first night, and what it comes to", () => {
@@ -23,9 +23,7 @@ describe("what a row of the grid says", () => {
 
     expect(price.cost).toBe("Cancelling now costs the first night.");
     expect(price.amount).toBe(1_200_000n);
-    expect(price.refund).toBe(
-      "Anything you have paid beyond that comes back to you.",
-    );
+    expect(price.refund).toBeNull();
   });
 
   it("says nothing comes back on a non-refundable rate", () => {
@@ -36,28 +34,30 @@ describe("what a row of the grid says", () => {
   });
 
   it("speaks of money paid without claiming any has been", () => {
-    // A `HELD` stay is quotable and cancellable, and has paid nothing. Every
-    // refund sentence is a rule about the guest's money rather than a claim
-    // that money exists, so one wording is true of an unpaid hold and of a
-    // stay paid in full.
-    for (const basis of ["NONE", "FIRST_NIGHT", "FULL_STAY"] as const) {
-      expect(priceOfCancelling(quote(basis, 1n)).refund).toContain(
-        "you have paid",
-      );
-    }
+    // A `HELD` stay is quotable and cancellable, and has paid nothing. The one
+    // sentence left about money already handed over is a rule rather than a
+    // claim that any money exists, so its wording is true of an unpaid hold and
+    // of a stay paid in full alike.
+    expect(priceOfCancelling(quote("FULL_STAY", 1n)).refund).toContain(
+      "you have paid",
+    );
   });
 
-  it("promises no refund on a row that cannot say what comes back", () => {
-    // The two early-departure rows. They cannot reach a cancellation quote, and
-    // the point of the assertion is that if one ever did it would state its
-    // charge and stop — the nights already slept are on the folio, so a
-    // sentence about the rest returning would be false.
-    expect(
-      priceOfCancelling(quote("REMAINING_NIGHTS_HALF", 1n)).refund,
-    ).toBeNull();
-    expect(
-      priceOfCancelling(quote("REMAINING_NIGHTS_FULL", 1n)).refund,
-    ).toBeNull();
+  it("promises money back on no row at all", () => {
+    // Refunds are started by staff out of band, and no code path returns money
+    // on its own, so a row that told a guest their money was coming back would
+    // be committing somebody else to an act nobody has asked for. Every basis
+    // but the non-refundable one states its charge and stops. The two
+    // early-departure rows have a second reason: they cannot reach a
+    // cancellation quote, and the nights already slept are on the folio.
+    for (const basis of [
+      "NONE",
+      "FIRST_NIGHT",
+      "REMAINING_NIGHTS_HALF",
+      "REMAINING_NIGHTS_FULL",
+    ] as const) {
+      expect(priceOfCancelling(quote(basis, 1n)).refund).toBeNull();
+    }
   });
 });
 

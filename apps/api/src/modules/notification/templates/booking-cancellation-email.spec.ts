@@ -1,13 +1,16 @@
 // The bodies a cancelled booking produces, and the figures they must state
 // exactly.
 //
-// Two things are being held here. The first is that the two amounts the caller
-// hands over reach the guest unchanged and in both bodies: a mail that printed
-// the penalty and dropped the refund, or printed one of them in the HTML only, is
-// a guest who believes the property kept money it is sending back. The second is
-// that a penalty of nothing is said in words rather than shown as a zero on a
-// line labelled "charge" — the two cases that produce it, §4's free window and a
-// manager's waiver, are both good news.
+// Three things are being held here. The first is that the amount the caller
+// hands over reaches the guest unchanged and in both bodies: a charge stated in
+// the HTML only is a guest in a text client who never learns what the stay cost
+// them. The second is that a penalty of nothing is said in words rather than
+// shown as a zero on a line labelled "charge" — the two cases that produce it,
+// §4's free window and a manager's waiver, are both good news. The third is that
+// no body promises money back, whatever was charged: §4's entitlement stands,
+// but returning it is a staff act taken out of band and nothing in this process
+// performs one, so a refund sentence here would be an undertaking the product
+// does not keep.
 //
 // The escaping cases are the confirmation's and for the same reason: a contact
 // name arrives from an unauthenticated hold, so the template is the last thing
@@ -22,25 +25,15 @@ const CANCELLATION = {
   reference: "MRV-2027-0042",
   reason: "GUEST_REQUEST",
   penalty: 0n,
-  refund: null,
 } as const;
 
 describe("a cancellation that cost the guest a night", () => {
-  const email = bookingCancellation({
-    ...CANCELLATION,
-    penalty: 1_850_000n,
-    refund: 3_700_000n,
-  });
+  const email = bookingCancellation({ ...CANCELLATION, penalty: 1_850_000n });
 
   it("states the charge in both bodies", () => {
     // The grouped form the property quotes prices in, not the raw integer.
     expect(email.text).toContain("1.850.000");
     expect(email.html).toContain("1.850.000");
-  });
-
-  it("states the refund in both bodies", () => {
-    expect(email.text).toContain("3.700.000");
-    expect(email.html).toContain("3.700.000");
   });
 
   it("does not claim there was no charge", () => {
@@ -50,29 +43,41 @@ describe("a cancellation that cost the guest a night", () => {
 });
 
 describe("a cancellation that cost the guest nothing", () => {
-  const email = bookingCancellation({ ...CANCELLATION, refund: 2_000_000n });
+  const email = bookingCancellation(CANCELLATION);
 
   it("says so in words rather than printing a zero", () => {
     expect(email.text).toContain("no cancellation charge");
     expect(email.html).toContain("no cancellation charge");
     expect(email.text).not.toContain("Cancellation charge:");
   });
-
-  it("still states the refund, which is what a waiver means in money", () => {
-    expect(email.text).toContain("2.000.000");
-    expect(email.html).toContain("2.000.000");
-  });
 });
 
-describe("a cancellation with nothing to hand back", () => {
-  const email = bookingCancellation({ ...CANCELLATION, penalty: 500_000n });
+describe("any cancellation, charged or free", () => {
+  // Once the universal case rather than the empty one. Money going back is a
+  // staff act taken at the desk and out of band; no code path returns it, so no
+  // body may say it is coming — for a stay that paid nothing, for one whose
+  // penalty stands against the whole of what it paid, and equally for one that
+  // is owed the lot. A guest waiting on a refund this system will never start is
+  // worse off than one who was told to ask for it.
+  // A charge that stands, and one §4's window or a manager waived.
+  const penalties = [500_000n, 0n] as const;
 
-  it("promises no refund at all", () => {
-    // Absent rather than zero: a stay that paid nothing, or one whose penalty
-    // stands against the whole of what it paid. "Refund: 0 ₫" is a sentence a
-    // guest reads as a mistake.
-    expect(email.text).not.toContain("Refund");
-    expect(email.html).not.toContain("Refund");
+  it("promises no refund, whatever the charge was", () => {
+    for (const penalty of penalties) {
+      const email = bookingCancellation({ ...CANCELLATION, penalty });
+
+      expect(email.text).not.toMatch(/refund/i);
+      expect(email.html).not.toMatch(/refund/i);
+    }
+  });
+
+  it("still states what §4 charged, which is the fact the mail exists for", () => {
+    for (const penalty of penalties) {
+      const email = bookingCancellation({ ...CANCELLATION, penalty });
+
+      expect(email.text).toMatch(/cancellation charge/i);
+      expect(email.html).toMatch(/cancellation charge/i);
+    }
   });
 });
 
