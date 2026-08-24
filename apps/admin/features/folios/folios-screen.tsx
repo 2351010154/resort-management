@@ -32,6 +32,10 @@ import {
   useHotkeys,
   useRovingFocusItem,
 } from "@/lib/keyboard";
+import {
+  enterSubmissionGate,
+  leaveSubmissionGate,
+} from "@/lib/submission-gate";
 import { cn } from "@/lib/utils";
 import {
   chargeAttempt,
@@ -688,8 +692,8 @@ function FolioActions({ bookingId }: { bookingId: string }) {
   const catalogRef = useRef<HTMLSelectElement>(null);
   const quantityRef = useRef<HTMLInputElement>(null);
   const serviceAmountRef = useRef<HTMLInputElement>(null);
-  const chargeLock = useRef(false);
-  const serviceLock = useRef(false);
+  const chargeGate = useRef(false);
+  const serviceGate = useRef(false);
   const item =
     catalog.data?.find((candidate) => candidate.code === code) ?? null;
 
@@ -701,7 +705,7 @@ function FolioActions({ bookingId }: { bookingId: string }) {
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          if (charge.isPending || chargeLock.current) return;
+          if (charge.isPending) return;
           const attempt = chargeAttempt(bookingId, chargeAmount, description);
           if ("problem" in attempt) {
             const message = attempt.problem ?? "Check the charge.";
@@ -720,15 +724,13 @@ function FolioActions({ bookingId }: { bookingId: string }) {
           }
           setChargeProblem(null);
           setChargeInvalid(null);
-          chargeLock.current = true;
+          if (!enterSubmissionGate(chargeGate)) return;
           charge.mutate(attempt.input, {
             onSuccess: () => {
               setChargeAmount("");
               setDescription("");
             },
-            onSettled: () => {
-              chargeLock.current = false;
-            },
+            onSettled: () => leaveSubmissionGate(chargeGate),
           });
         }}
       >
@@ -776,7 +778,7 @@ function FolioActions({ bookingId }: { bookingId: string }) {
       <form
         onSubmit={(event) => {
           event.preventDefault();
-          if (service.isPending || serviceLock.current) return;
+          if (service.isPending) return;
           const attempt = serviceAttempt(
             bookingId,
             item,
@@ -804,15 +806,13 @@ function FolioActions({ bookingId }: { bookingId: string }) {
           }
           setServiceProblem(null);
           setServiceInvalid(null);
-          serviceLock.current = true;
+          if (!enterSubmissionGate(serviceGate)) return;
           service.mutate(attempt.input, {
             onSuccess: () => {
               setQuantity("1");
               setServiceAmount("");
             },
-            onSettled: () => {
-              serviceLock.current = false;
-            },
+            onSettled: () => leaveSubmissionGate(serviceGate),
           });
         }}
       >

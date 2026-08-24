@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { enterSubmissionGate, leaveSubmissionGate } from "./submission-gate";
 
-describe("booking action submission gate", () => {
+describe("the console submission gate", () => {
   it("admits only one same-turn submission and reopens after finally", async () => {
     const gate = { current: false };
     const mutate = vi.fn(async () => undefined);
