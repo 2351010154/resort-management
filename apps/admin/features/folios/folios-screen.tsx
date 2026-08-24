@@ -10,6 +10,7 @@ import {
   FilterBar,
   KeyHint,
   PageHeader,
+  Pager,
   StatusChip,
   type StatusTone,
 } from "@/components/console";
@@ -497,43 +498,6 @@ function FolioRow({
         </span>
       </button>
     </li>
-  );
-}
-
-/**
- * One press of the pager.
- *
- * `aria-disabled` and not `disabled`, which is the console's standing answer to
- * a control that stops being pressable while somebody is standing on it: a
- * disabled button cannot hold focus, so the browser drops it on `<body>` — and
- * an operator who reached the last page with Enter would be left nowhere. The
- * refusal is the same; it is made in the handler instead.
- */
-function Pager({
-  label,
-  offered,
-  onPage,
-}: {
-  label: string;
-  offered: boolean;
-  onPage(): void;
-}) {
-  return (
-    <Button
-      type="button"
-      variant="ghost"
-      aria-disabled={!offered}
-      className="aria-disabled:pointer-events-none aria-disabled:opacity-50"
-      onClick={() => {
-        if (!offered) {
-          return;
-        }
-
-        onPage();
-      }}
-    >
-      {label}
-    </Button>
   );
 }
 
