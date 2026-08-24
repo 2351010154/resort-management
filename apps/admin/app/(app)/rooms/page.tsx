@@ -2,10 +2,10 @@
 // room is not sellable.
 //
 // A shell around one component, like the routes beside it: the authenticated
-// layout above already mounts the session guard, the query cache, the rail, the
-// palette and the `g` sequence — `g r` included, bound from
-// `features/shell/nav-inventory.ts` for the whole inventory at once. What is left
-// for a route file is naming the screen it draws.
+// layout above already mounts the session guard, the query cache, the rail and
+// the palette — this family's `Go to` row included, registered from
+// `features/shell/nav-inventory.ts` for the whole inventory at once. What is
+// left for a route file is naming the screen it draws.
 //
 // Everything the screen does needs the browser: a cache the housekeeping board is
 // shared through, a session token held in memory, focus moving between rooms. The

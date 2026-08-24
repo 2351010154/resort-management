@@ -1,7 +1,7 @@
 import { expect, type Page, test } from "@playwright/test";
 
 import {
-  goByHotkey,
+  goByPalette,
   QUEUE_ROW,
   signIn,
   tabIntoQueue,
@@ -39,7 +39,7 @@ test("a stay with a balance is checked out without a single mouse event", async 
   const mouse = await watchMouse(page);
 
   await signIn(page);
-  await goByHotkey(page, "e", "/departures");
+  await goByPalette(page, "Departures", "/departures");
 
   // One Tab stop for the whole list, and it returns with a row focused.
   await tabIntoQueue(page);

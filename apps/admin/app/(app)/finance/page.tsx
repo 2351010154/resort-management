@@ -8,8 +8,8 @@
 // guest's account.
 //
 // A shell around one component, like the routes beside it: the authenticated
-// layout above already mounts the session guard, the query cache, the rail, the
-// palette and the `g` sequence — `g i` included, bound from
+// layout above already mounts the session guard, the query cache, the rail and
+// the palette — this family's `Go to` row included, registered from
 // `features/shell/nav-inventory.ts` for the whole inventory at once. What is
 // left for a route file is naming the screen it draws.
 //

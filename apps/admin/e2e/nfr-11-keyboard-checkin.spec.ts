@@ -1,7 +1,7 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 
 import {
-  goByHotkey,
+  goByPalette,
   QUEUE_ROW,
   signIn,
   tabIntoQueue,
@@ -57,7 +57,7 @@ test("a stay is checked in end to end without a single mouse event", async ({
   await signIn(page);
   mouse.assertSilent("signing in");
 
-  await goByHotkey(page, "a", "/arrivals");
+  await goByPalette(page, "Arrivals", "/arrivals");
   mouse.assertSilent("reaching the arrivals queue");
 
   const queue = await tabIntoQueue(page);

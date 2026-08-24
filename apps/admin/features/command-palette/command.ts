@@ -55,7 +55,7 @@ export interface ConsoleCommand {
   /** What running it does. Called with the palette already closing. */
   action: () => void;
   /**
-   * A written hotkey — `mod+k`, `g d` — shown on the right of the row.
+   * A written hotkey — `mod+k`, `alt+arrowdown` — shown on the right of the row.
    *
    * Display only. The palette does not bind it: a command that has a shortcut
    * binds it where it lives, with `useHotkeys`, so that the shortcut works on
