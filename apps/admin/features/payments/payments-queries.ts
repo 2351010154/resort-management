@@ -38,7 +38,12 @@
 "use client";
 
 import { PAYMENT_PAGE_SIZE } from "@mariva/shared";
-import { skipToken, useQuery } from "@tanstack/react-query";
+import {
+  skipToken,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useMemo } from "react";
 
 /* The pager's arithmetic, taken from the module that already owns it rather
@@ -58,8 +63,20 @@ import {
   nightReading,
   type PaymentQuestion,
   type ReconciliationRun,
+  type RefundCandidate,
   recentNights,
+  refundCandidateInput,
 } from "./payment-day";
+
+export type RefundCandidatePageReading =
+  | { readonly status: "idle" }
+  | { readonly status: "pending" }
+  | { readonly status: "failed" }
+  | {
+      readonly status: "ready";
+      readonly payments: readonly RefundCandidate[];
+      readonly window: PageWindow;
+    };
 
 /**
  * The property's day, which every question this screen asks is counted from.
@@ -121,7 +138,7 @@ export interface PaymentsData {
 export function usePaymentDay(
   question: PaymentQuestion | null,
   offset: number,
-  offered: boolean,
+  reconciles: boolean,
 ): PaymentsData {
   const page = useQuery(
     orpc.payment.list.queryOptions({
@@ -135,7 +152,7 @@ export function usePaymentDay(
   const night = useQuery(
     orpc.payment.readReconciliation.queryOptions({
       input:
-        question === null || question.day === null
+        !reconciles || question === null || question.day === null
           ? skipToken
           : { businessDate: question.day },
       // The screen draws both of this read's outcomes where the operator is
@@ -151,7 +168,7 @@ export function usePaymentDay(
       // Neither end of the range named, which the route answers with the most
       // recent days. A window would be this screen asking for a period nobody
       // chose; the strip wants the nights nearest to now.
-      input: offered ? {} : skipToken,
+      input: reconciles ? {} : skipToken,
       meta: {
         errorMessage: "The nights already compared could not be listed.",
       } satisfies ConsoleMeta,
@@ -204,4 +221,65 @@ export function usePaymentDay(
     ),
     nights,
   };
+}
+
+/** The narrow, policy-refund-safe payment page used by non-reconciling staff. */
+export function useRefundCandidatePage(
+  question: PaymentQuestion | null,
+  offset: number,
+): RefundCandidatePageReading {
+  const page = useQuery(
+    orpc.payment.listRefundCandidates.queryOptions({
+      input: question === null ? skipToken : refundCandidateInput(question),
+      meta: {
+        errorMessage: "The refundable payments could not be read.",
+      } satisfies ConsoleMeta,
+    }),
+  );
+
+  const answer = page.data;
+  return useMemo<RefundCandidatePageReading>(() => {
+    if (question === null) return { status: "idle" };
+    if (page.isError) return { status: "failed" };
+    if (answer === undefined) return { status: "pending" };
+    return {
+      status: "ready",
+      payments: answer.payments,
+      window: pageWindow(
+        answer.total,
+        answer.payments.length,
+        offset,
+        PAYMENT_PAGE_SIZE,
+      ),
+    };
+  }, [question, page.isError, answer, offset]);
+}
+
+export function usePolicyRefund() {
+  const qc = useQueryClient();
+  return useMutation(
+    orpc.folio.postPolicyRefund.mutationOptions({
+      meta: {
+        errorMessage: "The stay could not be refunded under policy.",
+      } satisfies ConsoleMeta,
+      onSuccess: () => {
+        void qc.invalidateQueries({ queryKey: orpc.folio.key() });
+        void qc.invalidateQueries({ queryKey: orpc.payment.key() });
+      },
+    }),
+  );
+}
+export function useOverrideRefund() {
+  const qc = useQueryClient();
+  return useMutation(
+    orpc.folio.postOverrideRefund.mutationOptions({
+      meta: {
+        errorMessage: "The stay's override refund could not be posted.",
+      } satisfies ConsoleMeta,
+      onSuccess: () => {
+        void qc.invalidateQueries({ queryKey: orpc.folio.key() });
+        void qc.invalidateQueries({ queryKey: orpc.payment.key() });
+      },
+    }),
+  );
 }

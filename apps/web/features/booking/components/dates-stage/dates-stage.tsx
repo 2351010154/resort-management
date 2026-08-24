@@ -79,6 +79,7 @@ export function DatesStage({
   onPartyChange,
   onContinue,
   onCalendarRetry,
+  returnTo,
 }: {
   readonly range: StayRange | null;
   readonly party: Party;
@@ -96,6 +97,8 @@ export function DatesStage({
   readonly onPartyChange: (party: Party) => void;
   readonly onContinue: () => void;
   readonly onCalendarRetry: () => void;
+  /** The current funnel URL, carried through a deliberate sign-in. */
+  readonly returnTo: string;
 }) {
   const [status, setStatus] = useState(OPENING_LINE);
 
@@ -119,7 +122,7 @@ export function DatesStage({
     // which the band has to know as well, or its last line sits behind the card.
     <div className={styles.step}>
       <BookingHero>
-        <FunnelNav />
+        <FunnelNav returnTo={returnTo} />
 
         {/* The head, on its own vertical: steps, title, line. Wrapped rather
             than laid directly in the band, because the bar carries its own

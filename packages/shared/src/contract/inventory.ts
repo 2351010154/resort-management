@@ -44,7 +44,27 @@ export const closeRoomInput = z
     path: ["checkOut"],
   });
 
+/** Optional half-open overlap window for reading scheduled closures. */
+export const roomClosureQuery = z
+  .object({
+    roomNumber: z.string().trim().min(1).max(10).optional(),
+    checkIn: stayDateSchema.optional(),
+    checkOut: stayDateSchema.optional(),
+  })
+  .refine(
+    ({ checkIn, checkOut }) =>
+      checkIn === undefined ||
+      checkOut === undefined ||
+      checkIn.compare(checkOut) < 0,
+    { message: "checkOut must fall after checkIn", path: ["checkOut"] },
+  );
+
 export const inventory = {
+  listRoomClosures: oc
+    .route({ method: "GET", path: "/inventory/room-closures" })
+    .input(roomClosureQuery)
+    .output(z.array(roomClosureSchema)),
+
   closeRoom: oc
     // 201, because the response carries the id of something that now exists and
     // that the caller has to keep in order to lift it again.

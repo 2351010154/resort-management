@@ -17,6 +17,7 @@ import {
   type ReconciledNight,
   type ReconciliationRun,
   recentNights,
+  refundCandidateInput,
   reportedAmount,
   tradingDayLabel,
 } from "./payment-day";
@@ -295,6 +296,29 @@ describe("paymentFilters", () => {
         },
         day: BUSINESS_DATE,
       },
+    });
+  });
+});
+
+describe("refundCandidateInput", () => {
+  it("keeps only the desk-safe day, method and paging filters", () => {
+    expect(
+      refundCandidateInput({
+        input: {
+          businessDate: BUSINESS_DATE,
+          bookingId: "22222222-2222-4222-8222-222222222222",
+          method: "CASH",
+          status: "SUCCESS",
+          limit: PAYMENT_PAGE_SIZE,
+          offset: PAYMENT_PAGE_SIZE,
+        },
+        day: BUSINESS_DATE,
+      }),
+    ).toEqual({
+      businessDate: BUSINESS_DATE,
+      method: "CASH",
+      limit: PAYMENT_PAGE_SIZE,
+      offset: PAYMENT_PAGE_SIZE,
     });
   });
 });

@@ -3,7 +3,7 @@ import type { Platform } from "@/lib/keyboard";
 /* Turning a written hotkey into the hint on the right of a palette row.
  *
  * A command declares its shortcut the way every binding in the console is
- * written — "mod+k", "g d", "shift+/" — because that spelling is what
+ * written — "mod+k", "alt+arrowdown", "shift+/" — because that spelling is what
  * `useHotkeys` takes, and a command that wrote its hint separately from its
  * binding would eventually advertise a key it does not answer to. So the hint
  * is derived rather than authored, and this is the derivation.
@@ -98,10 +98,9 @@ function formatChord(chord: string, platform: Platform): string {
 /**
  * Formats a written shortcut for display.
  *
- * Sequences — "g d", the two-key press that goes to the dashboard — are chords
- * separated by spaces, and each is formatted on its own. The space survives
- * into the hint because it is the thing that says these are pressed one after
- * the other rather than together.
+ * Sequences — chords separated by spaces, pressed one after the other — are
+ * formatted one chord at a time. The space survives into the hint because it is
+ * the thing that says these are struck in turn rather than together.
  */
 export function formatShortcut(spec: string, platform: Platform): string {
   return (

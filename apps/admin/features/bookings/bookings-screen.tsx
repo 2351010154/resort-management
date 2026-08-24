@@ -1,5 +1,6 @@
 "use client";
 
+import { BOOKING_STATES, type StaffRole } from "@mariva/shared";
 import {
   type ColumnDef,
   flexRender,
@@ -32,6 +33,7 @@ import {
   useRovingFocusItem,
 } from "@/lib/keyboard";
 
+import { visibleBookingActions } from "./booking-actions";
 import {
   mayTakeBookings,
   NO_SEARCH_FIELDS,
@@ -42,6 +44,7 @@ import {
 } from "./booking-search";
 import { useBookingList } from "./bookings-queries";
 import { NewBookingForm } from "./new-booking-form";
+import { StayActionSheet } from "./stay-action-sheet";
 
 /* Every stay the property has, found and taken.
  *
@@ -110,6 +113,7 @@ export function BookingsScreen() {
   const [criteria, setCriteria] = useState<SearchCriteria | null>(null);
   const [problem, setProblem] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [selectedStay, setSelectedStay] = useState<Stay | null>(null);
 
   const { businessDate, list, rooms } = useBookingList(criteria);
   const searchField = useRef<HTMLInputElement>(null);
@@ -128,7 +132,7 @@ export function BookingsScreen() {
       searchField.current?.focus();
       searchField.current?.select();
     },
-    { enabled: !creating },
+    { enabled: !creating && selectedStay === null },
   );
 
   useHotkeys(
@@ -139,10 +143,16 @@ export function BookingsScreen() {
     // The accountant is offered no creating control at all, so the key that
     // opens one is not bound for them either — a shortcut that answered 403
     // would be the console teaching a refusal.
-    { enabled: mayCreate && !creating },
+    { enabled: mayCreate && !creating && selectedStay === null },
   );
 
-  const columns = useMemo(() => bookingColumns(), []);
+  const role: StaffRole | null =
+    session.status === "authenticated" ? session.user.role : null;
+
+  const columns = useMemo(
+    () => bookingColumns(role, (stay) => setSelectedStay(stay)),
+    [role],
+  );
 
   const table = useReactTable({
     data: stays,
@@ -414,6 +424,16 @@ export function BookingsScreen() {
           </RovingFocusGroup>
         </DataTableFrame>
       ) : null}
+      {selectedStay !== null && role !== null ? (
+        <StayActionSheet
+          stay={selectedStay}
+          role={role}
+          open
+          onOpenChange={(open) => {
+            if (!open) setSelectedStay(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
@@ -425,7 +445,7 @@ function BookingRow({ row }: { row: Row<Stay> }) {
   return (
     <tr
       {...roving}
-      className="border-border border-b transition-colors duration-150 ease-ui hover:bg-accent-soft/60 focus-visible:bg-accent-soft/60"
+      className="border-border border-b hover:bg-accent-soft/60 focus-visible:bg-accent-soft/60"
     >
       {row.getVisibleCells().map((cell) => (
         <td key={cell.id} className="px-4 py-3">
@@ -445,8 +465,22 @@ function BookingRow({ row }: { row: Row<Stay> }) {
  * column — this screen answers "what about this stay", and whether it is held,
  * confirmed, in house, gone or cancelled is most of that answer.
  */
-function bookingColumns(): ColumnDef<Stay>[] {
-  return [
+function bookingColumns(
+  role: StaffRole | null,
+  onOpen: (stay: Stay) => void,
+): ColumnDef<Stay>[] {
+  // Whether this role acts on stays at all, as opposed to whether it acts on
+  // the one in front of it. A role the matrix gives no stay act in any state —
+  // the accountant, who reads bookings, and housekeeping, who is not offered
+  // this family at all — gets no column rather than a heading over an empty
+  // strip of cells. Both reach this screen by typing the path.
+  const acts =
+    role !== null &&
+    BOOKING_STATES.some(
+      (state) => visibleBookingActions(role, state).length > 0,
+    );
+
+  const columns: ColumnDef<Stay>[] = [
     {
       id: "reference",
       header: "Stay",
@@ -510,6 +544,31 @@ function bookingColumns(): ColumnDef<Stay>[] {
         ),
     },
   ];
+
+  if (acts) {
+    columns.push({
+      id: "actions",
+      header: "Actions",
+      // And within the column, the button only where this stay's own state
+      // leaves something behind it: a cancelled booking is nobody's to act on,
+      // and a press that opens an empty sheet is the same false promise as one
+      // that answers 403.
+      cell: ({ row }) =>
+        role === null ||
+        visibleBookingActions(role, row.original.state).length === 0 ? null : (
+          <Button
+            type="button"
+            size="xs"
+            variant="ghost"
+            onClick={() => onOpen(row.original)}
+          >
+            Stay actions
+          </Button>
+        ),
+    });
+  }
+
+  return columns;
 }
 
 function SearchField({

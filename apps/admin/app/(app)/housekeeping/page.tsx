@@ -9,9 +9,9 @@
 // release it, which nothing in the console could do.
 //
 // A shell around one component, like the routes beside it: the authenticated
-// layout above already mounts the session guard, the query cache, the rail, the
-// palette and the `g` sequence — `g h` included, bound from the inventory for the
-// whole set at once.
+// layout above already mounts the session guard, the query cache, the rail and
+// the palette — this family's `Go to` row included, registered from the
+// inventory for the whole set at once.
 //
 // The screen is imported by its own path rather than through
 // `features/housekeeping`. That barrel is read by the arrivals queue for the

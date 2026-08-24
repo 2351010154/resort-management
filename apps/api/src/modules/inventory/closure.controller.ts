@@ -26,6 +26,23 @@ export class ClosureController {
   ) {}
 
   @RequiresCapability("inventory.close-room")
+  @Implement(contract.inventory.listRoomClosures)
+  listRoomClosures() {
+    return implement(contract.inventory.listRoomClosures).handler(
+      async ({ input }) => {
+        const closures = await this.transactions.run((exec) =>
+          this.closures.list(exec, input),
+        );
+        return closures.map((closure) => ({
+          ...closure,
+          checkIn: closure.checkIn.toString(),
+          checkOut: closure.checkOut.toString(),
+        }));
+      },
+    );
+  }
+
+  @RequiresCapability("inventory.close-room")
   @Implement(contract.inventory.closeRoom)
   closeRoom() {
     return implement(contract.inventory.closeRoom).handler(async ({ input }) => {

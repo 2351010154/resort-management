@@ -9,16 +9,20 @@
 // complete, carrying `?error=…`. Read here, on the server, for the reason
 // verify-email/page.tsx gives.
 //
-// The other two are which stay a guest arrived to claim — `booking` when the
+// Three other values shape where a guest returns. Two name the stay a guest
+// arrived to claim — `booking` when the
 // attach is owed after the form, `attach` when they are coming back from Google
 // already signed in. Both names are `booking-links.ts`'s, which is where the
 // addresses carrying them are composed. Both are booking ids and neither is a
 // credential: the API
 // attaches only the stay the booking cookie on the request has proved, so these
 // are safe in an address in the way the confirmation email's links are not.
+// `returnTo` is the ordinary guest surface that deliberately opened sign-in;
+// `safeAfterSignIn` keeps it root-relative before the client router sees it.
 
 import type { Metadata } from "next";
 import { LoginScreen } from "@/features/auth/components/login-screen";
+import { safeAfterSignIn } from "@/features/auth/lib/sign-in";
 
 export const metadata: Metadata = {
   title: "Log in — Mariva",
@@ -32,12 +36,14 @@ export default async function LoginPage({
     readonly error?: string;
     readonly booking?: string;
     readonly attach?: string;
+    readonly returnTo?: string;
   }>;
 }) {
-  const { error, booking, attach } = await searchParams;
+  const { error, booking, attach, returnTo } = await searchParams;
 
   return (
     <LoginScreen
+      afterSignIn={safeAfterSignIn(returnTo)}
       claiming={booking ?? null}
       claimingNow={attach ?? null}
       googleError={error ?? null}

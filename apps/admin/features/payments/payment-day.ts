@@ -73,6 +73,17 @@ import { parseLiberalDate } from "@/lib/date-parser";
 /** A page of payments, and how many the filters matched behind it. */
 export type PaymentPage = Awaited<ReturnType<ApiClient["payment"]["list"]>>;
 
+/** The policy-refund-safe projection available without reconciliation access. */
+export type RefundCandidatesPage = Awaited<
+  ReturnType<ApiClient["payment"]["listRefundCandidates"]>
+>;
+
+export type RefundCandidate = RefundCandidatesPage["payments"][number];
+
+export type RefundCandidateQuery = Parameters<
+  ApiClient["payment"]["listRefundCandidates"]
+>[0];
+
 /** What `GET /payments` takes. */
 export type PaymentListQuery = Parameters<ApiClient["payment"]["list"]>[0];
 
@@ -219,6 +230,24 @@ export interface PaymentQuestion {
    * asked for, which is a list no single night is about.
    */
   readonly day: string | null;
+}
+
+/**
+ * Narrows the shared filter question to the refund-candidate contract.
+ *
+ * The desk reuses the trading-day parser, method picker and pager, but never
+ * leaks the reconciliation-only status or stay-UUID filters into its read.
+ */
+export function refundCandidateInput(
+  question: PaymentQuestion,
+): RefundCandidateQuery {
+  const { businessDate, method, limit, offset } = question.input;
+  return {
+    ...(businessDate === undefined ? {} : { businessDate }),
+    ...(method === undefined ? {} : { method }),
+    limit,
+    offset,
+  };
 }
 
 /** Either a question the contract will take, or the sentence that says why not. */

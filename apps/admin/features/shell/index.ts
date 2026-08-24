@@ -1,8 +1,8 @@
 /* The authenticated shell, in one import site.
  *
- * The `(app)` layout mounts `AppNav` and `NavShortcuts`, and nothing else
+ * The `(app)` layout mounts `AppNav` and `NavCommands`, and nothing else
  * should: a screen rendering either has given itself a second rail or a second
- * set of `Go to` rows the first one's chords already answer.
+ * set of `Go to` rows the first one already offers.
  *
  * The inventory is exported because it is the console's map. A screen that
  * needs to say where a family lives should read it here rather than typing the
@@ -15,15 +15,12 @@ export {
   isActivePath,
   NAV_GROUPS,
   NAV_ITEMS,
-  NAV_PREFIX,
-  NAV_SEQUENCE_TIMEOUT_MS,
   type NavGroup,
   type NavGroupId,
   type NavItem as NavItemData,
   navCommandId,
   navItemsFor,
-  navShortcut,
 } from "./nav-inventory";
 export { NavItem, type NavItemProps } from "./nav-item";
-export { NavShortcuts } from "./nav-shortcuts";
+export { NavCommands } from "./nav-commands";
 export { UserMenu } from "./user-menu";

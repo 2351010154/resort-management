@@ -55,6 +55,17 @@
   --color-danger: var(--console-danger);
   --color-danger-soft: var(--console-danger-soft);
 
+  /* The chart palette lives in the `:root` block below and stays there — these
+     four are only the entries the vendored charts reach for as utilities
+     (`text-chart-tooltip-foreground`, `bg-chart-tooltip-background`,
+     `text-chart-tooltip-muted`, `text-chart-label`). `--color-*: initial`
+     means a utility exists only if the theme names it, and without these the
+     tooltip's text inherits the page's umber onto the tooltip's umber panel. */
+  --color-chart-tooltip-background: var(--chart-tooltip-background);
+  --color-chart-tooltip-foreground: var(--chart-tooltip-foreground);
+  --color-chart-tooltip-muted: var(--chart-tooltip-muted);
+  --color-chart-label: var(--chart-label);
+
   --font-*: initial;
   --font-sans: var(--font-figtree), "Segoe UI", sans-serif;
   --font-ui: var(--font-figtree), "Segoe UI", sans-serif;

@@ -1,7 +1,7 @@
 "use client";
 
 import type { StaffRole } from "@mariva/shared";
-import { useId, useMemo, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 
 import {
   EmptyState,
@@ -19,6 +19,10 @@ import { boardTile, CONDITION_LABELS } from "@/features/housekeeping";
 import { useStaffSession } from "@/lib/auth";
 import { formatLongDate, formatShortDate } from "@/lib/business-date";
 import { RovingFocusGroup, useRovingFocusItem } from "@/lib/keyboard";
+import {
+  enterSubmissionGate,
+  leaveSubmissionGate,
+} from "@/lib/submission-gate";
 import { cn } from "@/lib/utils";
 
 import {
@@ -32,7 +36,13 @@ import {
   type RoomTypeGroup,
   roomStateLabel,
 } from "./room-list";
-import { useCloseRoom, useRoomList, useSetOutOfOrder } from "./rooms-queries";
+import {
+  useCloseRoom,
+  useReopenRoom,
+  useRoomClosures,
+  useRoomList,
+  useSetOutOfOrder,
+} from "./rooms-queries";
 
 /* The property's rooms, and the one place that answers "why is this room not
  * sellable?".
@@ -418,17 +428,137 @@ function RoomDetail({
         available here.
       </p>
 
-      {/* `items-start`, so each act is as tall as it is. Stretched to a shared
-          row, the shorter of the two — one field and a press — carried a hand's
-          width of empty tint under it, which reads as a control that failed to
-          load rather than as one that is simply smaller. */}
-      <div className="grid items-start gap-4 px-5 pb-5 xl:grid-cols-2">
+      {/* Stretched to a shared row, with each act pinning its press to its own
+          bottom edge, so the two verbs sit on one line however much form is
+          stacked above them. The earlier reading — that the shorter act carried
+          a hand's width of empty tint under it and read as a control that had
+          failed to load — was the tint talking: `ACT_PANEL` rules the panels
+          now instead of filling them, and room under a button inside a rule is
+          a group with room in it rather than a fill that stopped. */}
+      <div className="grid gap-4 px-5 pb-5 xl:grid-cols-2">
         <OutOfOrderControl room={room} role={role} />
         <ClosureControl room={room} role={role} businessDate={businessDate} />
       </div>
+      <ScheduledClosures
+        roomNumber={room.roomNumber}
+        role={role}
+        businessDate={businessDate}
+      />
     </Card>
   );
 }
+
+function ScheduledClosures({
+  roomNumber,
+  role,
+  businessDate,
+}: {
+  roomNumber: string;
+  role: StaffRole;
+  businessDate: string | null;
+}) {
+  const allowed = mayCloseRooms(role);
+  const closures = useRoomClosures(roomNumber, businessDate, allowed);
+  const reopen = useReopenRoom();
+  const reopenGate = useRef(false);
+  const [confirming, setConfirming] = useState<string | null>(null);
+
+  if (!allowed) return null;
+
+  return (
+    <section
+      className="border-border border-t px-5 py-5"
+      aria-labelledby="scheduled-closures-title"
+    >
+      <h3 id="scheduled-closures-title" className="font-semibold">
+        Scheduled closures
+      </h3>
+      {closures.isPending ? (
+        <p className="mt-2 text-sm text-muted-foreground">Loading closures…</p>
+      ) : null}
+      {closures.data?.length === 0 ? (
+        <p className="mt-2 text-sm text-muted-foreground">
+          No current or future closures.
+        </p>
+      ) : null}
+      <ul className="mt-3 space-y-3">
+        {closures.data?.map((closure) => (
+          <li
+            key={closure.id}
+            className="rounded-md border border-border p-3 text-sm"
+          >
+            <p className="font-semibold">
+              {formatLongDate(closure.checkIn)} to{" "}
+              {formatLongDate(closure.checkOut)}
+            </p>
+            <p className="mt-1 text-muted-foreground">{closure.reason}</p>
+            {confirming === closure.id ? (
+              <fieldset className="mt-3 flex flex-wrap items-center gap-2">
+                <legend className="sr-only">
+                  Confirm reopening room {roomNumber}
+                </legend>
+                <span>
+                  Return {closure.nightsWithdrawn}{" "}
+                  {closure.nightsWithdrawn === 1 ? "night" : "nights"} to sale?
+                </span>
+                <Button
+                  type="button"
+                  aria-busy={reopen.isPending}
+                  disabled={reopen.isPending}
+                  onClick={() => {
+                    if (reopen.isPending) return;
+                    if (!enterSubmissionGate(reopenGate)) return;
+                    reopen.mutate(
+                      { id: closure.id },
+                      {
+                        onSuccess: () => setConfirming(null),
+                        onSettled: () => leaveSubmissionGate(reopenGate),
+                      },
+                    );
+                  }}
+                >
+                  Confirm reopen
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setConfirming(null)}
+                >
+                  Keep closed
+                </Button>
+              </fieldset>
+            ) : (
+              <Button
+                className="mt-3"
+                type="button"
+                variant="outline"
+                onClick={() => setConfirming(closure.id)}
+              >
+                Reopen closure
+              </Button>
+            )}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/* The two acts, and the sentence standing in for the closure when the operator
+ * may not perform it, are one panel drawn three times.
+ *
+ * Ruled rather than tinted. `surface-muted` is the ivory-warm the rail is
+ * painted in — a shade *darker* than the card these sit on and all but the page
+ * ground itself — so a tinted block inside the card read as a hole punched
+ * through it rather than as a group raised out of it. A card-surfaced block
+ * inside a faint rule is the device this same card already separates its header
+ * and its note band with, so the acts are grouped by the line the rest of the
+ * panel is grouped by.
+ *
+ * The column is what lets each act push its press to the panel's bottom edge
+ * once the grid above has stretched the two to one height.
+ */
+const ACT_PANEL = "flex flex-col rounded-lg border border-border bg-card p-4";
 
 /**
  * *Mark out of order* — immediate, and room state only.
@@ -482,35 +612,42 @@ function OutOfOrderControl({
   }
 
   return (
-    <section className="rounded-lg bg-surface-muted p-4">
+    <section className={ACT_PANEL}>
       <h3 className="font-semibold">Out of order</h3>
       <p className="mt-1 text-sm text-muted-foreground">
         Immediate room state. Sellable inventory does not change.
       </p>
 
       {isShut ? (
-        <div className="mt-4">
-          <Button
-            type="button"
-            aria-disabled={busy}
-            aria-busy={busy}
-            className="aria-disabled:pointer-events-none aria-disabled:opacity-50"
-            onClick={() => {
-              act(false);
-            }}
-          >
-            Return to service
-          </Button>
-          <p className="mt-2 text-sm text-muted-foreground">
+        /* The same shape as the branch below: what qualifies the press above
+           it, the press itself on the panel's bottom edge. The sentence used
+           to sit under the button, which is where nothing can sit once the
+           button is on the edge — and read as a hint on the way in, before the
+           press, it is doing more work than it did as a footnote after it. */
+        <div className="mt-4 flex flex-1 flex-col">
+          <p className="text-sm text-muted-foreground">
             The room returns as dirty for housekeeping release.
           </p>
+          <div className="mt-auto pt-3">
+            <Button
+              type="button"
+              aria-disabled={busy}
+              aria-busy={busy}
+              className="aria-disabled:pointer-events-none aria-disabled:opacity-50"
+              onClick={() => {
+                act(false);
+              }}
+            >
+              Return to service
+            </Button>
+          </div>
         </div>
       ) : (
         /* Stacked, and the press on its own line under the field it acts on.
            Beside the field it sat on the input's baseline with the label above
            it, which reads as a second control belonging to the same row. */
         <form
-          className="mt-4"
+          className="mt-4 flex flex-1 flex-col"
           onSubmit={(event) => {
             event.preventDefault();
             act(true);
@@ -523,18 +660,25 @@ function OutOfOrderControl({
             hint="Required — the desk is asked why the room is shut."
             onChange={setReason}
           />
-          {/* The doubled rule rather than a colour, because the console's
+          {/* On the panel's bottom edge rather than under the field, so this
+              verb and the closure's land on one line — the wrapper carries the
+              push because a `pt` on the button would be padding inside a
+              control whose height is fixed.
+
+              The doubled rule rather than a colour, because the console's
               danger and primary are a warm brown and an umber a shade apart.
               Shutting a room is the verb that variant is for. */}
-          <Button
-            className="mt-3 aria-disabled:pointer-events-none aria-disabled:opacity-50"
-            type="submit"
-            variant="destructive"
-            aria-disabled={busy}
-            aria-busy={busy}
-          >
-            Mark out of order
-          </Button>
+          <div className="mt-auto pt-3">
+            <Button
+              className="aria-disabled:pointer-events-none aria-disabled:opacity-50"
+              type="submit"
+              variant="destructive"
+              aria-disabled={busy}
+              aria-busy={busy}
+            >
+              Mark out of order
+            </Button>
+          </div>
         </form>
       )}
 
@@ -551,6 +695,19 @@ function OutOfOrderControl({
     </section>
   );
 }
+
+/* Both date hints hold two lines whichever of the two actually wraps.
+ *
+ * A grid row is as tall as its tallest cell, so the hint that runs onto a
+ * second line at this column's width — "The first night withdrawn from sale."
+ * does, "The night the room sells again." does not — left the Reason field
+ * below it a clear line lower than the field it is supposed to follow.
+ * Reserved rather than settled by shortening a sentence, because which of the
+ * two wraps moves with the window. Two line boxes of the console's small text,
+ * written as the token times the body's 1.5 line-height, so the reserve follows
+ * the type scale rather than a measurement taken once in one window.
+ */
+const TWO_LINE_HINT = "[&>p]:min-h-[calc(var(--text-sm)*3)]";
 
 /**
  * *Schedule closure* — a manager's commercial act, previewed before it lands.
@@ -579,7 +736,7 @@ function ClosureControl({
     // sentence where the other control has a titled panel reads as something
     // that failed rather than as something withheld.
     return (
-      <section className="rounded-lg bg-surface-muted p-4">
+      <section className={ACT_PANEL}>
         <h3 className="font-semibold">Schedule closure</h3>
         <p className="mt-1 text-sm text-muted-foreground">
           Withdrawing a room from sale for a range of nights is a manager's act.
@@ -630,14 +787,14 @@ function ClosureControl({
   }
 
   return (
-    <section className="rounded-lg bg-surface-muted p-4">
+    <section className={ACT_PANEL}>
       <h3 className="font-semibold">Schedule closure</h3>
       <p className="mt-1 text-sm text-muted-foreground">
         Withdraws nights from sale without changing cleaning state.
       </p>
 
       <form
-        className="mt-4"
+        className="mt-4 flex flex-1 flex-col"
         onSubmit={(event) => {
           event.preventDefault();
           submit();
@@ -649,6 +806,7 @@ function ClosureControl({
             it. */}
         <div className="grid gap-3 sm:grid-cols-2">
           <Field
+            className={TWO_LINE_HINT}
             label="First night"
             value={fields.checkIn}
             /* An example rather than a list of every accepted spelling. The
@@ -663,6 +821,7 @@ function ClosureControl({
             }}
           />
           <Field
+            className={TWO_LINE_HINT}
             label="Back on sale"
             value={fields.checkOut}
             placeholder="+2d"
@@ -694,14 +853,17 @@ function ClosureControl({
           </p>
         ) : null}
 
-        <Button
-          className="mt-4 aria-disabled:pointer-events-none aria-disabled:opacity-50"
-          type="submit"
-          aria-disabled={busy}
-          aria-busy={busy}
-        >
-          Schedule closure
-        </Button>
+        {/* The bottom edge, as in the act beside it. */}
+        <div className="mt-auto pt-4">
+          <Button
+            className="aria-disabled:pointer-events-none aria-disabled:opacity-50"
+            type="submit"
+            aria-disabled={busy}
+            aria-busy={busy}
+          >
+            Schedule closure
+          </Button>
+        </div>
       </form>
 
       {problem === null ? null : (

@@ -16,15 +16,15 @@ import styles from "./act-5-invitation.module.css";
 
 export function BorderGlowPill({
   children,
-  onClick,
+  href,
 }: {
   children: ReactNode;
-  onClick?: () => void;
+  href: string;
 }) {
-  const ref = useRef<HTMLButtonElement>(null);
+  const ref = useRef<HTMLAnchorElement>(null);
 
   const handlePointerMove = useCallback(
-    (e: PointerEvent<HTMLButtonElement>) => {
+    (e: PointerEvent<HTMLAnchorElement>) => {
       const el = ref.current;
       if (!el) return;
 
@@ -48,12 +48,13 @@ export function BorderGlowPill({
   );
 
   return (
-    <button
+    // A plain anchor deliberately crosses the marketing/booking bundle boundary
+    // without prefetching the funnel behind someone still watching the arrival.
+    <a
       ref={ref}
-      type="button"
       className={`caps-label ${styles.pill}`}
+      href={href}
       onPointerMove={handlePointerMove}
-      onClick={onClick}
     >
       {/* An element rather than a pseudo: a conic mask is sized to the box it
           is set on, so the mask has to sit on a box wide enough to hold the
@@ -61,6 +62,6 @@ export function BorderGlowPill({
           boxes, one inside the other. */}
       <span className={styles.pillArc} aria-hidden />
       <span className={styles.pillLabel}>{children}</span>
-    </button>
+    </a>
   );
 }
