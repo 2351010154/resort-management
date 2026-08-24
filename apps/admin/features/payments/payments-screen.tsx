@@ -35,6 +35,10 @@ import { formatInstant } from "@/features/guests/guest-record";
 import { useStaffSession } from "@/lib/auth";
 import { formatLongDate, formatShortDate } from "@/lib/business-date";
 import { useHotkeys } from "@/lib/keyboard";
+import {
+  enterSubmissionGate,
+  leaveSubmissionGate,
+} from "@/lib/submission-gate";
 import { cn } from "@/lib/utils";
 
 import {
@@ -773,8 +777,8 @@ function RefundAction({
   const [problem, setProblem] = useState<string | null>(null);
   const [confirmingPolicy, setConfirmingPolicy] = useState(false);
   const [open, setOpen] = useState(false);
-  const policyLock = useRef(false);
-  const overrideLock = useRef(false);
+  const policyGate = useRef(false);
+  const overrideGate = useRef(false);
   const reasonId = useId();
   return (
     <Dialog
@@ -812,15 +816,13 @@ function RefundAction({
                 aria-busy={policy.isPending}
                 disabled={policy.isPending}
                 onClick={() => {
-                  if (policy.isPending || policyLock.current) return;
-                  policyLock.current = true;
+                  if (policy.isPending) return;
+                  if (!enterSubmissionGate(policyGate)) return;
                   policy.mutate(
                     { bookingId },
                     {
                       onSuccess: () => setOpen(false),
-                      onSettled: () => {
-                        policyLock.current = false;
-                      },
+                      onSettled: () => leaveSubmissionGate(policyGate),
                     },
                   );
                 }}
@@ -847,19 +849,17 @@ function RefundAction({
             className="space-y-3 border-t border-border pt-4"
             onSubmit={(event) => {
               event.preventDefault();
-              if (override.isPending || overrideLock.current) return;
+              if (override.isPending) return;
               const attempt = overrideRefundAttempt(bookingId, amount, reason);
               if ("problem" in attempt)
                 return setProblem(
                   attempt.problem ?? "Check the override refund.",
                 );
               setProblem(null);
-              overrideLock.current = true;
+              if (!enterSubmissionGate(overrideGate)) return;
               override.mutate(attempt.input, {
                 onSuccess: () => setOpen(false),
-                onSettled: () => {
-                  overrideLock.current = false;
-                },
+                onSettled: () => leaveSubmissionGate(overrideGate),
               });
             }}
           >

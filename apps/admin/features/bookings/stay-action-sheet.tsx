@@ -15,10 +15,13 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  enterSubmissionGate,
+  leaveSubmissionGate,
+} from "@/lib/submission-gate";
 import { type BookingAction, visibleBookingActions } from "./booking-actions";
 import type { Stay } from "./booking-search";
 import { useBookingActions } from "./bookings-queries";
-import { enterSubmissionGate, leaveSubmissionGate } from "./submission-gate";
 
 const LABELS: Record<BookingAction, string> = {
   confirm: "Confirm offline hold",

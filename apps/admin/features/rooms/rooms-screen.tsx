@@ -19,6 +19,10 @@ import { boardTile, CONDITION_LABELS } from "@/features/housekeeping";
 import { useStaffSession } from "@/lib/auth";
 import { formatLongDate, formatShortDate } from "@/lib/business-date";
 import { RovingFocusGroup, useRovingFocusItem } from "@/lib/keyboard";
+import {
+  enterSubmissionGate,
+  leaveSubmissionGate,
+} from "@/lib/submission-gate";
 import { cn } from "@/lib/utils";
 
 import {
@@ -456,7 +460,7 @@ function ScheduledClosures({
   const allowed = mayCloseRooms(role);
   const closures = useRoomClosures(roomNumber, businessDate, allowed);
   const reopen = useReopenRoom();
-  const reopenLock = useRef(false);
+  const reopenGate = useRef(false);
   const [confirming, setConfirming] = useState<string | null>(null);
 
   if (!allowed) return null;
@@ -502,15 +506,13 @@ function ScheduledClosures({
                   aria-busy={reopen.isPending}
                   disabled={reopen.isPending}
                   onClick={() => {
-                    if (reopen.isPending || reopenLock.current) return;
-                    reopenLock.current = true;
+                    if (reopen.isPending) return;
+                    if (!enterSubmissionGate(reopenGate)) return;
                     reopen.mutate(
                       { id: closure.id },
                       {
                         onSuccess: () => setConfirming(null),
-                        onSettled: () => {
-                          reopenLock.current = false;
-                        },
+                        onSettled: () => leaveSubmissionGate(reopenGate),
                       },
                     );
                   }}
