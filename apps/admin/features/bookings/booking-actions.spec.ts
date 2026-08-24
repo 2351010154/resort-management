@@ -1,3 +1,4 @@
+import { BOOKING_STATES } from "@mariva/shared";
 import { describe, expect, it } from "vitest";
 
 import { visibleBookingActions } from "./booking-actions";
@@ -5,6 +6,12 @@ import { visibleBookingActions } from "./booking-actions";
 describe("visibleBookingActions", () => {
   it("keeps accountants read-only", () => {
     expect(visibleBookingActions("ACCOUNTANT", "CONFIRMED")).toEqual([]);
+  });
+
+  it("offers housekeeping nothing in any state", () => {
+    for (const state of BOOKING_STATES) {
+      expect(visibleBookingActions("HOUSEKEEPING", state)).toEqual([]);
+    }
   });
 
   it.each(["RECEPTIONIST", "MANAGER", "ADMIN"] as const)(

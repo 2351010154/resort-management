@@ -1,5 +1,6 @@
 "use client";
 
+import type { StaffRole } from "@mariva/shared";
 import {
   type ColumnDef,
   flexRender,
@@ -32,6 +33,7 @@ import {
   useRovingFocusItem,
 } from "@/lib/keyboard";
 
+import { visibleBookingActions } from "./booking-actions";
 import {
   mayTakeBookings,
   NO_SEARCH_FIELDS,
@@ -144,9 +146,12 @@ export function BookingsScreen() {
     { enabled: mayCreate && !creating && selectedStay === null },
   );
 
+  const role: StaffRole | null =
+    session.status === "authenticated" ? session.user.role : null;
+
   const columns = useMemo(
-    () => bookingColumns((stay) => setSelectedStay(stay)),
-    [],
+    () => bookingColumns(role, (stay) => setSelectedStay(stay)),
+    [role],
   );
 
   const table = useReactTable({
@@ -419,10 +424,10 @@ export function BookingsScreen() {
           </RovingFocusGroup>
         </DataTableFrame>
       ) : null}
-      {selectedStay !== null && session.status === "authenticated" ? (
+      {selectedStay !== null && role !== null ? (
         <StayActionSheet
           stay={selectedStay}
-          role={session.user.role}
+          role={role}
           open
           onOpenChange={(open) => {
             if (!open) setSelectedStay(null);
@@ -460,7 +465,10 @@ function BookingRow({ row }: { row: Row<Stay> }) {
  * column — this screen answers "what about this stay", and whether it is held,
  * confirmed, in house, gone or cancelled is most of that answer.
  */
-function bookingColumns(onOpen: (stay: Stay) => void): ColumnDef<Stay>[] {
+function bookingColumns(
+  role: StaffRole | null,
+  onOpen: (stay: Stay) => void,
+): ColumnDef<Stay>[] {
   return [
     {
       id: "reference",
@@ -527,16 +535,23 @@ function bookingColumns(onOpen: (stay: Stay) => void): ColumnDef<Stay>[] {
     {
       id: "actions",
       header: "Actions",
-      cell: ({ row }) => (
-        <Button
-          type="button"
-          size="xs"
-          variant="ghost"
-          onClick={() => onOpen(row.original)}
-        >
-          Stay actions
-        </Button>
-      ),
+      // The door is drawn only where there is something behind it. A role the
+      // matrix gives no stay act to — the accountant, who reads bookings, and
+      // housekeeping, who is not offered this family at all — reaches this
+      // screen by typing the path, and a button that opens an empty sheet is
+      // the same false promise as one that answers 403.
+      cell: ({ row }) =>
+        role === null ||
+        visibleBookingActions(role, row.original.state).length === 0 ? null : (
+          <Button
+            type="button"
+            size="xs"
+            variant="ghost"
+            onClick={() => onOpen(row.original)}
+          >
+            Stay actions
+          </Button>
+        ),
     },
   ];
 }
