@@ -59,8 +59,8 @@ import {
   isLost,
   isSettled,
   openPayment,
-  saveContact,
   type StayContact,
+  saveContact,
   stayContact,
   stayTotal,
 } from "@/features/booking/lib/stay-funnel";
@@ -217,14 +217,16 @@ export function DetailsScreen({ hold }: { readonly hold: string }) {
   // Keyed on the stay's id so that the form's own state — what has been typed,
   // which payment panel is open — belongs to one stay and cannot be carried
   // onto another by a client-side navigation between two holds.
-  return <Review key={stay.id} onReread={reread} stay={stay} />;
+  return <Review hold={hold} key={stay.id} onReread={reread} stay={stay} />;
 }
 
 /** The screen proper, standing on a hold that is live and unpaid. */
 function Review({
+  hold,
   stay,
   onReread,
 }: {
+  readonly hold: string;
   readonly stay: HeldStay;
   readonly onReread: () => void;
 }) {
@@ -331,7 +333,7 @@ function Review({
 
   return (
     <main className={styles.screen}>
-      <FunnelNav />
+      <FunnelNav returnTo={`/booking/${encodeURIComponent(hold)}/details`} />
 
       <div className={styles.frame}>
         <div className={styles.grid}>

@@ -88,6 +88,10 @@
   transition: color 0.4s var(--ease-ui);
 }
 
+.pending {
+  visibility: hidden;
+}
+
 .link:hover {
   color: var(--funnel-ink, var(--ink));
 }
@@ -95,6 +99,154 @@
 .link:focus-visible {
   outline: 2px solid var(--dusk-amber);
   outline-offset: 4px;
+}
+
+.account {
+  position: relative;
+}
+
+.trigger {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 2.75rem;
+  padding: 0;
+  color: var(--funnel-quiet, var(--stone));
+  text-align: right;
+  transition: color 0.25s var(--ease-ui);
+}
+
+.trigger:hover,
+.trigger[aria-expanded="true"] {
+  color: var(--funnel-ink, var(--ink));
+}
+
+.trigger:active {
+  color: var(--dusk-amber);
+}
+
+.trigger:focus-visible {
+  outline: 2px solid var(--dusk-amber);
+  outline-offset: 4px;
+}
+
+.triggerName {
+  overflow: hidden;
+  max-width: min(12rem, 38vw);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.disclosure {
+  display: grid;
+  place-items: center;
+  width: var(--space-2);
+  height: var(--space-2);
+  font-size: var(--text-base);
+  line-height: 1;
+}
+
+.accountPanel {
+  position: fixed;
+  z-index: 20;
+  inset: auto;
+  top: var(--account-panel-top, var(--space-4));
+  right: var(--account-panel-right, var(--space-2));
+  width: min(16rem, calc(100vw - 2 * var(--funnel-gutter)));
+  margin: 0;
+  padding: var(--space-2);
+  color: var(--ivory);
+  background: var(--ink);
+  border: 1px solid rgb(var(--ivory-rgb) / 0.16);
+  border-radius: 12px;
+}
+
+.accountPanel::backdrop {
+  background: transparent;
+}
+
+.accountTerm {
+  color: var(--sand);
+}
+
+.accountName {
+  margin-top: var(--space-1);
+  overflow-wrap: anywhere;
+  font-size: var(--text-lg);
+  line-height: 1.1;
+}
+
+.accountEmail {
+  margin-top: var(--space-1);
+  overflow-wrap: anywhere;
+  color: var(--sand);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+.accountLinks {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+  padding-top: var(--space-1);
+  border-top: 1px solid rgb(var(--ivory-rgb) / 0.16);
+}
+
+.accountLinks a,
+.signOut {
+  display: flex;
+  align-items: center;
+  min-height: 2.75rem;
+  color: var(--ivory);
+  text-align: left;
+  transition:
+    color 0.25s var(--ease-ui),
+    transform 0.1s var(--ease-ui);
+}
+
+.accountLinks a:hover,
+.accountLinks a:focus-visible,
+.signOut:hover,
+.signOut:focus-visible {
+  color: var(--dusk-amber);
+}
+
+.accountLinks a:active,
+.signOut:active {
+  transform: translateY(2px);
+}
+
+.accountLinks a:focus-visible,
+.signOut:focus-visible {
+  outline: 2px solid var(--dusk-amber);
+  outline-offset: 2px;
+}
+
+.signOut {
+  width: 100%;
+  margin-top: var(--space-1);
+  padding: var(--space-1) 0 0;
+  border-top: 1px solid rgb(var(--ivory-rgb) / 0.16);
+}
+
+.signOut:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.accountError {
+  margin-top: var(--space-1);
+  color: var(--sand);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trigger,
+  .accountLinks a,
+  .signOut {
+    transition: none;
+  }
 }
 
 @media (max-width: 40rem) {

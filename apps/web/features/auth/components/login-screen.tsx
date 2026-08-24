@@ -18,8 +18,8 @@
 // meant travels in the address as an id — never a credential, and worth nothing
 // without the cookie beside it.
 
-import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import { type FormEvent, useEffect, useState } from "react";
 import {
   AFTER_SIGN_IN,
   googleErrorMessage,
@@ -54,10 +54,13 @@ export function LoginScreen({
    *  carrying its session — so the attach is owed now rather than after a
    *  press. */
   claimingNow = null,
+  /** The guest surface that opened this deliberate sign-in. */
+  afterSignIn = AFTER_SIGN_IN,
 }: {
   readonly googleError?: string | null;
   readonly claiming?: string | null;
   readonly claimingNow?: string | null;
+  readonly afterSignIn?: string;
 }) {
   const router = useRouter();
   const [pane, setPane] = useState<Pane>("email");
@@ -109,7 +112,7 @@ export function LoginScreen({
    */
   async function land(): Promise<void> {
     if (claiming === null) {
-      router.push(AFTER_SIGN_IN);
+      router.replace(afterSignIn);
 
       return;
     }
@@ -117,7 +120,7 @@ export function LoginScreen({
     const outcome = await attachStay(claiming);
 
     if (outcome.ok) {
-      router.push(`/bookings/${encodeURIComponent(outcome.stay.reference)}`);
+      router.replace(`/bookings/${encodeURIComponent(outcome.stay.reference)}`);
 
       return;
     }
@@ -161,7 +164,7 @@ export function LoginScreen({
       // it — and it comes back to this screen rather than to the booking,
       // because the attach is still owed and only this screen knows it.
       claiming === null
-        ? undefined
+        ? afterSignIn
         : `/login?${ATTACH_ON_ARRIVAL_PARAM}=${encodeURIComponent(claiming)}`,
     );
 

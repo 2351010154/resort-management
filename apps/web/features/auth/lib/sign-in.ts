@@ -10,6 +10,7 @@
 // is ours to rename. `GUEST_AUTH_BASE_PATH` in guest-auth.factory.ts is the
 // other end of this string.
 
+import { ATTACH_ON_ARRIVAL_PARAM } from "@/lib/booking-links";
 import { origin } from "./guest-auth";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
@@ -17,15 +18,49 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
 const SIGN_IN_PATH = "/api/auth/sign-in/email";
 const SOCIAL_SIGN_IN_PATH = "/api/auth/sign-in/social";
 
+/** Where a guest lands when no originating guest surface was supplied. */
+export const AFTER_SIGN_IN = "/account";
+
+const RETURN_ORIGIN = "https://return.mariva.invalid";
+
 /**
- * Where a signed-in guest lands.
+ * Keeps a post-login return on this application and out of the login screen.
  *
- * No authenticated surface exists yet, so it is the arrival; this becomes the
- * funnel's first screen when there is one. Named here rather than on the login
- * screen because Google's round trip needs the same destination and a second
- * copy of it is a second thing to remember to change.
+ * The value begins in a query string, so it is untrusted even when this app
+ * composed the ordinary case. Requiring a root-relative path rejects absolute,
+ * protocol-relative and backslash-authority URLs; parsing against a fixed
+ * origin catches browser URL normalization before the router sees it.
  */
-export const AFTER_SIGN_IN = "/";
+export function safeAfterSignIn(candidate: string | null | undefined): string {
+  if (!candidate?.startsWith("/")) {
+    return AFTER_SIGN_IN;
+  }
+
+  try {
+    const returned = new URL(candidate, RETURN_ORIGIN);
+
+    const attaching = returned.searchParams.get(ATTACH_ON_ARRIVAL_PARAM);
+    const isAttachArrival =
+      returned.pathname === "/login" &&
+      attaching !== null &&
+      attaching.trim() !== "";
+    const isLogin =
+      returned.pathname === "/login" || returned.pathname.startsWith("/login/");
+
+    if (returned.origin !== RETURN_ORIGIN || (isLogin && !isAttachArrival)) {
+      return AFTER_SIGN_IN;
+    }
+
+    return `${returned.pathname}${returned.search}${returned.hash}`;
+  } catch {
+    return AFTER_SIGN_IN;
+  }
+}
+
+/** The login address for a guest surface that expects the guest back. */
+export function loginHref(returnTo: string): string {
+  return `/login?returnTo=${encodeURIComponent(safeAfterSignIn(returnTo))}`;
+}
 
 export type SignInResult =
   | { readonly ok: true }
@@ -125,10 +160,10 @@ export async function signInWithGoogle(
       credentials: "include",
       body: JSON.stringify({
         provider: "google",
-        callbackURL: `${origin()}${after}`,
-        // Better Auth appends `?error=<code>`; the login screen reads it back
-        // through `googleErrorMessage`.
-        errorCallbackURL: `${origin()}/login`,
+        callbackURL: `${origin()}${safeAfterSignIn(after)}`,
+        // Keep the same return path when Google refuses the round trip. Better
+        // Auth appends `&error=<code>` when this URL already has a query.
+        errorCallbackURL: `${origin()}${loginHref(after)}`,
       }),
     });
   } catch {
