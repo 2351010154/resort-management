@@ -14,8 +14,19 @@ import {
 } from "@/components/console";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 /* The console's one rendering of an instant in the property's zone — the same
  * formatter a folio attributes a posting with, so the moment a gateway says
  * money moved and the moment the ledger says it was posted are read the same
@@ -46,15 +57,25 @@ import {
   paymentRows,
   type ReconciledNight,
   type ReconciliationRun,
+  type RefundCandidate,
   reportedAmount,
   STATUS_LABELS,
   tradingDayLabel,
 } from "./payment-day";
 import {
   type PageReading,
+  type RefundCandidatePageReading,
   useBusinessDate,
+  useOverrideRefund,
   usePaymentDay,
+  usePolicyRefund,
+  useRefundCandidatePage,
 } from "./payments-queries";
+import {
+  mayOverrideRefund,
+  mayPolicyRefund,
+  overrideRefundAttempt,
+} from "./refund-actions";
 
 /* The property's money, and the night somebody held it against the gateway's
  * own report.
@@ -164,7 +185,8 @@ export function PaymentsScreen() {
   // nothing checks.
   const role: StaffRole | null =
     session.status === "authenticated" ? session.user.role : null;
-  const offered = role !== null && mayReconcile(role);
+  const offered = role !== null && mayPolicyRefund(role);
+  const reconciles = role !== null && mayReconcile(role);
 
   const dayField = useRef<HTMLInputElement>(null);
 
@@ -185,7 +207,15 @@ export function PaymentsScreen() {
   const question = asked?.question ?? opening;
   const offset = asked?.offset ?? 0;
 
-  const { page, night, nights } = usePaymentDay(question, offset, offered);
+  const { page, night, nights } = usePaymentDay(
+    reconciles ? question : null,
+    offset,
+    reconciles,
+  );
+  const refundCandidates = useRefundCandidatePage(
+    offered && !reconciles ? question : null,
+    offset,
+  );
 
   /* One path for every change of question, because they are the same act: the
    * filters, the day pressed above the table and the page are all parts of one
@@ -212,13 +242,16 @@ export function PaymentsScreen() {
     <div className="mx-auto w-full max-w-[1600px] p-4 sm:p-6 lg:p-8">
       <PageHeader
         title="Payments"
-        description="Payment history and nightly gateway reconciliation."
+        description={
+          reconciles
+            ? "Payment history and nightly gateway reconciliation."
+            : "Successful payments that can anchor a policy refund."
+        }
       />
 
       {!offered ? (
         <p className="mt-6 max-w-prose text-sm text-muted-foreground">
-          Reconciliation is available to accounting and management. Use Folios
-          for a single stay.
+          Payment reconciliation and stay refunds are not part of this role.
         </p>
       ) : propertyDay.isError ? (
         <p
@@ -234,7 +267,7 @@ export function PaymentsScreen() {
             actions={
               <Button type="submit">
                 <SearchIcon aria-hidden="true" />
-                Show payments
+                {reconciles ? "Show payments" : "Show refundable payments"}
               </Button>
             }
             onSubmit={(event) => {
@@ -251,14 +284,16 @@ export function PaymentsScreen() {
                 setFields((current) => ({ ...current, day }));
               }}
             />
-            <Field
-              label="Stay"
-              value={fields.bookingId}
-              placeholder="The id on the stay's folio"
-              onChange={(bookingId) => {
-                setFields((current) => ({ ...current, bookingId }));
-              }}
-            />
+            {reconciles ? (
+              <Field
+                label="Stay"
+                value={fields.bookingId}
+                placeholder="The id on the stay's folio"
+                onChange={(bookingId) => {
+                  setFields((current) => ({ ...current, bookingId }));
+                }}
+              />
+            ) : null}
             <Choice
               label="Method"
               value={fields.method}
@@ -273,20 +308,22 @@ export function PaymentsScreen() {
                 setFields((current) => ({ ...current, method }));
               }}
             />
-            <Choice
-              label="State"
-              value={fields.status}
-              options={[
-                { value: "ANY" as const, label: "Every state" },
-                ...PAYMENT_STATUSES.map((status) => ({
-                  value: status,
-                  label: STATUS_LABELS[status],
-                })),
-              ]}
-              onChange={(status) => {
-                setFields((current) => ({ ...current, status }));
-              }}
-            />
+            {reconciles ? (
+              <Choice
+                label="State"
+                value={fields.status}
+                options={[
+                  { value: "ANY" as const, label: "Every state" },
+                  ...PAYMENT_STATUSES.map((status) => ({
+                    value: status,
+                    label: STATUS_LABELS[status],
+                  })),
+                ]}
+                onChange={(status) => {
+                  setFields((current) => ({ ...current, status }));
+                }}
+              />
+            ) : null}
           </FilterBar>
 
           {problem === null ? null : (
@@ -299,38 +336,60 @@ export function PaymentsScreen() {
           )}
 
           <p className="mt-3 text-sm text-muted-foreground">
-            <KeyHint>/</KeyHint> focuses the trading day. Clear it to include
-            attempts with no trading day.
+            <KeyHint>/</KeyHint> focuses the trading day.{" "}
+            {reconciles
+              ? "Clear it to include attempts with no trading day."
+              : "Clear it to include refundable payments from every day."}
           </p>
 
-          <ComparedNights
-            nights={nights}
-            on={question?.day ?? null}
-            onPick={(businessDay) => {
-              ask({ ...fields, day: businessDay }, 0);
-            }}
-          />
-
-          <div className="mt-6 grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-            <PaymentTable
-              page={page}
-              night={night}
-              marked={marked}
-              onMark={setMarked}
-              onOpenNight={(businessDay) => {
+          {reconciles ? (
+            <ComparedNights
+              nights={nights}
+              on={question?.day ?? null}
+              onPick={(businessDay) => {
                 ask({ ...fields, day: businessDay }, 0);
               }}
-              onPage={(nextOffset) => {
-                ask(asked?.fields ?? fields, nextOffset);
-              }}
             />
+          ) : null}
 
-            <NightPanel
-              day={question?.day ?? null}
-              reading={night}
-              payments={page.status === "ready" ? page.payments : NO_PAYMENTS}
-              marked={marked}
-            />
+          <div
+            className={cn(
+              "mt-6 grid gap-4",
+              reconciles ? "lg:grid-cols-[minmax(0,1fr)_360px]" : null,
+            )}
+          >
+            {reconciles ? (
+              <PaymentTable
+                page={page}
+                night={night}
+                marked={marked}
+                onMark={setMarked}
+                onOpenNight={(businessDay) => {
+                  ask({ ...fields, day: businessDay }, 0);
+                }}
+                onPage={(nextOffset) => {
+                  ask(asked?.fields ?? fields, nextOffset);
+                }}
+                role={role}
+              />
+            ) : (
+              <RefundCandidateTable
+                page={refundCandidates}
+                role={role}
+                onPage={(nextOffset) => {
+                  ask(asked?.fields ?? fields, nextOffset);
+                }}
+              />
+            )}
+
+            {reconciles ? (
+              <NightPanel
+                day={question?.day ?? null}
+                reading={night}
+                payments={page.status === "ready" ? page.payments : NO_PAYMENTS}
+                marked={marked}
+              />
+            ) : null}
           </div>
         </>
       )}
@@ -402,6 +461,7 @@ function PaymentTable({
   onMark,
   onOpenNight,
   onPage,
+  role,
 }: {
   page: PageReading;
   night: NightReading;
@@ -409,6 +469,7 @@ function PaymentTable({
   onMark(discrepancyId: string): void;
   onOpenNight(businessDate: string): void;
   onPage(offset: number): void;
+  role: StaffRole | null;
 }) {
   const payments = page.status === "ready" ? page.payments : NO_PAYMENTS;
   const observed = night.status === "ready" ? night.night : null;
@@ -466,6 +527,7 @@ function PaymentTable({
             <Column>Payment</Column>
             <Column align="right">Amount</Column>
             <Column>Disagreement</Column>
+            <Column>Account action</Column>
           </tr>
         </thead>
         <tbody>
@@ -476,6 +538,7 @@ function PaymentTable({
               marked={marked === row.payment.discrepancyId}
               onMark={onMark}
               onOpenNight={onOpenNight}
+              role={role}
             />
           ))}
         </tbody>
@@ -510,6 +573,119 @@ function PaymentTable({
   );
 }
 
+/** Successful payments exposed through the desk-safe refund projection. */
+function RefundCandidateTable({
+  page,
+  role,
+  onPage,
+}: {
+  page: RefundCandidatePageReading;
+  role: StaffRole | null;
+  onPage(offset: number): void;
+}) {
+  if (page.status === "idle" || page.status === "pending") {
+    return (
+      <div className="space-y-2" aria-busy>
+        <Skeleton className="h-12" />
+        <Skeleton className="h-12" />
+        <Skeleton className="h-12" />
+      </div>
+    );
+  }
+
+  if (page.status === "failed") {
+    return (
+      <p
+        className="border-danger border-l-2 pl-3 text-sm text-danger"
+        role="alert"
+      >
+        Refundable payments could not be loaded.
+      </p>
+    );
+  }
+
+  if (page.payments.length === 0) {
+    return (
+      <EmptyState
+        title="No refundable payments"
+        description="Try another trading day or payment method."
+      />
+    );
+  }
+
+  return (
+    <DataTableFrame className="overflow-x-auto p-4">
+      <table className="w-full min-w-[680px] border-collapse text-sm">
+        <caption className="text-muted-foreground mb-2 text-left text-sm">
+          Successful payments that can still anchor a policy refund. The refund
+          applies to the stay/account, not only to the payment row.
+        </caption>
+        <thead>
+          <tr className="border-border border-b">
+            <Column>Stay</Column>
+            <Column>Trading day</Column>
+            <Column>Payment</Column>
+            <Column align="right">Paid amount</Column>
+            <Column>Account action</Column>
+          </tr>
+        </thead>
+        <tbody>
+          {page.payments.map((payment: RefundCandidate) => (
+            <tr key={payment.paymentId} className="border-border border-b">
+              <td className="py-3 pr-3 font-semibold tabular-nums">
+                {payment.bookingReference}
+              </td>
+              <td className="px-3 py-3 whitespace-nowrap">
+                {formatShortDate(payment.businessDate)}
+              </td>
+              <td className="px-3 py-3">
+                <p>{METHOD_LABELS[payment.method]}</p>
+                <p className="text-muted-foreground">
+                  {formatInstant(payment.paidAt)}
+                </p>
+              </td>
+              <td className="px-3 py-3 text-right font-semibold tabular-nums whitespace-nowrap">
+                {formatVnd(payment.amount)}
+              </td>
+              <td className="py-3 pl-3">
+                {role === null ? null : (
+                  <RefundAction
+                    bookingId={payment.bookingId}
+                    bookingLabel={payment.bookingReference}
+                    role={role}
+                  />
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <div className="mt-2 flex flex-wrap items-center gap-3">
+        <p className="text-muted-foreground text-sm">
+          {page.window.first}–{page.window.last} of {page.window.total}
+        </p>
+        <Button
+          type="button"
+          variant="ghost"
+          disabled={!page.window.hasPrevious}
+          onClick={() => onPage(page.window.previousOffset)}
+        >
+          Previous
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          disabled={!page.window.hasNext}
+          onClick={() => onPage(page.window.nextOffset)}
+        >
+          Next
+        </Button>
+      </div>
+    </DataTableFrame>
+  );
+}
+
 /** Where one disagreement's figures are read, from the row that names it. */
 function entryDomId(discrepancyId: string): string {
   return `disagreement-${discrepancyId}`;
@@ -521,11 +697,13 @@ function PaymentRowCells({
   marked,
   onMark,
   onOpenNight,
+  role,
 }: {
   row: PaymentRow;
   marked: boolean;
   onMark(discrepancyId: string): void;
   onOpenNight(businessDate: string): void;
+  role: StaffRole | null;
 }) {
   const { payment, route } = row;
 
@@ -570,7 +748,157 @@ function PaymentRowCells({
           onOpenNight={onOpenNight}
         />
       </td>
+      <td className="py-1 pl-3 text-sm last:pr-0">
+        {role !== null && mayPolicyRefund(role) ? (
+          <RefundAction bookingId={payment.bookingId} role={role} />
+        ) : null}
+      </td>
     </tr>
+  );
+}
+
+function RefundAction({
+  bookingId,
+  bookingLabel,
+  role,
+}: {
+  bookingId: string;
+  bookingLabel?: string;
+  role: StaffRole;
+}) {
+  const policy = usePolicyRefund();
+  const override = useOverrideRefund();
+  const [amount, setAmount] = useState("");
+  const [reason, setReason] = useState("");
+  const [problem, setProblem] = useState<string | null>(null);
+  const [confirmingPolicy, setConfirmingPolicy] = useState(false);
+  const [open, setOpen] = useState(false);
+  const policyLock = useRef(false);
+  const overrideLock = useRef(false);
+  const reasonId = useId();
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setConfirmingPolicy(false);
+      }}
+    >
+      <DialogTrigger asChild>
+        <Button type="button" variant="ghost" size="xs">
+          Refund stay
+        </Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Refund this stay/account</DialogTitle>
+          <DialogDescription>
+            This action is for stay {bookingLabel ?? bookingId}. It does not
+            refund only the payment row you opened it from.
+          </DialogDescription>
+        </DialogHeader>
+        {confirmingPolicy ? (
+          <section className="rounded-lg border border-danger p-4">
+            <h3 className="font-semibold text-danger">Confirm policy refund</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
+              The refund amount and payment method are computed from policy and
+              applied to this entire stay/account. This cannot be limited to the
+              payment row that opened the dialog.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="destructive"
+                aria-busy={policy.isPending}
+                disabled={policy.isPending}
+                onClick={() => {
+                  if (policy.isPending || policyLock.current) return;
+                  policyLock.current = true;
+                  policy.mutate(
+                    { bookingId },
+                    {
+                      onSuccess: () => setOpen(false),
+                      onSettled: () => {
+                        policyLock.current = false;
+                      },
+                    },
+                  );
+                }}
+              >
+                Confirm policy refund
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={policy.isPending}
+                onClick={() => setConfirmingPolicy(false)}
+              >
+                Go back
+              </Button>
+            </div>
+          </section>
+        ) : (
+          <Button type="button" onClick={() => setConfirmingPolicy(true)}>
+            Review policy refund
+          </Button>
+        )}
+        {mayOverrideRefund(role) ? (
+          <form
+            className="space-y-3 border-t border-border pt-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (override.isPending || overrideLock.current) return;
+              const attempt = overrideRefundAttempt(bookingId, amount, reason);
+              if ("problem" in attempt)
+                return setProblem(
+                  attempt.problem ?? "Check the override refund.",
+                );
+              setProblem(null);
+              overrideLock.current = true;
+              override.mutate(attempt.input, {
+                onSuccess: () => setOpen(false),
+                onSettled: () => {
+                  overrideLock.current = false;
+                },
+              });
+            }}
+          >
+            <h3 className="font-semibold">Override policy</h3>
+            <Field
+              label="Refund amount"
+              value={amount}
+              inputMode="numeric"
+              onChange={setAmount}
+            />
+            <label
+              htmlFor={reasonId}
+              className="block text-xs tracking-caps text-muted-foreground uppercase"
+            >
+              Reason
+            </label>
+            <Textarea
+              id={reasonId}
+              className="mt-1"
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+            />
+            <Button type="submit" disabled={override.isPending}>
+              Post override refund
+            </Button>
+          </form>
+        ) : null}
+        {problem === null ? null : (
+          <p role="alert" className="text-sm text-danger">
+            {problem}
+          </p>
+        )}
+        <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="outline">Cancel</Button>
+          </DialogClose>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -836,11 +1164,13 @@ function Field({
   placeholder,
   inputRef,
   onChange,
+  inputMode,
 }: {
   label: string;
   value: string;
   placeholder?: string;
   inputRef?: React.Ref<HTMLInputElement>;
+  inputMode?: React.HTMLAttributes<HTMLInputElement>["inputMode"];
   onChange(value: string): void;
 }) {
   // Associated by id rather than by nesting, so the association is one an
@@ -862,6 +1192,7 @@ function Field({
         value={value}
         placeholder={placeholder}
         autoComplete="off"
+        inputMode={inputMode}
         onChange={(event) => {
           onChange(event.target.value);
         }}

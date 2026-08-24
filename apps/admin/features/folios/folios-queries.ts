@@ -37,7 +37,12 @@
 
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import {
+  skipToken,
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useMemo } from "react";
 
 import { useBusinessDate } from "@/features/bookings/bookings-queries";
@@ -128,4 +133,51 @@ export function useFolioPage(
   }, [page.isError, answer, offset, pageSize]);
 
   return { businessDate: day.data?.businessDate ?? null, page: reading };
+}
+
+export function useServiceCatalog(offered: boolean) {
+  return useQuery(
+    orpc.service.listCatalog.queryOptions({
+      input: offered ? undefined : skipToken,
+      meta: {
+        errorMessage: "The service catalog could not be read.",
+      } satisfies ConsoleMeta,
+    }),
+  );
+}
+export function usePostCharge() {
+  const qc = useQueryClient();
+  return useMutation(
+    orpc.folio.postCharge.mutationOptions({
+      meta: {
+        errorMessage: "The charge could not be posted.",
+      } satisfies ConsoleMeta,
+      onSuccess: () =>
+        void qc.invalidateQueries({ queryKey: orpc.folio.key() }),
+    }),
+  );
+}
+export function usePostServiceItem() {
+  const qc = useQueryClient();
+  return useMutation(
+    orpc.folio.postServiceItem.mutationOptions({
+      meta: {
+        errorMessage: "The service item could not be posted.",
+      } satisfies ConsoleMeta,
+      onSuccess: () =>
+        void qc.invalidateQueries({ queryKey: orpc.folio.key() }),
+    }),
+  );
+}
+export function useReversePosting() {
+  const qc = useQueryClient();
+  return useMutation(
+    orpc.folio.reversePosting.mutationOptions({
+      meta: {
+        errorMessage: "The posting could not be reversed.",
+      } satisfies ConsoleMeta,
+      onSuccess: () =>
+        void qc.invalidateQueries({ queryKey: orpc.folio.key() }),
+    }),
+  );
 }

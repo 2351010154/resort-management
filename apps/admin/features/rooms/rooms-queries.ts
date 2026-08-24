@@ -20,7 +20,7 @@
 
 "use client";
 
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo } from "react";
 import type { HousekeepingBoard } from "@/features/housekeeping";
 import { useHousekeepingBoard } from "@/features/housekeeping";
@@ -140,26 +140,66 @@ export function useSetOutOfOrder() {
 /**
  * Withdraws a room from sale for a range of nights — `FR-INV-04`.
  *
- * Not optimistic, and it invalidates nothing. A closure changes `type_inventory`
- * and touches no room's condition, so the board this screen is drawn from is the
- * same board afterwards; the only read in the console a closure could stale is
- * one of sellable inventory, and no screen in the console asks that yet. Writing
- * an invalidation for a query nobody holds would be a claim about a cache entry
- * that does not exist, and the response the caller shows is the API's own count
- * of the nights it took.
+ * Not optimistic. A closure changes sellable inventory without changing the
+ * room's housekeeping condition, so success invalidates both the room's closure
+ * list and every availability read while leaving the housekeeping board alone.
  *
- * The id comes back and is not kept. Lifting a closure is `DELETE
- * /inventory/room-closures/{id}`, and the contract has no route that lists
- * closures — so an "undo" held in this component's state would work until the
- * operator reloaded and then quietly stop existing, which is worse than a screen
- * that does not claim to offer it.
+ * The returned id is recovered through `listRoomClosures` after invalidation,
+ * so reopening remains available after reload and does not depend on component
+ * state remembering the mutation response.
  */
 export function useCloseRoom() {
+  const queryClient = useQueryClient();
   return useMutation(
     orpc.inventory.closeRoom.mutationOptions({
       meta: {
         errorMessage: "The closure could not be scheduled.",
       } satisfies ConsoleMeta,
+      onSuccess: () => {
+        void queryClient.invalidateQueries({
+          queryKey: orpc.inventory.listRoomClosures.key(),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: orpc.availability.key(),
+        });
+      },
+    }),
+  );
+}
+
+/** Current and future closures for one room, counted from the hotel day. */
+export function useRoomClosures(
+  roomNumber: string,
+  businessDate: string | null,
+  enabled: boolean,
+) {
+  return useQuery(
+    orpc.inventory.listRoomClosures.queryOptions({
+      input: { roomNumber, checkIn: businessDate ?? undefined },
+      enabled: enabled && businessDate !== null,
+      meta: {
+        errorMessage: "Scheduled closures could not be loaded.",
+      } satisfies ConsoleMeta,
+    }),
+  );
+}
+
+/** Reopens a commercial closure without claiming housekeeping state changed. */
+export function useReopenRoom() {
+  const queryClient = useQueryClient();
+  return useMutation(
+    orpc.inventory.reopenRoom.mutationOptions({
+      meta: {
+        errorMessage: "The room closure could not be reopened.",
+      } satisfies ConsoleMeta,
+      onSuccess: () => {
+        void queryClient.invalidateQueries({
+          queryKey: orpc.inventory.listRoomClosures.key(),
+        });
+        void queryClient.invalidateQueries({
+          queryKey: orpc.availability.key(),
+        });
+      },
     }),
   );
 }
