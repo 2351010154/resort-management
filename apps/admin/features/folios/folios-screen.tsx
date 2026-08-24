@@ -163,6 +163,28 @@ interface Asked {
   readonly offset: number;
 }
 
+/**
+ * Why the list came back empty, said for the balance that was actually asked
+ * about.
+ *
+ * Three sentences and not one, because an empty answer is three different facts:
+ * nothing in this window is short, nothing in this window is owed back, and the
+ * property has no accounts here at all. Only the last is about the property
+ * rather than about the money, which is why it is the one that says where folios
+ * come from.
+ *
+ * A `Record` over the filter's own union rather than a chain ending in a
+ * fallback, for `folio-ledger.ts`'s reason about {@link POSTING_LABELS}: a
+ * fourth member added to `listFoliosInput` stops this file compiling, where a
+ * default would quietly tell an operator that every account balances under a
+ * filter that was never about balancing.
+ */
+const NOTHING_MATCHED: Record<FolioFilterFields["balance"], string> = {
+  OUTSTANDING: "Every account in this window balances.",
+  OVERPAID: "The property owes nothing back in this window.",
+  ANY: "Folios open when a stay checks in.",
+};
+
 export function FoliosScreen() {
   const session = useStaffSession();
   const role = session.status === "authenticated" ? session.user.role : null;
@@ -234,6 +256,12 @@ export function FoliosScreen() {
           selectRef={firstFilter}
           options={[
             { value: "OUTSTANDING", label: "Does not balance" },
+            // Named for what the operator is hunting rather than for the sign
+            // behind it. "Over-paid" is the account's condition; money to hand
+            // back is the reason anybody opens this filter, and §4's penalty
+            // against a prepaid stay leaves guests sitting here waiting for a
+            // refund no part of the product issues on its own.
+            { value: "OVERPAID", label: "Money to hand back" },
             { value: "ANY", label: "Any balance" },
           ]}
           onChange={(balance) => {
@@ -330,11 +358,7 @@ export function FoliosScreen() {
           {page.status === "ready" && page.folios.length === 0 ? (
             <EmptyState
               title="No matching folios"
-              description={
-                asked.fields.balance === "OUTSTANDING"
-                  ? "Every account in this window balances."
-                  : "Folios open when a stay checks in."
-              }
+              description={NOTHING_MATCHED[asked.fields.balance]}
               className="px-4 py-10 shadow-none"
             />
           ) : null}

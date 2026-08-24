@@ -176,7 +176,9 @@ export function standingLabel(summary: FolioSummary): string {
 export interface FolioFilterFields {
   /** `ANY` is the absent filter — the route takes no state at all for it. */
   state: FolioState | "ANY";
-  balance: "ANY" | "OUTSTANDING";
+  /** The contract's three widths, unchanged: every account, every account that
+   *  fails to balance, or only the ones the property owes money back on. */
+  balance: "ANY" | "OUTSTANDING" | "OVERPAID";
   from: string;
   to: string;
 }
