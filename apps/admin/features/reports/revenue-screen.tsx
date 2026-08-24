@@ -418,7 +418,7 @@ function Total({
 }) {
   return (
     <div className="rounded-lg bg-card p-4 shadow-card">
-      <dt className="text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+      <dt className="text-xs font-semibold tracking-caps text-muted-foreground uppercase">
         {label}
       </dt>
       <dd

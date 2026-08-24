@@ -388,7 +388,7 @@ export function BookingsScreen() {
                       <th
                         key={header.id}
                         scope="col"
-                        className="px-4 py-3 text-left text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase"
+                        className="px-4 py-3 text-left text-xs font-semibold tracking-caps text-muted-foreground uppercase"
                       >
                         {flexRender(
                           header.column.columnDef.header,

@@ -230,7 +230,7 @@ function Reading({
             className="rounded-lg bg-card p-4 shadow-card"
             key={count.status}
           >
-            <dt className="text-xs font-semibold tracking-[0.08em] text-muted-foreground uppercase">
+            <dt className="text-xs font-semibold tracking-caps text-muted-foreground uppercase">
               {ROOM_STATUS_LABELS[count.status]}
             </dt>
             <dd className="mt-2 text-2xl font-semibold tabular-nums">
