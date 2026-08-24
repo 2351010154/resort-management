@@ -20,6 +20,11 @@ import {
   DEFAULT_ANIMATION_EASING,
 } from "./animation";
 import type { BarProps } from "./bar";
+import {
+  DEFAULT_MAX_BAR_WIDTH,
+  insetBandScale,
+  resolveRenderedBandWidth,
+} from "./bar-band-scale";
 import { topSquareCenterY } from "./bar-squares-layout";
 import {
   forEachChartChild,
@@ -78,8 +83,12 @@ export interface BarChartProps {
   className?: string;
   /** Gap between bar groups as a fraction of band width (0-1). Default: 0.2 */
   barGap?: number;
-  /** Fixed bar width in pixels. If not set, bars auto-size to fill the band. */
+  /** Fixed bar width in pixels. If not set, bars auto-size to fill the band,
+   *  up to `maxBarWidth`. */
   barWidth?: number;
+  /** Widest a band may render in pixels before its bars stop reading as bars.
+   *  Ignored when `barWidth` is set. Default: 96 */
+  maxBarWidth?: number;
   /** Bar chart orientation. Default: "vertical" */
   orientation?: BarOrientation;
   /** Whether to stack bars instead of grouping them. Default: false */
@@ -156,6 +165,7 @@ interface ChartInnerProps {
   revealSignature?: string;
   barGap: number;
   barWidthProp?: number;
+  maxBarWidth: number;
   orientation: BarOrientation;
   stacked: boolean;
   stackGap: number;
@@ -186,6 +196,7 @@ const ChartCore = memo(function ChartCore({
   revealSignature = "",
   barGap,
   barWidthProp,
+  maxBarWidth,
   orientation,
   stacked,
   stackGap,
@@ -246,8 +257,21 @@ const ChartCore = memo(function ChartCore({
     });
   }, [innerWidth, innerHeight, data, categoryAccessor, barGap, isHorizontal]);
 
-  // Band width for bars - use prop if provided, otherwise use scale's bandwidth
-  const bandWidth = barWidthProp ?? categoryScale.bandwidth();
+  // Band width for bars - use prop if provided, otherwise the scale's
+  // bandwidth held to `maxBarWidth`.
+  const bandWidth = resolveRenderedBandWidth({
+    bandwidth: categoryScale.bandwidth(),
+    barWidth: barWidthProp,
+    maxBarWidth,
+  });
+
+  // The scale everything draws and positions from: the categories' band scale,
+  // inset so a narrower bar sits in the middle of its band instead of against
+  // the left (or top) edge of it.
+  const barScale = useMemo(
+    () => insetBandScale(categoryScale, bandWidth),
+    [categoryScale, bandWidth],
+  );
 
   // Compute max value considering stacking
   const maxValue = useMemo(() => {
@@ -302,17 +326,31 @@ const ChartCore = memo(function ChartCore({
       resolveDomain: (dataKeys) => {
         let max = 0;
         for (const d of data) {
+          // Stacked series sit on top of one another, so an axis has to clear
+          // the sum of its own group at each datum. Measuring the tallest
+          // single series instead leaves the stack drawing past `innerHeight`,
+          // and the `<svg>` is `overflow-visible` — it would paint over the
+          // card rather than being clipped.
+          let stackSum = 0;
           for (const key of dataKeys) {
             const value = d[key];
-            if (typeof value === "number" && value > max) {
+            if (typeof value !== "number") {
+              continue;
+            }
+            if (stacked) {
+              stackSum += value;
+            } else if (value > max) {
               max = value;
             }
+          }
+          if (stacked && stackSum > max) {
+            max = stackSum;
           }
         }
         return [0, (max || 100) * 1.1];
       },
     });
-  }, [data, innerHeight, isHorizontal, lines, valueScale]);
+  }, [data, innerHeight, isHorizontal, lines, stacked, valueScale]);
 
   const primaryYScale = getPrimaryYScale(yScales, valueScale);
 
@@ -412,7 +450,7 @@ const ChartCore = memo(function ChartCore({
       // Calculate positions for each bar
       const yPositions: Record<string, number> = {};
       const xPositions: Record<string, number> = {};
-      const barPos = categoryScale(categoryAccessor(d)) ?? 0;
+      const barPos = barScale(categoryAccessor(d)) ?? 0;
 
       if (isHorizontal) {
         // Horizontal bars: dots at end of bar (x = value), centered vertically in band
@@ -523,7 +561,7 @@ const ChartCore = memo(function ChartCore({
       });
     },
     [
-      categoryScale,
+      barScale,
       valueScale,
       data,
       lines,
@@ -611,7 +649,7 @@ const ChartCore = memo(function ChartCore({
     xAccessor: xAccessorDate,
     dateLabels,
     // Bar-specific properties
-    barScale: categoryScale,
+    barScale,
     bandWidth,
     hoveredBarIndex,
     barXAccessor: categoryAccessor,
@@ -682,6 +720,7 @@ export function BarChart({
   className = "",
   barGap = 0.2,
   barWidth,
+  maxBarWidth = DEFAULT_MAX_BAR_WIDTH,
   orientation = "vertical",
   stacked = false,
   stackGap = 0,
@@ -711,6 +750,7 @@ export function BarChart({
             enterTransition={enterTransition}
             height={height}
             margin={margin}
+            maxBarWidth={maxBarWidth}
             onPhaseChange={onPhaseChange}
             orientation={orientation}
             revealSignature={revealSignature}
