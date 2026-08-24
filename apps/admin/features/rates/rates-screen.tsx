@@ -32,9 +32,10 @@ import {
   mayEditRestrictions,
   mayReadRates,
   mayReadRestrictions,
-  type NightColumn,
+  monthSpans,
   type NightWindow,
   NO_RESTRICTION_FIELDS,
+  nightNeighbour,
   nightWindow,
   type PlanFields,
   parseCellKey,
@@ -479,67 +480,6 @@ function RateBoard({
       <RatePlansSection role={role} />
     </>
   );
-}
-
-/**
- * The same night one column left or right — the twin of `verticalNeighbour`,
- * along the window's own dates.
- *
- * Null at either edge rather than wrapping, for the reason `rate-grid.ts` gives
- * about the other axis: wrapping from the last night of the window to the first
- * is disorienting on an axis the operator reads as a calendar. The window bar
- * above the grid is how the next four weeks are reached.
- */
-function nightNeighbour(
-  dates: readonly string[],
-  from: CellRef,
-  step: number,
-): CellRef | null {
-  const index = dates.indexOf(from.date);
-  const target = index + step;
-
-  if (index === -1 || target < 0 || target >= dates.length) {
-    return null;
-  }
-
-  return { roomType: from.roomType, date: dates[target] };
-}
-
-/** A run of columns in one month, as the spanning heading over them. */
-interface MonthSpan {
-  readonly label: string;
-  /** The first night of the run — its key, and never drawn. */
-  readonly from: string;
-  readonly nights: number;
-}
-
-/**
- * The month headings, as runs rather than as a label per column.
- *
- * `nightColumns` names a month on the first column and again wherever one
- * begins, which is the fact this needs: a new name opens a run and every
- * unnamed column after it belongs to the one before. Grouping is presentation —
- * the two-row heading is a drawing decision — so it lives with the drawing.
- */
-function monthSpans(columns: readonly NightColumn[]): MonthSpan[] {
-  const spans: MonthSpan[] = [];
-
-  for (const column of columns) {
-    const open = spans[spans.length - 1];
-
-    if (column.monthLabel !== null || open === undefined) {
-      spans.push({
-        label: column.monthLabel ?? "",
-        from: column.date,
-        nights: 1,
-      });
-      continue;
-    }
-
-    spans[spans.length - 1] = { ...open, nights: open.nights + 1 };
-  }
-
-  return spans;
 }
 
 /**
