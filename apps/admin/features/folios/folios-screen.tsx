@@ -614,7 +614,7 @@ function FolioDetail({
                 Opened {formatInstant(folio.openedAt)}
                 {folio.closedAt === null
                   ? null
-                  : ` · agreed ${formatInstant(folio.closedAt)}`}
+                  : `, agreed ${formatInstant(folio.closedAt)}`}
               </p>
             </div>
             <StatusChip className="shrink-0" tone={stateTone(folio.state)}>
@@ -875,7 +875,7 @@ function FolioActions({ bookingId }: { bookingId: string }) {
               <option value="">Choose an item</option>
               {catalog.data?.map((entry) => (
                 <option key={entry.code} value={entry.code}>
-                  {entry.name} ·{" "}
+                  {entry.name},{" "}
                   {entry.unitPriceGross === null
                     ? "price required"
                     : formatVnd(entry.unitPriceGross)}
@@ -1001,8 +1001,7 @@ function LedgerRow({
             {POSTING_LABELS[posting.type]}
             {levied ? (
               <span className="text-xs font-normal text-muted-foreground">
-                {" "}
-                · levied on the charge above
+                , levied on the charge above
               </span>
             ) : null}
           </p>
@@ -1040,7 +1039,7 @@ function LedgerRow({
           {reverses === null ? null : (
             <p className="mt-1 text-accent-strong">
               Reverses the {POSTING_LABELS[reverses.type].toLowerCase()} of{" "}
-              {formatShortDate(reverses.businessDate)} ·{" "}
+              {formatShortDate(reverses.businessDate)},{" "}
               {formatVnd(reverses.amount)}. That line stays on the account.
             </p>
           )}

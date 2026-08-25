@@ -86,9 +86,9 @@ describe("roomsByType", () => {
 describe("roomStateLabel", () => {
   it("reads a room's condition beside whether anybody is in it", () => {
     expect(roomStateLabel(room({ status: "CLEAN", isOccupied: true }))).toBe(
-      "Clean · Occupied",
+      "Clean, Occupied",
     );
-    expect(roomStateLabel(room({ status: "DIRTY" }))).toBe("Dirty · Vacant");
+    expect(roomStateLabel(room({ status: "DIRTY" }))).toBe("Dirty, Vacant");
   });
 
   it("says only that a shut room is shut", () => {

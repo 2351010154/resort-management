@@ -179,7 +179,7 @@ function DrawerReading({
         <span className="text-sm text-muted-foreground">expected</span>
       </p>
       <p className="mt-1 text-sm text-muted-foreground">
-        Open since {propertyMomentAt(new Date(shift.openedAt)).clock} ·{" "}
+        Open since {propertyMomentAt(new Date(shift.openedAt)).clock},{" "}
         {shift.operatorName}
       </p>
     </>

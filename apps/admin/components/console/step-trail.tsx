@@ -55,8 +55,8 @@ function StepTrail<Step extends string>({
           it — and a trail is not the place to say "step 0". */}
       <p className="text-muted-foreground text-xs tracking-caps uppercase">
         {at < 0
-          ? `${sequence} · ${steps.length} steps`
-          : `${sequence} · step ${at + 1} of ${steps.length}`}
+          ? `${sequence}, ${steps.length} steps`
+          : `${sequence}, step ${at + 1} of ${steps.length}`}
       </p>
 
       <ol className="mt-2 flex flex-wrap items-center gap-y-2 text-sm [counter-reset:step]">

@@ -316,8 +316,8 @@ export function BookingsScreen() {
       <p className="mt-3 text-sm text-muted-foreground">
         <KeyHint>/</KeyHint> searches
         {mayCreate
-          ? " · New booking is also available with N."
-          : " · Read-only access."}
+          ? ", New booking is also available with N."
+          : ", Read-only access."}
       </p>
 
       {creating && businessDate !== null ? (

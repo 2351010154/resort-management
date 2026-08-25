@@ -515,7 +515,7 @@ function DrawerChoice({
         <option value="">Which drawer</option>
         {drawers.map((drawer) => (
           <option key={drawer.id} value={drawer.id}>
-            {drawer.operatorName} · {drawer.openingBusinessDate}
+            {drawer.operatorName}, {drawer.openingBusinessDate}
           </option>
         ))}
       </select>
