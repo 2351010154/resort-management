@@ -168,11 +168,16 @@
   gap: var(--bar-gap);
 }
 
+/* `nowrap` at every width. A caps label at 0.22em tracking that breaks across
+   two lines stops reading as one destination — "BOOK A / STAY" is two labels —
+   and the run is short enough that the honest answer to a narrow window is to
+   give the links a row of their own rather than to fold them in half. */
 .navLink {
   display: flex;
   align-items: center;
   min-height: 2.75rem; /* 44px — the tap floor the funnel is set to. */
   color: var(--stone-deep);
+  white-space: nowrap;
   /* Transparent at rest and pulled down by the band's own hairline, so the
      current page's rule sits *on* that line instead of hovering above it. Every
      link carries the border, current or not, so none of them moves when it
@@ -476,21 +481,25 @@
   min-width: 0;
 }
 
-/* The ledger's own edge, and the reason it is a rule here rather than a border
-   on the ledger itself: the rule belongs to the column, so it runs the full
-   height of the row whatever the ledger's content happens to reach. The padding
-   is what holds the rule off the words — the grid's gap alone would set it
-   halfway between the two columns, where it reads as dividing the page rather
-   than as closing the aside. */
+/* A flex column, and that is the whole of what it does. The two screens draw
+   their leading rail differently — the profile's is bare type closed by a rule,
+   the stays list's is a plate — so the shell states no edge of its own and only
+   offers the height: a child that asks for `flex: 1` fills the row, and one
+   that would rather stay its own size and stick, like the stays rail, is left
+   alone. An edge drawn here would be a second one beside the plate. */
 .leftAside {
   grid-area: ledger;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
-  padding-right: var(--space-2);
-  border-right: var(--page-hairline);
 }
 
+/* The same offer as `.leftAside`: the row's height, for a rail that asks for
+   it. */
 .aside {
   grid-area: aside;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
 }
 
@@ -516,36 +525,38 @@
   .threeColumn {
     grid-template-areas: "ledger" "content" "aside";
   }
-
-  /* Stacked, the ledger has the content under it rather than beside it, so its
-     outer rule has nothing left to divide. */
-  .leftAside {
-    padding-right: 0;
-    border-right: 0;
-  }
 }
 
-/* Below this the three destinations, the chip and the mark stop fitting on one
-   line at the gaps the bar is drawn with. The links wrap under the chip rather
-   than shrinking their gaps to nothing, which would run three caps labels into
-   one word — and the current page's rule leaves the band's foot with them,
-   because there is no longer a foot for it to sit on. */
+/* Below this the mark, three destinations and the chip stop fitting on one line
+   at the gaps the bar is drawn with, so the bar becomes two rows: who you are,
+   over where you can go.
+ *
+ * `display: contents` is what makes that possible without a second element in
+ * the markup. `.barEnd` exists to hold the links and the chip together at the
+ * far edge of a wide bar; here they belong on different rows, so it stops being
+ * a box and hands its two children up to the bar's own flex line, where the
+ * chip can sit beside the mark and the links can take a full row under both.
+ * The div carries no semantics, so nothing is lost from the tree by it.
+ *
+ * The current page's rule leaves the band's foot with them: on the second row
+ * there is no foot for it to sit on. */
 @media (max-width: 48rem) {
   .barInner {
+    flex-wrap: wrap;
     align-items: center;
     min-height: 0;
     padding-block: var(--space-2);
+    row-gap: var(--space-1);
   }
 
   .barEnd {
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: flex-end;
-    gap: var(--space-2);
+    display: contents;
   }
 
   .nav {
-    gap: var(--space-3);
+    order: 1;
+    flex-basis: 100%;
+    gap: clamp(var(--space-2), 5vw, var(--space-3));
   }
 
   .navLink {

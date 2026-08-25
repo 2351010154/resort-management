@@ -19,9 +19,9 @@
 // three perks a tier carries, the stays already taken. It used to open with the
 // guest's own name and address, which are already under the membership title
 // and in the first box of the form; a third printing was the one thing on the
-// screen that told a guest nothing they had not just read. It is outlined
-// rather than filled for the reason its stylesheet gives: a wash would make it
-// a third plate, and it is a boundary around an aside.
+// screen that told a guest nothing they had not just read. It carries no box at
+// all, for the reason its stylesheet gives: an aside is closed by the rule down
+// its outer edge, and anything more would make it a fourth plate.
 //
 // **The two derived figures are the rail.** The tier and the points are the one
 // part of this screen nobody is working on — they are read off a history — so
@@ -231,11 +231,11 @@ export function ProfileForm() {
           <div className={styles.membershipGrid}>
             <div className={styles.membershipItem}>
               <p className={styles.pointsTerm}>Standing</p>
-              {/* Tinted rather than outlined — the tier is a standing, and a
-                  wash carries three rungs where three outlines would all read
-                  alike. */}
+              {/* Stated in the display face, like the balance under it: the
+                  tier is a fact the property has worked out, not a control and
+                  not a badge. */}
               <p
-                className={`${styles.tier} caps-label`}
+                className={`${styles.tier} font-display`}
                 data-tier={profile.vipTier}
               >
                 {TIERS[profile.vipTier] ?? profile.vipTier}
@@ -262,7 +262,7 @@ export function ProfileForm() {
 
           <a className={`${styles.railLink} caps-label`} href="/account/stays">
             View your stays
-            <span aria-hidden="true" className={styles.railArrow} />
+            <span aria-hidden="true" className={styles.arrow} />
           </a>
         </section>
       }
@@ -492,10 +492,15 @@ function ProfileLedger({ stays }: { readonly stays?: readonly OwnStay[] }) {
             src="/images/account/profile-material-640.webp"
           />
         </div>
-        <p className={styles.ledgerName}>Mariva Residences</p>
-        <p className={styles.ledgerCopy}>Our private collection</p>
+        {/* Wrapped, because the two lines are one fact: the section's gap
+            separates different things, and these are a name and what it is. */}
+        <div className={styles.ledgerPair}>
+          <p className={styles.ledgerName}>Mariva Residences</p>
+          <p className={styles.ledgerCopy}>Our private collection</p>
+        </div>
         <a className={`${styles.ledgerLink} caps-label`} href="/booking">
-          Explore
+          <span className={styles.ledgerLinkLabel}>Explore</span>
+          <span aria-hidden="true" className={styles.arrow} />
         </a>
       </section>
 
@@ -558,7 +563,8 @@ function ProfileLedger({ stays }: { readonly stays?: readonly OwnStay[] }) {
           <p className={styles.ledgerCopy}>No stays under this account yet.</p>
         ) : null}
         <a className={`${styles.ledgerLink} caps-label`} href="/account/stays">
-          View full history
+          <span className={styles.ledgerLinkLabel}>View full history</span>
+          <span aria-hidden="true" className={styles.arrow} />
         </a>
       </section>
     </div>

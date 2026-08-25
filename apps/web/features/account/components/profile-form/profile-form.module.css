@@ -369,26 +369,55 @@
 
 /* ---- The account ledger -------------------------------------------------- */
 
-/* Outlined and not filled. The rail is the one column on the screen that is
-   neither worked on nor stated back — it is the house talking quietly beside
-   both — so it is drawn as a boundary on the shell's own ground rather than as
-   a third plate. A wash here would put it in the same register as the form's
-   ivory plates and make the screen read as three stacks of cards. */
+/* Neither outlined nor filled — the ledger has no box at all. It is the one
+   column on the screen that is neither worked on nor stated back, the house
+   talking quietly beside both, and the quietest way to say so is to leave it
+   standing on the ground with one rule closing its outer edge.
+ *
+ * An outline here would make it a third plate; a wash would put it in the
+ * form's own register and the screen would read as three stacks of cards. What
+ * is left is type on the wall, which is what an aside is.
+ *
+ * `flex: 1` takes the height the shell's ledger column offers, so the rule runs
+ * the full depth of the row however far the three sections below happen to
+ * reach — an edge that stopped where the last link does would read as a column
+ * that ran out rather than as one that closes. The padding is what holds the
+ * rule off the words: the grid's gap alone would set it halfway to the form,
+ * where it divides the page instead of closing the aside. */
 .ledger {
-  position: sticky;
-  top: var(--space-2);
-  overflow: hidden;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  padding-right: var(--space-2);
   color: var(--ink);
-  border: var(--plate-edge);
-  border-radius: var(--plate-radius);
+  border-right: var(--page-hairline);
 }
 
+/* No horizontal padding: with the box gone, the ledger's words are read against
+   the same left edge as the title and the subtitle above them, and anything
+   inset from it would look like a mistake rather than a margin.
+ *
+ * **The vertical rhythm is a ladder, and it has to climb past the line spacing
+ * inside the text.** This column is set at 12px on 1.6, so two lines of one
+ * paragraph already stand about 19px apart. Anything separating two *different*
+ * things by less than that is read as closer than the halves of a single
+ * sentence, and the eye stops finding edges — which is what a column of
+ * uniformly-spaced small type does to a reader.
+ *
+ * So the four distances are distinct and each is larger than the one it
+ * contains: about 2px inside a pair, 16px between siblings, 24px under a title,
+ * and 48px between sections — 24 either side of a seam that is already drawing
+ * the break, which is why this one does not have to carry it alone. */
 .ledgerSection {
   display: flex;
   flex-direction: column;
   align-items: stretch;
-  gap: var(--space-1);
-  padding: var(--rail-pad);
+  gap: var(--space-2);
+  padding-block: 1.5rem;
+}
+
+.ledgerSection:first-child {
+  padding-top: 0;
 }
 
 .ledgerSection + .ledgerSection {
@@ -403,21 +432,26 @@
   color: var(--umber);
 }
 
-.ledgerTitle::before {
+/* One amber rule, on the first title only. It opens the column — the mark that
+   says this whole side is an aside — and repeating it on each of the three
+   would turn a single opening gesture into a bullet the sections share. */
+.ledgerSection:first-child .ledgerTitle::before {
   content: "";
-  width: var(--rail-pad);
+  width: 1.125rem;
   height: 1px;
-  margin-left: calc(-1 * var(--rail-pad));
+  flex: 0 0 auto;
   background: var(--dusk-amber);
 }
 
-/* The house material rather than a photograph, and the asset's own 5:3 so the
-   fluting at its right edge is not cropped to a squarer box. */
+/* A band rather than a picture. It stands at the head of a narrow column of
+   type, and a 5:3 box there is tall enough to read as the column's subject
+   instead of as the mark above it. The crop is vertical — `object-fit: cover`
+   fills the width first — so the fluting at the asset's right edge, which is
+   the reason it is this asset, survives it. */
 .ledgerImage {
   position: relative;
-  aspect-ratio: 5 / 3;
+  aspect-ratio: 12 / 5;
   overflow: hidden;
-  margin-bottom: var(--space-1);
   border-radius: var(--row-radius);
   background: var(--sand);
 }
@@ -437,17 +471,21 @@
 .benefits {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--space-2);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+/* Two cells, and the term and its note are both inside the second one — which
+   is what keeps a perk reading as one thing while the gap above widens. The
+   pair is held together by nothing but the line spacing they share, and that is
+   the tightest distance in the column on purpose. */
 .benefit {
   display: grid;
   grid-template-columns: 1.125rem minmax(0, 1fr);
   align-items: start;
-  gap: 0.625rem;
+  gap: 0.75rem;
 }
 
 /* Nudged down by the difference between the mark's box and the cap height of
@@ -481,7 +519,16 @@
 .ledgerCopy,
 .ledgerStayLink {
   font-size: var(--text-xs);
-  line-height: 1.5;
+  line-height: 1.6;
+}
+
+/* A name and what it is, which is one fact in two lines. The section's own gap
+   would set them as far apart as two different things, so they are wrapped and
+   held at the pair distance — the same one the term and note of a perk share. */
+.ledgerPair {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
 }
 
 .ledgerName {
@@ -502,21 +549,36 @@
     transform 0.1s var(--ease-ui);
 }
 
+/* The underline is on the label and not on the link, so the arrow beside it is
+   not dragged through a rule it has nothing to do with. */
 .ledgerLink {
   display: flex;
   align-items: center;
+  gap: var(--space-2);
   width: fit-content;
+}
+
+.ledgerLinkLabel {
   text-decoration: underline;
   text-underline-offset: 0.25rem;
 }
 
+/* The timeline is indented far enough for the dot to sit outside the words
+   rather than in the space before them. `--stay-gutter` is that indent, named
+   once because the dot is placed by its negative and the two must not drift. */
 .ledgerStays {
+  --stay-gutter: 1.5rem;
+
   position: relative;
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
+  /* Wider than the sibling distance elsewhere in the column, because a stay is
+     three lines and not two: at 16px the space between two entries would be
+     barely more than the space between the month and the room inside one, and
+     the dots would be doing all the grouping on their own. */
+  gap: var(--space-3);
   margin: 0;
-  padding: 0 0 0 var(--space-2);
+  padding: 0 0 0 var(--stay-gutter);
   list-style: none;
 }
 
@@ -534,11 +596,13 @@
   position: relative;
 }
 
+/* Centred on the cap of the month beside it rather than on its line box, which
+   at 1.6 sits the mark visibly low. */
 .ledgerStay::before {
   content: "";
   position: absolute;
-  top: 0.5rem;
-  left: calc(-1 * var(--space-2));
+  top: 0.375rem;
+  left: calc(-1 * var(--stay-gutter));
   width: 0.5rem;
   height: 0.5rem;
   border-radius: 50%;
@@ -584,58 +648,61 @@
 
 /* ---- The membership rail ------------------------------------------------- */
 
-/* Sticky, on `details-screen.module.css`'s reasoning for its own summary: what
-   the property states back at the guest should still be there when they have
-   scrolled to the bottom of what they are editing. The dark ground is the
-   screen's one committed peak: membership is the profile's durable hotel-owned
-   object, so it carries the house's umber while the editable plates stay quiet.
-   `max-height` keeps a short window from stranding its foot. */
+/* The same ivory plate as the three beside it, and the reason is what the
+   column is for. Membership is not a fourth thing on this screen — it is the
+   property's answer to the record the guest is editing, and it has to be read
+   in the same breath as the record. Given its own ground it stopped being the
+   answer and became an advertisement standing next to the form.
+ *
+ * It is not sticky either, and that follows from the same change. The column is
+ * stretched to the row's full height by `account-shell.module.css`, so the
+ * plate already reaches the foot of what the guest is editing; a sticky element
+ * as tall as its own scroll container has nothing left to do but complicate the
+ * two rails' idea of where the top of the page is. */
 .railPlate {
-  position: sticky;
-  top: var(--space-2);
+  position: relative;
   isolation: isolate;
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: var(--space-2);
-  max-height: calc(100dvh - 2 * var(--space-2));
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow: hidden;
   padding: var(--rail-pad);
-  color: var(--ivory);
-  background: var(--umber);
+  background: var(--ivory);
+  border: var(--plate-edge);
   border-radius: var(--plate-radius);
-  box-shadow:
-    0 1px 2px rgb(var(--umber-rgb) / 0.14),
-    0 1.25rem 2.5rem rgb(var(--umber-rgb) / 0.16);
+  box-shadow: var(--plate-lift);
 }
 
-/* The house mark is atmosphere, not another label. It stays behind the content
-   and is deliberately cropped by the folio's edge. */
+/* The house mark is atmosphere, not another label. It sits behind the content,
+   inside the plate rather than cropped by it: on a dark ground a mark bled off
+   the corner reads as light catching an edge, and on ivory the same crop reads
+   as a picture that did not fit. */
 .railMonogram {
   position: absolute;
   z-index: -1;
-  top: -1rem;
-  right: -1.25rem;
-  width: 9rem;
-  height: 9rem;
-  background: rgb(var(--ivory-rgb) / 0.055);
+  top: var(--space-1);
+  right: var(--rail-pad);
+  width: 5rem;
+  height: 5rem;
+  background: rgb(var(--dusk-amber-rgb) / 0.25);
   mask: url("/brand/mariva-monogram.svg") center / contain no-repeat;
   -webkit-mask: url("/brand/mariva-monogram.svg") center / contain no-repeat;
 }
 
 .railTitle {
-  color: var(--sand);
+  color: var(--dusk-amber-ink);
 }
 
 .railIdentity {
   position: relative;
-  padding: var(--space-2) 0 var(--space-3);
-  border-bottom: 1px solid rgb(var(--ivory-rgb) / 0.18);
+  padding: var(--space-1) 0 var(--space-2);
+  border-bottom: var(--plate-seam);
 }
 
 .guestName {
   max-width: 12ch;
-  font-size: clamp(1.75rem, 2.5vw, 2.25rem);
+  font-size: clamp(1.625rem, 1.9vw, 2rem);
   font-weight: 300;
   line-height: 1.04;
   text-wrap: balance;
@@ -644,14 +711,18 @@
 .memberSince {
   margin-top: var(--space-1);
   font-size: var(--text-xs);
-  color: var(--sand);
+  color: var(--stone-deep);
   font-variant-numeric: tabular-nums;
 }
 
+/* Stacked, not paired. The two figures are read one after the other — a tier,
+   and then what has been earned inside it — and set side by side in a 17.5rem
+   column each got about seven characters of width, which is a table of two
+   cells pretending to be a summary. */
 .membershipGrid {
-  display: grid;
-  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
-  gap: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
 }
 
 .membershipItem {
@@ -661,35 +732,30 @@
   gap: var(--space-1);
 }
 
-/* The tier as a tinted chip — reference 1's status chip, in Mariva's own tones.
+/* The tier as a stated figure, set like the points balance under it.
  *
- * A wash of the tier's colour at low alpha, which is what makes three rungs
- * legible as three rungs without spending an outline on each. Only the colours
- * that carry a channel triplet can be washed at all, so `--stone` — which the
- * design notes name for Silver — is drawn from `--umber` instead: the ladder
- * still climbs, from the quietest of the three to the warmest.
+ * It used to be a tinted chip on a dark plate, where a wash was the only way to
+ * tell three rungs apart without spending an outline on each. On ivory the chip
+ * became the loudest object in the column — a filled control beside a form
+ * whose own controls are underlines — and it was not a control at all: nothing
+ * here can be pressed, and the tier is derived from a history no route can
+ * write. So it is set as what it is: a fact, in the face the property states
+ * its facts in.
  *
- * The text colour is the tone for Member and Silver. Gold is the exception and
- * it is a legibility one rather than a taste one: `--dusk-amber` on `--ivory`
- * measures about 2.7:1, which is under the 4.5:1 a label this size needs, so
- * the wash carries the tier and `--umber` carries the words. */
+ * Gold keeps a colour, and that is the whole ladder now. Two rungs read in the
+ * house's umber and the top one in amber, which is enough to mark an
+ * achievement without printing a badge for the two rungs that are not one. The
+ * readable rung of the accent, not the light one: `--dusk-amber` on `--ivory`
+ * measures 2.7:1 and this is the same hue that clears 4.5:1. */
 .tier {
-  align-self: flex-start;
-  padding: 0.375rem 0.75rem;
-  border-radius: var(--row-radius);
-  color: var(--ivory);
-  background: rgb(var(--ivory-rgb) / 0.1);
-  font-weight: 400;
-}
-
-.tier[data-tier="SILVER"] {
-  color: var(--ivory);
-  background: rgb(var(--ivory-rgb) / 0.16);
+  color: var(--umber);
+  font-size: clamp(1.25rem, 1.32vw, 1.375rem);
+  font-weight: 300;
+  line-height: 1.15;
 }
 
 .tier[data-tier="GOLD"] {
-  color: var(--ivory);
-  background: rgb(var(--dusk-amber-rgb) / 0.32);
+  color: var(--dusk-amber-ink);
 }
 
 .pointsTerm {
@@ -697,7 +763,7 @@
   font-size: var(--text-xs);
   letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
-  color: var(--sand);
+  color: var(--stone-deep);
 }
 
 /* The one number on this screen worth a display size, at the step
@@ -719,30 +785,35 @@
 .railNote {
   font-size: var(--text-xs);
   line-height: 1.6;
-  color: var(--sand);
+  color: var(--stone-deep);
 }
 
+/* Directly under the note it follows, and not pushed to the plate's foot. The
+   column is stretched to the height of the form beside it, so `margin-top:
+   auto` would send this line down to sit level with the bottom of a plate it
+   has nothing to do with, across a gap of nothing. What is under it is the
+   plate's own quiet, which is the right amount of ceremony for the last line in
+   an aside. */
 .railLink {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
   min-height: 2.75rem;
-  margin-top: auto;
   padding-top: var(--space-2);
-  color: var(--ivory);
-  border-top: 1px solid rgb(var(--ivory-rgb) / 0.18);
+  color: var(--umber);
+  border-top: var(--plate-seam);
   transition:
     color 0.4s var(--ease-ui),
     transform 0.1s var(--ease-ui);
 }
 
 .railLink:hover {
-  color: var(--sand);
+  color: var(--dusk-amber-ink);
 }
 
 .railLink:focus-visible {
-  outline: 2px solid var(--dusk-amber);
+  outline: 2px solid var(--dusk-amber-ink);
   outline-offset: 4px;
 }
 
@@ -751,31 +822,37 @@
 }
 
 /* The arrow is authored from two rules because the guest realm has no icon
-   library; it extends by one quiet step when the action is approached. */
-.railArrow {
+   library; it extends by one quiet step when the action is approached.
+ *
+ * One class for both places that need it — the three ledger links and the rail's
+ * own — because they are the same gesture at the same size and a second copy
+ * would be a second thing to keep level. It is named for the mark rather than
+ * for either caller for exactly that reason. */
+.arrow {
   position: relative;
-  width: 1.875rem;
-  height: 0.625rem;
+  width: 1.25rem;
+  height: 0.5rem;
   flex: 0 0 auto;
   border-bottom: 1px solid currentcolor;
-  clip-path: inset(0 0 0 20%);
+  clip-path: inset(0 0 0 30%);
   transition: clip-path 0.4s var(--ease-ui);
 }
 
-.railArrow::after {
+.arrow::after {
   content: "";
   position: absolute;
   right: 0;
   bottom: -1px;
-  width: 0.45rem;
-  height: 0.45rem;
+  width: 0.4rem;
+  height: 0.4rem;
   border-right: 1px solid currentcolor;
   border-bottom: 1px solid currentcolor;
   transform: rotate(-45deg);
   transform-origin: right bottom;
 }
 
-.railLink:hover .railArrow {
+.railLink:hover .arrow,
+.ledgerLink:hover .arrow {
   clip-path: inset(0);
 }
 
@@ -848,17 +925,27 @@
   }
 
   .membershipGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    flex-direction: row;
+    gap: var(--space-3);
+  }
+
+  .membershipItem {
+    flex: 1 1 0;
   }
 }
 
+/* Stacked, the ledger has the content under it rather than beside it, so its
+   outer rule has nothing left to divide — and it is as wide as the screen, so a
+   band drawn to a ratio chosen for a 13rem column becomes a mural at 60rem. It
+   keeps the ratio and loses the width. */
 @media (max-width: 68rem) {
   .ledger {
-    position: static;
+    padding-right: 0;
+    border-right: 0;
   }
 
   .ledgerImage {
-    aspect-ratio: 16 / 7;
+    max-width: 20rem;
   }
 }
 
