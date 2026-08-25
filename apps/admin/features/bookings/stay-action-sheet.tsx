@@ -196,8 +196,8 @@ export function StayActionSheet({
         <SheetHeader>
           <SheetTitle>Stay {stay.reference}</SheetTitle>
           <SheetDescription>
-            {stay.state.replaceAll("_", " ")} · {stay.checkIn} to{" "}
-            {stay.checkOut} · Room {stay.roomNumber ?? "unassigned"}
+            {stay.state.replaceAll("_", " ")}, {stay.checkIn} to {stay.checkOut}
+            , Room {stay.roomNumber ?? "unassigned"}
           </SheetDescription>
         </SheetHeader>
         <SheetBody>

@@ -70,7 +70,7 @@ function StaySummary({ stay }: { readonly stay: HeldStay }) {
 
         <dt className={styles.summaryLabel}>Nights</dt>
         <dd className={styles.summaryValue}>
-          {stay.checkIn} to {stay.checkOut} · {nights}
+          {stay.checkIn} to {stay.checkOut}, {nights}
         </dd>
 
         <dt className={styles.summaryLabel}>Guests</dt>

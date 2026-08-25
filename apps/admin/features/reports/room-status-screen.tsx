@@ -179,7 +179,7 @@ function Stamp({
 
   return (
     <span className="text-muted-foreground text-sm">
-      Counted {formatInstant(report.takenAt)} · {report.rooms} rooms ·{" "}
+      Counted {formatInstant(report.takenAt)}, {report.rooms} rooms,{" "}
       {boundaryNote(report.lastClosedBusinessDate)}
     </span>
   );

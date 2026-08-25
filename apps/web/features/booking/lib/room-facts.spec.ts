@@ -5,7 +5,7 @@ import { ROOM_TYPES, roomType } from "./room-types";
 describe("roomFacts", () => {
   it("states whom it sleeps, how big, and what it faces", () => {
     expect(roomFacts(roomType("JUNIOR_SUITE"))).toBe(
-      "3 guests · 52 m² · corner · two aspects",
+      "3 guests, 52 m², corner, two aspects",
     );
   });
 

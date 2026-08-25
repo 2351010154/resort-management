@@ -209,7 +209,7 @@ export function varianceReading(shift: Shift): VarianceReading | null {
  * it. One constant because the history's column and the drawer's figures are the
  * same figure, and two spellings of it would drift.
  */
-export const CASH_BOOK_TERM = "Cash book · thu chi";
+export const CASH_BOOK_TERM = "Cash book, thu chi";
 
 /** What each way a drawer can be out is called on screen. */
 export const VARIANCE_LABELS: Record<VarianceTone, string> = {

@@ -87,7 +87,7 @@ export function preArrivalReminder(
 
   const heading = `See you tomorrow, ${params.guestName}`;
   const intro = `Your stay at ${PROPERTY} begins on ${arrival}. Check-in opens at ${CHECK_IN_TIME}.`;
-  const details = `${params.roomType} · booking reference ${params.reference}`;
+  const details = `${params.roomType}, booking reference ${params.reference}`;
   const address = `We are at ${PROPERTY_ADDRESS}.`;
   const document =
     "Please bring the identity document you will check in with — a CCCD for Vietnamese guests, a passport otherwise. The desk has to read it and record the particulars before a room can be handed over, and we cannot complete check-in without it. Nothing is copied or kept: it is read at the counter and handed straight back.";

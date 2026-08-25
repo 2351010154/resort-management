@@ -909,7 +909,7 @@ function guestOptions(
     // `guest.unmask-cccd` may show the digits, and a queue is not that route.
     detail: [one.phone, one.cccdMasked]
       .filter((fact) => fact !== null)
-      .join(" · "),
+      .join(", "),
   }));
 
   const name = typed.trim();
@@ -936,7 +936,7 @@ function roomOptions(
     (room) => ({
       id: room.roomNumber,
       label: room.roomNumber,
-      detail: `Floor ${room.floor} · ${room.status.toLowerCase()}`,
+      detail: `Floor ${room.floor}, ${room.status.toLowerCase()}`,
     }),
   );
 }

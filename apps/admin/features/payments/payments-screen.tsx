@@ -724,8 +724,7 @@ function PaymentRowCells({
       <td className="px-3 py-1">
         <span>{METHOD_LABELS[payment.method]}</span>
         <span className="text-muted-foreground text-sm">
-          {" "}
-          · {STATUS_LABELS[payment.status]}
+          , {STATUS_LABELS[payment.status]}
         </span>
         <p className="text-muted-foreground text-sm">{paidLabel(payment)}</p>
         <p className="text-muted-foreground text-sm">
@@ -951,7 +950,7 @@ function DisagreementCell({
             onOpenNight(route.businessDate);
           }}
         >
-          Disagreed · read {formatShortDate(route.businessDate)}
+          Disagreed, read {formatShortDate(route.businessDate)}
         </Button>
       );
 

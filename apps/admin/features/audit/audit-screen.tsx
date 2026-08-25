@@ -581,11 +581,11 @@ function ChangePanel({ reading }: { reading: ChangeReading }) {
         The change
       </p>
       <p className="mt-2 text-sm">
-        {actorLabel(change)} · {ACTION_LABELS[change.action]} ·{" "}
+        {actorLabel(change)}, {ACTION_LABELS[change.action]},{" "}
         {formatInstant(change.occurredAt)}
       </p>
       <p className="text-muted-foreground tabular-nums text-sm">
-        {change.tableName} · {change.rowId}
+        {change.tableName}, {change.rowId}
       </p>
       <p className="text-muted-foreground mt-2 text-sm">
         {/* Zero is a real answer and is still said: a change that moved no

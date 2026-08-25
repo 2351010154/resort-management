@@ -304,7 +304,7 @@ function GuestRow({
               two people with one name are told apart by it at the desk, with a
               document in hand — and it is masked on this path exactly as it is
               on the record. */}
-          {guest.phone ?? "No telephone"} ·{" "}
+          {guest.phone ?? "No telephone"},{" "}
           {guest.cccdMasked ?? "No identity number"}
         </span>
       </button>

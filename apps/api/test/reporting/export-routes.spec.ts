@@ -676,7 +676,7 @@ describe("the cash book export", () => {
     const sheet = await sheetOf(answer.body as Buffer);
 
     expect(sheet.getRow(3).getCell(1).value).toBe(
-      "Filters: from 2026-08-01 · to 2026-08-31",
+      "Filters: from 2026-08-01, to 2026-08-31",
     );
   });
 

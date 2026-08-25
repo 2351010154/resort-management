@@ -102,7 +102,7 @@ export const ROOM_TYPES: readonly RoomType[] = [
     beddingSleeps: 3,
     takesExtraBed: false,
     squareMetres: 42,
-    bedding: "one king bed (1.80 m) · one single bed (1.00 m)",
+    bedding: "one king bed (1.80 m), one single bed (1.00 m)",
     aspect: "city",
     description:
       "A king bed and a single, on the city side. The room a family of three stops having to negotiate.",
@@ -115,7 +115,7 @@ export const ROOM_TYPES: readonly RoomType[] = [
     takesExtraBed: true,
     squareMetres: 52,
     bedding: "one king bed (1.80 m)",
-    aspect: "corner · two aspects",
+    aspect: "corner, two aspects",
     description:
       "A corner room, so the light moves across it through the day. The sitting area is its own room in all but name.",
   },
