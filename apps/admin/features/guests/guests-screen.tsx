@@ -318,7 +318,7 @@ function GuestDetail({ guest, role }: { guest: GuestHit; role: StaffRole }) {
 
   return (
     <Card className="overflow-hidden">
-      <div className="flex items-center gap-4 border-border border-b p-5">
+      <div className="flex items-center gap-4 border-border border-b p-4 sm:p-6">
         <span className="grid size-12 place-items-center rounded-lg bg-accent-soft text-accent-strong">
           <UserRoundIcon aria-hidden="true" className="size-5" />
         </span>
@@ -344,8 +344,8 @@ function GuestDetail({ guest, role }: { guest: GuestHit; role: StaffRole }) {
       ) : null}
 
       {record.data === undefined ? null : (
-        <>
-          <dl className="grid gap-4 p-5 text-sm sm:grid-cols-2">
+        <div className="p-4 sm:p-6">
+          <dl className="grid gap-x-8 gap-y-5 text-sm sm:grid-cols-2">
             {guestFacts(record.data).map((fact) => (
               <Fact key={fact.label} fact={fact} />
             ))}
@@ -353,15 +353,15 @@ function GuestDetail({ guest, role }: { guest: GuestHit; role: StaffRole }) {
 
           <IdentityNumber record={record.data} role={role} />
 
-          <p className="text-muted-foreground mt-4 text-sm">
+          <p className="mt-6 max-w-4xl border-border border-t pt-4 text-sm leading-6 text-muted-foreground">
             {/* Said rather than implied: an operator looking for a stay list or
                 a scan on this screen is owed the reason there is none. */}
-            This record is the person, not their stays — a guest's bookings are
-            found on Bookings (g b). No document image is kept anywhere: the
+            This record is the person, not their stays. A guest's bookings are
+            found on Bookings (g b). No document image is kept anywhere. The
             document is checked at the desk and its particulars go on the
             registration.
           </p>
-        </>
+        </div>
       )}
     </Card>
   );
@@ -393,8 +393,8 @@ function IdentityNumber({
 
   if (record.cccdMasked === null) {
     return (
-      <section className="mt-4">
-        <h3 className="text-sm">Identity number</h3>
+      <section className="mt-6 border-border border-t pt-5">
+        <h3 className="text-sm font-semibold">Identity number</h3>
         <p className="text-muted-foreground mt-1 text-sm">
           None on file. It is taken from the document at check-in.
         </p>
@@ -417,8 +417,8 @@ function IdentityNumber({
   }
 
   return (
-    <section className="mt-4">
-      <h3 className="text-sm">Identity number</h3>
+    <section className="mt-6 border-border border-t pt-5">
+      <h3 className="text-sm font-semibold">Identity number</h3>
 
       <p className="mt-1 tabular-nums text-lg">
         {/* In place: the masked value and the revealed one occupy the same line,

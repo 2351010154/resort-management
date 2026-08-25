@@ -163,6 +163,28 @@ interface Asked {
   readonly offset: number;
 }
 
+/**
+ * Why the list came back empty, said for the balance that was actually asked
+ * about.
+ *
+ * Three sentences and not one, because an empty answer is three different facts:
+ * nothing in this window is short, nothing in this window is owed back, and the
+ * property has no accounts here at all. Only the last is about the property
+ * rather than about the money, which is why it is the one that says where folios
+ * come from.
+ *
+ * A `Record` over the filter's own union rather than a chain ending in a
+ * fallback, for `folio-ledger.ts`'s reason about {@link POSTING_LABELS}: a
+ * fourth member added to `listFoliosInput` stops this file compiling, where a
+ * default would quietly tell an operator that every account balances under a
+ * filter that was never about balancing.
+ */
+const NOTHING_MATCHED: Record<FolioFilterFields["balance"], string> = {
+  OUTSTANDING: "Every account in this window balances.",
+  OVERPAID: "The property owes nothing back in this window.",
+  ANY: "Folios open when a stay checks in.",
+};
+
 export function FoliosScreen() {
   const session = useStaffSession();
   const role = session.status === "authenticated" ? session.user.role : null;
@@ -234,6 +256,12 @@ export function FoliosScreen() {
           selectRef={firstFilter}
           options={[
             { value: "OUTSTANDING", label: "Does not balance" },
+            // Named for what the operator is hunting rather than for the sign
+            // behind it. "Over-paid" is the account's condition; money to hand
+            // back is the reason anybody opens this filter, and §4's penalty
+            // against a prepaid stay leaves guests sitting here waiting for a
+            // refund no part of the product issues on its own.
+            { value: "OVERPAID", label: "Money to hand back" },
             { value: "ANY", label: "Any balance" },
           ]}
           onChange={(balance) => {
@@ -330,11 +358,7 @@ export function FoliosScreen() {
           {page.status === "ready" && page.folios.length === 0 ? (
             <EmptyState
               title="No matching folios"
-              description={
-                asked.fields.balance === "OUTSTANDING"
-                  ? "Every account in this window balances."
-                  : "Folios open when a stay checks in."
-              }
+              description={NOTHING_MATCHED[asked.fields.balance]}
               className="px-4 py-10 shadow-none"
             />
           ) : null}
@@ -685,6 +709,7 @@ function FolioActions({ bookingId }: { bookingId: string }) {
     "catalog" | "quantity" | "amount" | null
   >(null);
   const descriptionId = useId();
+  const catalogId = useId();
   const chargeProblemId = useId();
   const serviceProblemId = useId();
   const chargeAmountRef = useRef<HTMLInputElement>(null);
@@ -699,10 +724,11 @@ function FolioActions({ bookingId }: { bookingId: string }) {
 
   return (
     <section
-      className="mt-4 grid gap-4 rounded-lg border border-border p-4 lg:grid-cols-2"
+      className="mt-6 grid overflow-hidden rounded-lg border border-border divide-y divide-border lg:grid-cols-2 lg:divide-x lg:divide-y-0"
       aria-label="Post to this account"
     >
       <form
+        className="p-4 sm:p-6"
         onSubmit={(event) => {
           event.preventDefault();
           if (charge.isPending) return;
@@ -734,35 +760,41 @@ function FolioActions({ bookingId }: { bookingId: string }) {
           });
         }}
       >
-        <h3 className="font-semibold">Ad-hoc charge</h3>
-        <Field
-          label="Gross amount"
-          value={chargeAmount}
-          placeholder="150000"
-          inputMode="numeric"
-          inputRef={chargeAmountRef}
-          ariaInvalid={chargeInvalid === "amount"}
-          describedBy={chargeInvalid === "amount" ? chargeProblemId : undefined}
-          onChange={setChargeAmount}
-        />
-        <label
-          htmlFor={descriptionId}
-          className="mt-3 block text-xs tracking-caps text-muted-foreground uppercase"
-        >
-          Description
-        </label>
-        <Textarea
-          id={descriptionId}
-          ref={descriptionRef}
-          aria-invalid={chargeInvalid === "description"}
-          aria-describedby={
-            chargeInvalid === "description" ? chargeProblemId : undefined
-          }
-          className="mt-1"
-          value={description}
-          onChange={(event) => setDescription(event.target.value)}
-        />
-        <Button className="mt-3" type="submit" disabled={charge.isPending}>
+        <h3 className="text-base font-semibold leading-6">Ad-hoc charge</h3>
+        <div className="mt-4 space-y-4">
+          <Field
+            label="Gross amount"
+            value={chargeAmount}
+            placeholder="150000"
+            inputMode="numeric"
+            inputRef={chargeAmountRef}
+            ariaInvalid={chargeInvalid === "amount"}
+            describedBy={
+              chargeInvalid === "amount" ? chargeProblemId : undefined
+            }
+            onChange={setChargeAmount}
+          />
+          <div>
+            <label
+              htmlFor={descriptionId}
+              className="block text-xs tracking-caps text-muted-foreground uppercase"
+            >
+              Description
+            </label>
+            <Textarea
+              id={descriptionId}
+              ref={descriptionRef}
+              aria-invalid={chargeInvalid === "description"}
+              aria-describedby={
+                chargeInvalid === "description" ? chargeProblemId : undefined
+              }
+              className="mt-2"
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
+            />
+          </div>
+        </div>
+        <Button className="mt-6" type="submit" disabled={charge.isPending}>
           Post charge
         </Button>
         {chargeProblem === null ? null : (
@@ -776,6 +808,7 @@ function FolioActions({ bookingId }: { bookingId: string }) {
         )}
       </form>
       <form
+        className="p-4 sm:p-6"
         onSubmit={(event) => {
           event.preventDefault();
           if (service.isPending) return;
@@ -816,59 +849,67 @@ function FolioActions({ bookingId }: { bookingId: string }) {
           });
         }}
       >
-        <h3 className="font-semibold">Service item</h3>
-        <label className="mt-2 block text-xs tracking-caps text-muted-foreground uppercase">
-          Catalog item
-          <select
-            ref={catalogRef}
-            aria-invalid={serviceInvalid === "catalog"}
-            aria-describedby={
-              serviceInvalid === "catalog" ? serviceProblemId : undefined
-            }
-            className="mt-1 h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
-            value={code}
-            onChange={(event) => {
-              setCode(event.target.value);
-              setServiceAmount("");
-            }}
-          >
-            <option value="">Choose an item</option>
-            {catalog.data?.map((entry) => (
-              <option key={entry.code} value={entry.code}>
-                {entry.name} ·{" "}
-                {entry.unitPriceGross === null
-                  ? "price required"
-                  : formatVnd(entry.unitPriceGross)}
-              </option>
-            ))}
-          </select>
-        </label>
-        <Field
-          label="Quantity"
-          value={quantity}
-          inputMode="numeric"
-          inputRef={quantityRef}
-          ariaInvalid={serviceInvalid === "quantity"}
-          describedBy={
-            serviceInvalid === "quantity" ? serviceProblemId : undefined
-          }
-          onChange={setQuantity}
-        />
-        {item?.unitPriceGross === null ? (
+        <h3 className="text-base font-semibold leading-6">Service item</h3>
+        <div className="mt-4 space-y-4">
+          <div>
+            <label
+              htmlFor={catalogId}
+              className="block text-xs tracking-caps text-muted-foreground uppercase"
+            >
+              Catalog item
+            </label>
+            <select
+              id={catalogId}
+              ref={catalogRef}
+              aria-invalid={serviceInvalid === "catalog"}
+              aria-describedby={
+                serviceInvalid === "catalog" ? serviceProblemId : undefined
+              }
+              className="mt-2 h-11 w-full cursor-pointer rounded-md border border-input bg-card px-3 text-base shadow-xs transition-[border-color,box-shadow] duration-200 ease-ui aria-invalid:border-destructive"
+              value={code}
+              onChange={(event) => {
+                setCode(event.target.value);
+                setServiceAmount("");
+              }}
+            >
+              <option value="">Choose an item</option>
+              {catalog.data?.map((entry) => (
+                <option key={entry.code} value={entry.code}>
+                  {entry.name} ·{" "}
+                  {entry.unitPriceGross === null
+                    ? "price required"
+                    : formatVnd(entry.unitPriceGross)}
+                </option>
+              ))}
+            </select>
+          </div>
           <Field
-            label="Agreed total"
-            value={serviceAmount}
+            label="Quantity"
+            value={quantity}
             inputMode="numeric"
-            inputRef={serviceAmountRef}
-            ariaInvalid={serviceInvalid === "amount"}
+            inputRef={quantityRef}
+            ariaInvalid={serviceInvalid === "quantity"}
             describedBy={
-              serviceInvalid === "amount" ? serviceProblemId : undefined
+              serviceInvalid === "quantity" ? serviceProblemId : undefined
             }
-            onChange={setServiceAmount}
+            onChange={setQuantity}
           />
-        ) : null}
+          {item?.unitPriceGross === null ? (
+            <Field
+              label="Agreed total"
+              value={serviceAmount}
+              inputMode="numeric"
+              inputRef={serviceAmountRef}
+              ariaInvalid={serviceInvalid === "amount"}
+              describedBy={
+                serviceInvalid === "amount" ? serviceProblemId : undefined
+              }
+              onChange={setServiceAmount}
+            />
+          ) : null}
+        </div>
         <Button
-          className="mt-3"
+          className="mt-6"
           type="submit"
           disabled={service.isPending || catalog.isPending}
         >
@@ -909,7 +950,7 @@ function LedgerNotice({
           role="alert"
         >
           These lines do not come to the balance above them. Something has been
-          lost between the account and this screen — check the folio against the
+          lost between the account and this screen. Check the folio against the
           API before acting on either figure.
         </p>
       )}
@@ -999,7 +1040,7 @@ function LedgerRow({
           {reverses === null ? null : (
             <p className="mt-1 text-accent-strong">
               Reverses the {POSTING_LABELS[reverses.type].toLowerCase()} of{" "}
-              {formatShortDate(reverses.businessDate)} —{" "}
+              {formatShortDate(reverses.businessDate)} ·{" "}
               {formatVnd(reverses.amount)}. That line stays on the account.
             </p>
           )}
@@ -1094,7 +1135,7 @@ function Field({
         ref={inputRef}
         aria-invalid={ariaInvalid}
         aria-describedby={describedBy}
-        className="mt-1"
+        className="mt-2"
         value={value}
         placeholder={placeholder}
         autoComplete="off"

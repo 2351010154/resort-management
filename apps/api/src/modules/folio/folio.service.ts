@@ -388,14 +388,15 @@ export interface ClosedFolio {
  * Which accounts the desk is asking about, and how much of the answer it wants.
  *
  * `balance` narrows on a figure no column holds — the contract says why the
- * dimension is two named members rather than a flag — and `from`/`to` name
- * trading days, so they are matched against the *lines*: a folio has an opening
- * instant and a closing one, and §2's rollover decides which day an instant
- * belongs to. An account is in the window when a line of it is.
+ * dimension is three named members rather than a flag, and which sign each of
+ * them means — and `from`/`to` name trading days, so they are matched against
+ * the *lines*: a folio has an opening instant and a closing one, and §2's
+ * rollover decides which day an instant belongs to. An account is in the window
+ * when a line of it is.
  */
 export interface FolioListQuery {
   readonly state?: (typeof folio.$inferSelect)["state"];
-  readonly balance: "ANY" | "OUTSTANDING";
+  readonly balance: "ANY" | "OUTSTANDING" | "OVERPAID";
   readonly from?: StayDate;
   readonly to?: StayDate;
   readonly limit: number;
@@ -599,6 +600,22 @@ export class FolioService implements FolioPort {
       // Written as the plain sum, which is `NFR-02`'s identity and therefore the
       // same figure `outstanding` below comes to.
       matched.push(sql`coalesce(sum(${folioPosting.amount}), 0) <> 0`);
+    }
+
+    if (query.balance === "OVERPAID") {
+      // The half of the above that is signed the other way. `schema/folio.ts`
+      // fixes the convention — a charge is stored positive and money received
+      // negative — so a sum below zero is the property holding money that is
+      // not its own, and nothing else can produce it. Never `<= 0`: an account
+      // that comes to nothing is settled, and listing it here would put every
+      // agreed stay on the worklist of guests owed a refund.
+      //
+      // Its own member rather than a caller filtering `OUTSTANDING` by sign,
+      // because the sign is not on the wire until the whole page has been
+      // fetched: a screen asking for fifty rows and keeping the negative ones
+      // would page through a set it cannot count, and `total` would be the
+      // wider question's figure printed under the narrower one's list.
+      matched.push(sql`coalesce(sum(${folioPosting.amount}), 0) < 0`);
     }
 
     const window: SQL[] = [];

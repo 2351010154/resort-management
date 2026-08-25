@@ -17,13 +17,21 @@
 // it. `stays-list.tsx` is the other half of that argument — the account's list
 // only navigates.
 //
-// **The price is shown before the press, and that is the whole point of the
-// quote.** The stay is paid in full, so the question a guest is actually asking
-// is how much comes back; `property-and-tariff.md` §4's rule on its own would
-// leave them subtracting a figure they have never seen. What the panel shows is
-// the calculator's own number, which is the number the folio will post — proven
-// end to end in `guest-own-booking.e2e-spec.ts` rather than by a second
-// implementation of the grid living here.
+// **The charge is shown before the press, and that is the whole point of the
+// quote.** `property-and-tariff.md` §4's rule on its own would leave a guest
+// working out what calling the stay off costs them from a grid they have never
+// read, so the figure goes in front of them while the button is still unpressed.
+// What the panel shows is the calculator's own number, which is the number the
+// folio will post — proven end to end in `guest-own-booking.e2e-spec.ts` rather
+// than by a second implementation of the grid living here.
+//
+// **What it does not show is money coming back.** The §4 grid and what the
+// guest is owed under it are untouched, but nothing here or downstream returns
+// money on its own: a refund is a staff act taken out of band. A panel that
+// promised one would be committing somebody else to work it never asked for,
+// and a promise with nobody behind it is worse than silence. Only the
+// non-refundable rate still speaks about money already paid, and it speaks to
+// say none of it comes back — a warning, and one that requires no one to act.
 //
 // **Nothing is destroyed on one press.** The stay is prepaid and a cancellation
 // cannot be taken back, so the button arms a confirmation and the confirmation

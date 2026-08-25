@@ -58,8 +58,10 @@
 // request for an ownership check to be about, and the widest honest reading of
 // "own, settled view" over `GET /folios` is one account the caller could have
 // asked for by id anyway. That is not what this route is — it answers which
-// accounts across the property are still short — so the realm is refused on the
-// shape of the question rather than on the grant, and the handler says so.
+// accounts across the property fail to balance, in whichever direction they
+// fail: the stays that still owe, and the stays the property is holding money
+// for — so the realm is refused on the shape of the question rather than on the
+// grant, and the handler says so.
 
 import { oc } from "@orpc/contract";
 import { z } from "zod";
@@ -220,10 +222,25 @@ export const FOLIO_PAGE_SIZE = 50;
  * string is read rather than about taste: `?outstandingOnly=false` arrives as
  * the string "false", which every ordinary coercion turns into `true`, and the
  * failure mode of that mistake is a settled property reported as though every
- * account on it were short. Two named members have no such reading.
- * `OUTSTANDING` is `outstanding <> 0` and not `> 0` — an over-paid stay is an
- * account that does not balance and is exactly what a desk chasing money at the
- * end of a day needs to see.
+ * account on it were short. Named members have no such reading — and a boolean
+ * could not have carried the third one at all.
+ *
+ * The three are one question asked at three widths, over the same plain sum
+ * {@link folioSummarySchema}'s `outstanding` comes to. `ANY` narrows nothing.
+ * `OUTSTANDING` is `outstanding <> 0` and deliberately not `> 0`: it is every
+ * account that fails to balance, which is what a desk chasing exceptions at the
+ * end of a day needs to see, and an over-paid stay fails to balance as surely as
+ * one that still owes. `OVERPAID` is `outstanding < 0` alone. `schema/folio.ts`
+ * fixes the sign — a charge is positive and money received is negative — so a
+ * sum below zero is the property holding money that is not its own, and the
+ * guest is owed it back.
+ *
+ * The narrow member exists because that is a worklist of its own and not a
+ * shade of the wider one. §4's penalty posted against a prepaid stay leaves the
+ * account exactly there, and the refund that answers it is staff-initiated:
+ * under `OUTSTANDING` those guests are mixed in with every guest who owes the
+ * property, told apart only by reading the sign off each row, and a guest owed
+ * money who cannot be listed is a guest nobody hands it back to.
  *
  * **The date range is the trading days the account was active on**, which is the
  * only business date a folio has: `schema/folio.ts` gives the account an opening
@@ -240,7 +257,7 @@ export const FOLIO_PAGE_SIZE = 50;
 export const listFoliosInput = z
   .object({
     state: folioStateSchema.optional(),
-    balance: z.enum(["ANY", "OUTSTANDING"]).default("ANY"),
+    balance: z.enum(["ANY", "OUTSTANDING", "OVERPAID"]).default("ANY"),
     from: stayDateSchema.optional(),
     to: stayDateSchema.optional(),
     limit: z.coerce

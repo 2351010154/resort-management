@@ -9,9 +9,12 @@
 //    folio prices the charge from — and it is asserted against the stay's own
 //    stored night prices rather than against a constant, so a mail that quietly
 //    started rounding, or reading the plan wrongly, cannot pass.
-// 2. **A waived cancellation refunds the whole of what the account paid.** The
-//    waiver is a manager's decision recorded on the booking, and §4's table has no
-//    cell for it; the guest is owed the money and the mail is where they are told.
+// 2. **No body promises money back, whatever the account is over-paid by.** §4's
+//    entitlement stands and a waived stay is owed the whole of what it paid, but
+//    returning it is a staff act taken at the desk and out of band — nothing in
+//    this process starts one. So the mail states what was charged and stops, and
+//    a guest is asked to write in rather than left waiting on a job that will
+//    never run.
 // 3. **A stay with nobody to write to sends nothing.** `contact_email` and
 //    `contact_name` are null together on every stay the desk took at a counter.
 // 4. **A hold is not a cancellation the guest was ever told about.** The sweep
@@ -100,6 +103,10 @@ class StoppedClock extends BusinessDateService {
  * summed — `folio-refunds.e2e-spec.ts` owns the second question. Signed the way
  * `ports/folio.port.ts` states: negative is the property holding money that is
  * not its own.
+ *
+ * The mail no longer reads it, and the balance each case sets is what makes that
+ * assertable: an account handed over deeply over-paid still produces a body with
+ * §4's charge on it and nothing else.
  */
 class FolioHolding implements FolioPort {
   constructor(private readonly balance: VndAmount) {}
@@ -218,23 +225,25 @@ describe("the cancellation the desk sends", () => {
     expect(queued[0]!.text).toContain("no cancellation charge");
   });
 
-  it("refunds what the account is over-paid by once the penalty stands", async () => {
+  it("promises nothing back on the account §4 leaves over-paid", async () => {
     const stay = await confirmedStay({ plan: "NONREF" });
     const nights = await nightPricesOf(stay.id);
     const penalty = nights.reduce<VndAmount>((total, night) => total + night, 0n);
 
-    // The guest paid the stay and a little more — a deposit against extras is
-    // enough to make the arithmetic visible.
-    const paid = penalty + 500_000n;
-
-    await cancel(stay.id, { balance: -paid });
+    // The guest paid the stay and a little more — a deposit against extras, and
+    // the balance the mail once subtracted a refund out of. The entitlement is
+    // real; the mail is simply not the thing that settles it.
+    await cancel(stay.id, { balance: -(penalty + 500_000n) });
 
     expect(queued).toHaveLength(1);
     expect(queued[0]!.text).toContain(formatVnd(penalty));
-    expect(queued[0]!.text).toContain(formatVnd(500_000n));
+    // One figure in the body, and it is §4's charge. Counted rather than named,
+    // because a second amount is the failure whatever it happens to come to.
+    expect(queued[0]!.text.match(/₫/g)).toHaveLength(1);
+    expect(queued[0]!.text).not.toMatch(/refund/i);
   });
 
-  it("refunds the whole of what was paid when a manager waived the penalty", async () => {
+  it("says a waived cancellation cost nothing, and quotes no figure at all", async () => {
     const stay = await confirmedStay({ plan: "NONREF" });
     const nights = await nightPricesOf(stay.id);
     const paid = nights.reduce<VndAmount>((total, night) => total + night, 0n);
@@ -243,11 +252,14 @@ describe("the cancellation the desk sends", () => {
 
     expect(queued).toHaveLength(1);
     // §4's table has no waiver cell, so a waived stay never reaches the grid and
-    // is priced at nothing — which in money is the whole of what it paid coming
-    // back. A mail that still quoted the `NONREF` penalty would be telling a
-    // guest the property kept money a manager gave up.
+    // is priced at nothing. A mail that still quoted the `NONREF` penalty would
+    // be telling a guest the property kept money a manager gave up — and one
+    // that quoted the whole of what the account paid would be promising a
+    // return the desk, not this process, decides to send.
     expect(queued[0]!.text).toContain("no cancellation charge");
-    expect(queued[0]!.text).toContain(formatVnd(paid));
+    expect(queued[0]!.text).not.toContain(formatVnd(paid));
+    expect(queued[0]!.text).not.toContain("₫");
+    expect(queued[0]!.text).not.toMatch(/refund/i);
   });
 
   it("says nothing at all for a stay nobody named a contact on", async () => {

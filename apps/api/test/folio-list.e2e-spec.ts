@@ -15,7 +15,12 @@
 //    outstanding.
 // 2. **Unsettled means "does not balance", not "owes".** An over-paid stay is
 //    money the property owes the guest, and a desk chasing exceptions at the end
-//    of a shift needs it in the same list.
+//    of a shift needs it in the same list. The narrower filter beside it is the
+//    other half of that: a guest owed a refund has to be reachable *without*
+//    every guest who owes the property standing in the answer, because §4's
+//    penalty against a prepaid stay leaves accounts there and nothing hands the
+//    money back on its own. The two filters are asserted against the same
+//    fixture so that widening one cannot be mistaken for narrowing the other.
 // 3. **The page bounds the answer and the total does not.** A count card asks
 //    this route for one row and reads the figure, so the figure has to be about
 //    the filter rather than about the page.
@@ -546,6 +551,87 @@ describe("the unsettled filter", () => {
 
   it("answers every account when the balance is not asked about", async () => {
     expect((await list({ balance: "ANY" })).total).toBe(5);
+  });
+});
+
+describe("the over-paid filter", () => {
+  it("answers only the accounts the property owes money back on", async () => {
+    const page = await list({ balance: "OVERPAID" });
+
+    expect(staysOn(page)).toEqual([overpaid]);
+    // Counted under the same predicate the page was cut from. A count card
+    // reading this figure is asking how many guests are owed a refund, and the
+    // wider filter's three would be the wrong answer to that question.
+    expect(page.total).toBe(1);
+  });
+
+  it("leaves out the accounts that still owe the property", async () => {
+    const stays = staysOn(await list({ balance: "OVERPAID" }));
+
+    // Both of these fail to balance and both are in `OUTSTANDING`. They are the
+    // whole reason the narrow filter exists: a predicate written as `<> 0` here
+    // would answer with a worklist of guests to refund that mostly owes money.
+    expect(stays).not.toContain(owing);
+    expect(stays).not.toContain(straddling);
+  });
+
+  it("leaves out an account that balances, open or agreed", async () => {
+    const stays = staysOn(await list({ balance: "OVERPAID" }));
+
+    // `< 0` and never `<= 0`. A settled account is not money to hand back, and
+    // the agreed one would drag every closed stay in the property's history onto
+    // the list behind it.
+    expect(stays).not.toContain(settled);
+    expect(stays).not.toContain(closed);
+  });
+
+  it("narrows the unsettled set rather than asking beside it", async () => {
+    const unsettled = staysOn(await list({ balance: "OUTSTANDING" }));
+    const owed = staysOn(await list({ balance: "OVERPAID" }));
+
+    // The narrow member is a subset of the wide one by construction — `< 0`
+    // implies `<> 0` — and asserting it holds the two predicates to one sign
+    // convention rather than to two independently plausible ones.
+    expect(unsettled).toEqual(expect.arrayContaining(owed));
+    expect(owed.length).toBeLessThan(unsettled.length);
+  });
+
+  it("narrows with the state and the window like the other members", async () => {
+    // The account is open and its lines fall on the 10th, so each of these is
+    // the same one row — what would break them is a predicate pushed into the
+    // `where` beside the state, or one that replaced the window's `having`
+    // rather than joining it.
+    expect(staysOn(await list({ balance: "OVERPAID", state: "OPEN" }))).toEqual([
+      overpaid,
+    ]);
+    expect(
+      staysOn(await list({ balance: "OVERPAID", state: "CLOSED" })),
+    ).toEqual([]);
+    expect(
+      staysOn(
+        await list({
+          balance: "OVERPAID",
+          from: DAY_ONE.toString(),
+          to: DAY_ONE.toString(),
+        }),
+      ),
+    ).toEqual([]);
+  });
+
+  it("reports the whole account under the negative balance it matched on", async () => {
+    const [account] = (await list({ balance: "OVERPAID" })).folios;
+
+    // The figure the filter selected on, printed. `money.ts` fixes the wire
+    // form, and this is the one shape on the route that shows it in the
+    // negative — the amount the desk owes is its magnitude.
+    expect(account.summary.outstanding).toBe(
+      (A_CHARGE - A_LARGER_PAYMENT).toString(),
+    );
+    expect(BigInt(account.summary.outstanding)).toBeLessThan(0n);
+  });
+
+  it("refuses a balance filter that is not one of the three", async () => {
+    await as("RECEPTIONIST", "get", LIST_PATH, { balance: "OWED" }).expect(400);
   });
 });
 
