@@ -1,0 +1,170 @@
+/* The room's frames over the screen that asked for them.
+ *
+ * Dark, and deliberately: this is the one surface in the funnel that is not
+ * ivory. A photograph of a room is what the guest came to look at, and a light
+ * ground around it lends it its own light — the arrival's own acts seat their
+ * photographs on `--night` for the same reason. */
+
+.dialog {
+  width: min(92vw, 76rem);
+  max-width: none;
+  max-height: 92dvh;
+  /* A modal `<dialog>` centres itself on `margin: auto`, and `globals.css` zeroes
+     the margin on every element in the document. Without this the element sits in
+     the top-left corner of the top layer, which is the one place a lightbox must
+     not be. */
+  margin: auto;
+  padding: 0;
+  color: var(--ivory);
+  background: transparent;
+  border: 0;
+  overflow: hidden;
+}
+
+/* `--night` at 0.86, written out rather than read from the token.
+   `::backdrop` generates a box in the top layer with no element to inherit from
+   in the engines that predate the 2024 change, so `var(--night-rgb)` resolves to
+   nothing there, the whole declaration is dropped, and what dims the page is the
+   user agent's own 25% black — which is not enough to take the screen behind out
+   of the reading. The one literal in this file, and this is why. */
+.dialog::backdrop {
+  background: rgb(16 14 12 / 0.86);
+  backdrop-filter: blur(2px);
+}
+
+.frame {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  max-height: 92dvh;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+/* The room, so the dialog says which one it is showing. At the summary's own
+   caption size — it is a label on a picture, not a heading over a page. */
+.name {
+  font-size: 0.75rem;
+  font-weight: 400;
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: rgb(var(--ivory-rgb) / 0.72);
+}
+
+.close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem; /* 44px — the funnel's tap floor. */
+  height: 2.75rem;
+  margin-right: -0.625rem; /* The glyph's own air, so the cross sits flush. */
+  color: rgb(var(--ivory-rgb) / 0.72);
+  background: transparent;
+  border: 0;
+  border-radius: 50%;
+  cursor: pointer;
+  transition:
+    color 0.4s var(--ease-ui),
+    background-color 0.4s var(--ease-ui);
+}
+
+.close svg {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.close:hover {
+  color: var(--ivory);
+  background: rgb(var(--ivory-rgb) / 0.1);
+}
+
+.close:focus-visible {
+  outline: 2px solid var(--ivory);
+  outline-offset: 2px;
+}
+
+/* The picture's own box. `min-height: 0` so a flex child may be shorter than its
+   content, which is what lets the frame below stay on screen in a short window. */
+.stage {
+  min-height: 0;
+  display: flex;
+  justify-content: center;
+}
+
+.photo {
+  max-width: 100%;
+  max-height: 72dvh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 0.5rem;
+  animation: dissolve 0.4s var(--ease-ui);
+}
+
+@keyframes dissolve {
+  from {
+    opacity: 0;
+  }
+}
+
+.walk {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+}
+
+.step {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  color: rgb(var(--ivory-rgb) / 0.72);
+  background: transparent;
+  border: 1px solid rgb(var(--ivory-rgb) / 0.24);
+  border-radius: 50%;
+  cursor: pointer;
+  transition:
+    color 0.4s var(--ease-ui),
+    border-color 0.4s var(--ease-ui),
+    background-color 0.4s var(--ease-ui);
+}
+
+.step svg {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.step:hover {
+  color: var(--ivory);
+  border-color: rgb(var(--ivory-rgb) / 0.5);
+  background: rgb(var(--ivory-rgb) / 0.08);
+}
+
+.step:focus-visible {
+  outline: 2px solid var(--ivory);
+  outline-offset: 2px;
+}
+
+.count {
+  min-width: 4rem;
+  font-size: 0.8125rem;
+  font-weight: 400;
+  text-align: center;
+  color: rgb(var(--ivory-rgb) / 0.72);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+/* §9. The dissolve is the only motion here and it is what makes a step read as
+   the same room looked at again rather than as a cut. */
+@media (prefers-reduced-motion: reduce) {
+  .photo {
+    animation: none;
+  }
+}
