@@ -35,10 +35,8 @@ export function FunnelFoot({ nights }: { readonly nights: NightIndex }) {
         {/* The house mark, masked over `currentColor` like the wordmark in the
             bar — decorative, and the sentence beside it reads without it. */}
         <span aria-hidden="true" className={styles.ornament} />
-        No payment today
-        <span aria-hidden="true"> · </span>
-        Nothing held until you confirm
-        <span aria-hidden="true"> · </span>
+        No payment today<span aria-hidden="true">, </span>
+        Nothing held until you confirm<span aria-hidden="true">, </span>
         Prices in Vietnamese đồng
       </p>
 
