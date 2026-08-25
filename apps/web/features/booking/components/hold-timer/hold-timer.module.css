@@ -14,10 +14,15 @@
   gap: 0.125rem;
 }
 
+/* --stone-deep and not --stone. Eventbrite's measured value is "muted grey", and
+   the muted grey this palette had for it fell to 3.6:1 on ivory — under the
+   4.5:1 WCAG AA asks of body text, at the one size where it matters most. The
+   next rung down the same neutral ramp is 5.7:1 and still reads as a receipt
+   line, which was the whole point of the measurement. */
 .line {
   font-size: var(--text-sm);
   line-height: 1.5;
-  color: var(--stone);
+  color: var(--stone-deep);
 }
 
 /* Tabular figures, so the width does not change as the digits do. A clock whose
@@ -46,5 +51,15 @@
 .note {
   font-size: var(--text-xs);
   line-height: 1.5;
-  color: var(--stone);
+  color: var(--stone-deep);
+}
+
+/* The same measurement in a bar that has no room for the sentence — the review
+   screen's pinned action strip on a phone. Still no red, still no growth: what
+   makes it legible there is the ground it sits on, not a threshold. */
+.compact {
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  color: var(--stone-deep);
+  white-space: nowrap;
 }

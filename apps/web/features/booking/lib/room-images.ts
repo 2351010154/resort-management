@@ -235,6 +235,26 @@ export function roomLead(code: RoomTypeCode): RoomFrame {
   return ROOM_GALLERIES[code][0];
 }
 
+/**
+ * A second look at the room, for a screen already showing the lead.
+ *
+ * The review screen prints two frames — a wide strip under the facts and the
+ * summary's own 16:9 — and until this existed both were {@link roomLead}. On a
+ * phone, where the two columns stack, that put the identical photograph twice on
+ * one page about seven hundred pixels apart, which reads as a rendering fault
+ * rather than as a gallery.
+ *
+ * Falls back to the lead, because "every type carries four to six frames" is
+ * true of the five galleries above and is not a guarantee the type system makes.
+ * A room curated down to one frame gets the repetition back rather than an
+ * exception.
+ */
+export function roomSecond(code: RoomTypeCode): RoomFrame {
+  const gallery = ROOM_GALLERIES[code];
+
+  return gallery[1] ?? gallery[0];
+}
+
 /** One tier's path. The suffix is the tier, so picking one is a filename swap. */
 export function tierSrc(src: string, width: number): string {
   return src.replace(/-\d+\.webp$/, `-${width}.webp`);
