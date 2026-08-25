@@ -12,9 +12,10 @@ export interface NavItemProps {
   item: NavItemData;
   icon: LucideIcon;
   active: boolean;
+  onSelect?(): void;
 }
 
-export function NavItem({ item, icon: Icon, active }: NavItemProps) {
+export function NavItem({ item, icon: Icon, active, onSelect }: NavItemProps) {
   const roving = useRovingFocusItem(item.id);
 
   return (
@@ -24,25 +25,20 @@ export function NavItem({ item, icon: Icon, active }: NavItemProps) {
       aria-label={item.label}
       title={item.label}
       className={cn(
-        "group/nav-item relative flex min-h-11 items-center justify-center gap-3 rounded-md px-2 text-sm font-medium transition-colors duration-150 ease-ui xl:justify-start xl:px-3",
+        "group/nav-item relative flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-medium transition-[background-color,color,box-shadow,transform] duration-200 ease-ui active:translate-y-px",
         active
-          ? // The marker is the brand amber itself rather than `accent`, which
-            // is the pale tint shadcn's controls hover on: a 2px rule in that
-            // colour against the rail's own sand would be a marker only
-            // somebody told where to look could find.
-            "bg-nav-raised text-nav-text shadow-xs before:absolute before:inset-y-2 before:left-0 before:w-0.5 before:rounded-full before:bg-accent-mark"
-          : "text-nav-muted hover:bg-nav-raised hover:text-nav-text",
+          ? "bg-primary text-primary-foreground shadow-xs before:absolute before:inset-y-2.5 before:left-0 before:w-[3px] before:rounded-r-full before:bg-accent-mark"
+          : "text-nav-muted hover:-translate-y-px hover:bg-nav-raised hover:text-nav-text",
       )}
+      onClick={onSelect}
       {...roving}
     >
       <Icon
         aria-hidden="true"
-        className="size-[18px] shrink-0"
+        className={cn("size-[18px] shrink-0", active && "text-accent-mark")}
         strokeWidth={1.8}
       />
-      <span className="hidden min-w-0 flex-1 truncate xl:block">
-        {item.label}
-      </span>
+      <span className="min-w-0 flex-1 truncate">{item.label}</span>
     </Link>
   );
 }

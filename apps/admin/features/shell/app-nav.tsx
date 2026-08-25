@@ -5,7 +5,6 @@ import {
   BedDoubleIcon,
   CalendarDaysIcon,
   ChartNoAxesCombinedIcon,
-  ChevronDownIcon,
   Clock3Icon,
   CreditCardIcon,
   DoorOpenIcon,
@@ -20,20 +19,14 @@ import {
   UsersRoundIcon,
   WalletCardsIcon,
 } from "lucide-react";
+import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
 
 import { useStaffSession } from "@/lib/auth";
 import { RovingFocusGroup } from "@/lib/keyboard";
 import { cn } from "@/lib/utils";
-import {
-  isActivePath,
-  NAV_GROUPS,
-  type NavGroupId,
-  navItemsFor,
-} from "./nav-inventory";
+import { isActivePath, NAV_GROUPS, navItemsFor } from "./nav-inventory";
 import { NavItem } from "./nav-item";
-import { UserMenu } from "./user-menu";
 
 const NAV_ICONS: Record<string, LucideIcon> = {
   dashboard: HouseIcon,
@@ -53,18 +46,57 @@ const NAV_ICONS: Record<string, LucideIcon> = {
   settings: SettingsIcon,
 };
 
-const OPEN_GROUPS: Record<NavGroupId, boolean> = {
-  today: true,
-  reservations: true,
-  property: true,
-  money: true,
-  management: true,
-};
+interface ConsoleBrandProps {
+  compact?: boolean;
+  className?: string;
+  onNavigate?(): void;
+}
 
-export function AppNav() {
+/** The brand lockup shared by the permanent sidebar and the mobile topbar. */
+export function ConsoleBrand({
+  compact = false,
+  className,
+  onNavigate,
+}: ConsoleBrandProps) {
+  return (
+    <Link
+      href="/dashboard"
+      aria-label="Mariva console — dashboard"
+      className={cn(
+        "group/brand flex min-w-0 items-center text-foreground transition-opacity duration-200 ease-ui hover:opacity-70 active:opacity-55",
+        className,
+      )}
+      onClick={onNavigate}
+    >
+      {compact ? (
+        <img
+          src="/brand/mariva-monogram.svg"
+          alt=""
+          width={34}
+          height={26}
+          className="h-[26px] w-[34px] shrink-0"
+        />
+      ) : (
+        <img
+          src="/brand/mariva-wordmark.svg"
+          alt=""
+          width={128}
+          height={22}
+          className="h-[22px] w-32"
+        />
+      )}
+    </Link>
+  );
+}
+
+interface NavigationProps {
+  idPrefix: string;
+  onNavigate?(): void;
+}
+
+function Navigation({ idPrefix, onNavigate }: NavigationProps) {
   const session = useStaffSession();
   const pathname = usePathname();
-  const [expanded, setExpanded] = useState(OPEN_GROUPS);
 
   if (session.status !== "authenticated") {
     return null;
@@ -77,65 +109,78 @@ export function AppNav() {
   })).filter((group) => group.items.length > 0);
 
   return (
+    <RovingFocusGroup className="flex flex-col gap-5" role="menu">
+      {groups.map((group) => (
+        <section
+          key={group.id}
+          aria-labelledby={`${idPrefix}-nav-group-${group.id}`}
+        >
+          <h2
+            id={`${idPrefix}-nav-group-${group.id}`}
+            className="mb-1 px-3 text-xs font-semibold tracking-caps text-nav-muted uppercase"
+          >
+            {group.label}
+          </h2>
+          <div className="flex flex-col gap-1">
+            {group.items.map((item) => (
+              <NavItem
+                key={item.id}
+                item={item}
+                icon={NAV_ICONS[item.id] ?? DoorOpenIcon}
+                active={isActivePath(pathname, item.href)}
+                onSelect={onNavigate}
+              />
+            ))}
+          </div>
+        </section>
+      ))}
+    </RovingFocusGroup>
+  );
+}
+
+/** Permanent navigation for desktop workstations. */
+export function AppNav() {
+  const session = useStaffSession();
+
+  if (session.status !== "authenticated") {
+    return null;
+  }
+
+  return (
     <nav
       aria-label="Console sections"
-      // The right border is load-bearing now the rail is light: it and the
-      // screens beside it are two steps of the same ivory, and without a rule
-      // the two grounds meet at an edge the eye has to guess at.
-      className="sticky top-0 flex h-svh w-[72px] shrink-0 flex-col overflow-x-hidden overflow-y-auto border-border border-r bg-nav px-2 py-3 text-nav-text xl:w-[248px] xl:px-3"
+      className="sticky top-0 hidden h-dvh w-[264px] shrink-0 flex-col overflow-hidden border-border border-r bg-nav text-nav-text lg:flex"
     >
-      <RovingFocusGroup className="flex flex-col gap-2" role="menu">
-        {groups.map((group) => {
-          const activeGroup = group.items.some((item) =>
-            isActivePath(pathname, item.href),
-          );
-          const isOpen = expanded[group.id] || activeGroup;
+      <div className="flex min-h-[72px] items-center border-border border-b px-5">
+        <ConsoleBrand />
+      </div>
 
-          return (
-            <section key={group.id} aria-labelledby={`nav-group-${group.id}`}>
-              <button
-                id={`nav-group-${group.id}`}
-                type="button"
-                aria-expanded={isOpen}
-                className="hidden h-8 w-full items-center justify-between rounded-md px-3 text-left text-xs font-semibold tracking-caps text-nav-muted uppercase transition-colors duration-150 ease-ui hover:bg-nav-raised hover:text-nav-text xl:flex"
-                onClick={() => {
-                  setExpanded((current) => ({
-                    ...current,
-                    [group.id]: !current[group.id],
-                  }));
-                }}
-              >
-                {group.label}
-                <ChevronDownIcon
-                  aria-hidden="true"
-                  className={cn(
-                    "size-3.5 transition-transform duration-150 ease-ui",
-                    isOpen ? "rotate-0" : "-rotate-90",
-                  )}
-                />
-              </button>
-              <div
-                className={cn(
-                  "mt-0.5 flex flex-col gap-0.5 xl:mt-0",
-                  !isOpen && "xl:hidden",
-                )}
-              >
-                {group.items.map((item) => (
-                  <NavItem
-                    key={item.id}
-                    item={item}
-                    icon={NAV_ICONS[item.id] ?? DoorOpenIcon}
-                    active={isActivePath(pathname, item.href)}
-                  />
-                ))}
-              </div>
-            </section>
-          );
-        })}
-      </RovingFocusGroup>
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-5 [scrollbar-gutter:stable]">
+        <Navigation idPrefix="desktop" />
+      </div>
 
-      <div className="mt-auto border-nav-raised border-t pt-2">
-        <UserMenu user={session.user} />
+      <div className="border-border border-t px-5 py-4">
+        <p className="text-xs font-medium text-nav-muted">Mariva, Vietnam</p>
+        <p className="mt-0.5 text-sm font-semibold text-nav-text">
+          Front desk workspace
+        </p>
+      </div>
+    </nav>
+  );
+}
+
+/** Navigation content placed inside the small-screen sheet. */
+export function MobileNav({ onNavigate }: { onNavigate(): void }) {
+  return (
+    <nav
+      aria-label="Console sections"
+      className="flex min-h-0 flex-1 flex-col bg-nav text-nav-text"
+    >
+      <div className="flex min-h-[72px] items-center border-border border-b px-5 pr-16">
+        <ConsoleBrand onNavigate={onNavigate} />
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 py-5">
+        <Navigation idPrefix="mobile" onNavigate={onNavigate} />
       </div>
     </nav>
   );

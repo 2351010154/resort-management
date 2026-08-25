@@ -78,7 +78,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
              * way every other shell command is. It renders the panel itself, so
              * neither surface owns one the other opens. */}
             <ShiftSurfaceProvider>
-              <div className="flex min-h-svh bg-background">
+              <div className="flex min-h-dvh bg-background">
+                <a
+                  href="#console-main"
+                  className="fixed top-2 left-2 z-50 -translate-y-20 rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground transition-transform focus:translate-y-0"
+                >
+                  Skip to main content
+                </a>
                 {/* Before the children in the markup, which is where a landmark
                  * belongs for anything reading the page in order. Its commands are
                  * not registered here — see `NavCommands` below — so the shell's
@@ -106,7 +112,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                    * of its own — two of those in one document is a landmark list
                    * nobody can navigate by. */}
                   <ShiftBar />
-                  <main className="min-w-0 flex-1 overflow-x-clip">
+                  <main
+                    id="console-main"
+                    tabIndex={-1}
+                    className="min-w-0 flex-1 overflow-x-clip"
+                  >
                     {children}
                   </main>
                 </div>

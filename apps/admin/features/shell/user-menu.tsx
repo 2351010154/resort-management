@@ -1,7 +1,7 @@
 "use client";
 
 import type { StaffSessionUser } from "@mariva/shared";
-import { ChevronsUpDownIcon, LogOutIcon } from "lucide-react";
+import { LogOutIcon } from "lucide-react";
 
 import {
   DropdownMenu,
@@ -12,14 +12,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useEndSession } from "@/lib/auth";
-
-const ROLE_LABELS: Record<StaffSessionUser["role"], string> = {
-  RECEPTIONIST: "Reception",
-  HOUSEKEEPING: "Housekeeping",
-  ACCOUNTANT: "Accounting",
-  MANAGER: "Manager",
-  ADMIN: "Administrator",
-};
 
 function initials(fullName: string): string {
   return fullName
@@ -36,26 +28,17 @@ export function UserMenu({ user }: { user: StaffSessionUser }) {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="flex min-h-12 w-full items-center justify-center gap-3 rounded-md px-2 text-left text-sm text-nav-muted transition-colors duration-150 ease-ui hover:bg-nav-raised hover:text-nav-text xl:justify-start xl:px-3">
-        <span className="grid size-8 shrink-0 place-items-center rounded-full bg-nav-raised text-sm font-semibold text-nav-text">
+      <DropdownMenuTrigger
+        aria-label={`Open account menu for ${user.fullName}`}
+        className="flex min-h-11 items-center rounded-md p-1 text-left text-sm transition-colors duration-200 ease-ui hover:bg-muted"
+      >
+        <span className="grid size-9 shrink-0 place-items-center rounded-md bg-primary text-sm font-semibold text-primary-foreground shadow-xs">
           {initials(user.fullName)}
         </span>
-        <span className="hidden min-w-0 flex-1 xl:block">
-          <span className="block truncate font-medium text-nav-text">
-            {user.fullName}
-          </span>
-          <span className="block truncate text-sm text-nav-muted">
-            {ROLE_LABELS[user.role]}
-          </span>
-        </span>
-        <ChevronsUpDownIcon
-          aria-hidden="true"
-          className="hidden size-4 shrink-0 xl:block"
-        />
       </DropdownMenuTrigger>
       <DropdownMenuContent
-        align="start"
-        side="right"
+        align="end"
+        side="bottom"
         sideOffset={8}
         className="w-64"
       >
