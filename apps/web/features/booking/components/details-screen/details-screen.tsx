@@ -101,8 +101,9 @@ import {
 } from "@/features/booking/components/stay-shell/stay-shell";
 import { writeBookingSearch } from "@/features/booking/lib/booking-search";
 import { planName, planTerm } from "@/features/booking/lib/rate-plans";
-import { markedRoomFacts } from "@/features/booking/lib/room-facts";
+import { markedRoomFacts, roomChips } from "@/features/booking/lib/room-facts";
 import {
+  roomGallery,
   roomLead,
   roomSecond,
   tierSrcSet,
@@ -124,6 +125,7 @@ import {
 import { useHeldStay } from "@/features/booking/lib/use-held-stay";
 import { apiMessage } from "@/lib/api";
 import { FunnelNav } from "../funnel-nav/funnel-nav";
+import { pad, RoomGallery } from "../room-gallery/room-gallery";
 import { Money } from "../money";
 import styles from "./details-screen.module.css";
 
@@ -306,7 +308,13 @@ function Review({
   // A different frame from the summary's. Both were the lead until this line,
   // which printed one photograph twice on a page that stacks into one column.
   const second = roomSecond(stay.roomType);
+  const frames = roomGallery(stay.roomType);
+  // Where the strip's frame sits in the set, so the counter over it names the
+  // photograph it is drawn on rather than the one the summary is showing, and
+  // so the gallery opens on the frame the press was made from.
+  const shotAt = Math.max(0, frames.indexOf(second));
   const facts = markedRoomFacts(type);
+  const chips = roomChips(type);
   const checkIn = parseDate(stay.checkIn);
   const checkOut = parseDate(stay.checkOut);
 
@@ -330,6 +338,7 @@ function Review({
   const [billing, setBilling] = useState("");
   const [card, setCard] = useState("");
   const [leaving, setLeaving] = useState(false);
+  const [showing, setShowing] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   // Nothing is marked wrong until the guest has asked for the booking to be
   // completed. Validating as somebody types tells them their address is invalid
@@ -510,17 +519,83 @@ function Review({
 
               {/* A second look at the room rather than the summary's frame
                   again, so its description is worth having: it is the one thing
-                  on this plate the guest has not already been shown. */}
-              <img
-                alt={second.alt}
-                className={styles.roomShot}
-                decoding="async"
-                height={second.height}
-                sizes={ROOM_SHOT_SIZES}
-                src={second.src}
-                srcSet={tierSrcSet(second)}
-                width={second.width}
-              />
+                  on this plate the guest has not already been shown.
+
+                  The bar over its foot is what turns one photograph into a
+                  gallery: it says which frame this is of how many, and the
+                  press at the other end opens the rest of them. Without it the
+                  strip is a decoration, and the four frames behind it are
+                  reachable only by going back to the room list — which is a
+                  different question, and the `Change` link's. */}
+              <figure className={styles.shot}>
+                <img
+                  alt={second.alt}
+                  className={styles.roomShot}
+                  decoding="async"
+                  height={second.height}
+                  sizes={ROOM_SHOT_SIZES}
+                  src={second.src}
+                  srcSet={tierSrcSet(second)}
+                  width={second.width}
+                />
+
+                {/* The wash under the bar. Ivory type over an unknown
+                    photograph is a contrast bet, and the pixel that loses it is
+                    the room's own name — `room-ground.module.css` seats its
+                    counter the same way. */}
+                <span aria-hidden="true" className={styles.shotScrim} />
+
+                <figcaption className={styles.shotBar}>
+                  <span className={styles.shotWhere}>
+                    <span className={styles.shotCount}>
+                      {pad(shotAt + 1)} / {pad(frames.length)}
+                    </span>
+                    <span className={styles.shotName}>{type.name}</span>
+                  </span>
+
+                  <span className={styles.shotAside}>
+                    <span className={styles.shotSize}>
+                      <Mark slug="size" />
+                      {type.squareMetres} m²
+                    </span>
+
+                    {/* `type="button"`: it stands inside the form that completes
+                        the booking, and a button with no type in a form is a
+                        submit button. */}
+                    <button
+                      className={styles.shotOpen}
+                      onClick={() => setShowing(true)}
+                      type="button"
+                    >
+                      <Mark slug="photos" />
+                      {frames.length} photos
+                    </button>
+                  </span>
+                </figcaption>
+              </figure>
+
+              {/* What is in the room, in the property file's own words —
+                  `room-facts.ts` reads them out of `ROOM_AMENITIES` rather than
+                  letting this component write six hotel facts of its own. A
+                  list, because that is what it is; the marks are `aria-hidden`
+                  and the words carry it. */}
+              <ul className={styles.chips}>
+                {chips.map((chip) => (
+                  <li className={styles.chip} key={chip.label}>
+                    <Mark slug={chip.icon} />
+                    {chip.label}
+                  </li>
+                ))}
+              </ul>
+
+              {/* The frames are the property's, and they are not this room. Said
+                  once, quietly, under the photograph it is about — a guest who
+                  arrives to a different lampshade was told. */}
+              <p className={styles.caveat}>
+                <Mark slug="info" />
+                Images are for illustration purposes. Room layout and view may
+                vary.
+              </p>
             </section>
 
             <section className={styles.plate}>
@@ -689,11 +764,17 @@ function Review({
                         value={option.id}
                       />
                       <span className={styles.providerFace}>
-                        <span className={styles.providerName}>
-                          {option.name}
-                        </span>
-                        <span className={styles.providerBlurb}>
-                          {option.blurb}
+                        <span
+                          aria-hidden="true"
+                          className={styles.providerDot}
+                        />
+                        <span className={styles.providerLines}>
+                          <span className={styles.providerName}>
+                            {option.name}
+                          </span>
+                          <span className={styles.providerBlurb}>
+                            {option.blurb}
+                          </span>
                         </span>
                       </span>
                     </label>
@@ -777,6 +858,7 @@ function Review({
                   say whether they have. */}
               {expiresAt ? (
                 <div className={styles.timer}>
+                  <Mark slug="clock" />
                   <HoldTimer expiresAt={expiresAt} onExpired={onReread} />
                 </div>
               ) : null}
@@ -805,13 +887,20 @@ function Review({
                 ) : null}
               </div>
 
+              {/* The label is centred and the lock stands at the far end of the
+                  button rather than beside the words. It is not part of the
+                  sentence — it says the same thing the caption over the payment
+                  panel says, at the moment the guest is about to act on it. */}
               <button
                 className={styles.complete}
                 data-complete-booking
                 disabled={leaving}
                 type="submit"
               >
-                {leaving ? "Opening the payment page…" : "Complete booking"}
+                <span className={styles.completeLabel}>
+                  {leaving ? "Opening the payment page…" : "Complete booking"}
+                </span>
+                <Mark slug="lock" />
               </button>
 
               {/* Empty until something is refused, and present the whole time so
@@ -829,6 +918,17 @@ function Review({
           </aside>
         </div>
       </form>
+
+      {/* Outside the form, because a `<dialog>` inside one is a dialog whose
+          Escape key and backdrop press are being read by a form that is about
+          to take a payment. */}
+      <RoomGallery
+        frames={frames}
+        name={type.name}
+        onClose={() => setShowing(false)}
+        open={showing}
+        startAt={shotAt}
+      />
     </main>
   );
 }

@@ -62,7 +62,7 @@
      old measure the form and the summary ran to the window's edges on a wide
      monitor, and the eye had to cross the width of a desk to get from a label on
      the left to the figure that answers it on the right. */
-  --funnel-measure: 80rem;
+  --funnel-measure: 94rem;
   --funnel-gutter: var(--page-gutter);
   /* The corner the funnel cuts every ivory box with, and the smaller one for
      what sits inside them. Re-stated here rather than imported for the same
@@ -84,28 +84,38 @@
      because what the column holds — a 16:9 frame, a rail and three labelled rows
      — has a size it wants and does not improve by getting wider on a large
      monitor. */
-  --aside-width: clamp(20rem, 30vw, 32rem);
+  --aside-width: clamp(19rem, 26vw, 31rem);
   /* The screen's type ramp. Stated here rather than at each rule, because the
      flatness was the bug and a ramp that lives in twenty places is a ramp that
      drifts back into one:
 
-       --detail-term   13px caps, --stone-deep, 400 — the question
-       --detail-note   14px,      --stone-deep, 300 — what qualifies the answer
-       --detail-body   16px,      varies,       300 — prose, and a button's label
-       --detail-value  18px,      --ink,        500 — the answer itself
+       --detail-term   11px caps, --stone-deep, 400 — the question
+       --detail-note   11px,      --stone-deep, 300 — what qualifies the answer
+       --detail-body   12px,      varies,       300 — prose, and a button's label
+       --detail-value  14px,      --ink,        500 — the answer itself
 
-     A term and the value under it are now two sizes, two weights and two greys
+     A term and the value under it are two sizes, two weights and two greys
      apart, which is what makes a stack of four of them scannable. The display
      face carries the three headings and the total, and is left at its Light: it
      is already separated from everything around it by face and by size, and a
-     heavier Cormorant on this ground reads as a different hotel. */
-  --detail-term: 0.8125rem;
-  --detail-note: 0.875rem;
-  --detail-body: 1rem;
-  --detail-value: 1.125rem;
+     heavier Cormorant on this ground reads as a different hotel.
+
+     **The whole ramp came down a step and the measure went out to meet it**,
+     which is one decision and not two. The screen it replaced set 16px prose in
+     a 80rem column and ran to two thousand pixels: a guest checking a total
+     against four facts had to scroll past the figure to reach the fields, and
+     the summary beside them was 39% of the width to hold three labelled rows.
+     At this ramp the review is one window — the room, the details, the money and
+     the press without a scroll on a laptop — which is what a review screen is
+     for. What must not follow the ramp down is anything the guest types: the two
+     inputs state 16px absolutely, for the iOS zoom their own notes argue. */
+  --detail-term: 0.6875rem;
+  --detail-note: 0.6875rem;
+  --detail-body: 0.75rem;
+  --detail-value: 0.875rem;
 
   --plate-pad: clamp(var(--space-2), 3vw, 3rem);
-  --aside-pad: clamp(var(--space-2), 1.8vw, 1.75rem);
+  --aside-pad: clamp(0.875rem, 1.3vw, 1.5rem);
   --plate-edge: 1px solid rgb(var(--umber-rgb) / 0.09);
   /* Every hairline inside a plate, stated once: the rule under the room's name,
      the seam above the total, and the rail the two dates hang on. They were
@@ -123,11 +133,14 @@
   color: var(--ink);
 }
 
+/* The top padding is the bar's own clearance and nothing more. It was a full
+   `--space-3`, which was right when the first plate opened with a 45px heading
+   and is a hole under the rule now that it opens with a 37px one. */
 .frame {
   width: 100%;
   max-width: calc(var(--funnel-measure) + 2 * var(--page-gutter));
   margin-inline: auto;
-  padding: var(--space-3) var(--page-gutter) var(--space-4);
+  padding: var(--space-2) var(--page-gutter) var(--space-4);
 }
 
 /* The one decision the layout makes: what is being agreed to on the left, the
@@ -136,7 +149,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--aside-width);
   align-items: start;
-  gap: var(--space-3);
+  gap: 1.5rem;
 }
 
 /* Tighter than the column gap, and deliberately: the two plates are two parts
@@ -162,7 +175,7 @@
    only thing on it, and at this measure it would out-shout the total, which is
    the figure this page exists to show. */
 .title {
-  font-size: clamp(2.1rem, 2.7vw, 2.9rem);
+  font-size: clamp(1.75rem, 1.95vw, 2.35rem);
   font-weight: 300;
   line-height: 1.15;
 }
@@ -189,7 +202,7 @@
 }
 
 .roomName {
-  font-size: clamp(1.55rem, 1.95vw, 2rem);
+  font-size: clamp(1.3rem, 1.45vw, 1.75rem);
   font-weight: 300;
   line-height: 1.2;
 }
@@ -306,19 +319,206 @@
    `height` — which outranks nothing here, because nothing else sets it. Left
    alone, the strip below draws 1280px tall and `aspect-ratio` is used to derive
    a width nobody asked for. */
+/* The figure is what carries the corner and the clipping, so the bar over the
+   photograph's foot is cut by the same radius the photograph is and does not
+   need to know what that radius is. */
+.shot {
+  position: relative;
+  margin-top: var(--space-3);
+  overflow: hidden;
+  border-radius: var(--row-radius);
+}
+
 .roomShot {
+  display: block;
   width: 100%;
   height: auto;
-  aspect-ratio: 11 / 2;
-  margin-top: var(--space-3);
+  /* Was 11:2. The strip is taller now because the plate under it is wider: at
+     the old ratio a 60rem column drew a 90px letterbox, and a photograph that
+     short is a texture rather than a look at the room. */
+  aspect-ratio: 29 / 6;
   object-fit: cover;
-  border-radius: var(--row-radius);
+}
+
+/* What the bar stands on. `--night` and not black: a neutral wash over a warm
+   photograph greys it, which is the same argument the plate's shadows make. */
+.shotScrim {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 76%;
+  /* Three stops and not two. A straight fade is dark enough at the very bottom
+     edge and not under the type, which sits a line above it — and the frame
+     where that shows is the one with a lit lamp behind the button. The wash has
+     to hold for every frame in the gallery, not for the one that was open when
+     it was drawn. */
+  background: linear-gradient(
+    to top,
+    rgb(var(--night-rgb) / 0.88),
+    rgb(var(--night-rgb) / 0.55) 42%,
+    transparent
+  );
+  pointer-events: none;
+}
+
+.shotBar {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem var(--space-2);
+  padding: 0.75rem 1rem;
+  color: var(--ivory);
+}
+
+.shotWhere {
+  display: flex;
+  align-items: baseline;
+  gap: 0.875rem;
+  min-width: 0;
+}
+
+/* Which frame of how many, zero-padded, so the pair keeps its width as the walk
+   crosses ten and the name beside it does not step sideways. */
+.shotCount {
+  font-size: var(--detail-note);
+  font-weight: 400;
+  color: rgb(var(--ivory-rgb) / 0.66);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.shotName {
+  font-size: var(--detail-body);
+  font-weight: 500;
+  color: var(--ivory);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shotAside {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 0 0 auto;
+}
+
+/* The size again, over the picture it is the size of. Not a repetition of the
+   fact above so much as a caption on the frame — it is what a guest reads when
+   they are looking at the room rather than at the list of what is true of it. */
+.shotSize {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: var(--detail-note);
+  font-weight: 400;
+  color: rgb(var(--ivory-rgb) / 0.9);
+}
+
+/* The way into the rest of the frames. Outlined rather than filled: it stands on
+   a photograph, and a solid ground here would be a second plate floating over
+   the room. */
+.shotOpen {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4375rem 0.75rem;
+  font: inherit;
+  font-size: var(--detail-note);
+  font-weight: 400;
+  color: var(--ivory);
+  /* Its own ground as well as the wash under it. The wash is a gradient over a
+     photograph nobody has seen, and the one element on the bar that has to be
+     read as a control rather than as a caption cannot be left to it. */
+  background: rgb(var(--night-rgb) / 0.32);
+  border: 1px solid rgb(var(--ivory-rgb) / 0.42);
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition:
+    background-color 0.4s var(--ease-ui),
+    border-color 0.4s var(--ease-ui);
+}
+
+.shotOpen:hover {
+  background: rgb(var(--night-rgb) / 0.62);
+  border-color: rgb(var(--ivory-rgb) / 0.7);
+}
+
+.shotOpen:focus-visible {
+  outline: 2px solid var(--ivory);
+  outline-offset: 2px;
+}
+
+/* Every mark inside the bar takes the ivory it is standing in rather than the
+   accent `.mark` defaults to, and sits at the size of the words beside it. */
+.shotBar .mark {
+  width: 0.875rem;
+  height: 0.875rem;
+  color: inherit;
+}
+
+/* ---- What is in the room ------------------------------------------------- */
+
+/* Six of the twelve things `property-and-tariff.md` §1 puts in every room, drawn
+   as chips rather than as a list under a heading. The heading is the difference:
+   a labelled list here would be a third section on a plate that already has the
+   four facts and the photograph, and these are not a section — they are the
+   small print a guest sweeps rather than reads. */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.875rem;
+  list-style: none;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1 1 auto;
+  justify-content: center;
+  padding: 0.5rem 0.75rem;
+  font-size: var(--detail-note);
+  font-weight: 400;
+  color: var(--stone-deep);
+  background: rgb(var(--umber-rgb) / 0.045);
+  border-radius: 0.375rem;
+  white-space: nowrap;
+}
+
+.chip .mark {
+  width: 0.9375rem;
+  height: 0.9375rem;
+}
+
+/* The one line on the plate that is a disclaimer, and it is set like one: the
+   quietest tone the ramp has, under the photographs it is about. */
+.caveat {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  font-size: var(--detail-note);
+  font-weight: 300;
+  line-height: 1.5;
+  color: var(--stone);
+}
+
+.caveat .mark {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex: 0 0 auto;
+  color: var(--stone);
 }
 
 /* ---- Details and payment -------------------------------------------------- */
 
 .plateTitle {
-  font-size: clamp(1.5rem, 1.8vw, 1.85rem);
+  font-size: clamp(1.3rem, 1.45vw, 1.75rem);
   font-weight: 300;
   line-height: 1.2;
 }
@@ -350,15 +550,19 @@
 }
 
 /* 44px, which is the floor the rest of the funnel is set to and which this
-   control was 4px under. `--text-base` and not `--text-sm` for a second reason
-   as well as the first: Safari on iOS zooms the page when a field below 16px
-   takes focus, which on a form pinned above a fixed bar throws the layout the
-   guest was reading. */
+   control was 4px under.
+
+   **16px stated here rather than taken from the ramp, and it is the one place on
+   this screen that refuses it.** Safari on iOS zooms the page when a field below
+   16px takes focus, which on a form pinned above a fixed bar throws the layout
+   the guest was reading. The ramp above is for what the screen says; this is
+   what the guest types, and it does not get to be 14px because the labels
+   around it came down. */
 .input {
   min-height: 2.75rem;
   padding: 0 0.875rem;
   font: inherit;
-  font-size: var(--detail-value);
+  font-size: 1rem;
   font-weight: 500;
   color: var(--ink);
   background: transparent;
@@ -548,7 +752,7 @@
   min-height: 1.875rem;
   padding: 0;
   font: inherit;
-  font-size: var(--detail-value);
+  font-size: 1rem;
   font-weight: 500;
   color: var(--ink);
   background: transparent;
@@ -583,8 +787,8 @@
 
 .providerFace {
   display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+  align-items: flex-start;
+  gap: 0.75rem;
   height: 100%;
   padding: 0.875rem 1rem;
   border: 1px solid rgb(var(--umber-rgb) / 0.18);
@@ -620,6 +824,41 @@
 
 .provider[data-accepted="false"] .providerFace:hover {
   border-color: rgb(var(--umber-rgb) / 0.18);
+}
+
+/* The radio, drawn. The input itself is painted over so the group looks like a
+   row of tiles, and until this there was nothing on an unselected tile saying it
+   was one of a set — a guest read three panels and an amber border, which is a
+   selected *card* and not a chosen *option*. `aria-hidden`, because the input
+   behind it is the one the accessibility tree should be reading. */
+.providerDot {
+  position: relative;
+  width: 0.875rem;
+  height: 0.875rem;
+  flex: 0 0 auto;
+  margin-top: 0.125rem;
+  border: 1px solid rgb(var(--umber-rgb) / 0.38);
+  border-radius: 50%;
+  transition: border-color 0.4s var(--ease-ui);
+}
+
+.swapInput:checked + .providerFace .providerDot {
+  border-color: var(--dusk-amber-ink);
+}
+
+.swapInput:checked + .providerFace .providerDot::after {
+  content: "";
+  position: absolute;
+  inset: 0.1875rem;
+  background: var(--dusk-amber-ink);
+  border-radius: 50%;
+}
+
+.providerLines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
 }
 
 .providerName {
@@ -709,7 +948,7 @@
 
 .asideTitle {
   margin-top: var(--space-2);
-  font-size: clamp(1.5rem, 1.8vw, 1.85rem);
+  font-size: clamp(1.2rem, 1.3vw, 1.55rem);
   font-weight: 300;
   line-height: 1.2;
 }
@@ -903,10 +1142,25 @@
   color: var(--stone-deep);
 }
 
+/* The same three-column shape as `.stayRow`, and the same reason: on this plate
+   the deadline is one more thing that is true of the stay, and a block of prose
+   flush to the plate's edge under four indented rows reads as a footnote that
+   fell out of the list. The rule above it is what keeps it a group of its own —
+   the clock is running, and the four rows over it are not. */
 .timer {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr);
+  align-items: start;
+  gap: 0.875rem;
   margin-top: var(--space-2);
   padding-top: var(--space-2);
   border-top: 1px solid var(--hair);
+  /* `hold-timer.module.css` reads these three and falls back to its own
+     measured defaults where nothing sets them. */
+  --hold-line-size: var(--detail-value);
+  --hold-line-weight: 500;
+  --hold-line-ink: var(--ink);
+  --hold-note-size: var(--detail-note);
 }
 
 /* ---- The money, and the press on it -------------------------------------- */
@@ -945,7 +1199,7 @@
    drop the lining correction and hand Cormorant's oldstyle figures back — a
    total whose 3s and 7s hang below the line. */
 .totalFigure {
-  font-size: clamp(2.1rem, 2.4vw, 2.625rem);
+  font-size: clamp(1.6rem, 1.67vw, 2rem);
   font-weight: 300;
   line-height: 1.15;
   font-variant-numeric: lining-nums tabular-nums;
@@ -970,11 +1224,17 @@
    ground — §2. --dusk-amber-ink, so the ivory label on it clears 4.5:1 rather
    than the 2.7:1 the lighter rung gave it. */
 .complete {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
-  min-height: 3rem; /* 48px. 44 is the floor, and this is the button. */
+  min-height: 3.125rem; /* 50px. 44 is the floor, and this is the button. */
   margin-top: var(--space-2);
-  padding: 0 var(--space-2);
-  font-size: var(--detail-body);
+  /* Room at both ends for the lock, so a long label is centred on the button
+     rather than on the space left over beside the glyph. */
+  padding: 0 2.5rem;
+  font-size: 0.875rem;
   font-weight: 500;
   color: var(--ivory);
   background: var(--dusk-amber-ink);
@@ -992,6 +1252,23 @@
 .complete:hover:not(:disabled) {
   color: var(--umber);
   background: transparent;
+}
+
+.completeLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Out of the flow, so the label is centred on the button and not pushed off
+   centre by the glyph beside it. It takes the button's own colour through both
+   the hover inversion and the disabled state. */
+.complete .mark {
+  position: absolute;
+  right: 1rem;
+  width: 0.9375rem;
+  height: 0.9375rem;
+  color: inherit;
 }
 
 .complete:active:not(:disabled) {
@@ -1140,9 +1417,12 @@
     gap: 0.5rem;
   }
 
+  /* Smaller than it was, because the ramp under it came down a step: 28px over
+     an 11px caption in a bar 60px tall was the only thing on this screen still
+     set for the type scale the plates used to carry. */
   .totalFigure {
     margin-inline-end: auto;
-    font-size: 1.75rem;
+    font-size: 1.5rem;
   }
 
   /* Said on the plate above, where there is room for it. */
@@ -1159,7 +1439,7 @@
   }
 
   /* The strip was cut for a plate two thirds of a wide window. One column across
-     is nearly twice as wide, and at 11:2 it becomes a letterbox slot. */
+     is nearly twice as wide, and at 29:6 it becomes a letterbox slot. */
   .roomShot {
     aspect-ratio: 12 / 5;
   }
@@ -1181,6 +1461,15 @@
 
   .roomShot {
     aspect-ratio: 2 / 1;
+  }
+
+  /* The bar has to stay one line, and at a phone's measure it cannot hold four
+     things and do that. The size is the one of the four that is pure
+     repetition — "28 m²" is three rows above it in the facts, under the words
+     "Room size" — so it is what goes, rather than the counter or the way into
+     the rest of the frames. */
+  .shotSize {
+    display: none;
   }
 
   .payHead {
