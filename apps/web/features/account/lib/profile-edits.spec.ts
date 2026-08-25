@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   hasEdits,
-  profileEdits,
   type ProfileFields,
   type ProfileValues,
+  profileEdits,
 } from "./profile-edits";
 
 const ON_FILE: ProfileValues = {

@@ -24,7 +24,7 @@ import {
   callBetterAuth,
 } from "@/features/auth/lib/better-auth-call";
 import { MIN_PASSWORD_LENGTH, origin } from "@/features/auth/lib/guest-auth";
-import { api, API_URL, apiMessage } from "@/lib/api";
+import { API_URL, api, apiMessage } from "@/lib/api";
 
 /**
  * The guest's own record of themselves, inferred from the client rather than
