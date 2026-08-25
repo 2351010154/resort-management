@@ -4,7 +4,7 @@
 // A plain function of its arguments, for the reason `guest-auth-emails.ts`
 // gives: no service, no DI, no template engine, so the whole body can be read
 // here and asserted against without a running application. Text and HTML both,
-// because a guest reading in a text-only client is owed the same figures.
+// because a guest reading in a text-only client is owed the same figure.
 //
 // ## It carries no link, and that is a decision rather than an omission
 //
@@ -15,15 +15,23 @@
 // is the one booking mail that may sit whole in a job row, and
 // `booking-cancellation.service.ts` says so where it hands it over.
 //
-// ## Two figures, and neither is computed here
+// ## One figure, and it is not computed here
 //
-// The penalty is what `property-and-tariff.md` §4's grid actually charged, and
-// the refund is what the account is over-paid by once that penalty stands. Both
-// arrive as amounts from the caller, which is the only place they can honestly
-// come from: §4's grid is `cancellation-calculator.ts`'s, the waiver that sets it
-// aside is a column on the booking, and the ledger that hands the money back is
-// the folio's. A template that recomputed a percentage would be a fourth opinion
-// on a figure the property has already quoted.
+// The penalty is what `property-and-tariff.md` §4's grid actually charged. It
+// arrives as an amount from the caller, which is the only place it can honestly
+// come from: §4's grid is `cancellation-calculator.ts`'s and the waiver that sets
+// it aside is a column on the booking. A template that recomputed a percentage
+// would be a third opinion on a figure the property has already quoted.
+//
+// ## It states no refund, and that is the product rather than an oversight
+//
+// §4's grid and what the guest is entitled to are unchanged, but nothing in this
+// system moves money back: returning it is a staff act taken out of band, at the
+// desk, and no code path calls a gateway to do it. So the message says what was
+// charged and stops there. A line promising money "returned to the card the
+// payment came from" would be this process undertaking, in the guest's inbox,
+// something no part of it performs — and a guest who then waits on a refund that
+// no job will ever start is worse off than one who was told to ask.
 //
 // A penalty of nothing is said in words rather than printed as "0 ₫", because the
 // two cases that produce it — §4's free window and a manager's waiver — are both
@@ -55,12 +63,6 @@ export interface BookingCancellationEmailParams {
   /** What §4's grid charged for calling the stay off — zero when the window was
    *  free or a manager waived it. */
   readonly penalty: VndAmount;
-
-  /** Money going back to the guest, and `null` when there is none: a stay that
-   *  paid nothing, or one whose penalty stands against the whole of what it
-   *  paid. Absent rather than zero, so the message can leave the sentence out
-   *  instead of promising a refund of nothing. */
-  readonly refund: VndAmount | null;
 }
 
 /**
@@ -116,11 +118,6 @@ export function bookingCancellation(
       ? `Cancellation charge: ${formatVnd(params.penalty)}, under the rate plan's cancellation terms.`
       : "There is no cancellation charge for this booking.";
 
-  const refundLine =
-    params.refund === null
-      ? null
-      : `Refund: ${formatVnd(params.refund)}, returned to the card or account the payment came from.`;
-
   const closing =
     "If any of this is not what you expected, reply to this message with the reference above and the desk will look into it.";
 
@@ -132,7 +129,6 @@ export function bookingCancellation(
     referenceLine,
     "",
     penaltyLine,
-    ...(refundLine ? ["", refundLine] : []),
     "",
     closing,
     "",
@@ -144,7 +140,6 @@ export function bookingCancellation(
     paragraph(intro),
     paragraph(referenceLine),
     paragraph(penaltyLine),
-    ...(refundLine ? [paragraph(refundLine)] : []),
     paragraph(closing),
     "</div>",
   ].join("");

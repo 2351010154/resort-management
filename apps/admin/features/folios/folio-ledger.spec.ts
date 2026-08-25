@@ -81,6 +81,42 @@ describe("folioFilters", () => {
     });
   });
 
+  it("asks for the accounts the property owes money back on", () => {
+    // The third member of the contract's own enum, sent as it stands. The query
+    // is run through `listFoliosInput` inside `folioFilters`, so this also holds
+    // the screen to a word the route actually takes — a label the console
+    // invented would come back as the refusal below rather than as a list.
+    expect(
+      folioFilters(
+        { ...DEFAULT_FOLIO_FILTERS, balance: "OVERPAID" },
+        BUSINESS_DATE,
+        0,
+      ),
+    ).toEqual({
+      input: { balance: "OVERPAID", limit: 50, offset: 0 },
+    });
+  });
+
+  it("narrows the over-paid question by day like any other", () => {
+    // The window is orthogonal to the balance: one is about the lines a folio
+    // has and the other about what they come to, and a screen that dropped the
+    // dates when the balance narrowed would answer the wrong question quietly.
+    expect(
+      folioFilters(
+        { ...DEFAULT_FOLIO_FILTERS, balance: "OVERPAID", from: "-7d" },
+        BUSINESS_DATE,
+        0,
+      ),
+    ).toEqual({
+      input: {
+        balance: "OVERPAID",
+        from: "2026-08-11",
+        limit: 50,
+        offset: 0,
+      },
+    });
+  });
+
   it("sends the state when one was chosen", () => {
     expect(
       folioFilters(
