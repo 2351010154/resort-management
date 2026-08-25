@@ -296,13 +296,15 @@
   color: var(--umber);
 }
 
-/* --dusk-amber is the house's one accent and design-foundations.md §2 reserves
-   it for exactly this: the funnel's real primary action. There is one of them
-   on this screen. */
+/* The house's one accent, which design-foundations.md §2 reserves for exactly
+   this: the funnel's real primary action. There is one of them on this screen.
+   --dusk-amber-ink is the rung of it that can be read on a pale ground — ivory
+   type on #b48b60 is 2.7:1 — and `tokens.css` argues why the accent itself could
+   not simply be moved. */
 .submit {
   padding: var(--space-2) var(--space-3);
   border-radius: 999px;
-  background: var(--dusk-amber);
+  background: var(--dusk-amber-ink);
   color: var(--ivory);
   transition:
     background-color 0.4s var(--ease-ui),
@@ -311,7 +313,7 @@
 
 .submit:hover:not(:disabled),
 .submit:focus-visible:not(:disabled) {
-  background: color-mix(in srgb, var(--dusk-amber) 86%, var(--ink));
+  background: color-mix(in srgb, var(--dusk-amber-ink) 86%, var(--ink));
 }
 
 .submit:disabled {
