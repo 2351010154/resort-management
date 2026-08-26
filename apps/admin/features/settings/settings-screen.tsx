@@ -25,6 +25,7 @@ import {
   configFingerprint,
   dongLabel,
   fieldsFrom,
+  fxRateLabel,
   lastSignedInLabel,
   mayEditConfiguration,
   mayManageStaffAccounts,
@@ -84,7 +85,7 @@ import {
  * ## How the configuration half is laid out, and why
  *
  * Every group is a band with its heading and its standing sentence in a column of
- * their own and the figures beside them. Thirteen numeric fields wrapped across
+ * their own and the figures beside them. Fourteen numeric fields wrapped across
  * the full width of a 1500px card was one undifferentiated form: the headings sat
  * at body weight inside it, a group holding a single figure left most of a row
  * empty, and a switch carrying a sentence for a label had to compete with five
@@ -531,7 +532,7 @@ function ConfigurationPanel({ mayEdit }: { mayEdit: boolean }) {
 }
 
 /**
- * The thirteen figures, and an edit that carries only what moved.
+ * The fourteen figures, and an edit that carries only what moved.
  *
  * The form state is filled from the row and diffed back against it by
  * {@link configEdit}, which is specified on its own — every decision about what
@@ -725,6 +726,24 @@ function ConfigurationForm({
             readOnly={!mayEdit}
             onChange={(businessDateRolloverHour) => {
               change({ businessDateRolloverHour });
+            }}
+          />
+        </Group>
+
+        <Group
+          title="Currency conversion"
+          note="For a gateway that cannot settle in đồng, the property's own answer to how many đồng one US dollar is worth. Read once when a guest opens such an attempt and frozen onto that payment, so a correction here reaches the next attempt and never one already underway."
+          columns="sm:grid-cols-2"
+        >
+          <Figure
+            label="Đồng per US dollar"
+            value={fields.rateVndPerUsd}
+            placeholder="26150"
+            hint="A positive decimal — the one figure on this screen allowed a fraction, because a currency pair genuinely has one."
+            echo={fxRateLabel(fields.rateVndPerUsd)}
+            readOnly={!mayEdit}
+            onChange={(rateVndPerUsd) => {
+              change({ rateVndPerUsd });
             }}
           />
         </Group>
