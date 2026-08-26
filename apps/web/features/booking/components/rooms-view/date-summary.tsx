@@ -46,7 +46,7 @@ export function DateSummary({
       type="button"
     >
       <span className={styles.summaryValue}>
-        {stay.dates} · {stay.nights} ·{" "}
+        {stay.dates}, {stay.nights},{" "}
         {guests === 1 ? "1 guest" : `${guests} guests`}
       </span>
       <span className={styles.summaryChange}>Change</span>

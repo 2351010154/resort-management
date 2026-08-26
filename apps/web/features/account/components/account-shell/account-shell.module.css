@@ -1,9 +1,22 @@
-/* The account area's frame.
+/* The account area's frame, and the plate system its two screens draw on.
  *
- * Set to `stay-shell.module.css`'s ground and measure on purpose: a guest moves
- * between `/account/stays` and `/bookings/<reference>` constantly — that is what
- * the stay list is for — and two surfaces one press apart that sit on different
- * columns read as two different products.
+ * **The system is the funnel's, adopted rather than invented.**
+ * `details-screen.module.css` already sets the review screen as plates on a
+ * warm ground with a hairline edge, a cut corner and a low lift, beside a rail
+ * that holds what the guest is not editing. The account area is the same kind
+ * of screen — something worked on, beside something stated — and a second card
+ * language one press away from the funnel would be two products. So the
+ * variables below are that file's, re-declared here for the reason it gives for
+ * re-declaring them itself: a custom property cannot cross module boundaries
+ * except by inheritance, and no account route descends from a funnel screen.
+ *
+ * They are declared on `.screen` on purpose. Everything the two screens render
+ * is inside it, so `profile-form.module.css` and `stays-list.module.css` read
+ * `--plate-*` straight out of the cascade and neither owns a copy.
+ *
+ * The ground is `--ivory-warm` and the plates are `--ivory`, which is the pair
+ * the funnel separates by tone rather than by an edge alone: the wall, and the
+ * thing set down on it.
  *
  * The bar is this file's own, and the wordmark is `funnel-nav.module.css`'s
  * technique rather than a copy of its layout: masked over `currentcolor`, so the
@@ -14,44 +27,109 @@
  */
 
 .screen {
+  /* The corner the funnel cuts every ivory box with, and the smaller one for
+     what sits inside them. */
+  --plate-radius: 0.75rem;
+  --row-radius: 0.5rem;
+  --plate-edge: 1px solid rgb(var(--umber-rgb) / 0.09);
+  /* Two shadows and neither of them dramatic: the tight one is the plate's own
+     contact with the page, the wide one is the air under it. Cast in umber
+     rather than in black, because a neutral shadow on a warm ground greys it. */
+  --plate-lift:
+    0 1px 2px rgb(var(--umber-rgb) / 0.04),
+    0 0.75rem 2rem rgb(var(--umber-rgb) / 0.05);
+  --plate-pad: clamp(var(--space-2), 2.4vw, 2rem);
+  --rail-pad: clamp(var(--space-2), 1.8vw, 1.5rem);
+  /* The rule a plate divides itself with, at the weight the account screens'
+     section seams were already drawn at. */
+  --plate-seam: 1px solid rgb(var(--umber-rgb) / 0.15);
+  /* The weight every hairline that separates one region from another is drawn
+     at: the bar's own foot, and the rule down the ledger's outer edge. Lighter
+     than a seam inside a plate, because it divides air rather than content. */
+  --page-hairline: 1px solid rgb(var(--umber-rgb) / 0.12);
+
+  /* The measure, and the two rails' share of it.
+   *
+   * Narrower than the funnel's 96.75rem, because the funnel's left column holds
+   * a photograph and a calendar and this one holds four boxes: a form set much
+   * wider than its longest field is a form whose labels and values stop being
+   * one object. Both rails are capped rather than fractional for the same
+   * reason `details-screen.module.css` caps its own — what they hold has a size
+   * it wants and does not improve by getting wider on a large monitor.
+   *
+   * The three tracks are set so the working column keeps the larger half of the
+   * measure at every width the grid survives: at the cap the ledger takes 13.25
+   * of 74rem and membership 17.5, which leaves the form more than both together
+   * and is the proportion the screen was drawn at. */
+  --account-measure: 74rem;
+  --ledger-width: clamp(11rem, 12.7vw, 13.25rem);
+  --rail-width: clamp(15rem, 16.75vw, 17.5rem);
+  --column-gap: clamp(var(--space-2), 1.32vw, 1.375rem);
+  --page-gutter: clamp(var(--space-2), 3.7vw, 3.875rem);
+
+  /* The bar's own margins, which are the window's and not the measure's — see
+     the note on `.bar`. The gaps are three different sizes on purpose: the
+     links are a run and sit close, the chip is a different kind of control and
+     stands off from them, and the mark is at the far edge. */
+  --bar-gutter: clamp(var(--space-2), 3vw, 3.25rem);
+  --bar-gap: clamp(var(--space-2), 2.6vw, 2.75rem);
+  --bar-chip-gap: clamp(var(--space-2), 3vw, 3.25rem);
+
   min-height: 100dvh;
-  display: grid;
-  place-items: start center;
-  padding: var(--space-3) var(--space-2) var(--space-4);
-  background: var(--ivory);
+  background: var(--ivory-warm);
   color: var(--ink);
 }
 
-.column {
-  position: relative;
+.frame {
   width: 100%;
-  max-width: 42rem;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+  max-width: calc(var(--account-measure) + 2 * var(--page-gutter));
+  margin-inline: auto;
+  padding: 0 var(--page-gutter) var(--space-4);
 }
 
+/* ---- The bar ------------------------------------------------------------- */
+
+/* The one band on the page that belongs to the product rather than to the
+   document, and the reason it sits outside `.frame`: its rule is the window's
+   full width. A hairline inset to a 74rem measure reads as the top edge of a
+   card floating on the page, and the mark would then be indented to the same
+   place as the title under it — which makes the bar look like the document's
+   first line instead of the app's own edge.
+
+   So the band is full bleed and the type inside it is inset to `--bar-gutter`,
+   which is the window's margin and deliberately not `--page-gutter`. The two
+   answer different questions: one is how far the document's measure stands off
+   the window, the other is how far the mark stands off the corner. */
 .bar {
+  border-bottom: var(--page-hairline);
+}
+
+/* `stretch`, so a link is the full height of the band and the rule it carries
+   when it is the current page lands on the band's own foot. Centred items would
+   underline themselves halfway up the bar, which reads as a rule under a word
+   rather than as a tab. */
+.barInner {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   justify-content: space-between;
   gap: var(--space-2);
-  flex-wrap: wrap;
-  margin-bottom: var(--space-2);
-  padding-bottom: var(--space-2);
-  border-bottom: 1px solid rgb(var(--umber-rgb) / 0.12);
+  min-height: 4.25rem;
+  padding-inline: var(--bar-gutter);
 }
 
 .brand {
-  display: block;
-  height: 20px;
+  display: flex;
+  align-items: center;
   flex: 0 0 auto;
+  transition:
+    color 0.25s var(--ease-ui),
+    transform 0.1s var(--ease-ui);
 }
 
 .wordmark {
   display: block;
-  width: 118px;
-  height: 100%;
+  width: 130px;
+  height: 21px;
   background: currentcolor;
   mask-image: url("/brand/mariva-wordmark.svg");
   mask-repeat: no-repeat;
@@ -64,22 +142,48 @@
 }
 
 .brand:focus-visible {
-  outline: 2px solid var(--dusk-amber);
+  outline: 2px solid var(--dusk-amber-ink);
   outline-offset: 6px;
+}
+
+.brand:hover {
+  color: var(--dusk-amber-ink);
+}
+
+.brand:active {
+  transform: translateY(2px);
+}
+
+/* The destinations and the guest, kept together at the far end so the bar reads
+   as one object at each edge rather than three things spread across it. */
+.barEnd {
+  display: flex;
+  align-items: stretch;
+  gap: var(--bar-chip-gap);
 }
 
 .nav {
   display: flex;
-  align-items: center;
-  gap: var(--space-2);
+  align-items: stretch;
+  gap: var(--bar-gap);
 }
 
+/* `nowrap` at every width. A caps label at 0.22em tracking that breaks across
+   two lines stops reading as one destination — "BOOK A / STAY" is two labels —
+   and the run is short enough that the honest answer to a narrow window is to
+   give the links a row of their own rather than to fold them in half. */
 .navLink {
   display: flex;
   align-items: center;
   min-height: 2.75rem; /* 44px — the tap floor the funnel is set to. */
-  color: var(--stone);
-  border-bottom: 1px solid transparent;
+  color: var(--stone-deep);
+  white-space: nowrap;
+  /* Transparent at rest and pulled down by the band's own hairline, so the
+     current page's rule sits *on* that line instead of hovering above it. Every
+     link carries the border, current or not, so none of them moves when it
+     becomes the one the guest is standing on. */
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
   transition:
     color 0.4s var(--ease-ui),
     border-color 0.4s var(--ease-ui);
@@ -90,15 +194,215 @@
 }
 
 /* The page the guest is standing on names itself for a screen reader through
-   `aria-current`, and to everyone else through the rule under it. */
+   `aria-current`, and to everyone else through the rule under it. Amber rather
+   than umber: the mark has to be told apart from the hairline it is sitting on,
+   and a darker neutral at 2px reads as a thicker hairline instead of an
+   accent. `--dusk-amber-ink` is the rung of the accent that can be read on
+   ivory — tokens.css §--dusk-amber-ink. */
 .navLink[aria-current="page"] {
   color: var(--ink);
-  border-bottom-color: var(--umber);
+  border-bottom-color: var(--dusk-amber-ink);
 }
 
 .navLink:focus-visible {
-  outline: 2px solid var(--dusk-amber);
+  outline: 2px solid var(--dusk-amber-ink);
   outline-offset: 4px;
+}
+
+.navLink:active {
+  color: var(--dusk-amber-ink);
+}
+
+/* ---- The guest chip ------------------------------------------------------ */
+
+/* Centred rather than stretched: it is a control and not a tab, and a ring
+   pulled to the full height of the band would read as a fourth destination. */
+.chip {
+  display: flex;
+  align-items: center;
+  align-self: center;
+  gap: 0.5rem;
+  padding: 0;
+  color: var(--stone-deep);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  transition:
+    color 0.25s var(--ease-ui),
+    transform 0.1s var(--ease-ui);
+}
+
+/* `letter-spacing: 0` undoes the tracking `caps-label` carries. Tracking is
+   space *after* every character including the last, so a single letter in a
+   centred box is pushed left by half of it — visible at this size, and the one
+   thing that would make the ring look badly drawn. */
+.chipMark {
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  letter-spacing: 0;
+  color: var(--umber);
+  border: 1px solid rgb(var(--umber-rgb) / 0.28);
+  border-radius: 50%;
+  transition:
+    color 0.25s var(--ease-ui),
+    background-color 0.25s var(--ease-ui),
+    border-color 0.25s var(--ease-ui);
+}
+
+/* Drawn as two borders of a turned square, on `profile-form.module.css`'s
+   reasoning for the same mark: the guest realm ships no icon set, and a corner
+   this small is cheaper here than a file is anywhere. */
+.chipCaret {
+  width: 0.4rem;
+  height: 0.4rem;
+  flex: 0 0 auto;
+  border-right: 1px solid currentcolor;
+  border-bottom: 1px solid currentcolor;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform 0.4s var(--ease-ui);
+}
+
+.chip[aria-expanded="true"] .chipCaret {
+  transform: translateY(1px) rotate(-135deg);
+}
+
+.chip:hover,
+.chip[aria-expanded="true"] {
+  color: var(--ink);
+}
+
+.chip:hover .chipMark,
+.chip[aria-expanded="true"] .chipMark {
+  color: var(--ink);
+  background: rgb(var(--umber-rgb) / 0.04);
+  border-color: rgb(var(--umber-rgb) / 0.5);
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--dusk-amber-ink);
+  outline-offset: 4px;
+}
+
+.chip:active {
+  transform: translateY(1px);
+}
+
+/* The chip's exact footprint — the ring, its gap and the caret — held while the
+   session is still being read, so the three links beside it do not slide when
+   the answer lands. */
+.chipPlaceholder {
+  align-self: center;
+  width: 2.65rem;
+  height: 1.75rem;
+}
+
+/* ---- The chip's panel ---------------------------------------------------- */
+
+/* Dark on an ivory bar, and the same object `funnel-nav.module.css` opens from
+   the funnel's own bar. A guest crossing between the two should not meet two
+   account menus. */
+.panel {
+  position: fixed;
+  z-index: 20;
+  inset: auto;
+  top: var(--account-panel-top, var(--space-4));
+  right: var(--account-panel-right, var(--space-2));
+  width: min(16rem, calc(100vw - 2 * var(--bar-gutter)));
+  margin: 0;
+  padding: var(--space-2);
+  color: var(--ivory);
+  background: var(--ink);
+  border: 1px solid rgb(var(--ivory-rgb) / 0.16);
+  border-radius: var(--plate-radius);
+}
+
+.panel::backdrop {
+  background: transparent;
+}
+
+.panelTerm {
+  color: var(--sand);
+}
+
+.panelName {
+  margin-top: var(--space-1);
+  overflow-wrap: anywhere;
+  font-size: var(--text-lg);
+  line-height: 1.1;
+}
+
+.panelEmail {
+  margin-top: var(--space-1);
+  overflow-wrap: anywhere;
+  color: var(--sand);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+.panelLinks {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+  padding-top: var(--space-1);
+  border-top: 1px solid rgb(var(--ivory-rgb) / 0.16);
+}
+
+.panelLinks a,
+.panelOut {
+  display: flex;
+  align-items: center;
+  min-height: 2.75rem;
+  color: var(--ivory);
+  text-align: left;
+  transition:
+    color 0.25s var(--ease-ui),
+    transform 0.1s var(--ease-ui);
+}
+
+.panelLinks a:hover,
+.panelLinks a:focus-visible,
+.panelOut:hover,
+.panelOut:focus-visible {
+  color: var(--dusk-amber);
+}
+
+.panelLinks a:active,
+.panelOut:active {
+  transform: translateY(2px);
+}
+
+.panelLinks a:focus-visible,
+.panelOut:focus-visible {
+  outline: 2px solid var(--dusk-amber);
+  outline-offset: 2px;
+}
+
+.panelOut {
+  width: 100%;
+  margin-top: var(--space-1);
+  padding: var(--space-1) 0 0;
+  border-top: 1px solid rgb(var(--ivory-rgb) / 0.16);
+}
+
+.panelOut:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.panelError {
+  margin-top: var(--space-1);
+  color: var(--sand);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+/* ---- The title block ----------------------------------------------------- */
+
+.head {
+  margin: var(--space-3) 0;
+  max-width: 42rem;
 }
 
 .title {
@@ -109,8 +413,177 @@
 
 /* A headline states, a caption qualifies — design-foundations.md §6. */
 .subtitle {
+  margin-top: 0.375rem;
   color: var(--stone-deep);
   font-size: var(--text-sm);
   line-height: 1.6;
-  max-width: 34rem;
+}
+
+/* Provenance, set apart from the caption above it: the subtitle says what the
+   screen is for, and this says a fact about the account that happens to be
+   true. Tabular so a date does not shift the line it sits on. */
+.meta {
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--stone-deep);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- The two columns ----------------------------------------------------- */
+
+/* `stretch`, not `start`. Both side columns are boundaries around an aside —
+   one drawn as a rule down its outer edge, the other as a plate — and a
+   boundary that stops where its own words run out reads as unfinished beside a
+   working column that carries on past it. Stretched, the three regions share
+   one foot. */
+
+/* What the guest is working on, beside what the property states back. */
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--rail-width);
+  grid-template-areas: "content aside";
+  align-items: stretch;
+  gap: var(--column-gap);
+}
+
+/* Reference 2's missing piece: a slim ledger before the working column. The
+   main form still owns the flexible measure and membership keeps its capped
+   folio width, so neither side rail squeezes the fields into a dashboard. */
+.threeColumn {
+  display: grid;
+  grid-template-columns:
+    var(--ledger-width) minmax(0, 1fr)
+    var(--rail-width);
+  grid-template-areas: "ledger content aside";
+  align-items: stretch;
+  gap: var(--column-gap);
+}
+
+.leftGrid {
+  display: grid;
+  grid-template-columns: var(--ledger-width) minmax(0, 1fr);
+  grid-template-areas: "ledger content";
+  align-items: stretch;
+  gap: var(--column-gap);
+}
+
+/* A screen with no rail keeps the measure rather than the grid — a single
+   column in a two-column track would be set against a gap it never fills. */
+.solo {
+  display: block;
+}
+
+.column {
+  grid-area: content;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+/* A flex column, and that is the whole of what it does. The two screens draw
+   their leading rail differently — the profile's is bare type closed by a rule,
+   the stays list's is a plate — so the shell states no edge of its own and only
+   offers the height: a child that asks for `flex: 1` fills the row, and one
+   that would rather stay its own size and stick, like the stays rail, is left
+   alone. An edge drawn here would be a second one beside the plate. */
+.leftAside {
+  grid-area: ledger;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* The same offer as `.leftAside`: the row's height, for a rail that asks for
+   it. */
+.aside {
+  grid-area: aside;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* The rail folds under the content before the content is squeezed. Set to the
+   funnel's own breakpoint so a guest resizing between the two screens does not
+   meet two different ideas of when a rail stops fitting. */
+@media (max-width: 68rem) {
+  .grid,
+  .threeColumn,
+  .leftGrid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2);
+  }
+
+  .grid {
+    grid-template-areas: "content" "aside";
+  }
+
+  .leftGrid {
+    grid-template-areas: "ledger" "content";
+  }
+
+  .threeColumn {
+    grid-template-areas: "ledger" "content" "aside";
+  }
+}
+
+/* Below this the mark, three destinations and the chip stop fitting on one line
+   at the gaps the bar is drawn with, so the bar becomes two rows: who you are,
+   over where you can go.
+ *
+ * `display: contents` is what makes that possible without a second element in
+ * the markup. `.barEnd` exists to hold the links and the chip together at the
+ * far edge of a wide bar; here they belong on different rows, so it stops being
+ * a box and hands its two children up to the bar's own flex line, where the
+ * chip can sit beside the mark and the links can take a full row under both.
+ * The div carries no semantics, so nothing is lost from the tree by it.
+ *
+ * The current page's rule leaves the band's foot with them: on the second row
+ * there is no foot for it to sit on. */
+@media (max-width: 48rem) {
+  .barInner {
+    flex-wrap: wrap;
+    align-items: center;
+    min-height: 0;
+    padding-block: var(--space-2);
+    row-gap: var(--space-1);
+  }
+
+  .barEnd {
+    display: contents;
+  }
+
+  .nav {
+    order: 1;
+    flex-basis: 100%;
+    gap: clamp(var(--space-2), 5vw, var(--space-3));
+  }
+
+  .navLink {
+    min-height: 2.5rem;
+    margin-bottom: 0;
+  }
+
+  .wordmark {
+    width: 106px;
+    height: 17px;
+  }
+
+  .frame {
+    padding-bottom: var(--space-3);
+  }
+
+  .head {
+    margin: var(--space-2) 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chip,
+  .chipMark,
+  .chipCaret,
+  .panelLinks a,
+  .panelOut {
+    transition: none;
+  }
 }

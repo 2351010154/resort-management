@@ -130,8 +130,8 @@ export function categoriesFor(
  * money went and still carries the accountant's term.
  */
 export const DIRECTION_LABELS: Record<CashBookDirection, string> = {
-  INCOME: "Income · thu",
-  EXPENSE: "Expense · chi",
+  INCOME: "Income, thu",
+  EXPENSE: "Expense, chi",
 };
 
 /** The same two sides mid-sentence, where a gloss would read as a stutter. Not
@@ -160,19 +160,19 @@ export const METHOD_LABELS: Record<CashBookMethod, string> = {
  * `nav-inventory.ts` already carries the same pairing in its keywords.
  */
 export const CATEGORY_LABELS: Record<CashBookCategory, string> = {
-  SUPPLIES: "Supplies · vật tư",
-  UTILITIES: "Utilities · điện nước",
-  SALARIES: "Salaries · lương",
-  MAINTENANCE: "Maintenance · sửa chữa",
-  LAUNDRY: "Laundry · giặt là",
-  MARKETING: "Marketing · tiếp thị",
-  TRANSPORT: "Transport · vận chuyển",
-  TAXES_AND_FEES: "Taxes and fees · thuế phí",
-  VENUE_HIRE: "Venue hire · cho thuê mặt bằng",
-  PARTNER_COMMISSION: "Partner commission · hoa hồng",
-  ASSET_SALE: "Asset sale · thanh lý tài sản",
-  SUPPLIER_REFUND: "Supplier refund · hoàn tiền nhà cung cấp",
-  OTHER: "Other · khác",
+  SUPPLIES: "Supplies, vật tư",
+  UTILITIES: "Utilities, điện nước",
+  SALARIES: "Salaries, lương",
+  MAINTENANCE: "Maintenance, sửa chữa",
+  LAUNDRY: "Laundry, giặt là",
+  MARKETING: "Marketing, tiếp thị",
+  TRANSPORT: "Transport, vận chuyển",
+  TAXES_AND_FEES: "Taxes and fees, thuế phí",
+  VENUE_HIRE: "Venue hire, cho thuê mặt bằng",
+  PARTNER_COMMISSION: "Partner commission, hoa hồng",
+  ASSET_SALE: "Asset sale, thanh lý tài sản",
+  SUPPLIER_REFUND: "Supplier refund, hoàn tiền nhà cung cấp",
+  OTHER: "Other, khác",
 };
 
 /** Either a request the API will take, or the sentence that says why it is not

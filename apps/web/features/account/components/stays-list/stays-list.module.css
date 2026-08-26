@@ -1,8 +1,23 @@
-/* `/account/stays` — two groups of cards, and nothing that acts on a stay.
+/* `/account/stays` — two groups of plates, and nothing that acts on a stay.
  *
- * The card is a rule and a ground rather than a box with a shadow: the arrival
- * draws its structure with hairlines and the funnel follows it, and a raised
- * card here would be the first element in the guest realm that does not.
+ * **The card is a plate now, and this file used to argue it should not be.**
+ * The old comment here said a raised card would be the first element in the
+ * guest realm that did not draw its structure with hairlines. That was true when
+ * it was written and is no longer: `details-screen.module.css` sets the funnel's
+ * review screen as ivory plates on a warm ground, cut at `--plate-radius` and
+ * lifted a millimetre off the page, and the account area adopts that system
+ * rather than inventing a third one. A card language one press away from the
+ * funnel's would read as two products.
+ *
+ * The plate variables are not declared here. `account-shell.module.css` puts
+ * `--plate-*`, `--row-radius`, `--rail-pad` and `--plate-seam` on `.screen`,
+ * which every rule below descends from, so this file reads them out of the
+ * cascade and owns no copy of them to drift.
+ *
+ * A card holds four rows and each is a different kind of statement: what the
+ * room is and how the stay stands, when it runs, which rate it was taken on,
+ * and who it was for beside what it cost. Nothing in the list acts on a stay —
+ * `stays-list.tsx` says why.
  *
  * Everything reads from @mariva/tokens — design-foundations.md §2. Motion is CSS
  * only, on the permitted properties, at 0.4s on --ease-ui: §5.
@@ -22,7 +37,7 @@
 .list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: var(--space-2);
   list-style: none;
   padding: 0;
   margin: 0;
@@ -37,24 +52,33 @@
 .card {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
-  padding: var(--space-2);
+  gap: 0.625rem;
+  padding: var(--plate-pad);
   color: inherit;
-  background: rgb(var(--ivory-warm-rgb) / 0.6);
-  border: 1px solid rgb(var(--umber-rgb) / 0.12);
+  background: var(--ivory);
+  border: var(--plate-edge);
+  border-radius: var(--plate-radius);
+  box-shadow: var(--plate-lift);
   transition:
-    background-color 0.4s var(--ease-ui),
-    border-color 0.4s var(--ease-ui);
+    border-color 0.4s var(--ease-ui),
+    transform 0.1s var(--ease-ui);
 }
 
+/* The one place this screen spends motion: a millimetre further off the page
+   under the pointer, which is the plate answering rather than a new colour
+   arriving. `transform`, so nothing below it is laid out again. */
 .card:hover {
-  background: var(--ivory-warm);
-  border-color: rgb(var(--umber-rgb) / 0.3);
+  border-color: rgb(var(--umber-rgb) / 0.24);
+  transform: translateY(-1px);
 }
 
 .card:focus-visible {
-  outline: 2px solid var(--dusk-amber);
+  outline: 2px solid var(--dusk-amber-ink);
   outline-offset: 4px;
+}
+
+.card:active {
+  transform: translateY(2px);
 }
 
 .head {
@@ -71,32 +95,60 @@
 }
 
 /* What the stay is, in one word. The tone is set from the state rather than
-   from the group, so a cancelled stay reads the same wherever it is filed. */
+   from the group, so a cancelled stay reads the same wherever it is filed.
+ *
+ * A wash rather than the 1px box the three live tones used to be: an outlined
+ * chip beside a plate edge and a card border is a third hairline in the same
+ * corner, and the tone has to be read off a line one pixel wide. Tinted, the
+ * colour is the size of the chip. Every wash is a `-rgb` triplet at low alpha,
+ * which `--stone` and `--sand` do not carry.
+ *
+ * The transparent border is what keeps the four the same size: `off` below is
+ * the one tone still drawn as an outline, and a chip that grew by a pixel when
+ * a stay was called off would shift the row it sits in. */
 .badge {
   flex: 0 0 auto;
-  padding: 0.25rem var(--space-1);
-  font-family: var(--font-ui), sans-serif;
+  padding: 0.25rem 0.5rem;
+  font-family: var(--font-ui), ui-monospace, monospace;
   font-size: var(--text-xs);
   letter-spacing: var(--tracking-caps);
   text-transform: uppercase;
   white-space: nowrap;
-  border: 1px solid currentcolor;
+  border: 1px solid transparent;
+  border-radius: var(--row-radius);
 }
 
 .badge[data-tone="ahead"] {
   color: var(--umber);
+  background: rgb(var(--umber-rgb) / 0.08);
 }
 
+/* The wash carries the tone and `--umber` carries the words. `--dusk-amber` on
+   its own wash measures about 2.35:1, well under the 4.5:1 a 0.75rem caps label
+   needs, and the amber is doing its work as the ground rather than as the text
+   — the same trade `profile-form.module.css` makes for the Gold tier chip. */
 .badge[data-tone="present"] {
-  color: var(--dusk-amber);
+  color: var(--umber);
+  background: rgb(var(--dusk-amber-rgb) / 0.16);
 }
 
 .badge[data-tone="done"] {
   color: var(--stone-deep);
+  background: rgb(var(--stone-deep-rgb) / 0.1);
 }
 
+/* The one outlined chip, and the only place this file still draws a hairline.
+   A called-off stay is the odd one out and reads as it: filled at the alpha the
+   others use it would have been `done` in a slightly cooler grey, since --stone
+   has no triplet to wash with and --stone-deep is already spent above. An
+   outline separates the two by structure instead of asking a reader to tell two
+   greys apart, and it lifts the text off the plate rather than off a wash —
+   `--stone` at this size measured 3.1:1 and `--stone-deep` on the plate is
+   about 5.7:1. */
 .badge[data-tone="off"] {
-  color: var(--stone);
+  color: var(--stone-deep);
+  background: none;
+  border: 1px solid rgb(var(--ink-rgb) / 0.18);
 }
 
 .dates {
@@ -104,14 +156,110 @@
   color: var(--ink);
 }
 
-.meta {
+/* The rate the stay was taken on, as one tag. A row rather than a single
+   element, because a tag row is what it is and the day a second true tag exists
+   it goes here instead of beside the price. */
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.tag {
+  padding: 0.1875rem 0.5rem;
+  font-family: var(--font-ui), ui-monospace, monospace;
+  font-size: var(--text-xs);
+  line-height: 1.4;
+  color: var(--stone-deep);
+  border: 1px solid rgb(var(--umber-rgb) / 0.15);
+  border-radius: var(--row-radius);
+}
+
+/* Who the stay was for on the left, what it cost on the right. They share a
+   line because they are the two halves of one question — a guest scanning a
+   history is looking for the week with the children, or the expensive one. */
+.foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin-top: 0.125rem;
+}
+
+.specs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem;
+  min-width: 0;
   font-size: var(--text-xs);
   color: var(--stone-deep);
 }
 
+/* The reference grid of the product card, set typographically: `apps/web` ships
+   no icon set and the arrival is deliberately typographic, so the separator is
+   the icon's whole job. Drawn in CSS rather than written into the markup, so it
+   never lands at the start of a wrapped line. */
+.spec + .spec::before {
+  content: "–";
+  margin-inline-end: 0.5rem;
+  color: var(--stone);
+}
+
 .reference {
-  font-family: var(--font-ui), sans-serif;
+  font-family: var(--font-ui), ui-monospace, monospace;
   letter-spacing: 0.08em;
+}
+
+/* One gross figure and no breakdown: `listOwn` answers a total and no line
+   items, and components of it would be arithmetic the API never sent.
+ *
+ * `lining-nums` is repeated rather than inherited from `.font-display`:
+ * `font-variant-numeric` is one property, so naming `tabular-nums` alone would
+ * drop the lining correction and hand Cormorant's oldstyle figures back — a
+ * price whose 3s and 7s hang below the line. */
+.price {
+  flex: 0 0 auto;
+  margin-inline-start: auto;
+  font-size: var(--text-lg);
+  font-weight: 400;
+  line-height: 1.2;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+/* ---- The rail ------------------------------------------------------------ */
+
+/* What the list adds up to, and the way back into the funnel. It occupies the
+   shell's leading ledger track so both account screens keep the same left-side
+   orientation. */
+.rail {
+  position: sticky;
+  top: var(--space-2);
+  max-height: calc(100dvh - 2 * var(--space-2));
+  overflow-y: auto;
+  padding: var(--rail-pad);
+  background: var(--ivory);
+  border: var(--plate-edge);
+  border-radius: var(--plate-radius);
+  box-shadow: var(--plate-lift);
+}
+
+/* A sentence, not a pair of counters. Both figures are the two groups beside it,
+   counted, and the guest voice states them whole — design-foundations.md §6. */
+.railSummary {
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--stone-deep);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The seam between what is true and what can be done about it. */
+.railFoot {
+  display: flex;
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: var(--plate-seam);
 }
 
 .empty {
@@ -123,13 +271,19 @@
 }
 
 .book {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem; /* 44px — the tap floor the funnel is set to. */
   padding: 0.9rem var(--space-3);
   color: var(--ivory);
   background: var(--umber);
   border: 1px solid var(--umber);
+  border-radius: var(--row-radius);
   transition:
     background-color 0.4s var(--ease-ui),
-    color 0.4s var(--ease-ui);
+    color 0.4s var(--ease-ui),
+    transform 0.1s var(--ease-ui);
 }
 
 .book:hover {
@@ -138,8 +292,12 @@
 }
 
 .book:focus-visible {
-  outline: 2px solid var(--dusk-amber);
+  outline: 2px solid var(--dusk-amber-ink);
   outline-offset: 4px;
+}
+
+.book:active {
+  transform: translateY(2px);
 }
 
 /* Announced when it arrives, because it arrives after a round trip. */
@@ -172,4 +330,32 @@
 
 .footnoteLink:hover {
   border-bottom-color: var(--umber);
+}
+
+.footnoteLink:focus-visible {
+  outline: 2px solid var(--dusk-amber-ink);
+  outline-offset: 4px;
+}
+
+.footnoteLink:active {
+  color: var(--dusk-amber-ink);
+}
+
+/* The rail folds under the list at the shell's own breakpoint, and a sticky
+   panel that is no longer beside anything has nothing to stick to. */
+@media (max-width: 68rem) {
+  .rail {
+    position: static;
+    max-height: none;
+    overflow-y: visible;
+  }
+}
+
+/* At a phone's measure the price and the spec row do not share a line without
+   one of them being squeezed to a column of single words. They wrap already;
+   this is the price landing under the specs rather than tight against them. */
+@media (max-width: 30rem) {
+  .price {
+    margin-inline-start: 0;
+  }
 }

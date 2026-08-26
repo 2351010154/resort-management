@@ -57,8 +57,8 @@ function movement(amount: bigint, note: string | null = "a note"): Movement {
 /** The two stamp lines every real export carries, so a sheet written here has
  *  the layout the exports have and the first row of data is always row 6. */
 const STAMP: readonly string[] = [
-  "Taken 2026-08-20 17:35 · Asia/Ho_Chi_Minh",
-  "Filters: from 2026-08-01 · to 2026-08-31",
+  "Taken 2026-08-20 17:35, Asia/Ho_Chi_Minh",
+  "Filters: from 2026-08-01, to 2026-08-31",
 ];
 
 /** The row the first movement lands on: the title, the two stamp lines, the
@@ -111,10 +111,10 @@ describe("a sheet as it is written", () => {
 
     expect(sheet.getRow(1).getCell(1).value).toBe("Cash book — a fixture");
     expect(sheet.getRow(2).getCell(1).value).toBe(
-      "Taken 2026-08-20 17:35 · Asia/Ho_Chi_Minh",
+      "Taken 2026-08-20 17:35, Asia/Ho_Chi_Minh",
     );
     expect(sheet.getRow(3).getCell(1).value).toBe(
-      "Filters: from 2026-08-01 · to 2026-08-31",
+      "Filters: from 2026-08-01, to 2026-08-31",
     );
     // A blank row, then the headers, then the rows.
     expect(sheet.getRow(4).getCell(1).value).toBeNull();
@@ -275,7 +275,7 @@ describe("a proportion in a cell", () => {
       {
         sheetName: "Book",
         title: "Performance — a fixture",
-        stamp: ["Taken 2026-08-20 17:35 · Asia/Ho_Chi_Minh"],
+        stamp: ["Taken 2026-08-20 17:35, Asia/Ho_Chi_Minh"],
         columns: READING_COLUMNS,
         rows: source(),
       },

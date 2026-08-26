@@ -369,10 +369,10 @@ export class ManagementExports {
           ["grouped by", BUCKET_IN_A_FILE[filters.bucket]],
         ]),
         boundaryLine(report.lastClosedBusinessDate),
-        `Range totals over ${report.totals.closedDays} closed days · ` +
-          `room ${report.totals.roomRevenueVnd} · ` +
-          `other ${report.totals.otherRevenueVnd} · ` +
-          `penalties ${report.totals.penaltyRevenueVnd} · ` +
+        `Range totals over ${report.totals.closedDays} closed days, ` +
+          `room ${report.totals.roomRevenueVnd}, ` +
+          `other ${report.totals.otherRevenueVnd}, ` +
+          `penalties ${report.totals.penaltyRevenueVnd}, ` +
           `total ${report.totals.totalVnd} đồng`,
       ],
       columns: REVENUE_COLUMNS,
@@ -409,7 +409,7 @@ export class ManagementExports {
       title: "Room status — where every room stands, counted live",
       stamp: [
         takenLine(takenAt),
-        `Counted ${inPropertyZone(report.takenAt)} · ${report.rooms} rooms · ` +
+        `Counted ${inPropertyZone(report.takenAt)}, ${report.rooms} rooms, ` +
           "a housekeeping status is where a room stands now, so this is a " +
           "count taken at that minute and not a closed day read back",
         boundaryLine(report.lastClosedBusinessDate),
@@ -528,11 +528,11 @@ function rangeTotalsLine(totals: PerformanceTotals): string {
   const held = totals.property;
 
   return (
-    `Range totals over ${totals.closedDays} closed days · ` +
-    `sellable ${held.sellableRooms} · sold ${held.roomsSold} · ` +
-    `net room revenue ${held.netRoomRevenueVnd} đồng · ` +
-    `occupancy ${asPercentage(held.occupancy)} · ` +
-    `ADR ${measured(held.adrVnd)} · RevPAR ${measured(held.revparVnd)}`
+    `Range totals over ${totals.closedDays} closed days, ` +
+    `sellable ${held.sellableRooms}, sold ${held.roomsSold}, ` +
+    `net room revenue ${held.netRoomRevenueVnd} đồng, ` +
+    `occupancy ${asPercentage(held.occupancy)}, ` +
+    `ADR ${measured(held.adrVnd)}, RevPAR ${measured(held.revparVnd)}`
   );
 }
 
@@ -770,7 +770,7 @@ function boundaryLine(lastClosedBusinessDate: string | null): string {
  *  file outlives the session that produced it and every instant in it is that
  *  zone's. */
 function takenLine(takenAt: Date): string {
-  return `Taken ${inPropertyZone(takenAt)} · Asia/Ho_Chi_Minh`;
+  return `Taken ${inPropertyZone(takenAt)}, Asia/Ho_Chi_Minh`;
 }
 
 /**
@@ -790,7 +790,7 @@ function filterLine(
 
   return applied.length === 0
     ? "Filters: none — every row this reader may see"
-    : `Filters: ${applied.join(" · ")}`;
+    : `Filters: ${applied.join(", ")}`;
 }
 
 /**

@@ -106,7 +106,7 @@ export function roomStateLabel(room: BoardRoom): string {
     return CONDITION_LABELS.OUT_OF_ORDER;
   }
 
-  return `${CONDITION_LABELS[room.status]} · ${room.isOccupied ? "Occupied" : "Vacant"}`;
+  return `${CONDITION_LABELS[room.status]}, ${room.isOccupied ? "Occupied" : "Vacant"}`;
 }
 
 /**

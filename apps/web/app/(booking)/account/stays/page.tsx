@@ -19,7 +19,7 @@ import type { Metadata } from "next";
 import { StaysList } from "@/features/account/components/stays-list/stays-list";
 
 export const metadata: Metadata = {
-  title: "Your stays — Mariva",
+  title: "Your stays | Mariva",
   description: "Every stay this account has taken, and the ones still to come.",
 };
 

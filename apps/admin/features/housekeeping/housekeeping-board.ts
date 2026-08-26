@@ -212,8 +212,8 @@ function touchedLabel(room: BoardRoom): string {
   const when = touchedFormatter.format(new Date(room.updatedAt));
 
   return room.updatedBy === null
-    ? `Set by the system · ${when}`
-    : `${room.updatedBy} · ${when}`;
+    ? `Set by the system, ${when}`
+    : `${room.updatedBy}, ${when}`;
 }
 
 /**

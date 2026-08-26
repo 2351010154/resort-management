@@ -188,7 +188,7 @@ export function writeBookingSearch(search: BookingSearch): string {
 }
 
 /**
- * The stay, as the search band says it: "10–12 Aug · 2 nights".
+ * The stay, as the search band says it: "10–12 Aug, 2 nights".
  *
  * Formatted with an explicit property time zone. Never `new Date(iso)` and never
  * a local format of a bare date string — a browser at UTC+9 parsing "2026-08-10"

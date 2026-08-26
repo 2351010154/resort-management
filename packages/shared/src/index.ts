@@ -10,6 +10,7 @@ export * from "./money.js";
 export * from "./occupancy-pricing.js";
 export * from "./payment-refusal.js";
 export * from "./policy-charge.js";
+export * from "./property-clock.js";
 export * from "./rate-calendar.js";
 export * from "./service-catalog.js";
 export * from "./staff-auth.js";

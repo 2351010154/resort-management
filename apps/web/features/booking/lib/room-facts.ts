@@ -22,19 +22,19 @@
 // `room-types.ts`, which cites `property-and-tariff.md` §1.
 
 import { aspectMark } from "./room-icons";
-import type { RoomType } from "./room-types";
+import { ROOM_AMENITIES, type RoomType } from "./room-types";
 
 /**
  * The row's one line of facts: whom it sleeps, how big, what it faces.
  *
- * Middle dots between concrete values, which is the arrival's own shape for
- * this — `design-foundations.md` §6, "68 m² · garden". The extra bed is **not**
+ * Commas between concrete values, which is the arrival's own shape for
+ * this — `design-foundations.md` §6, "68 m², garden". The extra bed is **not**
  * here: it is true of one type of the five, `property-and-tariff.md` §1 makes it
  * free, and the stage states it in one sentence instead of the row hinting at it.
  */
 export function roomFacts(type: RoomType): string {
   const guests = maximumOccupancy(type);
-  return `${guests} · ${type.squareMetres} m² · ${type.aspect}`;
+  return `${guests}, ${type.squareMetres} m², ${type.aspect}`;
 }
 
 /**
@@ -99,4 +99,83 @@ export function markedRoomFacts(type: RoomType): readonly MarkedFact[] {
 /** Heads the type may sleep, spelled — the ceiling `§1` sets, not the bedding. */
 function maximumOccupancy(type: RoomType): string {
   return type.maxOccupancy === 1 ? "1 guest" : `${type.maxOccupancy} guests`;
+}
+
+/**
+ * One amenity as a chip: the glyph, and the words under the property's own name
+ * for it.
+ *
+ * The same slug rule as {@link MarkedFact} — a basename under
+ * `public/images/booking/icons/`, painted as a mask over the colour it inherits.
+ */
+export interface RoomChip {
+  /** Basename under `public/images/booking/icons/`, without the extension. */
+  readonly icon: string;
+  /** What is in the room, in the property file's words. */
+  readonly label: string;
+}
+
+/**
+ * The five amenities the review screen shows, and the outlook beside them.
+ *
+ * **Every label is read out of `ROOM_AMENITIES` rather than written here**, and
+ * {@link amenity} is what makes that a fact rather than a hope: it looks the
+ * wording up in the property's own list and throws if it has gone. A chip
+ * reading "Minibar" over a property file that lists no minibar is exactly the
+ * invented hotel fact `design-foundations.md` §6 forbids, and the way that gets
+ * shipped is somebody typing the six labels straight into a component.
+ *
+ * **Five of twelve, and the outlook sixth.** The full list is what is in every
+ * room and reads as twelve lines of small print; these are the five a guest one
+ * press from paying still checks for, which is why the room step prints all
+ * twelve and this prints a sixth of them. The outlook is not an amenity at all —
+ * it is the one line here that differs between the five types — so it comes off
+ * the type and takes the eye rather than a window glyph, which the facts grid
+ * above is already using for the same fact.
+ */
+export function roomChips(type: RoomType): readonly RoomChip[] {
+  return [
+    { icon: "snowflake", label: amenity("Air conditioning") },
+    { icon: "wifi", label: amenity("Wi-Fi") },
+    { icon: "cup", label: amenity("Kettle, tea and coffee") },
+    { icon: "shower", label: amenity("Rain shower") },
+    { icon: "lock", label: amenity("In-room safe") },
+    { icon: "eye", label: outlook(type) },
+  ];
+}
+
+/**
+ * What the room looks on to, as the first word of a line rather than as a word
+ * inside a sentence.
+ *
+ * **Sentence case and nothing else, which is why it is not "View to courtyard".**
+ * `property-and-tariff.md` §1 writes four of the five outlooks as one word and
+ * the fifth as "corner, two aspects", and every phrasing that reads well over
+ * the four — "courtyard view", "view to courtyard" — reads as a fault over the
+ * fifth. The glyph beside it is an eye, which says what kind of fact this is
+ * without the label having to carry a preposition it cannot.
+ *
+ * Cased here rather than by `::first-letter` — the facts grid's own answer to
+ * the same question — because a chip is an inline flex box with a mark in it,
+ * and the first letter of one of those is not the first letter of its words.
+ */
+function outlook(type: RoomType): string {
+  return type.aspect.charAt(0).toUpperCase() + type.aspect.slice(1);
+}
+
+/**
+ * The property's own wording for one amenity, or a throw where it has gone.
+ *
+ * Loud rather than quiet on purpose. The failure this guards is an edit to
+ * `property-and-tariff.md` §1 that renames or drops a line, and the two ways of
+ * absorbing that — printing the label anyway, or dropping the chip — both end
+ * with a booking screen quietly disagreeing with the property file. A room step
+ * that will not render is a fault somebody fixes.
+ */
+function amenity(label: string): string {
+  if (!ROOM_AMENITIES.includes(label)) {
+    throw new Error(`no such amenity in the property file: ${label}`);
+  }
+
+  return label;
 }

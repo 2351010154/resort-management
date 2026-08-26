@@ -1,29 +1,96 @@
-/* `/account` — the profile and the two credential forms under it.
+/* `/account` — the profile, the credentials under it, and the membership rail.
  *
- * The field, the button and the two message treatments are
- * `auth-shell.module.css`'s: the guest realm's forms all look like this, and a
- * profile that boxed its inputs while the login screen underlined them would be
- * two design systems one press apart. What is new here is the definition list of
- * facts a guest cannot change, and the rule that separates one section from the
- * next.
+ * **The plate variables are not declared here.** `account-shell.module.css`
+ * sets `--plate-radius`, `--row-radius`, `--plate-edge`, `--plate-lift`,
+ * `--plate-pad`, `--rail-pad` and `--plate-seam` on `.screen`, and everything
+ * this file draws is inside it. Re-declaring them would be a second copy to
+ * keep level with the funnel's, which is the drift the shell's own comment
+ * exists to prevent — so every plate below reads them out of the cascade.
+ *
+ * **The screen is plates now, not rules.** What used to be four sections
+ * separated by hairlines is three ivory plates on the shell's warm ground plus
+ * a rail beside them, which is the arrangement
+ * `features/booking/components/details-screen/details-screen.module.css`
+ * already sets the funnel's review screen to. A guest crossing from the funnel
+ * to their profile should not meet a second card language one press apart.
+ *
+ * The field, the button and the two message treatments stay
+ * `auth-shell.module.css`'s: the guest realm's forms all underline their inputs,
+ * and a profile that boxed them while the login screen underlined them would be
+ * two design systems one press apart in the other direction.
  *
  * Everything reads from @mariva/tokens — design-foundations.md §2. Motion is CSS
  * only, on the permitted properties, at 0.4s on --ease-ui: §5.
  */
 
-/* What the guest cannot change, above what they can. A definition list because
-   that is what it is: four labelled facts, not a table and not a paragraph. */
-.facts {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: var(--space-1) var(--space-2);
-  margin: var(--space-1) 0 0;
-  padding: var(--space-2) 0;
-  border-top: 1px solid rgb(var(--umber-rgb) / 0.15);
-  border-bottom: 1px solid rgb(var(--umber-rgb) / 0.15);
+/* ---- Plates -------------------------------------------------------------- */
+
+/* The funnel's plate, drawn from the shell's variables. The stack inside it is
+   a column because every plate here is a title over a run of things, and the
+   gap is what used to be the space either side of a section rule. */
+.plate {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--plate-pad);
+  background: var(--ivory);
+  border: var(--plate-edge);
+  border-radius: var(--plate-radius);
+  box-shadow: var(--plate-lift);
 }
 
-.factLabel {
+/* The section title, now owned by a plate rather than announced by a rule
+   above it — reference 2's stacked labelled cards.
+ *
+ * Amber rather than stone. Three plates stacked down one column need a mark
+ * that says "a new thing starts here" from the corner of the eye, and a caps
+ * label in the same neutral as the prose under it does not carry that far. This
+ * is the rung of the accent that can be read on ivory — 5.1:1, where the light
+ * one measures 2.7:1 and would fail a 12px label. */
+.plateTitle {
+  color: var(--dusk-amber-ink);
+  font-weight: 500;
+}
+
+/* ---- Label/value rows ---------------------------------------------------- */
+
+/* What the guest cannot change, stated beside the thing it qualifies rather
+   than gathered into one list at the top. A definition list because that is
+   what it is: labelled facts, not a table and not a paragraph.
+ *
+ * Every row is ruled underneath and none is ruled above, so that a plate's
+ * stated facts and its credential disclosures stack into one ledger of rows —
+ * `.disclosures` below is ruled the same way and the two are meant to meet
+ * seamlessly. The plate's title is left standing free above the first row: a
+ * rule between a heading and the thing it heads separates them, and they are
+ * the one pair on the plate that belongs together. */
+.rows {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Label in a column of its own, value beginning where every other value on the
+   plate begins. Ranged right the values would each start at a different place
+   and the column would only exist where two rows happened to be the same
+   length. The basis is a basis and not a track, so a narrow screen wraps the
+   value under its label instead of squeezing it. */
+.row {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  min-height: 2.75rem;
+  padding: var(--space-1) 0;
+  border-bottom: var(--plate-seam);
+}
+
+/* A floor rather than a fixed track. Every label short enough to sit inside it
+   takes it exactly, so the values on a plate line up under one another; the one
+   label longer than it takes the width it needs, instead of breaking across two
+   lines beside a value that then reads as answering only half of it. */
+.rowLabel {
+  flex: 0 0 auto;
+  min-width: 9.5rem;
   font-family: var(--font-ui), sans-serif;
   font-size: var(--text-xs);
   letter-spacing: var(--tracking-caps);
@@ -31,45 +98,40 @@
   color: var(--stone-deep);
 }
 
-.factValue {
+/* Tabular so a masked document number and an address do not shift the baseline
+   they sit on. Not under `.font-display`, so `tabular-nums` alone is correct
+   here — see `.pointsFigure` for the case where it is not. */
+.rowValue {
+  flex: 1 1 10rem;
   font-size: var(--text-sm);
   color: var(--ink);
   font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
 }
 
-/* The sentence that keeps the two derived figures from reading as a balance. */
-.aside {
-  font-size: var(--text-xs);
-  line-height: 1.6;
-  color: var(--stone);
-  max-width: 34rem;
-}
-
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin-top: var(--space-3);
-  padding-top: var(--space-3);
-  border-top: 1px solid rgb(var(--umber-rgb) / 0.15);
-}
-
-.sectionTitle {
-  color: var(--stone-deep);
-}
-
-.subheading {
-  font-size: var(--text-sm);
-  font-weight: 400;
-  color: var(--ink);
-}
+/* ---- Forms --------------------------------------------------------------- */
 
 .form {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  margin-top: var(--space-2);
   max-width: 27rem;
+}
+
+/* The profile's four facts are a compact pair of pairs at a desktop measure.
+   The credential disclosures keep the narrower single-column form above: they
+   are occasional, sequential jobs, while these four fields are one record. */
+/* The two gaps are deliberately different sizes, and the column one is the
+   larger. Down the column a gap separates two fields; across it, a gap has to
+   separate two *pairs* — and a label reads as belonging to the box on its left
+   unless the channel between the pairs is wider than the one between a label
+   and its own box. */
+.detailsForm {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: calc(var(--space-3) + var(--space-2));
+  row-gap: calc(var(--space-2) + var(--space-1));
+  max-width: none;
 }
 
 .field {
@@ -88,7 +150,8 @@
 }
 
 /* An underline rather than a box — `auth-shell.module.css` argues it, and the
-   guest realm's other forms are set this way. */
+   guest realm's other forms are set this way. The plate around it is the frame;
+   a boxed input inside a plate would be a box inside a box. */
 .input {
   width: 100%;
   padding: 0.75rem 0;
@@ -105,7 +168,7 @@
 }
 
 .input::placeholder {
-  color: rgb(var(--umber-rgb) / 0.35);
+  color: var(--stone-deep);
 }
 
 .input:focus {
@@ -114,27 +177,41 @@
 }
 
 .input:focus-visible {
-  outline: 2px solid var(--dusk-amber);
+  outline: 2px solid var(--dusk-amber-ink);
   outline-offset: 4px;
 }
 
+.input:disabled {
+  cursor: wait;
+  color: var(--stone-deep);
+}
+
+/* Prose that qualifies the thing above it, inside the plate that holds that
+   thing — the placement change the redesign is really about. */
 .hint {
   font-size: var(--text-xs);
   line-height: 1.6;
-  color: var(--stone);
+  color: var(--stone-deep);
+  max-width: 34rem;
 }
 
+/* A squarer corner than the plates around it. The plate's 0.75rem is a sheet of
+   paper's cut corner; a control set on that sheet is a stamped block, and at
+   this size the plate's own radius would round it almost to a pill. */
 .submit {
   align-self: flex-start;
+  min-height: 2.75rem;
   padding: 0.9rem var(--space-3);
   color: var(--ivory);
   background: var(--umber);
   border: 1px solid var(--umber);
+  border-radius: 0.25rem;
   cursor: pointer;
   transition:
     background-color 0.4s var(--ease-ui),
     color 0.4s var(--ease-ui),
-    border-color 0.4s var(--ease-ui);
+    border-color 0.4s var(--ease-ui),
+    transform 0.1s var(--ease-ui);
 }
 
 .submit:hover:not(:disabled) {
@@ -148,6 +225,638 @@
   background: var(--stone);
   border-color: var(--stone);
 }
+
+.submit:focus-visible {
+  outline: 2px solid var(--dusk-amber-ink);
+  outline-offset: 2px;
+}
+
+.submit:active:not(:disabled) {
+  transform: translateY(2px);
+}
+
+/* ---- The credential disclosures ------------------------------------------ */
+
+/* Two forms that were always open, closed. Reference 2's accordion rows, and
+   the one pattern in the reference set this screen needed most: a guest reaches
+   `/account` to correct a phone number far more often than to change a
+   password, and two full credential forms standing open under the profile made
+   the common errand scroll past the rare one.
+   *
+   * Native `<details>`, so the open state is the browser's — no JavaScript, no
+   * component state to keep, and the disclosure still works if the bundle never
+   * arrives. */
+.disclosures {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Ruled underneath, like `.row`, so the credential rows and the stated rows
+   read as one run of rows wherever the two meet. */
+.disclosure {
+  border-bottom: var(--plate-seam);
+}
+
+/* `list-style` and the WebKit pseudo-element between them remove the triangle
+   the browser draws, because the mark below is the one this screen draws. */
+.summary {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  min-height: 2.75rem; /* 44px — the tap floor the account bar is set to. */
+  padding: var(--space-1) 0;
+  font-size: var(--text-sm);
+  color: var(--ink);
+  cursor: pointer;
+  list-style: none;
+  transition: color 0.4s var(--ease-ui);
+}
+
+/* A credential row is a stated row that happens to open. It is set on `.row`'s
+   own columns so that the address the account answers to and the document the
+   property holds line up down the screen — what a guest can change and what
+   they cannot should not be told apart by where the value starts. */
+.summaryLabel {
+  flex: 0 0 auto;
+  min-width: 9.5rem;
+  font-family: var(--font-ui), sans-serif;
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--stone-deep);
+}
+
+.summaryValue {
+  flex: 1 1 10rem;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+/* Visually hidden, not `display: none` — `details-screen.module.css`'s reason
+   for the same treatment: the row still has to say what it holds in the
+   accessibility tree, and `display: none` takes it out of that tree. It stands
+   in for the dots beside it, which read aloud as ten bullets and nothing
+   else. */
+.summaryStatus {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.summary::-webkit-details-marker {
+  display: none;
+}
+
+.summary:hover {
+  color: var(--umber);
+}
+
+.summary:focus-visible {
+  outline: 2px solid var(--dusk-amber-ink);
+  outline-offset: 4px;
+}
+
+.summary:active {
+  color: var(--dusk-amber-ink);
+}
+
+/* A chevron, drawn rather than fetched: two borders of a square, turned 45°.
+   `apps/web` ships no icon set for the guest realm and the arrival is
+   deliberately typographic, so a mark this small is cheaper as a corner than as
+   a file. */
+.chevronMark {
+  width: 0.4375rem;
+  height: 0.4375rem;
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--stone-deep);
+  /* Nudged by half its own drop so the turned square reads as centred on the
+     row rather than sitting low in it. */
+  margin-bottom: 0.09375rem;
+  border-right: 1px solid currentcolor;
+  border-bottom: 1px solid currentcolor;
+  transform: rotate(-45deg);
+  transition: transform 0.4s var(--ease-ui);
+}
+
+/* The mark darkens with the row it sits on. After `.chevronMark` rather than
+   beside `.summary:hover`, so the qualified selector follows the class it
+   qualifies. */
+.summary:hover .chevronMark {
+  color: var(--umber);
+}
+
+/* Closed the point lies along the row, at the thing the row leads to; open it
+   turns down, at the form it has just put there. The same 90° either way, so
+   the mark travels the shorter arc back when it closes. */
+.disclosure[open] .chevronMark {
+  margin-bottom: 0.1875rem;
+  transform: rotate(45deg);
+}
+
+/* The form inside a disclosure sits under the row that opened it, indented by
+   nothing — an indent here would set the fields off the plate's own left edge,
+   which is the line every label above them is read against. */
+.disclosurePanel {
+  padding-bottom: var(--space-2);
+}
+
+/* ---- The account ledger -------------------------------------------------- */
+
+/* Neither outlined nor filled — the ledger has no box at all. It is the one
+   column on the screen that is neither worked on nor stated back, the house
+   talking quietly beside both, and the quietest way to say so is to leave it
+   standing on the ground with one rule closing its outer edge.
+ *
+ * An outline here would make it a third plate; a wash would put it in the
+ * form's own register and the screen would read as three stacks of cards. What
+ * is left is type on the wall, which is what an aside is.
+ *
+ * `flex: 1` takes the height the shell's ledger column offers, so the rule runs
+ * the full depth of the row however far the three sections below happen to
+ * reach — an edge that stopped where the last link does would read as a column
+ * that ran out rather than as one that closes. The padding is what holds the
+ * rule off the words: the grid's gap alone would set it halfway to the form,
+ * where it divides the page instead of closing the aside. */
+.ledger {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  padding-right: var(--space-2);
+  color: var(--ink);
+  border-right: var(--page-hairline);
+}
+
+/* No horizontal padding: with the box gone, the ledger's words are read against
+   the same left edge as the title and the subtitle above them, and anything
+   inset from it would look like a mistake rather than a margin.
+ *
+ * **The vertical rhythm is a ladder, and it has to climb past the line spacing
+ * inside the text.** This column is set at 12px on 1.6, so two lines of one
+ * paragraph already stand about 19px apart. Anything separating two *different*
+ * things by less than that is read as closer than the halves of a single
+ * sentence, and the eye stops finding edges — which is what a column of
+ * uniformly-spaced small type does to a reader.
+ *
+ * So the four distances are distinct and each is larger than the one it
+ * contains: about 2px inside a pair, 16px between siblings, 24px under a title,
+ * and 48px between sections — 24 either side of a seam that is already drawing
+ * the break, which is why this one does not have to carry it alone. */
+.ledgerSection {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-2);
+  padding-block: 1.5rem;
+}
+
+.ledgerSection:first-child {
+  padding-top: 0;
+}
+
+.ledgerSection + .ledgerSection {
+  border-top: var(--plate-seam);
+}
+
+.ledgerTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  margin-bottom: var(--space-1);
+  color: var(--umber);
+}
+
+/* One amber rule, on the first title only. It opens the column — the mark that
+   says this whole side is an aside — and repeating it on each of the three
+   would turn a single opening gesture into a bullet the sections share. */
+.ledgerSection:first-child .ledgerTitle::before {
+  content: "";
+  width: 1.125rem;
+  height: 1px;
+  flex: 0 0 auto;
+  background: var(--dusk-amber);
+}
+
+/* A band rather than a picture. It stands at the head of a narrow column of
+   type, and a 5:3 box there is tall enough to read as the column's subject
+   instead of as the mark above it. The crop is vertical — `object-fit: cover`
+   fills the width first — so the fluting at the asset's right edge, which is
+   the reason it is this asset, survives it. */
+.ledgerImage {
+  position: relative;
+  aspect-ratio: 12 / 5;
+  overflow: hidden;
+  border-radius: var(--row-radius);
+  background: var(--sand);
+}
+
+/* Unfiltered. The grade that used to be here was correcting a photograph onto
+   the palette; a swatch of the property's own stone is already on it, and the
+   same grade applied to it only takes the light out. */
+.ledgerImage img {
+  object-fit: cover;
+}
+
+/* The tier's three perks. Marks rather than bullets, because each line is a
+   different kind of thing the property does and a run of identical dots would
+   say only that there are three of them. Drawn as inline SVG for the reason
+   `.chevronMark` is drawn as a turned corner: the guest realm ships no icon
+   set, and three marks used once are cheaper here than a font is anywhere. */
+.benefits {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Two cells, and the term and its note are both inside the second one — which
+   is what keeps a perk reading as one thing while the gap above widens. The
+   pair is held together by nothing but the line spacing they share, and that is
+   the tightest distance in the column on purpose. */
+.benefit {
+  display: grid;
+  grid-template-columns: 1.125rem minmax(0, 1fr);
+  align-items: start;
+  gap: 0.75rem;
+}
+
+/* Nudged down by the difference between the mark's box and the cap height of
+   the line beside it, so the two read as sitting on one line. */
+.benefitMark {
+  width: 1.125rem;
+  height: 1.125rem;
+  margin-top: 0.0625rem;
+  color: var(--dusk-amber-ink);
+}
+
+.benefitTerm {
+  color: var(--umber);
+}
+
+.benefitNote {
+  color: var(--stone-deep);
+}
+
+/* What the property will actually do about the three lines above, said once
+   under them rather than three times inside them. */
+.ledgerNote {
+  margin-top: var(--space-1);
+  color: var(--stone-deep);
+}
+
+.benefitTerm,
+.benefitNote,
+.ledgerNote,
+.ledgerName,
+.ledgerCopy,
+.ledgerStayLink {
+  font-size: var(--text-xs);
+  line-height: 1.6;
+}
+
+/* A name and what it is, which is one fact in two lines. The section's own gap
+   would set them as far apart as two different things, so they are wrapped and
+   held at the pair distance — the same one the term and note of a perk share. */
+.ledgerPair {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.ledgerName {
+  color: var(--umber);
+}
+
+.ledgerCopy {
+  overflow-wrap: anywhere;
+  color: var(--stone-deep);
+}
+
+.ledgerLink,
+.ledgerStayLink {
+  min-height: 2.75rem;
+  color: var(--umber);
+  transition:
+    color 0.25s var(--ease-ui),
+    transform 0.1s var(--ease-ui);
+}
+
+/* The underline is on the label and not on the link, so the arrow beside it is
+   not dragged through a rule it has nothing to do with. */
+.ledgerLink {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: fit-content;
+}
+
+.ledgerLinkLabel {
+  text-decoration: underline;
+  text-underline-offset: 0.25rem;
+}
+
+/* The timeline is indented far enough for the dot to sit outside the words
+   rather than in the space before them. `--stay-gutter` is that indent, named
+   once because the dot is placed by its negative and the two must not drift. */
+.ledgerStays {
+  --stay-gutter: 1.5rem;
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  /* Wider than the sibling distance elsewhere in the column, because a stay is
+     three lines and not two: at 16px the space between two entries would be
+     barely more than the space between the month and the room inside one, and
+     the dots would be doing all the grouping on their own. */
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0 0 0 var(--stay-gutter);
+  list-style: none;
+}
+
+.ledgerStays::before {
+  content: "";
+  position: absolute;
+  top: var(--space-1);
+  bottom: var(--space-1);
+  left: 0.25rem;
+  width: 1px;
+  background: rgb(var(--umber-rgb) / 0.25);
+}
+
+.ledgerStay {
+  position: relative;
+}
+
+/* Centred on the cap of the month beside it rather than on its line box, which
+   at 1.6 sits the mark visibly low. */
+.ledgerStay::before {
+  content: "";
+  position: absolute;
+  top: 0.375rem;
+  left: calc(-1 * var(--stay-gutter));
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: var(--stone-deep);
+}
+
+.ledgerStayLink {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.ledgerStayLink time {
+  font-variant-numeric: tabular-nums;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+}
+
+.ledgerStayLink span {
+  color: var(--stone-deep);
+}
+
+.ledgerStayLink strong {
+  font-weight: 400;
+}
+
+.ledgerLink:hover,
+.ledgerStayLink:hover {
+  color: var(--dusk-amber-ink);
+}
+
+.ledgerLink:focus-visible,
+.ledgerStayLink:focus-visible {
+  outline: 2px solid var(--dusk-amber-ink);
+  outline-offset: 4px;
+}
+
+.ledgerLink:active,
+.ledgerStayLink:active {
+  transform: translateY(2px);
+}
+
+/* ---- The membership rail ------------------------------------------------- */
+
+/* The same ivory plate as the three beside it, and the reason is what the
+   column is for. Membership is not a fourth thing on this screen — it is the
+   property's answer to the record the guest is editing, and it has to be read
+   in the same breath as the record. Given its own ground it stopped being the
+   answer and became an advertisement standing next to the form.
+ *
+ * It is not sticky either, and that follows from the same change. The column is
+ * stretched to the row's full height by `account-shell.module.css`, so the
+ * plate already reaches the foot of what the guest is editing; a sticky element
+ * as tall as its own scroll container has nothing left to do but complicate the
+ * two rails' idea of where the top of the page is. */
+.railPlate {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-2);
+  overflow: hidden;
+  padding: var(--rail-pad);
+  background: var(--ivory);
+  border: var(--plate-edge);
+  border-radius: var(--plate-radius);
+  box-shadow: var(--plate-lift);
+}
+
+/* The house mark is atmosphere, not another label. It sits behind the content,
+   inside the plate rather than cropped by it: on a dark ground a mark bled off
+   the corner reads as light catching an edge, and on ivory the same crop reads
+   as a picture that did not fit. */
+.railMonogram {
+  position: absolute;
+  z-index: -1;
+  top: var(--space-1);
+  right: var(--rail-pad);
+  width: 5rem;
+  height: 5rem;
+  background: rgb(var(--dusk-amber-rgb) / 0.25);
+  mask: url("/brand/mariva-monogram.svg") center / contain no-repeat;
+  -webkit-mask: url("/brand/mariva-monogram.svg") center / contain no-repeat;
+}
+
+.railTitle {
+  color: var(--dusk-amber-ink);
+}
+
+.railIdentity {
+  position: relative;
+  padding: var(--space-1) 0 var(--space-2);
+  border-bottom: var(--plate-seam);
+}
+
+.guestName {
+  max-width: 12ch;
+  font-size: clamp(1.625rem, 1.9vw, 2rem);
+  font-weight: 300;
+  line-height: 1.04;
+  text-wrap: balance;
+}
+
+.memberSince {
+  margin-top: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--stone-deep);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Stacked, not paired. The two figures are read one after the other — a tier,
+   and then what has been earned inside it — and set side by side in a 17.5rem
+   column each got about seven characters of width, which is a table of two
+   cells pretending to be a summary. */
+.membershipGrid {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.membershipItem {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+
+/* The tier as a stated figure, set like the points balance under it.
+ *
+ * It used to be a tinted chip on a dark plate, where a wash was the only way to
+ * tell three rungs apart without spending an outline on each. On ivory the chip
+ * became the loudest object in the column — a filled control beside a form
+ * whose own controls are underlines — and it was not a control at all: nothing
+ * here can be pressed, and the tier is derived from a history no route can
+ * write. So it is set as what it is: a fact, in the face the property states
+ * its facts in.
+ *
+ * Gold keeps a colour, and that is the whole ladder now. Two rungs read in the
+ * house's umber and the top one in amber, which is enough to mark an
+ * achievement without printing a badge for the two rungs that are not one. The
+ * readable rung of the accent, not the light one: `--dusk-amber` on `--ivory`
+ * measures 2.7:1 and this is the same hue that clears 4.5:1. */
+.tier {
+  color: var(--umber);
+  font-size: clamp(1.25rem, 1.32vw, 1.375rem);
+  font-weight: 300;
+  line-height: 1.15;
+}
+
+.tier[data-tier="GOLD"] {
+  color: var(--dusk-amber-ink);
+}
+
+.pointsTerm {
+  font-family: var(--font-ui), sans-serif;
+  font-size: var(--text-xs);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--stone-deep);
+}
+
+/* The one number on this screen worth a display size, at the step
+   `.totalFigure` spends on the funnel's total.
+   *
+   * `lining-nums` is repeated rather than inherited from `.font-display`:
+   * `font-variant-numeric` is one property, so naming `tabular-nums` alone
+   * would replace the inherited lining correction and hand Cormorant's oldstyle
+   * figures back — a points balance whose 3s, 5s, 7s and 9s hang below the
+   * line. */
+.pointsFigure {
+  font-size: clamp(1.75rem, 2vw, 2.125rem);
+  font-weight: 300;
+  line-height: 1.15;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+/* The sentence that keeps the two derived figures from reading as a balance. */
+.railNote {
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--stone-deep);
+}
+
+/* Directly under the note it follows, and not pushed to the plate's foot. The
+   column is stretched to the height of the form beside it, so `margin-top:
+   auto` would send this line down to sit level with the bottom of a plate it
+   has nothing to do with, across a gap of nothing. What is under it is the
+   plate's own quiet, which is the right amount of ceremony for the last line in
+   an aside. */
+.railLink {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 2.75rem;
+  padding-top: var(--space-2);
+  color: var(--umber);
+  border-top: var(--plate-seam);
+  transition:
+    color 0.4s var(--ease-ui),
+    transform 0.1s var(--ease-ui);
+}
+
+.railLink:hover {
+  color: var(--dusk-amber-ink);
+}
+
+.railLink:focus-visible {
+  outline: 2px solid var(--dusk-amber-ink);
+  outline-offset: 4px;
+}
+
+.railLink:active {
+  transform: translateY(2px);
+}
+
+/* The arrow is authored from two rules because the guest realm has no icon
+   library; it extends by one quiet step when the action is approached.
+ *
+ * One class for both places that need it — the three ledger links and the rail's
+ * own — because they are the same gesture at the same size and a second copy
+ * would be a second thing to keep level. It is named for the mark rather than
+ * for either caller for exactly that reason. */
+.arrow {
+  position: relative;
+  width: 1.25rem;
+  height: 0.5rem;
+  flex: 0 0 auto;
+  border-bottom: 1px solid currentcolor;
+  clip-path: inset(0 0 0 30%);
+  transition: clip-path 0.4s var(--ease-ui);
+}
+
+.arrow::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  width: 0.4rem;
+  height: 0.4rem;
+  border-right: 1px solid currentcolor;
+  border-bottom: 1px solid currentcolor;
+  transform: rotate(-45deg);
+  transform-origin: right bottom;
+}
+
+.railLink:hover .arrow,
+.ledgerLink:hover .arrow {
+  clip-path: inset(0);
+}
+
+/* ---- Messages and footnotes ---------------------------------------------- */
 
 /* Announced when it arrives, because it arrives after a round trip. */
 .notice {
@@ -164,8 +873,18 @@
   color: var(--umber);
 }
 
+/* Everything in the details grid that is not one of the four fields runs the
+   full width. Stated after the four rules above rather than beside `.detailsForm`
+   so a selector never precedes the class it qualifies — the order the cascade
+   reads, not the order the layout was written in. */
+.detailsForm > .hint,
+.detailsForm > .notice,
+.detailsForm > .error,
+.detailsForm > .submit {
+  grid-column: 1 / -1;
+}
+
 .footnote {
-  margin-top: var(--space-3);
   font-size: var(--text-sm);
   color: var(--stone-deep);
 }
@@ -179,3 +898,57 @@
 .footnoteLink:hover {
   border-bottom-color: var(--umber);
 }
+
+.footnoteLink:focus-visible {
+  outline: 2px solid var(--dusk-amber-ink);
+  outline-offset: 4px;
+}
+
+.footnoteLink:active {
+  color: var(--dusk-amber-ink);
+}
+
+@media (max-width: 36rem) {
+  .ledgerImage {
+    display: none;
+  }
+
+  .detailsForm {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .detailsForm > .hint,
+  .detailsForm > .notice,
+  .detailsForm > .error,
+  .detailsForm > .submit {
+    grid-column: 1;
+  }
+
+  .membershipGrid {
+    flex-direction: row;
+    gap: var(--space-3);
+  }
+
+  .membershipItem {
+    flex: 1 1 0;
+  }
+}
+
+/* Stacked, the ledger has the content under it rather than beside it, so its
+   outer rule has nothing left to divide — and it is as wide as the screen, so a
+   band drawn to a ratio chosen for a 13rem column becomes a mural at 60rem. It
+   keeps the ratio and loses the width. */
+@media (max-width: 68rem) {
+  .ledger {
+    padding-right: 0;
+    border-right: 0;
+  }
+
+  .ledgerImage {
+    max-width: 20rem;
+  }
+}
+
+/* §9. The chevron is the only thing on this screen that moves, and the global
+   kill-switch in `globals.css` already collapses its transition. Nothing here
+   animates position or size, so there is no second exception to make. */

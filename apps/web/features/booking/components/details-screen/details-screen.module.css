@@ -1,4 +1,4 @@
-/* The review screen: two plates and a summary that stays put.
+/* The review screen: two plates, a summary that stays put, and the money under it.
  *
  * Everything reads from @mariva/tokens — design-foundations.md §2. Motion is CSS
  * only, on the permitted properties, at 0.4s on --ease-ui: §5. Nothing here loads
@@ -15,10 +15,54 @@
  * --ivory-warm is the wall and --ivory is the thing set down on it. A hairline
  * and a low shadow carry the rest, so the plates still read as plates at a
  * contrast where the tone difference does not.
+ *
+ * ---
+ *
+ * **Two things this file used to get wrong, and both were contrast.**
+ *
+ * --dusk-amber is #b48b60, and on --ivory that is 2.7:1. It was carrying the
+ * primary button's label, the only link off the screen, and every focus ring on
+ * it — three uses that WCAG AA scores at 4.5:1, 4.5:1 and 3:1 respectively, and
+ * three that were under it. The accent is a light source in the arrival and
+ * cannot be moved without dimming four scenes, so `tokens.css` grew a second
+ * rung for exactly this ground: --dusk-amber-ink, the same hue at 5.1:1. Amber
+ * that has to be *read* on ivory is that one. Amber that is glow is still the
+ * other, and there is none of it on this screen.
+ *
+ * --stone is 3.6:1 on the same ivory, and it was every 12px caption here: the
+ * fact terms, the summary's labels, the note under the total, the provider
+ * blurbs, and — worst of the five — the line every refusal on the screen lands
+ * in. The palette's own next rung down is --stone-deep at 5.7:1, which is what
+ * they read in now. --stone is kept for exactly one job below, where being
+ * quieter than the value beside it is the whole point: a placeholder, which has
+ * to be tellable from something a guest has actually typed.
+ *
+ * **And one thing it got flat.** Every label and every value on the plate was
+ * one size, one weight and one of two greys apart, so nothing on a dense screen
+ * told the eye where to land. Three sizes two pixels apart — 12, 14 and 16 — are
+ * not three sizes to anyone who is not measuring, and the document is set in
+ * Plex Light, so every word on the screen inherited the one weight there was.
+ * Colour was doing the whole job alone.
+ *
+ * The ramp on `.screen` is the repair, and it separates on all three axes at
+ * once: four steps far enough apart to be told apart at a glance, a weight for
+ * the answer that is not the weight of the question, and the greys the screen
+ * already had. `layout.tsx` loads the Medium for it — the ladder wants a third
+ * rung above Light and Regular, and 300 against 400 alone is a difference a
+ * guest reads as a rendering artefact rather than as emphasis.
+ *
+ * `.caps-label` is still the global class and still owns the transform and the
+ * tracking; what the terms below take back from it is the size, because 12px is
+ * a step of the document's ramp and not of this screen's.
  */
 
 .screen {
-  --funnel-measure: 96.75rem;
+  /* Narrower than the 96.75rem it held, and the type went up as the column came
+     in — the two are one decision. A review screen is read, not scanned: at the
+     old measure the form and the summary ran to the window's edges on a wide
+     monitor, and the eye had to cross the width of a desk to get from a label on
+     the left to the figure that answers it on the right. */
+  --funnel-measure: 94rem;
   --funnel-gutter: var(--page-gutter);
   /* The corner the funnel cuts every ivory box with, and the smaller one for
      what sits inside them. Re-stated here rather than imported for the same
@@ -32,18 +76,51 @@
      than imported: a custom property cannot be shared across modules without a
      global, and a global gutter would be one more thing a screen could not set
      for itself. */
-  --page-gutter: clamp(var(--space-2), 3.7vw, 3.875rem);
+  --page-gutter: clamp(var(--space-2), 6.5vw, 8rem);
   /* The summary column: a third of the measure, and never more than 32rem.
      Fractional through the middle so the two columns keep the comp's two-to-one
      at every laptop width — a fixed 32rem is two thirds of the form beside it at
      1280 and the balance the composition is built on inverts. Capped at the top
-     because what the column holds — a 16:9 frame, four labelled rows and a
-     figure — has a size it wants and does not improve by getting wider on a
-     large monitor. */
-  --aside-width: clamp(20rem, 30vw, 32rem);
+     because what the column holds — a 16:9 frame, a rail and three labelled rows
+     — has a size it wants and does not improve by getting wider on a large
+     monitor. */
+  --aside-width: clamp(19rem, 26vw, 31rem);
+  /* The screen's type ramp. Stated here rather than at each rule, because the
+     flatness was the bug and a ramp that lives in twenty places is a ramp that
+     drifts back into one:
+
+       --detail-term   11px caps, --stone-deep, 400 — the question
+       --detail-note   11px,      --stone-deep, 300 — what qualifies the answer
+       --detail-body   12px,      varies,       300 — prose, and a button's label
+       --detail-value  14px,      --ink,        500 — the answer itself
+
+     A term and the value under it are two sizes, two weights and two greys
+     apart, which is what makes a stack of four of them scannable. The display
+     face carries the three headings and the total, and is left at its Light: it
+     is already separated from everything around it by face and by size, and a
+     heavier Cormorant on this ground reads as a different hotel.
+
+     **The whole ramp came down a step and the measure went out to meet it**,
+     which is one decision and not two. The screen it replaced set 16px prose in
+     a 80rem column and ran to two thousand pixels: a guest checking a total
+     against four facts had to scroll past the figure to reach the fields, and
+     the summary beside them was 39% of the width to hold three labelled rows.
+     At this ramp the review is one window — the room, the details, the money and
+     the press without a scroll on a laptop — which is what a review screen is
+     for. What must not follow the ramp down is anything the guest types: the two
+     inputs state 16px absolutely, for the iOS zoom their own notes argue. */
+  --detail-term: 0.6875rem;
+  --detail-note: 0.6875rem;
+  --detail-body: 0.75rem;
+  --detail-value: 0.875rem;
+
   --plate-pad: clamp(var(--space-2), 3vw, 3rem);
-  --aside-pad: clamp(var(--space-2), 1.8vw, 1.75rem);
+  --aside-pad: clamp(0.875rem, 1.3vw, 1.5rem);
   --plate-edge: 1px solid rgb(var(--umber-rgb) / 0.09);
+  /* Every hairline inside a plate, stated once: the rule under the room's name,
+     the seam above the total, and the rail the two dates hang on. They were
+     three different alphas of the same colour until they were named together. */
+  --hair: rgb(var(--umber-rgb) / 0.15);
   /* Two shadows and neither of them dramatic: the tight one is the plate's own
      contact with the page, the wide one is the air under it. Cast in umber
      rather than in black, because a neutral shadow on a warm ground greys it. */
@@ -56,11 +133,14 @@
   color: var(--ink);
 }
 
+/* The top padding is the bar's own clearance and nothing more. It was a full
+   `--space-3`, which was right when the first plate opened with a 45px heading
+   and is a hole under the rule now that it opens with a 37px one. */
 .frame {
   width: 100%;
   max-width: calc(var(--funnel-measure) + 2 * var(--page-gutter));
   margin-inline: auto;
-  padding: var(--space-3) var(--page-gutter) var(--space-4);
+  padding: var(--space-2) var(--page-gutter) var(--space-4);
 }
 
 /* The one decision the layout makes: what is being agreed to on the left, the
@@ -69,7 +149,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) var(--aside-width);
   align-items: start;
-  gap: var(--space-3);
+  gap: 1.5rem;
 }
 
 /* Tighter than the column gap, and deliberately: the two plates are two parts
@@ -89,21 +169,41 @@
   box-shadow: var(--plate-lift);
 }
 
+/* The glyph beside a value, painted as a mask over the colour it inherits — see
+   `room-facts.ts` for why this is a mask and not an `<img>`. */
+.mark {
+  display: block;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: 0 0 auto;
+  color: var(--dusk-amber-ink);
+  background: currentcolor;
+  mask-image: var(--mark);
+  mask-repeat: no-repeat;
+  mask-size: contain;
+  mask-position: center;
+  -webkit-mask-image: var(--mark);
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  -webkit-mask-position: center;
+}
+
 /* ---- The room, read back ------------------------------------------------- */
 
 /* Not `--text-display-sm`: that step is sized for a screen whose heading is the
    only thing on it, and at this measure it would out-shout the total, which is
    the figure this page exists to show. */
 .title {
-  font-size: clamp(1.9rem, 2.4vw, 2.5rem);
+  font-size: clamp(1.75rem, 1.95vw, 2.35rem);
   font-weight: 300;
   line-height: 1.15;
 }
 
 /* A headline states, a caption qualifies — design-foundations.md §6. */
 .lede {
-  margin-top: 0.375rem;
-  font-size: var(--text-sm);
+  margin-top: 0.5rem;
+  font-size: var(--detail-body);
+  font-weight: 300;
   line-height: 1.6;
   color: var(--stone-deep);
 }
@@ -117,26 +217,30 @@
   gap: var(--space-2);
   margin-top: var(--space-3);
   padding-bottom: 0.625rem;
-  border-bottom: 1px solid rgb(var(--umber-rgb) / 0.15);
+  border-bottom: 1px solid var(--hair);
 }
 
 .roomName {
-  font-size: clamp(1.35rem, 1.7vw, 1.75rem);
+  font-size: clamp(1.3rem, 1.45vw, 1.75rem);
   font-weight: 300;
   line-height: 1.2;
 }
 
 /* Underlined standing, not on hover. It is the only way off this screen that is
    not the browser's back button, and a link a guest has to find by sweeping the
-   pointer over the heading is not offered. */
+   pointer over the heading is not offered.
+
+   --dusk-amber-ink and not --dusk-amber: this is the accent as ink on ivory, and
+   the lighter rung put the one link on the page at 2.7:1. */
 .change {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
   flex: 0 0 auto;
   min-height: 2.75rem; /* 44px — the tap floor the whole funnel is set to. */
-  font-size: var(--text-sm);
-  color: var(--dusk-amber);
+  font-size: var(--detail-note);
+  font-weight: 400;
+  color: var(--dusk-amber-ink);
   border-bottom: 1px solid currentcolor;
   transition: color 0.4s var(--ease-ui);
 }
@@ -146,7 +250,7 @@
 }
 
 .change:focus-visible {
-  outline: 2px solid var(--dusk-amber);
+  outline: 2px solid var(--dusk-amber-ink);
   outline-offset: 4px;
 }
 
@@ -158,14 +262,19 @@
   margin-bottom: 0.0625rem;
 }
 
-/* Four facts, two across. The gap grows with the window because the left column
-   holds "One king bed (1.80 m) · one single bed (1.00 m)" and the right holds
-   "42 m²" — equal tracks with a fixed gutter would leave the second one adrift
-   in its own half. */
+/* Four facts, two across, and the two tracks are deliberately unequal: the left
+   holds "One king bed (1.80 m), one single bed (1.00 m)" and the right holds
+   "42 m²" and one word for the view. Equal halves leave the short pair adrift in
+   the middle of theirs and break the long one over three lines.
+
+   The gap used to carry that job — it grew to 9rem and pulled the right column
+   back toward the left. It cannot any more: the measure came in and the values
+   went up a step, so a gap that wide is now taken out of the line that needs it
+   most. The tracks say it instead, which is what they should have said. */
 .facts {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  column-gap: clamp(var(--space-3), 6vw, 9rem);
+  grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+  column-gap: clamp(var(--space-2), 3vw, 4rem);
   row-gap: var(--space-2);
   margin-top: var(--space-2);
 }
@@ -188,10 +297,12 @@
 /* Value first, then the word for it — `room-facts.ts` argues the order. Not set
    in caps: `text-transform: uppercase` over these prints "42 M²" and "(1.80 M)",
    and the metre is a lower-case symbol that becomes a different unit in capitals.
-   Weight and colour separate the two lines instead. */
+   The term under it takes the caps instead, which is what separates the pair now
+   that it is not doing it on colour alone. */
 .factValue {
-  font-size: var(--text-sm);
-  line-height: 1.45;
+  font-size: var(--detail-value);
+  font-weight: 500;
+  line-height: 1.4;
   color: var(--ink);
 }
 
@@ -205,34 +316,228 @@
   text-transform: uppercase;
 }
 
+/* The transform and the tracking come from `.caps-label` in globals.css. The
+   size does not: the ramp's term step is a point over the document's --text-xs,
+   which a caps run at 0.22em wants in order to stay a label rather than become a
+   smudge. The colour has to clear 4.5:1, and the weight is the ramp's — a shade
+   heavier than the note below it and lighter than the value above. */
 .factTerm {
-  font-size: var(--text-xs);
+  font-size: var(--detail-term);
+  font-weight: 400;
   line-height: 1.4;
-  color: var(--stone);
+  color: var(--stone-deep);
 }
 
-/* A strip rather than a frame. The summary beside it shows the room at 16:9 with
-   a real description; this one is the plate's own footer — enough of the room to
-   place what has just been read, and not a second gallery. */
+/* A strip rather than a frame. The summary beside it shows the room at 16:9;
+   this one is the plate's own footer — a second look at the room, and not a
+   second gallery. `room-images.ts` picks the frame, and it is deliberately not
+   the one the summary is showing. */
 /* `height: auto` is load-bearing and not tidying. Both frames carry `width` and
    `height` attributes so the browser reserves the right box before the bytes
    arrive, and those attributes are presentational hints that set the CSS
    `height` — which outranks nothing here, because nothing else sets it. Left
    alone, the strip below draws 1280px tall and `aspect-ratio` is used to derive
    a width nobody asked for. */
+/* The figure is what carries the corner and the clipping, so the bar over the
+   photograph's foot is cut by the same radius the photograph is and does not
+   need to know what that radius is. */
+.shot {
+  position: relative;
+  margin-top: var(--space-3);
+  overflow: hidden;
+  border-radius: var(--row-radius);
+}
+
 .roomShot {
+  display: block;
   width: 100%;
   height: auto;
-  aspect-ratio: 11 / 2;
-  margin-top: var(--space-3);
+  /* Was 11:2. The strip is taller now because the plate under it is wider: at
+     the old ratio a 60rem column drew a 90px letterbox, and a photograph that
+     short is a texture rather than a look at the room. */
+  aspect-ratio: 29 / 6;
   object-fit: cover;
-  border-radius: var(--row-radius);
+}
+
+/* What the bar stands on. `--night` and not black: a neutral wash over a warm
+   photograph greys it, which is the same argument the plate's shadows make. */
+.shotScrim {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 76%;
+  /* Three stops and not two. A straight fade is dark enough at the very bottom
+     edge and not under the type, which sits a line above it — and the frame
+     where that shows is the one with a lit lamp behind the button. The wash has
+     to hold for every frame in the gallery, not for the one that was open when
+     it was drawn. */
+  background: linear-gradient(
+    to top,
+    rgb(var(--night-rgb) / 0.88),
+    rgb(var(--night-rgb) / 0.55) 42%,
+    transparent
+  );
+  pointer-events: none;
+}
+
+.shotBar {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem var(--space-2);
+  padding: 0.75rem 1rem;
+  color: var(--ivory);
+}
+
+.shotWhere {
+  display: flex;
+  align-items: baseline;
+  gap: 0.875rem;
+  min-width: 0;
+}
+
+/* Which frame of how many, zero-padded, so the pair keeps its width as the walk
+   crosses ten and the name beside it does not step sideways. */
+.shotCount {
+  font-size: var(--detail-note);
+  font-weight: 400;
+  color: rgb(var(--ivory-rgb) / 0.66);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.shotName {
+  font-size: var(--detail-body);
+  font-weight: 500;
+  color: var(--ivory);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shotAside {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 0 0 auto;
+}
+
+/* The size again, over the picture it is the size of. Not a repetition of the
+   fact above so much as a caption on the frame — it is what a guest reads when
+   they are looking at the room rather than at the list of what is true of it. */
+.shotSize {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: var(--detail-note);
+  font-weight: 400;
+  color: rgb(var(--ivory-rgb) / 0.9);
+}
+
+/* The way into the rest of the frames. Outlined rather than filled: it stands on
+   a photograph, and a solid ground here would be a second plate floating over
+   the room. */
+.shotOpen {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4375rem 0.75rem;
+  font: inherit;
+  font-size: var(--detail-note);
+  font-weight: 400;
+  color: var(--ivory);
+  /* Its own ground as well as the wash under it. The wash is a gradient over a
+     photograph nobody has seen, and the one element on the bar that has to be
+     read as a control rather than as a caption cannot be left to it. */
+  background: rgb(var(--night-rgb) / 0.32);
+  border: 1px solid rgb(var(--ivory-rgb) / 0.42);
+  border-radius: 0.375rem;
+  cursor: pointer;
+  transition:
+    background-color 0.4s var(--ease-ui),
+    border-color 0.4s var(--ease-ui);
+}
+
+.shotOpen:hover {
+  background: rgb(var(--night-rgb) / 0.62);
+  border-color: rgb(var(--ivory-rgb) / 0.7);
+}
+
+.shotOpen:focus-visible {
+  outline: 2px solid var(--ivory);
+  outline-offset: 2px;
+}
+
+/* Every mark inside the bar takes the ivory it is standing in rather than the
+   accent `.mark` defaults to, and sits at the size of the words beside it. */
+.shotBar .mark {
+  width: 0.875rem;
+  height: 0.875rem;
+  color: inherit;
+}
+
+/* ---- What is in the room ------------------------------------------------- */
+
+/* Six of the twelve things `property-and-tariff.md` §1 puts in every room, drawn
+   as chips rather than as a list under a heading. The heading is the difference:
+   a labelled list here would be a third section on a plate that already has the
+   four facts and the photograph, and these are not a section — they are the
+   small print a guest sweeps rather than reads. */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.875rem;
+  list-style: none;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1 1 auto;
+  justify-content: center;
+  padding: 0.5rem 0.75rem;
+  font-size: var(--detail-note);
+  font-weight: 400;
+  color: var(--stone-deep);
+  background: rgb(var(--umber-rgb) / 0.045);
+  border-radius: 0.375rem;
+  white-space: nowrap;
+}
+
+.chip .mark {
+  width: 0.9375rem;
+  height: 0.9375rem;
+}
+
+/* The one line on the plate that is a disclaimer, and it is set like one: the
+   quietest tone the ramp has, under the photographs it is about. */
+.caveat {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  font-size: var(--detail-note);
+  font-weight: 300;
+  line-height: 1.5;
+  color: var(--stone);
+}
+
+.caveat .mark {
+  width: 0.875rem;
+  height: 0.875rem;
+  flex: 0 0 auto;
+  color: var(--stone);
 }
 
 /* ---- Details and payment -------------------------------------------------- */
 
 .plateTitle {
-  font-size: clamp(1.3rem, 1.6vw, 1.625rem);
+  font-size: clamp(1.3rem, 1.45vw, 1.75rem);
   font-weight: 300;
   line-height: 1.2;
 }
@@ -255,25 +560,45 @@
 
 /* Labelled rather than placeheld, and in sentence case rather than the funnel's
    caps run: this is a form label beside a form label, and a caps label at
-   `--tracking-caps` reads as a section heading for the field under it. */
+   `--tracking-caps` reads as a section heading for the field under it. That
+   argument is why the caps the summary's terms have taken stop at this plate. */
 .fieldTerm {
-  font-size: var(--text-xs);
+  font-size: var(--detail-term);
+  font-weight: 400;
   color: var(--ink);
 }
 
+/* 44px, which is the floor the rest of the funnel is set to and which this
+   control was 4px under.
+
+   **16px stated here rather than taken from the ramp, and it is the one place on
+   this screen that refuses it.** Safari on iOS zooms the page when a field below
+   16px takes focus, which on a form pinned above a fixed bar throws the layout
+   the guest was reading. The ramp above is for what the screen says; this is
+   what the guest types, and it does not get to be 14px because the labels
+   around it came down. */
 .input {
-  min-height: 2.5rem;
+  min-height: 2.75rem;
   padding: 0 0.875rem;
   font: inherit;
-  font-size: var(--text-sm);
+  font-size: 1rem;
+  font-weight: 500;
   color: var(--ink);
   background: transparent;
   border: 1px solid rgb(var(--umber-rgb) / 0.18);
   border-radius: var(--row-radius);
-  transition: border-color 0.4s var(--ease-ui);
+  transition:
+    border-color 0.4s var(--ease-ui),
+    background-color 0.4s var(--ease-ui);
 }
 
+/* The one place --stone survives on this plate, and it earns it: a placeholder
+   has to be quieter than a typed value or a guest cannot tell an example from an
+   answer. It is not content, and WCAG scores it as such. */
 .input::placeholder {
+  /* Light against the Medium a guest types, which is the same distinction the
+     colour is drawing and the one that survives a glance. */
+  font-weight: 300;
   color: var(--stone);
 }
 
@@ -283,11 +608,28 @@
 
 .input:focus-visible {
   outline: none;
-  border-color: var(--dusk-amber);
+  border-color: var(--dusk-amber-ink);
 }
 
 .input:disabled {
-  color: var(--stone);
+  color: var(--stone-deep);
+}
+
+/* Marked, and not only by colour — §1's rule about that is why the edge doubles
+   in weight and a line appears under the field saying what is wrong with it. */
+.input[aria-invalid="true"] {
+  border-width: 2px;
+  border-color: var(--dusk-amber-ink);
+  background: rgb(var(--dusk-amber-ink-rgb) / 0.05);
+}
+
+/* Beside the field it is about, where a guest correcting it is already looking.
+   The line under the button says which way to look; this says what to do. */
+.fieldNote {
+  font-size: var(--detail-note);
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--umber);
 }
 
 /* The heading of the payment block and the control that swaps it, on one line —
@@ -302,12 +644,16 @@
   margin-top: var(--space-3);
 }
 
+/* Caps, unlike the two field labels above it, and for the reason those two are
+   not: this *is* a heading for the panel under it, and the panel it heads is the
+   rest of the plate. */
 .payTerm {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  font-size: var(--text-sm);
-  color: var(--ink);
+  font-size: var(--detail-term);
+  font-weight: 400;
+  color: var(--stone-deep);
 }
 
 /* A fieldset drawn as a segmented control. `border: 0` and a hidden legend,
@@ -347,14 +693,17 @@
   opacity: 0;
 }
 
+/* 44px including the fieldset's own 3px of padding, so the two faces meet the
+   same tap floor as everything else on the screen. They were 32px. */
 .swapFace {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-width: 5.5rem;
-  min-height: 2rem;
+  min-height: 2.375rem;
   padding: 0 0.875rem;
-  font-size: var(--text-xs);
+  font-size: var(--detail-note);
+  font-weight: 400;
   color: var(--stone-deep);
   border-radius: 0.375rem;
   cursor: pointer;
@@ -373,7 +722,7 @@
 }
 
 .swapInput:focus-visible + .swapFace {
-  outline: 2px solid var(--dusk-amber);
+  outline: 2px solid var(--dusk-amber-ink);
   outline-offset: 2px;
 }
 
@@ -385,7 +734,7 @@
   align-items: start;
   gap: 0.875rem;
   min-width: 0;
-  padding: 0.875rem 1rem;
+  padding: 0.75rem 1rem;
   border: 1px solid rgb(var(--umber-rgb) / 0.18);
   border-radius: var(--row-radius);
   transition: border-color 0.4s var(--ease-ui);
@@ -398,7 +747,7 @@
 /* The focus ring is on the box and not on the input inside it, because the box
    is what a guest sees as the control. `:focus-within` is what carries it. */
 .boxField:focus-within {
-  border-color: var(--dusk-amber);
+  border-color: var(--dusk-amber-ink);
 }
 
 .boxLines {
@@ -409,23 +758,28 @@
 }
 
 .boxTerm {
-  font-size: var(--text-xs);
+  font-size: var(--detail-term);
+  font-weight: 400;
   color: var(--ink);
 }
 
 /* No border of its own: the box around it is the frame, and a second one inside
-   would be a field inside a field. */
+   would be a field inside a field. The 16px is the iOS zoom again — see
+   `.input`. */
 .boxInput {
   width: 100%;
+  min-height: 1.875rem;
   padding: 0;
   font: inherit;
-  font-size: var(--text-sm);
+  font-size: 1rem;
+  font-weight: 500;
   color: var(--ink);
   background: transparent;
   border: 0;
 }
 
 .boxInput::placeholder {
+  font-weight: 300; /* See `.input::placeholder`. */
   color: var(--stone);
 }
 
@@ -434,7 +788,7 @@
 }
 
 .boxInput:disabled {
-  color: var(--stone);
+  color: var(--stone-deep);
 }
 
 .providers {
@@ -452,8 +806,8 @@
 
 .providerFace {
   display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+  align-items: flex-start;
+  gap: 0.75rem;
   height: 100%;
   padding: 0.875rem 1rem;
   border: 1px solid rgb(var(--umber-rgb) / 0.18);
@@ -469,12 +823,12 @@
 }
 
 .swapInput:checked + .providerFace {
-  background: rgb(var(--dusk-amber-rgb) / 0.08);
-  border-color: var(--dusk-amber);
+  background: rgb(var(--dusk-amber-ink-rgb) / 0.08);
+  border-color: var(--dusk-amber-ink);
 }
 
 .swapInput:focus-visible + .providerFace {
-  outline: 2px solid var(--dusk-amber);
+  outline: 2px solid var(--dusk-amber-ink);
   outline-offset: 2px;
 }
 
@@ -482,7 +836,7 @@
    rather than absent, because the question "do you take MoMo" is one the screen
    should answer — and answering it with silence leaves a guest hunting. */
 .provider[data-accepted="false"] .providerFace {
-  color: var(--stone);
+  color: var(--stone-deep);
   cursor: not-allowed;
   border-style: dashed;
 }
@@ -491,34 +845,113 @@
   border-color: rgb(var(--umber-rgb) / 0.18);
 }
 
+/* The radio, drawn. The input itself is painted over so the group looks like a
+   row of tiles, and until this there was nothing on an unselected tile saying it
+   was one of a set — a guest read three panels and an amber border, which is a
+   selected *card* and not a chosen *option*. `aria-hidden`, because the input
+   behind it is the one the accessibility tree should be reading. */
+.providerDot {
+  position: relative;
+  width: 0.875rem;
+  height: 0.875rem;
+  flex: 0 0 auto;
+  margin-top: 0.125rem;
+  border: 1px solid rgb(var(--umber-rgb) / 0.38);
+  border-radius: 50%;
+  transition: border-color 0.4s var(--ease-ui);
+}
+
+.swapInput:checked + .providerFace .providerDot {
+  border-color: var(--dusk-amber-ink);
+}
+
+.swapInput:checked + .providerFace .providerDot::after {
+  content: "";
+  position: absolute;
+  inset: 0.1875rem;
+  background: var(--dusk-amber-ink);
+  border-radius: 50%;
+}
+
+.providerLines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
 .providerName {
-  font-size: var(--text-sm);
+  font-size: var(--detail-body);
+  font-weight: 500;
   color: inherit;
 }
 
 .providerBlurb {
-  font-size: var(--text-xs);
+  font-size: var(--detail-note);
+  font-weight: 300;
   line-height: 1.5;
-  color: var(--stone);
+  color: var(--stone-deep);
 }
 
 /* ---- The summary --------------------------------------------------------- */
 
+/* Sticky, and the *column* is what sticks rather than the plate inside it. The
+   plate used to carry this on its own, which worked while the press was the last
+   thing in it; now that the money is a plate of its own the pair have to travel
+   together, or a window too short for both pins the summary and leaves the
+   button below the fold.
+
+   `max-height` and a scrolling plate for the same reason as before: a sticky
+   block taller than the viewport pins its top and strands its foot. What
+   overflows is the summary's detail, never the total or the button. */
 .aside {
+  position: sticky;
+  top: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-height: calc(100dvh - 2 * var(--space-2));
   min-width: 0;
 }
 
-/* Sticky, because the total is what a guest filling in a form keeps looking back
-   at. `--space-2` of clearance under the bar, and `max-height` so a short window
-   scrolls the summary's own overflow instead of hiding the button under the fold
-   — a sticky block taller than the viewport pins its top and strands its foot. */
+/* The summary's detail is what gives when the window is short, and the four
+   layers below are what stop that reading as a fault.
+ *
+ * At a laptop's height the plate now overflows — the rail, the party, the rate
+ * and its terms are more than it used to hold — and a plain `overflow-y: auto`
+ * cuts the timer's sentence through the middle of its letters. Nothing on screen
+ * says the cut is a scroll rather than a broken layout.
+ *
+ * So: two ivory covers that scroll *with* the content (`local`), sitting over
+ * two shadows fixed to the box (`scroll`). At the top of the scroll the cover is
+ * over its shadow and there is nothing to see; scroll down and the cover travels
+ * up off the shadow, which appears. The edge that has more behind it is the edge
+ * that is shaded, with no script and no scroll listener.
+ *
+ * The plate's own ground is the last layer, because a background list paints
+ * front to back and the covers have to have something to be ivory *against*. */
 .asidePlate {
-  position: sticky;
-  top: var(--space-2);
-  max-height: calc(100dvh - 2 * var(--space-2));
+  min-height: 0;
   overflow-y: auto;
   padding: var(--aside-pad);
-  background: var(--ivory);
+  background:
+    linear-gradient(var(--ivory) 30%, transparent) top / 100% 1.5rem no-repeat
+    local,
+    linear-gradient(transparent, var(--ivory) 70%) bottom / 100% 1.5rem
+    no-repeat local,
+    radial-gradient(
+      farthest-side at 50% 0,
+      rgb(var(--umber-rgb) / 0.14),
+      transparent
+    )
+    top / 100% 0.5rem no-repeat scroll,
+    radial-gradient(
+      farthest-side at 50% 100%,
+      rgb(var(--umber-rgb) / 0.14),
+      transparent
+    )
+    bottom / 100% 0.5rem no-repeat scroll,
+    var(--ivory);
   border: var(--plate-edge);
   border-radius: var(--plate-radius);
   box-shadow: var(--plate-lift);
@@ -534,16 +967,147 @@
 
 .asideTitle {
   margin-top: var(--space-2);
-  font-size: clamp(1.3rem, 1.6vw, 1.625rem);
+  font-size: clamp(1.2rem, 1.3vw, 1.55rem);
   font-weight: 300;
   line-height: 1.2;
 }
+
+/* ---- The rail ------------------------------------------------------------ */
+
+/* An arrival, the nights, a departure. Drawn as a journey rather than as two
+   rows of a table because that is what it is, and because the shape carries the
+   half of the question a date cannot: which way round the two are, and what sits
+   between them.
+ *
+ * The line is `::before` on the rows it joins, not an element of its own. A
+ * `<span>` whose only job is to be a line is a thing in the reading order that
+ * has nothing to read. */
+.rail {
+  display: flex;
+  flex-direction: column;
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--hair);
+}
+
+.stop {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr);
+  align-items: start;
+  gap: 0.875rem;
+  min-width: 0;
+}
+
+/* From under the arrival's mark to the bottom of its row, where the leg picks it
+   up. Centred on the 1.25rem mark column, at the same alpha as every other
+   hairline in a plate. */
+.stop[data-last="false"]::before {
+  content: "";
+  position: absolute;
+  top: 1.125rem;
+  bottom: 0;
+  left: 0.625rem;
+  width: 1px;
+  background: var(--hair);
+}
+
+/* And the last stretch, from the top of the departure's row down to the top of
+   its mark. The leg's rule stops at the leg's own edge, so without this the line
+   arrives a few pixels short of the dot it is running to — which reads as a
+   rendering fault rather than as an end. */
+.stop[data-last="true"]::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0.625rem;
+  width: 1px;
+  height: 0.3125rem;
+  background: var(--hair);
+}
+
+/* A ring, not a disc: the arrival and the departure are the same kind of moment,
+   and two filled dots on a line read as a progress track — which this is not.
+   Nothing here says one of the two has happened. */
+.stopMark {
+  width: 0.625rem;
+  height: 0.625rem;
+  margin: 0.3125rem auto 0;
+  border: 1.5px solid var(--dusk-amber-ink);
+  border-radius: 50%;
+}
+
+.stopLines {
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.stopTerm {
+  font-size: var(--detail-term);
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--stone-deep);
+}
+
+/* The day, and the one thing on this plate set at a size between the labels and
+   the total. It is what the guest came to check. */
+.stopDate {
+  font-size: var(--detail-value);
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--ink);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+/* The property's published clock — `property-and-tariff.md` §2, carried here
+   from `@mariva/shared` rather than typed into the funnel. */
+.stopTime {
+  font-size: var(--detail-note);
+  font-weight: 300;
+  line-height: 1.5;
+  color: var(--stone-deep);
+}
+
+/* The nights, standing on the line between the two ends rather than in a row of
+   their own under them. `.legRule` is absolute, so the value is placed in the
+   second track explicitly — otherwise it falls into the mark column. */
+.leg {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr);
+  gap: 0.875rem;
+  padding-block: 0.625rem;
+  min-width: 0;
+}
+
+.legRule {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0.625rem;
+  width: 1px;
+  background: var(--hair);
+}
+
+.legValue {
+  grid-column: 2;
+  font-size: var(--detail-note);
+  font-weight: 300;
+  line-height: 1.4;
+  color: var(--stone-deep);
+}
+
+/* ---- What else is true of the stay --------------------------------------- */
 
 .stayRows {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--hair);
 }
 
 .stayRow {
@@ -566,34 +1130,84 @@
 }
 
 .stayTerm {
-  font-size: var(--text-xs);
+  font-size: var(--detail-term);
+  font-weight: 400;
   line-height: 1.4;
-  color: var(--stone);
+  color: var(--stone-deep);
 }
 
 .stayValue {
-  font-size: var(--text-sm);
-  line-height: 1.45;
+  font-size: var(--detail-value);
+  font-weight: 500;
+  line-height: 1.4;
   color: var(--ink);
 }
 
-.timer {
-  margin-top: var(--space-2);
+/* An address has no spaces to break at and the column is 20rem at its narrowest,
+   so the one row that can carry one is allowed to break inside a word. Nothing
+   else is: "1 child aged 6" broken mid-word would be a bug. */
+.stayValue[data-wrap="true"] {
+  font-size: var(--detail-body);
+  overflow-wrap: anywhere;
 }
 
-/* The rule is the seam between what the stay *is* and what it costs. */
+/* The rate plan's terms, and nothing else so far. A second `<dd>` under the
+   value rather than beside it, because "Free to cancel until three days before
+   you arrive" qualifies "Standard" and does not restate it. */
+.stayNote {
+  font-size: var(--detail-note);
+  font-weight: 300;
+  line-height: 1.5;
+  color: var(--stone-deep);
+}
+
+/* The same three-column shape as `.stayRow`, and the same reason: on this plate
+   the deadline is one more thing that is true of the stay, and a block of prose
+   flush to the plate's edge under four indented rows reads as a footnote that
+   fell out of the list. The rule above it is what keeps it a group of its own —
+   the clock is running, and the four rows over it are not. */
+.timer {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr);
+  align-items: start;
+  gap: 0.875rem;
+  margin-top: var(--space-2);
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--hair);
+  /* `hold-timer.module.css` reads these three and falls back to its own
+     measured defaults where nothing sets them. */
+  --hold-line-size: var(--detail-value);
+  --hold-line-weight: 500;
+  --hold-line-ink: var(--ink);
+  --hold-note-size: var(--detail-note);
+}
+
+/* ---- The money, and the press on it -------------------------------------- */
+
+/* A plate of its own under the summary, and below the stacking width the same
+   element pinned to the bottom of the window. See the media queries at the foot
+   of the file: nothing about it is duplicated, and there is one button on the
+   page at every width. */
+.act {
+  flex: 0 0 auto;
+  padding: var(--aside-pad);
+  background: var(--ivory);
+  border: var(--plate-edge);
+  border-radius: var(--plate-radius);
+  box-shadow: var(--plate-lift);
+}
+
 .totalBlock {
   display: flex;
   flex-direction: column;
   gap: 0.25rem;
-  margin-top: var(--space-2);
-  padding-top: var(--space-2);
-  border-top: 1px solid rgb(var(--umber-rgb) / 0.15);
 }
 
 .totalTerm {
-  font-size: var(--text-sm);
-  color: var(--ink);
+  font-size: var(--detail-term);
+  font-weight: 400;
+  line-height: 1.4;
+  color: var(--stone-deep);
 }
 
 /* The one figure on the screen that decides anything, and the only place a
@@ -604,29 +1218,46 @@
    drop the lining correction and hand Cormorant's oldstyle figures back — a
    total whose 3s and 7s hang below the line. */
 .totalFigure {
-  font-size: clamp(1.75rem, 2vw, 2.125rem);
+  font-size: clamp(1.6rem, 1.67vw, 2rem);
   font-weight: 300;
   line-height: 1.15;
   font-variant-numeric: lining-nums tabular-nums;
 }
 
 .totalNote {
-  font-size: var(--text-xs);
+  font-size: var(--detail-note);
+  font-weight: 300;
   line-height: 1.5;
-  color: var(--stone);
+  color: var(--stone-deep);
 }
 
-/* The screen's one primary action, and the one place --dusk-amber is spent as a
-   ground — §2. */
+/* The countdown, for the width where the summary's own copy is off the top of
+   the window. Hidden here rather than rendered conditionally: one deadline, one
+   place it is announced from, and `HoldClock` is out of the accessibility tree
+   for exactly that reason. */
+.actClock {
+  display: none;
+}
+
+/* The screen's one primary action, and the one place the accent is spent as a
+   ground — §2. --dusk-amber-ink, so the ivory label on it clears 4.5:1 rather
+   than the 2.7:1 the lighter rung gave it. */
 .complete {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   width: 100%;
-  min-height: 3rem; /* 48px. 44 is the floor, and this is the button. */
+  min-height: 3.125rem; /* 50px. 44 is the floor, and this is the button. */
   margin-top: var(--space-2);
-  padding: 0 var(--space-2);
-  font-size: var(--text-sm);
+  /* Room at both ends for the lock, so a long label is centred on the button
+     rather than on the space left over beside the glyph. */
+  padding: 0 2.5rem;
+  font-size: 0.875rem;
+  font-weight: 500;
   color: var(--ivory);
-  background: var(--dusk-amber);
-  border: 1px solid var(--dusk-amber);
+  background: var(--dusk-amber-ink);
+  border: 1px solid var(--dusk-amber-ink);
   border-radius: var(--row-radius);
   /* The transform is the press, and it runs at 0.16s against the colours' 0.4s.
      Two speeds because they answer two different things: a pointer crossing the
@@ -642,6 +1273,23 @@
   background: transparent;
 }
 
+.completeLabel {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Out of the flow, so the label is centred on the button and not pushed off
+   centre by the glyph beside it. It takes the button's own colour through both
+   the hover inversion and the disabled state. */
+.complete .mark {
+  position: absolute;
+  right: 1rem;
+  width: 0.9375rem;
+  height: 0.9375rem;
+  color: inherit;
+}
+
 .complete:active:not(:disabled) {
   transform: translateY(1px);
 }
@@ -652,8 +1300,8 @@
 .complete:disabled {
   cursor: default;
   color: rgb(var(--ivory-rgb) / 0.6);
-  background: var(--stone);
-  border-color: var(--stone);
+  background: var(--stone-deep);
+  border-color: var(--stone-deep);
 }
 
 .complete:focus-visible {
@@ -662,38 +1310,27 @@
 }
 
 /* Where every refusal on this screen lands: directly under the button that was
-   pressed, so the answer arrives where the guest is already looking. */
+   pressed, so the answer arrives where the guest is already looking. --umber and
+   not a grey, because it is the one line on the plate that is only ever there
+   when something has gone wrong, and it used to be painted at 3.6:1 in the tone
+   the captions around it use for ordinary text. */
 .foot {
   margin-top: var(--space-1);
-  font-size: var(--text-xs);
+  padding-left: 0.625rem;
+  border-left: 2px solid var(--dusk-amber-ink);
+  font-size: var(--detail-note);
+  font-weight: 400;
   line-height: 1.6;
-  color: var(--stone);
+  color: var(--umber);
 }
 
 /* Nothing has been refused yet. The element stays in the document — a live
-   region has to be there before the message is — but it stops reserving the
-   gap it would need if it were saying something. */
-.foot:empty {
+   region has to be there before the message is — but it stops reserving the gap
+   and drawing the rule it would need if it were saying something. */
+.foot[data-said="false"] {
   margin-top: 0;
-}
-
-/* The glyph beside a value, painted as a mask over the colour it inherits — see
-   `room-facts.ts` for why this is a mask and not an `<img>`. */
-.mark {
-  display: block;
-  width: 1.25rem;
-  height: 1.25rem;
-  flex: 0 0 auto;
-  color: var(--dusk-amber);
-  background: currentcolor;
-  mask-image: var(--mark);
-  mask-repeat: no-repeat;
-  mask-size: contain;
-  mask-position: center;
-  -webkit-mask-image: var(--mark);
-  -webkit-mask-repeat: no-repeat;
-  -webkit-mask-size: contain;
-  -webkit-mask-position: center;
+  padding-left: 0;
+  border-left: 0;
 }
 
 /* The lock is a caption rather than a fact, and sits at the size of the words it
@@ -701,7 +1338,6 @@
 .payTerm .mark {
   width: 0.875rem;
   height: 0.875rem;
-  color: var(--dusk-amber);
 }
 
 /* §9. One pixel, snapped rather than travelled, is not worth the exception — the
@@ -715,32 +1351,106 @@
 /* ---- Narrow -------------------------------------------------------------- */
 
 /* Under a laptop's measure the summary stops being a column beside the form and
-   becomes the last thing on a page that scrolls. It also stops being sticky:
-   pinned to the top of a stacked page it would cover the fields above it. */
+   becomes the last thing on a page that scrolls — and the money stops travelling
+   with it. It was the foot of a document about two thousand pixels tall, which
+   meant a guest could fill in a name, an address and a payment choice without
+   ever having seen the total or known that a hold was counting down. Pinned, it
+   is the one thing on the screen that is true the whole way down.
+ *
+ * The plate above it is *not* sticky at this width: pinned to the top of a
+ * stacked page it would cover the fields the guest is filling in. */
 @media (max-width: 68rem) {
+  /* Clearance for the bar, which is out of flow and would otherwise stand on the
+     last plate's foot. Measured against the bar at its tallest — the total's
+     line, the button, and a refusal under it — rather than against its resting
+     height, because the moment it grows is the moment a guest is being sent back
+     up to a field it would otherwise be covering. */
+  .frame {
+    padding-bottom: 11rem;
+  }
+
   .grid {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .asidePlate {
+  .aside {
     position: static;
     max-height: none;
+  }
+
+  .asidePlate {
     overflow-y: visible;
   }
 
+  .act {
+    position: fixed;
+    inset-inline: 0;
+    bottom: 0;
+    /* Above the plates and under nothing: the funnel's bar is `sticky` at the
+       top of the document and the two never meet. */
+    z-index: 20;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    padding: 0.75rem var(--page-gutter);
+    /* The gesture bar, the home indicator, and whatever else the window is
+       keeping for itself.
+     *
+     * `env()` is the right answer and it is not, today, a sufficient one: it
+     * only reports a real inset when the document asks for `viewport-fit=cover`,
+     * and `app/layout.tsx` exports no viewport at all — so on the phones this
+     * matters for it currently resolves to zero. `max()` is therefore the floor
+     * rather than the fallback: 1.375rem of clearance under a 48px button
+     * regardless, and the true inset the moment the app opts in. */
+    padding-bottom: max(1.375rem, env(safe-area-inset-bottom, 0px));
+    background: var(--ivory);
+    border: 0;
+    border-top: var(--plate-edge);
+    border-radius: 0;
+    box-shadow: 0 -0.5rem 1.5rem rgb(var(--umber-rgb) / 0.08);
+  }
+
+  /* One line: the word, the figure, and the clock pushed to the far end. */
+  .totalBlock {
+    align-items: baseline;
+    flex-direction: row;
+    gap: 0.5rem;
+  }
+
+  /* Smaller than it was, because the ramp under it came down a step: 28px over
+     an 11px caption in a bar 60px tall was the only thing on this screen still
+     set for the type scale the plates used to carry. */
+  .totalFigure {
+    margin-inline-end: auto;
+    font-size: 1.5rem;
+  }
+
+  /* Said on the plate above, where there is room for it. */
+  .totalNote {
+    display: none;
+  }
+
+  .actClock {
+    display: inline-flex;
+  }
+
+  .complete {
+    margin-top: 0;
+  }
+
   /* The strip was cut for a plate two thirds of a wide window. One column across
-     is nearly twice as wide, and at 11:2 it becomes a letterbox slot. */
+     is nearly twice as wide, and at 29:6 it becomes a letterbox slot. */
   .roomShot {
     aspect-ratio: 12 / 5;
   }
 }
 
 /* At a phone's measure two tracks are under 160px each, which "One king bed
-   (1.80 m) · one single bed (1.00 m)" and "Enter your email address" both need
+   (1.80 m), one single bed (1.00 m)" and "Enter your email address" both need
    more than. One column, in the same reading order, with room to say it. */
 @media (max-width: 48rem) {
   .frame {
-    padding-block: var(--space-2) var(--space-3);
+    padding-top: var(--space-2);
   }
 
   .facts,
@@ -751,6 +1461,15 @@
 
   .roomShot {
     aspect-ratio: 2 / 1;
+  }
+
+  /* The bar has to stay one line, and at a phone's measure it cannot hold four
+     things and do that. The size is the one of the four that is pure
+     repetition — "28 m²" is three rows above it in the facts, under the words
+     "Room size" — so it is what goes, rather than the counter or the way into
+     the rest of the frames. */
+  .shotSize {
+    display: none;
   }
 
   .payHead {

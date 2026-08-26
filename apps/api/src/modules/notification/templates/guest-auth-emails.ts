@@ -29,10 +29,16 @@ export const PROPERTY_ADDRESS = "12 Trần Phú, Lộc Thọ, Nha Trang, Khánh 
  * Printed in a mail and read by nothing: it is the published time the desk
  * honours, not a guard. Early arrival is `BOOKING_EARLY_CHECK_IN_ENABLED` and
  * the arrival window is a comparison of business dates, so no code path decides
- * anything by this string — which is exactly why it may be a constant here
- * rather than configuration.
+ * anything by this string — which is exactly why it may be a constant rather
+ * than configuration.
+ *
+ * Re-exported rather than declared, and the move is `property-clock.ts`'s to
+ * explain: the booking funnel's review screen prints the same time back to the
+ * guest before they pay, so the value stopped being one realm's and went to
+ * `@mariva/shared` where both can read it. It is still named here because the
+ * templates below print it and should not have to know where it went.
  */
-export const CHECK_IN_TIME = "14:00";
+export { CHECK_IN_TIME } from "@mariva/shared";
 
 /** Minimal escaping for the two values these templates interpolate. Neither is
  *  attacker-free: a display name comes from a sign-up form.

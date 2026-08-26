@@ -74,18 +74,35 @@
   background: var(--umber);
 }
 
-/* The photo sits wider than its panel so the 6.3% counter-translation always
-   has overflow to travel into — never a bare edge. */
+/* The photo sits wider than its panel so the counter-translation always has
+   overflow to travel into — never a bare edge. */
 .panelMedia {
   position: absolute;
   inset: 0;
   will-change: transform;
 }
 
+/* How far the photo can be asked to slide, and so how much wider than its panel
+   it has to be drawn. The lag is 6.3% of the panel's distance from the centre of
+   the frame — `PHOTO_LAG` in `corridor-track.tsx` — and a panel is at most half a
+   frame plus half its own width from that centre while any of it is still on
+   screen, so the furthest the photo ever travels is this, and half of it is the
+   overflow needed on each side.
+
+   Quoted from the frame and the panel rather than as a share of the panel alone:
+   a fixed percentage is enough overflow for a panel as wide as the screen and
+   nowhere near enough for a narrow one, which travels just as far in pixels and
+   has far fewer of them to spare. */
 .panelMedia img {
-  width: 116%;
+  --slide: calc(0.063 * (100vw + var(--w)) / 2);
+
+  /* The global reset clamps every image to its box; this one is deliberately
+     wider than its box, so it has to opt out or the width below is a number the
+     browser throws away and the lag runs onto a bare edge. */
+  max-width: none;
+  width: calc(100% + 2 * var(--slide));
   height: 100%;
-  margin-left: -8%;
+  margin-left: calc(-1 * var(--slide));
   object-fit: cover;
 }
 
