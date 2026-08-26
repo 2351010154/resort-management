@@ -51,7 +51,13 @@ export function PaymentScreen({ hold }: { readonly hold: string }) {
     setFailed(undefined);
 
     try {
-      const { paymentUrl } = await openPayment(paying);
+      // This screen offers no choice of its own — it is the funnel's
+      // pre-choice fallback, reachable only by a bookmark or a press of
+      // "back" out of the gateway, and its one button has always read "Pay
+      // with VNPay". `details-screen.tsx` is where a guest actually picks a
+      // provider now; this keeps sending the payer to the gateway it always
+      // did.
+      const { paymentUrl } = await openPayment(paying, "VNPAY");
 
       window.location.assign(paymentUrl);
     } catch (error) {

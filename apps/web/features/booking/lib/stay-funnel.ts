@@ -29,7 +29,13 @@
 // the caption to decide what to *say* while it waits, and reads the stay's state
 // to decide what is *true*.
 
-import type { RatePlanCode, RoomTypeCode, StayDate } from "@mariva/shared";
+import type {
+  GatewayPaymentMethod,
+  Presentment,
+  RatePlanCode,
+  RoomTypeCode,
+  StayDate,
+} from "@mariva/shared";
 import { API_URL, api, apiMessage } from "@/lib/api";
 
 /**
@@ -334,6 +340,29 @@ export function markDeparture(bookingId: string): void {
   );
 }
 
+/** What opening an attempt hands back — where to send the payer, and, for a
+ *  gateway that cannot take đồng, exactly what it will charge. */
+export interface OpenedPayment {
+  readonly paymentUrl: string;
+  readonly reference: string;
+  /**
+   * What the payer will actually be charged, present only when
+   * {@link openPayment} was asked for a gateway that settles in something
+   * other than đồng.
+   *
+   * **This is the one read a screen may ever quote a payer from.** The
+   * property converts at its configured rate the moment the attempt opens
+   * and freezes the result onto the row before anything is asked of the
+   * gateway — `payment.service.ts` argues why — and this is that same
+   * figure, handed back rather than computed a second time. There is no
+   * route that answers "what would PayPal charge" ahead of an attempt, and
+   * this file must never grow one: a quote read before the row exists is a
+   * second read of the configured rate, and an `ADMIN` editing it between
+   * the two would quote the guest one figure and charge them another.
+   */
+  readonly presentment?: Presentment;
+}
+
 /**
  * Opens a payment attempt against the stay and hands back where to send the
  * payer — `FR-PAY-02`.
@@ -343,11 +372,17 @@ export function markDeparture(bookingId: string): void {
  * priced. Nothing about money has happened when this answers: the attempt is
  * `PENDING` until a callback resolves it, which is why the screen that follows
  * is called `confirming` and not `paid`.
+ *
+ * **The gateway is the caller's explicit choice and never inferred.** A guest
+ * abroad may hold a Vietnamese card and a guest here may hold a PayPal
+ * balance, so a locale or a currency guessed from the browser would get both
+ * of them wrong in a way that cannot be undone once the payer has been sent
+ * to the wrong gateway's page.
  */
-export async function openPayment(stay: HeldStay): Promise<{
-  readonly paymentUrl: string;
-  readonly reference: string;
-}> {
+export async function openPayment(
+  stay: HeldStay,
+  method: GatewayPaymentMethod,
+): Promise<OpenedPayment> {
   return await api.payment.openAttempt({
     bookingId: stay.id,
     // The figure the API priced, handed straight back — not re-derived, not
@@ -358,6 +393,7 @@ export async function openPayment(stay: HeldStay): Promise<{
     // rather than leaving a `toString` on whatever type happened to arrive.
     amount: stayTotal(stay).toString(),
     description: `Mariva stay ${stay.reference}`,
+    method,
   });
 }
 
