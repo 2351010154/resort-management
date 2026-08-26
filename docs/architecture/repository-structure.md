@@ -128,7 +128,7 @@ answerable without reading a single business rule.
 | `booking` | Lifecycle state machine, holds, room assignment, cancellation |
 | `housekeeping` | Room condition, orthogonal to occupancy; out-of-order |
 | `folio` | The append-only posting ledger, taxes, invoices, reversals |
-| `payment` | VNPay/MoMo, idempotent webhooks, refunds, reconciliation |
+| `payment` | VNPay/PayPal, idempotent webhooks, refunds, reconciliation |
 | `operations` | Shift handover, cash drawer, service catalog, income/expense. Only the catalog is built — `FR-FOL-03` needed it; the other three are later milestones |
 | `reporting` | Night-audit snapshots, occupancy/ADR/RevPAR, exports |
 | `audit` | The change log every state-changing action writes to |
