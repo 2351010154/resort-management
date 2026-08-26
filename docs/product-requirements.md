@@ -77,7 +77,9 @@ Written to shut down scope drift while the PRD's blank corners whisper.
   check-in.
 - **No UI test-coverage target.** The test budget goes where defects cost
   money: inventory, folio, pricing (NFR-10).
-- **MoMo only if measured VNPay-only abandonment demands it** (M6.5).
+- **PayPal is the second and last gateway** (`FR-PAY-06`). It took the slot
+  MoMo held conditionally; `FR-PAY-01` caps the port at two implementations and
+  both are now filled, so a third gateway reopens that cap before it is built.
   **Overbooking only after real no-show data exists** (M9.5).
 - **One property, one tenant.** No multi-property abstraction.
 
@@ -169,11 +171,11 @@ authority named in [`README.md`](README.md) and wins.
 | ID | Requirement | Acceptance criteria | Lands |
 |---|---|---|---|
 | `FR-PAY-01` | One internal `PaymentGateway` port — `createPayment` / `verifyCallback` / `refund` / `queryTransaction`; no gateway type leaks past it | Two implementations at most, one folio | M6 |
-| `FR-PAY-02` | VNPay first — sandbox at M6, production at M7 behind gate `G2` — signatures verified by the maintained library, never hand-rolled | One successful real production transaction before opening; the `G2` six-item checklist green before the credential flip | M6/M7 |
+| `FR-PAY-02` | VNPay first — sandbox at M6, production at M7 behind gate `G2` — signatures verified by the maintained library, never hand-rolled. PayPal is the second production gateway (`FR-PAY-06`); its server SDK ships no verifier, so verification is PayPal's own `/v1/notifications/verify-webhook-signature` call rather than a hand-rolled check — `FR-PAY-02`'s "never hand-rolled" is met by calling PayPal, not by computing a signature | One successful real production transaction before opening, **per gateway**; the `G2` six-item checklist green before each credential flip | M6/M7 |
 | `FR-PAY-03` | Webhook idempotency: unique constraint on the gateway transaction id | One IPN replayed 10× posts exactly 1 payment — by test | M6 |
 | `FR-PAY-04` | Refunds are reversing entries; policy-computed and discretionary refunds are separate endpoints with separate roles | Cites `ASM-05` for sandbox refund testability | M6 |
 | `FR-PAY-05` | Daily reconciliation against the gateway's own report; discrepancies page a phone | Alert proven by drill | M6 |
-| `FR-PAY-06` | MoMo slots behind the same port, **only if** measured VNPay-only abandonment is material; its IPN is ACKed < 15 s with the work in the job queue | NFR-06; abandonment measurable because every funnel step is a route (`FR-BOOK-06`) | M6.5 |
+| `FR-PAY-06` | PayPal, the second implementation `FR-PAY-01` caps the port at — collecting in USD where VNPay collects in đồng, at a rate the property configures (`system_config.rate_vnd_per_usd`) and freezes onto the payment when the attempt opens, never market-fetched. The folio still posts whole đồng: [`architecture/infrastructure.md`](architecture/infrastructure.md) §Payments carries the invoice-currency reasoning. Superseded MoMo, which held this slot conditionally and was never built — `FR-PAY-01`'s cap is two implementations, and PayPal filled the second | One webhook replayed 10× posts exactly 1 payment (`FR-PAY-03`); `payment.presentment_*` mandatory for `PAYPAL` by check constraint, not service code; production boot refuses PayPal credentials pointed at the sandbox | M6/M7 |
 
 ### 4.10 `operations` — shifts and money movement
 
@@ -222,7 +224,7 @@ authority named in [`README.md`](README.md) and wins.
 | `NFR-03` | Availability p95, 12-month calendar | **< 300 ms** | Load test at M10 |
 | `NFR-04` | Admin console interaction feedback | **< 150 ms**, no entrance animation on operational screens | E2E timing at M7 |
 | `NFR-05` | `/booking` funnel bundle | **0 bytes** of `three`/`gsap`/`lenis` | CI bundle budget |
-| `NFR-06` | MoMo IPN ACK (if built) | **< 15 s** p100 | Handler ACKs, work queued |
+| `NFR-06` | Second-gateway webhook ACK — PayPal, since `FR-PAY-06` gave it the slot MoMo held | **< 15 s** p100 | Handler ACKs, work queued |
 | `NFR-07` | Realm separation | Cross-realm request → 403, both directions | Guard suite (`FR-AUTH-01`) |
 | `NFR-08` | Identity-document images at rest | **0** — no bucket, key, path column or view route exists to hold one | Structural, not a measurement: `FR-GST-02` keeps the storage path from ever existing |
 | `NFR-09` | Audit coverage of state-changing endpoints | **100%** | Asserted by test (`FR-AUD-01`) |
@@ -256,7 +258,7 @@ None of them blocks M2 or M3.
 | `ASM-02` | Two claims, and dropping scan images (`FR-GST-02`) settled neither by making them urgent. **(a)** A statutory retention floor exists for the registration record — reportedly 36 months under Nghị định 96/2016/NĐ-CP Điều 44, **secondary-sourced and unverified against the primary text**. It is a floor, not a delete trigger: nothing in the tree reads it, nothing deletes a registration, so it configures nothing and blocks nothing being built. **(b)** Moving guest personal data offshore is permitted but not free — Luật 91/2025/QH15 with Nghị định 356/2025/NĐ-CP Điều 20 covers data held in Vietnam and moved to storage outside it, which is exactly Neon, Fly and R2 in Singapore holding names, CCCD numbers and stay records. It needs a filed transfer-impact dossier. Decree 53/2022 localisation does **not** bind this system by default: it takes both a listed service category and a written Minister of Public Security decision | Lawyer | **(a)** [#36](https://github.com/2351010154/resort-management/issues/36), no gate; **(b)** `D2c` / `M0-05`, [#31](https://github.com/2351010154/resort-management/issues/31) | none — **(a)** has no code consumer; **(b)** gates **opening**, not M6 or M7 |
 | `ASM-03` | If Nghị định 70/2025/NĐ-CP binds this operating entity and activity, the invoice is *hóa đơn điện tử khởi tạo từ máy tính tiền*, issued at folio close and signed by HSM; applicability awaits the tax agent's written answer | Tax agent | `M0-06`; [#29](https://github.com/2351010154/resort-management/issues/29) | `FR-FOL-04` |
 | `ASM-04` | The e-invoice provider is Viettel S-Invoice; switches to MISA meInvoice if the accountant works in MISA AMIS | Accountant | `M0-01`; [#29](https://github.com/2351010154/resort-management/issues/29) | `FR-FOL-04` |
-| `ASM-05` | VNPay grants refund sandbox access during merchant onboarding, so `refund` is testable before production | VNPay | `M0-04`; [#32](https://github.com/2351010154/resort-management/issues/32) | `FR-PAY-02`, `FR-PAY-04` |
+| `ASM-05` | VNPay grants refund sandbox access during merchant onboarding, so `refund` is testable before production. VNPay-specific: PayPal's `refund` is proven the same way `queryDr` and the rest of `vnpay.adapter.ts` are, against a mocked client in `paypal.adapter.spec.ts`, and rests on no equivalent onboarding assumption | VNPay | `M0-04`; [#32](https://github.com/2351010154/resort-management/issues/32) | `FR-PAY-02`, `FR-PAY-04` |
 | `ASM-06` | Generated Mermaid diagrams satisfy the coursework's notation requirement (vs strict UML) | Professor | `D8`; [#34](https://github.com/2351010154/resort-management/issues/34) | none — affects the docs pipeline (`P0-DOC-03/04`), no product requirement |
 
 ## 8. Traceability — the professor's twelve requirements
@@ -280,7 +282,7 @@ adds the requirement layer between them.
 | 9 | Audit log | `FR-AUD-01`, `FR-AUD-02` | M8 |
 | 10 | Excel export | `FR-OPS-03` | M8 |
 | 11 | Income / expense | `FR-OPS-02` | M8 |
-| 12 | Online payment | `FR-PAY-02` — one **production** gateway closes it; MoMo (`FR-PAY-06`) is optional | M7 |
+| 12 | Online payment | `FR-PAY-02` — one **production** gateway closes it; PayPal (`FR-PAY-06`) is the second | M7 |
 
 All twelve are demonstrable by M9 without building for the rubric.
 
@@ -308,7 +310,7 @@ authority named in [`README.md`](README.md).
 | `M4` | Booking lifecycle and front desk |
 | `M5` | Assignment optimizer — optional, does not block the spine |
 | `M6` | Folio, payments, invoicing |
-| `M6.5` | MoMo — only if measured VNPay-only abandonment demands it |
+| `M6.5` | ~~MoMo~~ — superseded; PayPal took the second gateway slot at M6/M7 (`FR-PAY-06`) |
 | `M7` | Guest booking engine and the admin console — production gate `G2` lands here |
 | `M8` | Operations — shifts, thu chi, Excel export |
 | `M9` | Reporting — night audit, snapshots, KPI reports |

@@ -163,15 +163,49 @@ One internal `PaymentGateway` port — `createPayment` / `verifyCallback` /
   gateway. `payment.service.ts` posts the payment, leaves the cancellation
   standing and dispatches that page *after* the commit, so every page is about
   money that is durably on an account.
-- **MoMo is conditional** (P3.5), gated on measured VNPay-only abandonment. It
-  costs a second signature scheme, IPN shape, refund API and reconciliation job.
-  Its IPN must be answered within 15 seconds — the handler ACKs and the work
-  happens in pg-boss.
+- **PayPal is the second gateway**, behind the same port
+  (`FR-PAY-01`/`FR-PAY-06`) and offered beside VNPay as an explicit choice in
+  the booking funnel. It answers on two routes under `API_URL`: `POST
+  /payments/paypal/webhook` for PayPal's own delivery (retried until it gets a
+  `2xx`, verified by calling PayPal's
+  `/v1/notifications/verify-webhook-signature` because PayPal's server SDK
+  ships no verifier of its own — `FR-PAY-02`'s "never hand-rolled" is met by
+  calling PayPal, not by computing a signature) and `GET
+  /payments/paypal/return` for the payer's browser, which decides nothing.
+- **PayPal collects in USD; the folio still posts whole đồng.** PayPal does not
+  support VND — it is absent from PayPal's transaction currencies, so there is
+  no arrangement in which PayPal charges đồng. The ledger stays VND regardless,
+  because the legal invoice is VND: `FR-FOL-04` issues the *hóa đơn điện tử* off
+  folio close, and Decree 123/2020/NĐ-CP Art. 10 makes đồng the invoice
+  currency by default — foreign currency is the licensed exception, and even
+  then the invoice must still carry the VND rate. A VND folio with the rate
+  recorded per payment satisfies that directly, and confines the change to the
+  payment module instead of every place that assumes đồng.
+- **The rate is property-configured, not market-fetched.**
+  `system_config.rate_vnd_per_usd` is read once, when a PayPal attempt opens,
+  and frozen onto `payment.presentment_amount`/`presentment_currency`/`fx_rate`
+  — mandatory together for a `PAYPAL` row by check constraint
+  (`payment_foreign_gateway_states_what_it_charged`,
+  `payment_presentment_is_whole_or_absent`), never by service code — so a
+  refund, a reconciliation and the invoice all quote the rate the guest was
+  actually charged at. No third party sits in the payment path.
+- **Whether the operating entity holds a licence to collect foreign currency is
+  open.** The ledger stays VND either way, but `ASM-03`'s tax-agent answer
+  governs how a PayPal-paid folio is invoiced; flagged, not blocking.
+- **MoMo was superseded and is not being built.** It held the second gateway
+  slot conditionally (P3.5), gated on measured VNPay-only abandonment; PayPal
+  took that slot (`FR-PAY-06`), and `FR-PAY-01` caps the port at two
+  implementations. The cost that made it conditional is what a third gateway
+  would still cost: a second signature scheme, IPN shape, refund API and
+  reconciliation job, with the IPN answered inside 15 seconds — the handler
+  ACKs and the work happens in pg-boss. Reopening the cap comes first.
 
-**The trigger** is the commit that switches VNPay from sandbox to production
-credentials — a deliberate change made by hand, not a date or a feeling, which
-is what makes a checklist attachable to it at all. That checklist is gate `G2`
-and it is these six items. Nothing merges past it with a box unticked:
+**The trigger** is the commit that switches a gateway from sandbox to
+production credentials — a deliberate change made by hand, not a date or a
+feeling, which is what makes a checklist attachable to it at all. That
+checklist is gate `G2` and it is these six items, checked once for the
+deployment rather than once per gateway. Nothing merges past it with a box
+unticked:
 
 1. **Neon Free → Launch**, with the retention window confirmed and idle suspend
    off. pg-boss already prevents the suspend (§Hosting); the paid tier is what
@@ -190,11 +224,22 @@ and it is these six items. Nothing merges past it with a box unticked:
 6. **Release tracking wired to deploys** in Better Stack, so an error arriving
    after the flip names the deploy that introduced it.
 
+**Each gateway still owes its own proof before its own credential flip**: one
+real production transaction, taken through the live funnel, before that
+gateway is open to guests — VNPay's runbook step 11, PayPal's the equivalent
+step in its own runbook below. VNPay's flip and PayPal's flip are independent
+events; the six items above are the deployment's, ticked once, not re-ticked
+per gateway.
+
 The order of operations, the boot refusals that enforce a half-finished flip,
 and what to do afterwards are in
-[`../runbooks/g2-production-payment.md`](../runbooks/g2-production-payment.md).
-The checklist's original form and costing are in the frozen R3 advisory linked
-at the top of this file, §3.5.
+[`../runbooks/g2-production-payment.md`](../runbooks/g2-production-payment.md)
+for VNPay and
+[`../runbooks/g2-production-paypal.md`](../runbooks/g2-production-paypal.md)
+for PayPal — the credential shape, the routes and the boot refusals differ
+enough between the two that one runbook covering both would be reading past
+the other gateway's steps on every flip. The checklist's original form and
+costing are in the frozen R3 advisory linked at the top of this file, §3.5.
 
 ## E-invoice
 
