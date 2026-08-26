@@ -1,11 +1,12 @@
 import { Module } from "@nestjs/common";
+import { ENV, type Env } from "../../config/env.js";
 import { BookingModule } from "../booking/booking.module.js";
 import { FolioModule } from "../folio/folio.module.js";
 import { NotificationModule } from "../notification/notification.module.js";
 import { SystemConfigModule } from "../system-config/system-config.module.js";
 import { PaymentController } from "./payment.controller.js";
 import { PaymentService } from "./payment.service.js";
-import { PaypalAdapter } from "./paypal.adapter.js";
+import { PaypalAdapter, paypalIsConfigured } from "./paypal.adapter.js";
 import { PaypalController } from "./paypal.controller.js";
 import { GatewayRegistry } from "./ports/gateway-registry.js";
 import { PAYMENT_GATEWAY } from "./ports/payment-gateway.port.js";
@@ -38,15 +39,33 @@ import { VnpayAdapter } from "./vnpay.adapter.js";
 // `GatewayRegistry` is a class, is a value, and is its own token, exactly as
 // `PaymentService` and `ReconciliationService` below are.
 //
-// **The map now holds both of `FR-PAY-01`'s implementations**, and it is still
-// allowed to be partial. A method with nothing bound to it is a `503` at the
-// call that asked for it and not a boot failure — the registry says why, and it
-// is `vnpay.adapter.ts`'s own decision about a missing terminal code read from
-// the other end. Being *bound* is not the same as being configured: both
-// adapters build their clients on first use, so a property that has finished
+// **The map holds both of `FR-PAY-01`'s implementations where the deployment
+// can reach both, and it is partial where it cannot.** A method with nothing
+// bound to it is a `503` at the call that asked for it and not a boot failure —
+// the registry says why, and it is `vnpay.adapter.ts`'s own decision about a
+// missing terminal code read from the other end. So a property that has finished
 // neither provider's merchant onboarding still starts and still does the several
-// dozen other things this API does, and fails at the one call that needed
-// credentials while naming the variables it needed.
+// dozen other things this API does.
+//
+// **VNPay is bound unconditionally and PayPal is not, and the difference is a
+// fact about the sweep rather than about the two providers.** Both build their
+// clients on first use, so for everything a payer touches, bound-and-
+// unconfigured and unbound are the same `503` a moment apart. `reconciliation
+// .job.ts` is where they stop being the same. It asks every *bound* gateway for
+// its side of a night and catches nothing per gateway on purpose, so that a
+// provider which is configured and unreachable takes the night down rather than
+// letting it half-reconcile. VNPay survives that because it answers no window:
+// the sweep reconstructs its night from the attempts this property minted, and
+// an unconfigured terminal has none to ask about. PayPal answers a window
+// directly, so the call is made whether or not there is a PayPal attempt in the
+// day — and bound without credentials it would raise its own `503` on every run,
+// leave `payment_reconciliation_run` empty, and let each day fall past
+// `LOOK_BACK_DAYS` unreconciled, VNPay's money with it.
+//
+// So the property collects through PayPal from the deploy that sets the three
+// variables — `docs/runbooks/g2-production-paypal.md` step 8 — and not before.
+// `paypal.adapter.ts` exports the predicate rather than this file spelling the
+// three names, so what "configured" means is decided where the client is built.
 //
 // **`PAYMENT_GATEWAY` is the second, and it is now resolved through the map
 // rather than constructed beside it.** The token stays because
@@ -178,9 +197,32 @@ import { VnpayAdapter } from "./vnpay.adapter.js";
     PaypalAdapter,
     {
       provide: GatewayRegistry,
-      useFactory: (vnpay: VnpayAdapter, paypal: PaypalAdapter) =>
-        new GatewayRegistry({ VNPAY: vnpay, PAYPAL: paypal }),
-      inject: [VnpayAdapter, PaypalAdapter],
+      // **PayPal is bound only where this deployment can actually reach it**,
+      // which is what `ports/gateway-registry.ts` means by a partial map: a
+      // method with no adapter is absent, and the one call that needs it is a
+      // `503` naming it. Bound unconditionally it would be present and failing,
+      // and the two are not the same thing to every caller.
+      //
+      // `reconciliation.job.ts` is the caller that tells them apart. It asks
+      // every *bound* gateway for its side of a night and catches nothing per
+      // gateway on purpose — a provider that is configured and unreachable has
+      // to take the night down rather than let it half-reconcile. PayPal answers
+      // a window directly, so that call is made whether or not the property has
+      // any PayPal attempt to ask about; unconfigured and bound, it would raise
+      // its own `503` on every run, no `payment_reconciliation_run` row would
+      // ever be written, and after `LOOK_BACK_DAYS` the day would fall out of
+      // the sweep's reach unreconciled — VNPay's money included. VNPay never
+      // showed this because it has no `settledBetween`: the sweep reconstructs
+      // its night from attempts, and an unconfigured terminal has none.
+      //
+      // So the property collects through PayPal from the deploy that sets the
+      // three variables — `g2-production-paypal.md` step 8 — and not before.
+      useFactory: (env: Env, vnpay: VnpayAdapter, paypal: PaypalAdapter) =>
+        new GatewayRegistry({
+          VNPAY: vnpay,
+          ...(paypalIsConfigured(env) ? { PAYPAL: paypal } : {}),
+        }),
+      inject: [ENV, VnpayAdapter, PaypalAdapter],
     },
     {
       provide: PAYMENT_GATEWAY,

@@ -28,6 +28,13 @@ production boot in two cases relevant here:
   true (the default) — a sandbox client signs and answers exactly as the live
   one does, so a booking would confirm against money that never moved.
 
+**Until the three variables are set, PayPal is not a gateway this property
+collects through.** `payment.module.ts` binds an adapter into the registry only
+where the deployment can reach it, so before the flip the map holds VNPay alone:
+a guest who chooses PayPal is refused by name, and the nightly reconciliation
+sweeps VNPay's night exactly as it did before this gateway existed. It is bound
+by the deploy at step 8 and by nothing else — there is no separate enable flag.
+
 Variable names, and what each one is for, are in
 [`../../apps/api/.env.example`](../../apps/api/.env.example). Never write a
 value into this repository: deployed values live in `fly secrets`.
