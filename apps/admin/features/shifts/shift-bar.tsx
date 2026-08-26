@@ -23,9 +23,13 @@ import { useCurrentShift } from "./shift-queries";
 import { useShiftSurface } from "./shift-surface";
 
 /**
- * The global console bar: navigation on small screens, the property day,
- * command search, drawer state, and the current operator. Screen-specific
- * actions remain in each screen header below it.
+ * The global console bar: navigation on small screens, the brand, command
+ * search, drawer state, and the current operator. Screen-specific actions
+ * remain in each screen header below it.
+ *
+ * The property day is not here. It was the left-hand block the menu trigger
+ * and the brand now occupy, and the screens that decide anything by the
+ * business date read it themselves rather than off a bar.
  */
 export function ShiftBar() {
   const session = useStaffSession();

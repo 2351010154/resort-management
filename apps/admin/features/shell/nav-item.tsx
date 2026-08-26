@@ -22,8 +22,6 @@ export function NavItem({ item, icon: Icon, active, onSelect }: NavItemProps) {
     <Link
       href={item.href}
       aria-current={active ? "page" : undefined}
-      aria-label={item.label}
-      title={item.label}
       className={cn(
         "group/nav-item relative flex min-h-11 items-center gap-3 rounded-md px-3 text-sm font-medium transition-[background-color,color,box-shadow,transform] duration-200 ease-ui active:translate-y-px",
         active
