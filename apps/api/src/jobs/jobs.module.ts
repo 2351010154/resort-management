@@ -61,9 +61,11 @@ import { SWEEP_JOBS, type SweepJob } from "./sweep-job.js";
 // one.
 //
 // `PaymentModule` is imported for `ReconciliationService` and for the
-// `PAYMENT_GATEWAY` binding behind it, which `ReconciliationJob` needs together:
-// the comparison is one module's and the report it compares has to be fetched
-// through the port that module binds. Constructing either here would be a second
+// `GatewayRegistry` behind it, which `ReconciliationJob` needs together: the
+// comparison is one module's and the report it compares has to be fetched from
+// every gateway that module binds. The registry and not a single adapter,
+// because a night holds money from each of them and the sweep has no payer's
+// choice to resolve one by. Constructing either here would be a second
 // `VnpayAdapter` reading the same terminal, and a second comparison for the
 // screen that shows what it found to disagree with.
 //

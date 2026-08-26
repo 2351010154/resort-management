@@ -92,6 +92,7 @@ describe("the system configuration", () => {
       "system_config_silver_revenue_is_money",
       "system_config_gold_stays_not_below_silver",
       "system_config_gold_revenue_not_below_silver",
+      "system_config_fx_rate_is_positive",
     ]);
   });
 
@@ -203,6 +204,49 @@ describe("the system configuration", () => {
     const columns = Object.keys(systemConfig).join(" ").toLowerCase();
 
     expect(columns).not.toContain("discount");
+  });
+
+  it("names its currency rate for the pair and never for the provider", () => {
+    // A rate is a fact about two currencies. Which gateway settles in the second
+    // one is a binding in `payment.module.ts`, so a column called after a
+    // provider would put that provider's name in the property's own
+    // configuration — the leak `FR-PAY-01` spends a port preventing, arriving
+    // through the schema instead of through a service.
+    const columns = Object.keys(systemConfig).join(" ").toLowerCase();
+
+    expect(columns).toContain("ratevndperusd");
+    expect(columns).not.toContain("paypal");
+    expect(columns).not.toContain("vnpay");
+  });
+
+  it("keeps that rate on text, because it is the one figure with a fraction", () => {
+    // `numeric` and never a float, which is the opposite of the basis-points
+    // decision above and for the same underlying reason: those are whole
+    // integers because a percentage has no fraction to lose, and this carries
+    // one because a currency pair does. `money.ts` reads it as decimal text for
+    // exactly that — a double holding the quotient it divides into converts a
+    // stay to within a few đồng of right, which is the drift `FR-PAY-05` would
+    // surface a month later as a day that will not reconcile.
+    //
+    // Defaulted, unlike §8's money figures, and the default is not a rate
+    // anybody agreed to. It exists so the column is never null on an upgrade;
+    // the property sets its own before real money is taken in dollars.
+    expect(systemConfig.rateVndPerUsd.getSQLType()).toBe("numeric");
+    expect(systemConfig.rateVndPerUsd.notNull).toBe(true);
+    expect(systemConfig.rateVndPerUsd.hasDefault).toBe(true);
+  });
+
+  it("refuses a rate of nothing or a rate that runs backwards", () => {
+    // `payment.fx_rate` already carries `payment_fx_rate_is_positive` for the
+    // copy frozen onto an attempt; this is the same rule on the figure that copy
+    // is read from. Whether Postgres actually enforces it — rather than merely
+    // declaring the intent — is `test/config-storage.e2e-spec.ts`'s question,
+    // against a real database.
+    const declared = getTableConfig(systemConfig).checks.map(
+      (check) => check.name,
+    );
+
+    expect(declared).toContain("system_config_fx_rate_is_positive");
   });
 
   it("stores no gateway credential", () => {

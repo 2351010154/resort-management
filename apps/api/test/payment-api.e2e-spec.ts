@@ -75,7 +75,7 @@ import {
   MailerService,
   type OutgoingEmail,
 } from "../src/modules/notification/mailer.service.js";
-import { PAYMENT_GATEWAY } from "../src/modules/payment/ports/payment-gateway.port.js";
+import { GatewayRegistry } from "../src/modules/payment/ports/gateway-registry.js";
 import { VnpayAdapter } from "../src/modules/payment/vnpay.adapter.js";
 
 const TERMINAL = "MRVTEST2";
@@ -203,8 +203,8 @@ beforeAll(async () => {
   mailer = new RecordingMailer();
 
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
-    .overrideProvider(PAYMENT_GATEWAY)
-    .useValue(new VnpayAdapter(merchantEnv()))
+    .overrideProvider(GatewayRegistry)
+    .useValue(new GatewayRegistry({ VNPAY: new VnpayAdapter(merchantEnv()) }))
     .overrideProvider(MailerService)
     .useValue(mailer)
     .compile();

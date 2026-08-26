@@ -92,6 +92,7 @@ import { GuestService } from "../src/modules/guest/guest.service.js";
 import { HousekeepingService } from "../src/modules/housekeeping/housekeeping.service.js";
 import { InventoryService } from "../src/modules/inventory/inventory.service.js";
 import type { OpsAlertService } from "../src/modules/notification/ops-alert.service.js";
+import { GatewayRegistry } from "../src/modules/payment/ports/gateway-registry.js";
 import { PaymentService } from "../src/modules/payment/payment.service.js";
 import type {
   CreatePaymentInput,
@@ -209,7 +210,10 @@ beforeAll(async () => {
   // earned. The ledger and the transaction are the real ones, since the
   // extension has to be in the same commit as the attempt.
   payments = new PaymentService(
-    new GatewayThatOpensAnything(),
+    // Bound under the method `payFor` names below. The service resolves its
+    // adapter per attempt, so a registry with nothing under that key would
+    // refuse before a hold was ever extended.
+    new GatewayRegistry({ VNPAY: new GatewayThatOpensAnything() }),
     new FolioService(db, new SystemConfigService(), noAccrual),
     new BusinessDateService(new SystemConfigService()),
     bookings,
@@ -226,6 +230,10 @@ beforeAll(async () => {
         );
       },
     } as unknown as OpsAlertService,
+    // Real, like the two readers above it: every attempt here is opened through
+    // a gateway that collects đồng, so the rate is never read, and a cast would
+    // fail the day one of these holds was paid through a gateway that cannot.
+    new SystemConfigService(),
   );
 });
 
@@ -603,6 +611,7 @@ async function payingFor(
 async function payFor(held: Booking): Promise<void> {
   await payments.createPaymentRequest({
     bookingId: held.id,
+    method: "VNPAY",
     amount: held.stayTotalGross,
     description: "The stay, paid in full before arrival",
     returnUrl: "https://mariva.test/stay/payment/return",

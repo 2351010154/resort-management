@@ -30,6 +30,35 @@
 // and a string that is not in the shape this file mints names no attempt of
 // this property's and is refused before a connection is spent on it.
 //
+// **The gateway is chosen per attempt, and the row is what remembers which.**
+// `FR-PAY-06` puts a second implementation behind the port, so "the gateway" is
+// no longer a thing this service can have: the caller names a payment method,
+// `ports/gateway-registry.ts` hands back the adapter bound to it, and
+// `payment.method` records the choice on the row the attempt opens. Nothing
+// below learns a provider's name from any of it — a method is the property's own
+// word for a way money reaches the desk, which is the line `FR-PAY-01` draws and
+// `schema/payment.ts` already stored on this column.
+//
+// **A callback is verified by the gateway it arrived from, and may only resolve
+// an attempt that gateway opened.** The two are separate guarantees and both are
+// needed. The first is the caller's: a callback route has exactly one gateway
+// posting to it — its paths, its parameters and its signature scheme are that
+// gateway's specification, which is why `payment.controller.ts` is a file per
+// gateway — so the route names its own method and the adapter is resolved from
+// that. It cannot be resolved from the attempt's stored method instead, however
+// much that reads like the safer order: the reference lives *inside* the
+// callback, and reading a row to decide how to authenticate the thing that named
+// it would spend a connection on every unsigned request posted to an unguarded
+// route, which is the one thing the route was built not to do.
+//
+// The second guarantee is the row's, and it is what closes the gap the first one
+// leaves. Once a callback is authentic, the attempt it claims is claimed under
+// the method it arrived through — one more conjunct on the same conditional
+// `UPDATE` — so a genuinely signed report from one provider cannot resolve an
+// attempt opened at another. Without it, anybody able to make a real payment at
+// the second gateway could name this property's reference on it and have the
+// money land against a stay whose attempt was opened somewhere else entirely.
+//
 // **The attempt is committed before the payer is sent anywhere.** The row goes
 // in first, in its own short transaction, and the gateway is asked afterwards
 // with nothing held open across the round trip — `database.module.ts` sizes the
@@ -121,6 +150,16 @@
 // disagreeing with this property, and posting it would put a number on a guest's
 // invoice that no attempt of theirs accounts for.
 //
+// **What is compared is the unit the payer was actually charged in**, which for
+// a gateway that cannot charge đồng is not đồng. `contradictsWhatWasCharged`
+// carries the whole argument; the short of it is that such a callback's đồng are
+// this process's own conversion back from the gateway's cents, the round trip is
+// lossy by `money.ts`'s own statement, and an equality over them would refuse
+// every payment that gateway ever took. The cents are exact, were frozen on the
+// row before the payer saw anything, and are what the gateway reports back. What
+// is **posted** either way is the row's đồng — never a figure converted back
+// from a foreign minor unit.
+//
 // **Money landing on a stay nobody can honour pages somebody, and posts
 // anyway.** `BookingService.confirmPaidHold` moves a hold and no-ops on every
 // other state, which is right — refusing there would roll back money the
@@ -157,8 +196,14 @@
 // keep ignoring.
 
 import { randomUUID } from "node:crypto";
-import type { StayDate, VndAmount } from "@mariva/shared";
-import { Inject, Injectable } from "@nestjs/common";
+import {
+  convertVndToPresentment,
+  type GatewayPaymentMethod,
+  type Presentment,
+  type StayDate,
+  type VndAmount,
+} from "@mariva/shared";
+import { Injectable } from "@nestjs/common";
 import { ORPCError } from "@orpc/nest";
 import {
   and,
@@ -189,11 +234,9 @@ import {
 } from "../booking/business-date.service.js";
 import { FolioService } from "../folio/folio.service.js";
 import { OpsAlertService } from "../notification/ops-alert.service.js";
-import {
-  type GatewayTransaction,
-  PAYMENT_GATEWAY,
-  type PaymentGateway,
-} from "./ports/payment-gateway.port.js";
+import { SystemConfigService } from "../system-config/system-config.service.js";
+import { GatewayRegistry } from "./ports/gateway-registry.js";
+import type { GatewayTransaction } from "./ports/payment-gateway.port.js";
 // The coarse day bound the reconciliation reads its own ledger side with. One
 // definition rather than two, so a payment listed under a trading day and the
 // same payment compared against the gateway's report of that day are drawn from
@@ -201,20 +244,6 @@ import {
 import { startOfDayUtc } from "./reconciliation.service.js";
 
 const UNIQUE_VIOLATION = "23505";
-
-/**
- * The method recorded against everything this service writes.
- *
- * The one place here that names a gateway, and it names the *property's* own
- * vocabulary rather than anything a gateway said: `payment_method` is a list of
- * ways money reaches the desk, and `schema/payment.ts` argues that a second
- * gateway is a second member of it. A constant because the binding is one —
- * `payment.module.ts` points `PAYMENT_GATEWAY` at a single adapter. `FR-PAY-06`
- * is what turns this into a value the binding has to supply, and inventing that
- * parameter before there is a second thing to pass it is a guess at which of the
- * two ends should hold it.
- */
-const GATEWAY_METHOD = "VNPAY";
 
 /**
  * What a guest is told about a stay that is not theirs and about one that is not
@@ -261,6 +290,24 @@ const REFERENCE_PATTERN = new RegExp(`^[0-9a-f]{${UUID_HEX_LENGTH * 2}}$`);
 /** What the property is asking a gateway to collect, and for which stay. */
 export interface GatewayPaymentRequest {
   readonly bookingId: string;
+
+  /**
+   * Which gateway is being asked, named the property's way.
+   *
+   * A method and never an adapter, a provider or a host: this is the same value
+   * `payment.method` stores, `contract/payment.ts` narrowed to the members a
+   * gateway answers for, and `ports/gateway-registry.ts` keys its map on. That
+   * is the whole of what keeps `FR-PAY-01` intact through a field whose only
+   * purpose is to pick between two providers — a reader of it learns a way of
+   * paying, not who processes it.
+   *
+   * Required and undefaulted, unlike the contract field it arrives from. A
+   * default belongs at the edge, where an older caller that never named a
+   * gateway is a request to keep working; here it would be this service
+   * choosing a provider for a caller that forgot to, and writing that choice
+   * onto a row somebody will later reconcile against a merchant screen.
+   */
+  readonly method: GatewayPaymentMethod;
 
   /** In đồng — `money.ts` on why nothing above the adapter scales it. */
   readonly amount: VndAmount;
@@ -327,6 +374,19 @@ export interface OpenedPayment {
    * is where the other half of that conversation happens.
    */
   readonly reference: string;
+
+  /**
+   * What was frozen onto the row a moment ago, for a gateway that cannot take
+   * đồng — undefined for one that can.
+   *
+   * Not a second conversion. `createPaymentRequest` computed this figure
+   * before the row was written, exactly once, and this is that same value
+   * handed back rather than read again — the funnel's own confirmation
+   * screen has nothing else to show a payer, and `contract/payment.ts`
+   * argues why a route that computed a fresh one would be the one thing that
+   * could quote the guest a figure different from what the row now says.
+   */
+  readonly presentment?: Presentment;
 }
 
 /**
@@ -369,6 +429,26 @@ export type CallbackDisagreement =
   | "OUTCOME"
   /** The gateway's transaction is already recorded against another attempt. */
   | "TRANSACTION";
+
+/**
+ * An attempt a callback has just claimed: the account the money belongs on, and
+ * the đồng that go onto it.
+ *
+ * Both halves come off the row rather than out of the callback, which is the
+ * whole reason the pair travels instead of the folio id alone. The gateway's
+ * đồng are not reliably the property's — `ports/payment-gateway.port.ts` says on
+ * `GatewayTransactionBase.amount` that a foreign-settled callback reports a
+ * figure this process converted out of cents, and the conversion does not round
+ * trip. The property asked for X and the payer paid the agreed presentment of X,
+ * so the ledger records X.
+ *
+ * Private to this file. It is the shape of one hand-off between two methods of
+ * one service, and nothing outside has a question it answers.
+ */
+interface ResolvedAttempt {
+  readonly folioId: string;
+  readonly asked: VndAmount;
+}
 
 /**
  * Thrown to abandon a transaction whose attempt is already resolved exactly as
@@ -458,9 +538,17 @@ export interface RefundCandidatesPage {
 @Injectable()
 export class PaymentService {
   constructor(
-    // The port and never the adapter — `FR-PAY-01`. Nothing in this file names
-    // a gateway response code, a signature scheme or a host.
-    @Inject(PAYMENT_GATEWAY) private readonly gateway: PaymentGateway,
+    // The registry and never an adapter — `FR-PAY-01`. Nothing in this file
+    // names a gateway response code, a signature scheme or a host; what it
+    // holds is a lookup from the property's own payment method to whichever
+    // implementation of the port answers for it, and every call below goes
+    // through `for(…)` with a method that came from a caller or off a row.
+    //
+    // A single injected gateway was honest while there was one binding. With
+    // two it would be this service deciding, once per process, which provider
+    // every guest pays through — and `FR-PAY-06`'s whole point is that the
+    // decision belongs to the attempt.
+    private readonly gateways: GatewayRegistry,
     private readonly folios: FolioService,
     private readonly businessDates: BusinessDateService,
     // Asked one question and only one: whether a stay is a given account's.
@@ -478,6 +566,14 @@ export class PaymentService {
     // header says why the call is post-commit and why this service, rather than
     // the state machine, is what decides a state is worth waking a person for.
     private readonly alerts: OpsAlertService,
+    // Last for the reason the alerter above is last, and asked one question:
+    // what the property converts đồng at for a gateway that cannot take them.
+    // The figure is `system_config`'s rather than the environment's because an
+    // `ADMIN` edits it without a deploy — `system-config.service.ts` opens with
+    // why the two kinds of configuration are different classes — and it is read
+    // through the caller's executor so the rate frozen onto a row is the one
+    // that transaction saw.
+    private readonly configuration: SystemConfigService,
   ) {}
 
   /**
@@ -534,6 +630,15 @@ export class PaymentService {
       });
     }
 
+    // Third of the refusals that happen before anything is written, and the one
+    // that is about this deployment rather than about the caller. A method with
+    // no adapter bound to it is a `503` from the registry, and asking for the
+    // adapter here rather than after the commit is what keeps that refusal from
+    // leaving a `PENDING` attempt and an extended hold behind it — a room taken
+    // off sale for fifteen minutes to pay through a gateway this property
+    // cannot reach.
+    const gateway = this.gateways.for(request.method);
+
     // Minted once, here, and then written down and sent — never taken twice.
     //
     // A gateway partitions transactions by the day one was opened, and VNPay
@@ -552,6 +657,12 @@ export class PaymentService {
     // its own transaction started at, and the two are the same value by
     // construction instead of by proximity.
     const openedAt = new Date();
+
+    // The terms the attempt is opened on, when the chosen gateway cannot take
+    // đồng — computed below, inside the transaction that writes them, and read
+    // out here because the same frozen figure is what the gateway is then told
+    // to charge.
+    let presentment: Presentment | undefined;
 
     await this.transactions.run(async (exec) => {
       await this.mayCollectFor(exec, request);
@@ -586,9 +697,49 @@ export class PaymentService {
 
       const folioId = await this.folios.ensureFolio(exec, request.bookingId);
 
+      // What the payer will actually be asked for, worked out before the row is
+      // written rather than after the gateway answers.
+      //
+      // **The property converts and the gateway executes**, and the ordering is
+      // what forces it. `payment_foreign_gateway_states_what_it_charged` refuses
+      // the *insert* of a row that cannot say what a foreign gateway charged,
+      // and the row is committed before anything is asked of that gateway — the
+      // header argues at length why every callback that can arrive must already
+      // have a row to resolve. So a figure the adapter quoted back would arrive
+      // after the only statement that could have carried it.
+      //
+      // It is also the stronger arrangement, not a workaround for a constraint.
+      // The dollars the guest approves and the dollars frozen on this row are
+      // one value passed in one direction, rather than two values that agree
+      // only for as long as an adapter reports what it actually charged.
+      //
+      // Read through the caller's executor, so the rate applied is the one this
+      // transaction sees — `system-config.service.ts` argues that at length, and
+      // the argument is sharper here than at a posting: an `ADMIN` editing the
+      // rate between this read and the insert would freeze a figure the guest
+      // was never quoted.
+      //
+      // Which gateways need this is not a list here. The adapter declares a
+      // `settlementCurrency` or it does not, and `VnpayAdapter` does not — so
+      // nothing on this path names a provider, and the đồng case writes exactly
+      // the row it always wrote.
+      if (gateway.settlementCurrency) {
+        presentment = convertVndToPresentment(
+          request.amount,
+          gateway.settlementCurrency,
+          await this.configuration.rateVndPerUsd(exec),
+        );
+      }
+
       await exec.insert(payment).values({
         folioId,
-        method: GATEWAY_METHOD,
+        // The gateway the caller chose, in the property's own vocabulary. It is
+        // written here rather than derived later because it is the only record
+        // of which of two providers this attempt was opened at: a callback
+        // resolves against it, `FR-PAY-05` partitions a night's comparison by
+        // it, and an operator matching a reference against a merchant screen
+        // needs to know which screen to open.
+        method: request.method,
         // What makes this row findable again. Without it the callback that
         // resolves the attempt has nothing to match on, and a paid stay ends
         // holding this row beside a second one saying the money arrived.
@@ -603,19 +754,42 @@ export class PaymentService {
         // transaction's start time, which is a different instant from the one
         // below and is the whole reason this is passed rather than defaulted.
         createdAt: openedAt,
+        // The three columns are written together or not at all, which is what
+        // `payment_presentment_is_whole_or_absent` requires and what makes a
+        // spread of one optional record the honest way to write them: there is
+        // no arrangement of this expression that fills two of the three.
+        //
+        // A record of a charge and never an amount — nothing sums these, no
+        // posting is computed from them and no balance reads them, which is the
+        // rule `money.ts` states and the reason presentment has a shape of its
+        // own rather than reusing the ledger's. The rest of the invariants over
+        // them are Postgres's as well: positive, and mandatory for a gateway
+        // that settles in another currency. There is deliberately no copy of any
+        // of that here, because it has to hold for every writer of the table and
+        // not only for the ones that come through this method.
+        ...(presentment
+          ? {
+              presentmentCurrency: presentment.currency,
+              presentmentAmount: presentment.minorUnits,
+              fxRate: presentment.rate,
+            }
+          : {}),
       });
     });
 
-    const { paymentUrl } = await this.gateway.createPayment({
+    const opened = await gateway.createPayment({
       reference,
       createdAt: openedAt,
       amount: request.amount,
       description: request.description,
       returnUrl: request.returnUrl,
       payerIpAddress: request.payerIpAddress,
+      // The frozen figure, handed on to be charged. Undefined for a gateway that
+      // takes đồng, which is every field this adapter was ever given.
+      presentment,
     });
 
-    return { paymentUrl, reference };
+    return { paymentUrl: opened.paymentUrl, reference, presentment };
   }
 
   /**
@@ -1007,9 +1181,30 @@ export class PaymentService {
    * payment: the route this is called from is unguarded on purpose, so anything
    * at all may be posted to it and most of what fails here is traffic rather
    * than money.
+   *
+   * **The method says which gateway is speaking, and the caller is the only one
+   * who can say it.** A callback route has exactly one gateway posting to it —
+   * the path, the parameters and the signature scheme are that gateway's
+   * specification — so the route names its own method and the adapter that
+   * authenticates the callback is the one bound to it. The stored method cannot
+   * decide this and the header says why: the reference is inside the callback,
+   * and reading a row to work out how to authenticate the thing that named it
+   * would put a query in front of every unsigned request posted to an unguarded
+   * route. What the stored method does decide is which attempt this callback
+   * may resolve, which {@link take} enforces once the callback is authentic.
+   *
+   * It is a method rather than an adapter for `FR-PAY-01`'s reason: a caller
+   * handing in a `PaymentGateway` would be a caller that had already resolved
+   * one, and the whole point of the port is that nothing above it holds a
+   * provider.
    */
-  async handleIpn(callback: Record<string, unknown>): Promise<CallbackOutcome> {
-    const verification = await this.gateway.verifyCallback(callback);
+  async handleIpn(
+    callback: Record<string, unknown>,
+    method: GatewayPaymentMethod,
+  ): Promise<CallbackOutcome> {
+    const verification = await this.gateways
+      .for(method)
+      .verifyCallback(callback);
 
     if (!verification.verified) {
       throw new ORPCError("UNAUTHORIZED", {
@@ -1039,12 +1234,12 @@ export class PaymentService {
         return "STILL_OPEN";
       }
 
-      await this.recordRefusal(transaction.reference);
+      await this.recordRefusal(transaction.reference, method);
 
       return "REFUSED";
     }
 
-    return await this.record(transaction);
+    return await this.record(transaction, method);
   }
 
   /**
@@ -1061,10 +1256,18 @@ export class PaymentService {
    */
   private async record(
     transaction: Extract<GatewayTransaction, { status: "SUCCESS" }>,
+    method: GatewayPaymentMethod,
   ): Promise<CallbackOutcome> {
     try {
       await this.transactions.run(async (exec) => {
-        const folioId = await this.take(exec, transaction);
+        // The account, and beside it the đồng that go onto it. The second half
+        // comes off the row rather than out of the callback, and
+        // `ports/payment-gateway.port.ts` says why on the field it is not read
+        // from: a foreign-settled callback reports đồng this process converted
+        // out of cents, so posting them would put the round trip's few hundred
+        // đồng onto a guest's invoice — a figure no attempt of theirs accounts
+        // for, arriving through the one door the amount check cannot see.
+        const { folioId, asked } = await this.take(exec, transaction, method);
 
         // The stay itself, in the same commit as the money. `booking-state-
         // machine.md` §3 captions `HELD → CONFIRMED` "deposit taken", and this
@@ -1089,7 +1292,7 @@ export class PaymentService {
 
         await this.folios.postPayment(exec, {
           folioId,
-          amount: transaction.amount,
+          amount: asked,
           // The trading day the money moved in, which is not necessarily the
           // one this callback arrived in.
           businessDate: await this.businessDates.current(
@@ -1113,7 +1316,7 @@ export class PaymentService {
         // After the posting rather than beside the transition, so that the page
         // claims what is true by the time it is sent: the money is on the
         // account. Registered, not sent — see the method.
-        await this.pageIfNobodyCanHonour(exec, stay, transaction);
+        await this.pageIfNobodyCanHonour(exec, stay, transaction, asked);
       });
     } catch (error) {
       if (error instanceof AlreadyResolved) {
@@ -1174,6 +1377,13 @@ export class PaymentService {
     exec: DbExecutor,
     stay: PaidStay,
     transaction: Extract<GatewayTransaction, { status: "SUCCESS" }>,
+    // The đồng that were posted, handed in rather than read off the callback.
+    // This page is read by the person who has to hand the money back, so the
+    // figure in it has to be the one on the folio they will be looking at; the
+    // callback's own đồng are the adapter's conversion on a foreign-settled
+    // attempt, and a page disagreeing with the account by a few hundred đồng is
+    // a responder deciding which of two numbers to refund.
+    posted: VndAmount,
   ): Promise<void> {
     if (stay.state !== "CANCELLED") {
       return;
@@ -1187,7 +1397,7 @@ export class PaymentService {
       await this.alerts.page({
         kind: "payment-on-cancelled-stay",
         text:
-          `${transaction.amount} đồng has been taken for booking ` +
+          `${posted} đồng has been taken for booking ` +
           `${stay.reference}, which was already cancelled — the payment is on ` +
           "the account and the stay stays cancelled, so it has to be refunded " +
           "by hand at the gateway",
@@ -1197,7 +1407,7 @@ export class PaymentService {
           // đồng as a string: this is a `bigint` and a page is JSON, and
           // `money.ts` refuses the loss `Number` would take — on the one field
           // whose whole purpose is a figure somebody has to hand back.
-          amount: transaction.amount.toString(),
+          amount: posted.toString(),
           gatewayTransactionId: transaction.gatewayTransactionId,
           // What the gateway's merchant screen is searched by, alongside the
           // transaction id: the refund is made there, on the day the money
@@ -1233,11 +1443,32 @@ export class PaymentService {
    * The header says why that is a refusal rather than a status. There is no
    * branch here without a row to compare against — {@link createPaymentRequest}
    * commits one before the payer is sent anywhere.
+   *
+   * **Which figure is compared depends on what the attempt froze**, and
+   * {@link contradictsWhatWasCharged} is where that choice is argued. A row that
+   * recorded what the payer would be charged abroad is checked in that unit; a
+   * row that did not is checked in đồng exactly as it always was. What comes
+   * back is the row's own đồng either way, because that is what {@link record}
+   * posts — the property asked for X, the payer paid the agreed presentment of
+   * X, and the ledger records X.
+   *
+   * **The gateway is a third conjunct, and it is the one that stops a real
+   * payment landing on somebody else's attempt.** The property now has two
+   * providers and one reference format, and the reference is the only string a
+   * callback carries that this property wrote. Anybody able to take a genuine
+   * payment at the second gateway can name a reference of their choosing on it,
+   * and what arrives is then authentic — it *is* that gateway speaking — about
+   * an attempt the other gateway opened. Matching the stored method as well as
+   * the reference is what makes an attempt claimable only through the provider
+   * it was opened at, and it costs the honest callback nothing: a real one's
+   * method always equals the row's, because the reference was only ever handed
+   * to the gateway the row records.
    */
   private async take(
     exec: DbExecutor,
     transaction: Extract<GatewayTransaction, { status: "SUCCESS" }>,
-  ): Promise<string> {
+    method: GatewayPaymentMethod,
+  ): Promise<ResolvedAttempt> {
     try {
       const [claimed] = await exec
         .update(payment)
@@ -1251,13 +1482,23 @@ export class PaymentService {
         .where(
           and(
             eq(payment.attemptReference, transaction.reference),
+            eq(payment.method, method),
             eq(payment.status, "PENDING"),
           ),
         )
-        .returning({ folioId: payment.folioId, asked: payment.amount });
+        .returning({
+          folioId: payment.folioId,
+          asked: payment.amount,
+          // What the payer was told they would be charged, when the gateway
+          // could not charge đồng. Null for every attempt at a gateway that
+          // could, which `payment_presentment_is_whole_or_absent` makes an
+          // all-or-nothing fact about the row rather than three fields that
+          // might individually be missing.
+          charged: payment.presentmentAmount,
+        });
 
       if (claimed) {
-        if (claimed.asked !== transaction.amount) {
+        if (contradictsWhatWasCharged(claimed, transaction)) {
           throw new ORPCError("CONFLICT", {
             data: disagreedAbout("AMOUNT"),
             message:
@@ -1267,7 +1508,7 @@ export class PaymentService {
           });
         }
 
-        return claimed.folioId;
+        return { folioId: claimed.folioId, asked: claimed.asked };
       }
 
       const held = await this.heldBy(exec, transaction.reference);
@@ -1277,6 +1518,30 @@ export class PaymentService {
           message:
             "This property has no attempt under that reference, so there is " +
             "no account the money could be posted to",
+        });
+      }
+
+      // The fourth reading of "no rows updated", and it has to be told apart
+      // *before* the replay below rather than after. A callback from the wrong
+      // gateway can carry a transaction id this property has never seen, and
+      // `payment_gateway_transaction_unique_key` is one column shared by both
+      // providers — so left to fall through, a row that happened to record the
+      // same id would read as a redelivery, be answered as one, and stop the
+      // gateway retrying money that was never posted anywhere.
+      //
+      // A replay cannot reach this branch by construction: the same delivery
+      // again comes from the gateway that took the money, whose method is the
+      // row's. So this is a reference naming an attempt opened somewhere else,
+      // and `NOT_FOUND` is the literal truth of it — through the gateway that is
+      // speaking, this property opened no such attempt. It is also the answer
+      // that ends the conversation: no number of redeliveries will make an
+      // attempt at one provider claimable from another.
+      if (held.method !== method) {
+        throw new ORPCError("NOT_FOUND", {
+          message:
+            "This property opened no attempt under that reference through " +
+            "the gateway reporting it, so there is no account the money " +
+            "could be posted to",
         });
       }
 
@@ -1343,8 +1608,25 @@ export class PaymentService {
    * the gateway disagrees about is a disagreement over money that did not move —
    * and the row keeps what the property asked for, which is the figure a guest
    * asking why they were not charged is asking about.
+   *
+   * That is also why {@link contradictsWhatWasCharged} has no part in this
+   * method, and its absence is a decision rather than an omission. The rule it
+   * states — a foreign-settled attempt is checked in what the payer was charged,
+   * because the đồng on such a callback are the adapter's own conversion — only
+   * arises where a figure is checked at all, and there is no check here to get
+   * the unit wrong in.
+   *
+   * The gateway is matched here for the same reason {@link take} matches it,
+   * and the harm it prevents is the mirror of that one. A refusal genuinely
+   * signed by the second provider, naming a reference the first provider's
+   * attempt holds, would file that live attempt `FAILED` — and the real payment
+   * arriving a minute later would then be a contradiction somebody has to
+   * reconcile by hand, over money that moved exactly as it was supposed to.
    */
-  private async recordRefusal(reference: string): Promise<void> {
+  private async recordRefusal(
+    reference: string,
+    method: GatewayPaymentMethod,
+  ): Promise<void> {
     await this.transactions.run(async (exec) => {
       const [refused] = await exec
         .update(payment)
@@ -1352,6 +1634,7 @@ export class PaymentService {
         .where(
           and(
             eq(payment.attemptReference, reference),
+            eq(payment.method, method),
             eq(payment.status, "PENDING"),
           ),
         )
@@ -1368,6 +1651,15 @@ export class PaymentService {
           message:
             "This property has no attempt under that reference, so there is " +
             "no refusal of its own to record",
+        });
+      }
+
+      if (held.method !== method) {
+        throw new ORPCError("NOT_FOUND", {
+          message:
+            "This property opened no attempt under that reference through " +
+            "the gateway reporting it, so there is no refusal of its own to " +
+            "record",
         });
       }
 
@@ -1424,21 +1716,84 @@ export class PaymentService {
    * `payment_attempt_reference_unique_key` is what makes a reference name at
    * most one attempt, so a second row here would be a broken invariant rather
    * than a result to narrow.
+   *
+   * **Read without the method, deliberately**, unlike the two statements whose
+   * answer it explains. Those claim an attempt and must therefore match the
+   * gateway that is speaking; this asks what the reference names at all, and a
+   * lookup that also narrowed by method could only ever report "no such
+   * attempt" — which is the one answer the callers have to be able to tell
+   * apart from "an attempt, opened somewhere else".
    */
   private async heldBy(
     exec: DbExecutor,
     reference: string,
-  ): Promise<Pick<PaymentRow, "status" | "gatewayTransactionId"> | undefined> {
+  ): Promise<
+    Pick<PaymentRow, "status" | "gatewayTransactionId" | "method"> | undefined
+  > {
     const [held] = await exec
       .select({
         status: payment.status,
         gatewayTransactionId: payment.gatewayTransactionId,
+        method: payment.method,
       })
       .from(payment)
       .where(eq(payment.attemptReference, reference));
 
     return held;
   }
+}
+
+/**
+ * Whether a callback names a figure the attempt was not opened for — checked in
+ * the unit the payer was actually charged in.
+ *
+ * **The unit is decided by the row and never by the gateway**, and that is what
+ * the branch is for. An attempt that froze a presentment was opened at a gateway
+ * that cannot charge đồng: the property converted at
+ * `system_config.rate_vnd_per_usd`, wrote the three presentment columns in the
+ * same insert, and handed the frozen figure to the adapter to collect. So the
+ * exact fact about that attempt is the minor unit — cents — and both sides of
+ * the comparison below are integers in it, fixed before the payer saw the
+ * gateway and reported back by the gateway as the very field it was told to
+ * charge.
+ *
+ * Comparing the đồng there would compare the adapter with itself. `money.ts` is
+ * explicit that đồng → cents → đồng "can land a few hundred đồng away", because
+ * a cent is worth roughly 250 đồng; 1,200,000 ₫ at 26,150.5 returns as
+ * 1,200,046 ₫ with nothing at all wrong. Left as an equality that would refuse
+ * every payment the property ever took at such a gateway, and post nothing — a
+ * check calling its own rounding a discrepancy.
+ *
+ * **A row that froze nothing is compared exactly as it always was.** A gateway
+ * collecting đồng reports the property's own unit back untouched, the figure is
+ * authoritative, and the equality is the bookkeeping check the header argues
+ * for: a callback that verifies and still names a figure nobody asked for is a
+ * terminal, a currency scale or a merchant account disagreeing with this
+ * property. Nothing about that gateway changes here.
+ *
+ * **A row that froze a presentment and a callback that reports none is a
+ * contradiction, not a fallback.** The row exists because
+ * `payment_foreign_gateway_states_what_it_charged` refused to let it be written
+ * without one, so the attempt was opened abroad; a report that cannot say what
+ * it settled is a report about something else, and dropping to the đồng would be
+ * this check quietly returning to the comparison it exists to avoid.
+ *
+ * The currency and the rate on the report are deliberately not compared. The
+ * rate is the property's own configuration and travels to the gateway and back
+ * on a field the adapter chose — `paypal.adapter.ts` argues its `custom_id` — so
+ * it is the adapter's echo of the property's own figure rather than an
+ * independent claim, and the currency is a constant of the adapter. The one
+ * thing only the gateway knows is what it charged.
+ */
+function contradictsWhatWasCharged(
+  claimed: { readonly asked: VndAmount; readonly charged: bigint | null },
+  transaction: Extract<GatewayTransaction, { status: "SUCCESS" }>,
+): boolean {
+  if (claimed.charged !== null) {
+    return transaction.presentment?.minorUnits !== claimed.charged;
+  }
+
+  return claimed.asked !== transaction.amount;
 }
 
 /**

@@ -165,6 +165,25 @@ interface Acknowledgement {
 }
 
 /**
+ * Which of the property's payment methods the two routes below speak for.
+ *
+ * A callback route has exactly one gateway posting to it — the paths, the
+ * parameter names and the signature scheme in this file are all VNPay's — so
+ * this file is the only thing in the request that can say which provider is
+ * speaking, and `payment.service.ts` needs it said: the adapter that
+ * authenticates a callback is resolved from it, and the attempt a callback may
+ * resolve is narrowed by it.
+ *
+ * The property's own vocabulary rather than a gateway's, which is what keeps it
+ * from being the leak `FR-PAY-01` forbids. `payment_method` is a list of ways
+ * money reaches the desk; what crosses into the service is a member of that
+ * list, and nothing on the far side learns a host, a checksum or a response
+ * code from it. `FR-PAY-06`'s second gateway declares its own beside its own
+ * two paths, in its own controller.
+ */
+const GATEWAY_METHOD = "VNPAY";
+
+/**
  * Where VNPay posts its report of an attempt. Registered per terminal in the
  * merchant admin, so changing it is a deployment step and not only an edit.
  */
@@ -309,6 +328,14 @@ export class PaymentController {
     return implement(contract.payment.openAttempt).handler(async ({ input }) =>
       this.payments.createPaymentRequest({
         bookingId: input.bookingId,
+        // The one field of the six the caller genuinely chooses, and it is
+        // carried through rather than decided here. `FR-PAY-06` makes the
+        // gateway a per-attempt question and the contract defaults it to the
+        // one the property already had, so a caller that predates the second
+        // provider is answered exactly as before — the handler adds no rule of
+        // its own, which is the argument the paragraph above makes about every
+        // other refusal on this route.
+        method: input.method,
         amount: input.amount,
         description: input.description,
         returnUrl: this.gatewayReturnUrl(),
@@ -486,7 +513,10 @@ export class PaymentController {
     @Query() callback: Record<string, unknown>,
   ): Promise<Acknowledgement> {
     try {
-      return this.acknowledge(await this.payments.handleIpn(callback), callback);
+      return this.acknowledge(
+        await this.payments.handleIpn(callback, GATEWAY_METHOD),
+        callback,
+      );
     } catch (error) {
       return this.refuse(error, callback);
     }

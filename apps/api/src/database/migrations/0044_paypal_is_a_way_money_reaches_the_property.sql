@@ -1,0 +1,12 @@
+-- `PAYPAL` joins `payment_method`, and it is alone in this file on purpose.
+--
+-- Postgres will add a value to an enum inside a transaction, but it will not let
+-- that value be *used* in the same one — a `CHECK` naming `'PAYPAL'` in the
+-- transaction that created it fails with `unsafe use of new value of enum type`.
+-- So the member lands here and everything that reads it lands in `0045`.
+-- `0026_hold_replaced_reason.sql` is the same file for the same reason.
+--
+-- Nothing else about the table changes. `FR-PAY-01` puts a second gateway behind
+-- one port and one folio, so what a second gateway costs the schema is this
+-- line, three nullable columns in the next migration, and no new table.
+ALTER TYPE "public"."payment_method" ADD VALUE 'PAYPAL';

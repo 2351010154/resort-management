@@ -88,6 +88,7 @@ import { randomUUID } from "node:crypto";
 import { parseDate } from "@internationalized/date";
 import {
   type ChargeBasis,
+  type GatewayPaymentMethod,
   nightCount,
   type StayDate,
   type VndAmount,
@@ -221,15 +222,17 @@ interface SaleRequest extends PostingRequest {
 /**
  * How money reached the property when the desk is what took it.
  *
- * The property's methods less the gateway's, derived from the column's own list
- * rather than written out again: `FR-PAY-06`'s second gateway joins that list
- * and is excluded here by the same subtraction, with nobody having to remember
- * a second one. `contract/folio.ts` performs the same exclusion on the wire and
+ * The property's methods less the gateway's, derived by subtracting the list of
+ * methods a gateway answers for rather than by naming them: a second gateway
+ * joins the column's list and leaves this type by the same subtraction, with
+ * nobody having to remember a second one. Naming them is what let the second
+ * gateway through once already — the exclusion read `"VNPAY"` alone, so `PAYPAL`
+ * joining the enum arrived here as a method a desk could post by hand. `contract/folio.ts` performs the same exclusion on the wire and
  * says why the gateway's method is a forgery boundary rather than an omission.
  */
 export type DeskPaymentMethod = Exclude<
   (typeof PAYMENT_METHODS)[number],
-  "VNPAY"
+  GatewayPaymentMethod
 >;
 
 /**

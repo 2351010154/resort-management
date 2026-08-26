@@ -27,6 +27,7 @@
     "@node-rs/argon2": "2.0.2",
     "@orpc/nest": "1.14.10",
     "@orpc/server": "1.14.10",
+    "@paypal/paypal-server-sdk": "2.5.0",
     "better-auth": "1.6.25",
     "drizzle-orm": "0.45.2",
     "exceljs": "4.4.0",
