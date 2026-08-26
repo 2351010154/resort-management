@@ -27,7 +27,7 @@ import { ROOM_AMENITIES, type RoomType } from "./room-types";
 /**
  * The row's one line of facts: whom it sleeps, how big, what it faces.
  *
- * Middle dots between concrete values, which is the arrival's own shape for
+ * Commas between concrete values, which is the arrival's own shape for
  * this — `design-foundations.md` §6, "68 m², garden". The extra bed is **not**
  * here: it is true of one type of the five, `property-and-tariff.md` §1 makes it
  * free, and the stage states it in one sentence instead of the row hinting at it.
