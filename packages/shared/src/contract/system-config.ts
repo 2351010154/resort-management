@@ -66,7 +66,11 @@
 
 import { oc } from "@orpc/contract";
 import { z } from "zod";
-import { vndAmountInputSchema, vndAmountSchema } from "../money.js";
+import {
+  fxRateSchema,
+  vndAmountInputSchema,
+  vndAmountSchema,
+} from "../money.js";
 import { isoStayDateSchema, stayDateSchema } from "../stay-date.js";
 
 /**
@@ -192,6 +196,21 @@ export const systemConfigurationSchema = z.object({
   tierSilverRevenueVnd: vndAmountSchema,
   tierGoldStays: stayCount,
   tierGoldRevenueVnd: vndAmountSchema,
+  /**
+   * Đồng per one US dollar — `system-config.service.ts`'s `rateVndPerUsd`,
+   * for a gateway that cannot charge đồng at all.
+   *
+   * `fxRateSchema` and not `rateBasisPoints`, because this is not a
+   * percentage of anything: it is the one figure on this whole resource that
+   * legitimately carries a fraction, and `money.ts` states why it travels as
+   * decimal text rather than as a JSON number — a double holding the quotient
+   * it divides into converts a stay to within a few đồng of right.
+   *
+   * Read once when a PayPal attempt opens and frozen onto the payment, so an
+   * `ADMIN` correction here reaches the next attempt and never one already
+   * underway.
+   */
+  rateVndPerUsd: fxRateSchema,
 });
 
 /**
@@ -222,6 +241,7 @@ export const updateSystemConfigInput = z
     tierSilverRevenueVnd: positiveDongInput.optional(),
     tierGoldStays: stayCount.optional(),
     tierGoldRevenueVnd: positiveDongInput.optional(),
+    rateVndPerUsd: fxRateSchema.optional(),
   })
   .refine((edit) => Object.keys(edit).length > 0, {
     // An edit naming nothing is not a caller politely doing nothing — unknown
