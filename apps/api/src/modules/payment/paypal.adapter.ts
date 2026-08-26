@@ -180,6 +180,30 @@ const TRANSMISSION_HEADERS = {
  */
 const TERMS_SEPARATOR = "@";
 
+/**
+ * Whether this deployment holds the three variables a PayPal call needs.
+ *
+ * Exported because two places have to agree about it and only one of them can
+ * find out by trying. {@link PaypalAdapter.paypal} refuses a call that cannot be
+ * made, which is the right answer to a guest who chose PayPal; `payment.module
+ * .ts` has to answer the *earlier* question — whether this property collects
+ * through PayPal at all — before anything asks the adapter anything, because
+ * `ports/gateway-registry.ts` says a method with no adapter is absent from the
+ * map rather than present and failing.
+ *
+ * That distinction is what `reconciliation.job.ts` depends on. It asks every
+ * bound gateway for its side of a night and deliberately catches nothing per
+ * gateway, so a gateway that is bound and cannot answer takes the whole night
+ * down with it — which is correct for a provider that is configured and
+ * unreachable, and wrong for one this property has not onboarded. The same
+ * three variables, read in one place, so the two answers cannot drift.
+ */
+export function paypalIsConfigured(env: Env): boolean {
+  return Boolean(
+    env.PAYPAL_CLIENT_ID && env.PAYPAL_CLIENT_SECRET && env.PAYPAL_WEBHOOK_ID,
+  );
+}
+
 @Injectable()
 export class PaypalAdapter implements PaymentGateway {
   /**
@@ -663,6 +687,10 @@ export class PaypalAdapter implements PaymentGateway {
     const oAuthClientSecret = this.env.PAYPAL_CLIENT_SECRET;
     const webhookId = this.env.PAYPAL_WEBHOOK_ID;
 
+    // The same three variables {@link paypalIsConfigured} answers over, read one
+    // at a time here because each has to narrow to a string for the client
+    // below — which is the one thing a boolean cannot do, and the whole reason
+    // this is a second expression over the same rule rather than a call.
     if (!oAuthClientId || !oAuthClientSecret || !webhookId) {
       throw new ORPCError("SERVICE_UNAVAILABLE", {
         status: 503,
