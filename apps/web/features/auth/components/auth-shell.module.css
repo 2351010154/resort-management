@@ -111,6 +111,19 @@
   color: rgb(var(--umber-rgb) / 0.35);
 }
 
+/* Chrome (and other Chromium browsers) paint autofilled inputs with their own
+   light-blue background via an internal `:-webkit-autofill` rule that a plain
+   `background` declaration cannot override. The only property that rule lets
+   through is `box-shadow`, so an opaque inset shadow the size of the field is
+   used to paint over it with the screen's own colour instead. */
+.input:-webkit-autofill,
+.input:-webkit-autofill:hover,
+.input:-webkit-autofill:focus {
+  box-shadow: 0 0 0 1000px var(--ivory) inset;
+  -webkit-text-fill-color: var(--ink);
+  caret-color: var(--ink);
+}
+
 .input:focus {
   outline: none;
   border-bottom-color: var(--umber);
