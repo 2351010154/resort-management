@@ -67,7 +67,7 @@ import { booking } from "../src/database/schema/booking.js";
 import { payment } from "../src/database/schema/payment.js";
 import { roomType, typeInventory } from "../src/database/schema/inventory.js";
 import { seedDatabase } from "../src/database/seed/seed.js";
-import { PAYMENT_GATEWAY } from "../src/modules/payment/ports/payment-gateway.port.js";
+import { GatewayRegistry } from "../src/modules/payment/ports/gateway-registry.js";
 import { VnpayAdapter } from "../src/modules/payment/vnpay.adapter.js";
 import { BookingTokenService } from "../src/modules/auth/booking-token/booking-token.service.js";
 import { BusinessDateService } from "../src/modules/booking/business-date.service.js";
@@ -236,8 +236,8 @@ beforeAll(async () => {
     // The payment door is one of the three rows the credential opens, and a
     // suite that only ran where a real VNPay account is configured would run
     // nowhere.
-    .overrideProvider(PAYMENT_GATEWAY)
-    .useValue(new VnpayAdapter(merchantEnv()))
+    .overrideProvider(GatewayRegistry)
+    .useValue(new GatewayRegistry({ VNPAY: new VnpayAdapter(merchantEnv()) }))
     .compile();
 
   app = moduleRef.createNestApplication();

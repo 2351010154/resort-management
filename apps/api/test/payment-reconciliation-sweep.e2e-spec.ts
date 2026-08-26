@@ -61,6 +61,7 @@ import { JobRunner } from "../src/jobs/job-runner.service.js";
 import { JobsModule } from "../src/jobs/jobs.module.js";
 import { BusinessDateService } from "../src/modules/booking/business-date.service.js";
 import { OpsAlertService } from "../src/modules/notification/ops-alert.service.js";
+import { GatewayRegistry } from "../src/modules/payment/ports/gateway-registry.js";
 import type {
   GatewayTransaction,
   PaymentAttempt,
@@ -495,8 +496,13 @@ describe("the sweep itself", () => {
 function runTheSweep(gateway: PaymentGateway) {
   const businessDates = new BusinessDateService(new SystemConfigService());
 
+  // Bound as the property's VNPay adapter, which is what every case below is
+  // written about: one gateway, no reporting API, and therefore a report the
+  // sweep reconstructs from the attempts this property minted. The sweep asks
+  // the registry rather than holding an adapter, so a fixture that handed it a
+  // bare gateway would be testing a shape the application no longer has.
   const job = new ReconciliationJob(
-    gateway,
+    new GatewayRegistry({ VNPAY: gateway }),
     new ReconciliationService(),
     businessDates,
     new OpsAlertService({ OPS_ALERT_WEBHOOK_URL: webhook } as Env, log),

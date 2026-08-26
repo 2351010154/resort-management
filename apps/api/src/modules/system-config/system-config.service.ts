@@ -53,7 +53,7 @@
 // mis-invoice §8 exists to prevent, arriving by a different door.
 
 import { parseDate } from "@internationalized/date";
-import type { StayDate } from "@mariva/shared";
+import type { FxRate, StayDate } from "@mariva/shared";
 import { Injectable } from "@nestjs/common";
 import { ORPCError } from "@orpc/nest";
 import { getTableColumns, sql } from "drizzle-orm";
@@ -157,6 +157,18 @@ export interface ConfigurationEdit {
   readonly tierSilverRevenueVnd?: bigint;
   readonly tierGoldStays?: number;
   readonly tierGoldRevenueVnd?: bigint;
+  /**
+   * Đồng per one US dollar — {@link rateVndPerUsd}'s own figure, editable by
+   * the same `ADMIN` who corrects every other rate on this row.
+   *
+   * A single-column bound like every rate above it: `updateSystemConfigInput`
+   * mirrors `system_config_fx_rate_is_positive` through `fxRateSchema`, so a
+   * rate of nothing or one that runs backwards is a 400 naming the field
+   * before it reaches this method, exactly as an out-of-range basis-points
+   * figure is. Nothing here re-checks it for the same reason nothing here
+   * re-checks the VAT ceiling.
+   */
+  readonly rateVndPerUsd?: FxRate;
 }
 
 @Injectable()
@@ -262,6 +274,37 @@ export class SystemConfigService {
       goldStays: configured.tierGoldStays,
       goldRevenueVnd: configured.tierGoldRevenueVnd,
     };
+  }
+
+  /**
+   * Đồng per one US dollar, for a gateway that cannot collect đồng at all.
+   *
+   * Its own read rather than a field on any of the four above, because it is
+   * asked at a different moment by a different caller: `payment.service.ts`
+   * opens an attempt, and nothing about a posting, a rollover, an accrual or a
+   * tier ladder has an opinion about a currency pair. Reading the whole row in
+   * one statement all the same, so no caller can see half a configuration.
+   *
+   * Named for the pair and not for a provider — `schema/config.ts` argues the
+   * column's name at length, and the argument reaches this method too: a rate
+   * is a fact about two currencies, which gateway settles in the second one is
+   * a binding in `payment.module.ts`, and a provider's name in the property's
+   * own configuration is the leak `FR-PAY-01` spends a port preventing.
+   *
+   * **Text, and never a number.** `money.ts` puts a rate on decimal text
+   * because it is the one figure in the payment path that legitimately carries
+   * a fraction, and a double that loses its last digits converts a stay to
+   * within a few đồng of right — the drift `FR-PAY-05` would surface a month
+   * later as a day that will not reconcile. The column is `numeric` and Drizzle
+   * hands `numeric` back as a string, so nothing here parses or reformats it;
+   * what the caller freezes onto the payment is the digits the property typed.
+   *
+   * Uncached like everything else here, and it matters more than for a rate: a
+   * figure held between attempts is a rate an `ADMIN` corrected and a guest
+   * charged at the old one, in a currency the property cannot re-quote.
+   */
+  async rateVndPerUsd(exec: DbExecutor): Promise<FxRate> {
+    return (await this.configuration(exec)).rateVndPerUsd;
   }
 
   /**
@@ -448,6 +491,9 @@ function namedIn(edit: ConfigurationEdit): Partial<SystemConfigValues> {
     ...(edit.tierGoldRevenueVnd === undefined
       ? {}
       : { tierGoldRevenueVnd: edit.tierGoldRevenueVnd }),
+    ...(edit.rateVndPerUsd === undefined
+      ? {}
+      : { rateVndPerUsd: edit.rateVndPerUsd }),
   };
 }
 

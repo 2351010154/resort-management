@@ -109,7 +109,15 @@ const CONFIGURATION_FIELDS = [
   "tierSilverRevenueVnd",
   "tierGoldStays",
   "tierGoldRevenueVnd",
+  "rateVndPerUsd",
 ] as const;
+
+/** A currency rate nobody could mistake for the column's own default. */
+const EDITED_RATE_VND_PER_USD = "24680.5";
+
+/** Neither a rate of nothing nor one that runs backwards converts anything. */
+const IMPOSSIBLE_RATE_VND_PER_USD = "0";
+const BACKWARDS_RATE_VND_PER_USD = "-100";
 
 /** Figures nobody could mistake for a property's real ones. */
 const EDITED_RATE_BPS = 4_321;
@@ -488,6 +496,10 @@ describe("the configuration as the read route answers it", () => {
       tierSilverRevenueVnd: configured.tierSilverRevenueVnd.toString(),
       tierGoldStays: configured.tierGoldStays,
       tierGoldRevenueVnd: configured.tierGoldRevenueVnd.toString(),
+      // Already text in the row — `numeric` comes back from Drizzle as a
+      // string — so nothing is coerced on the way out, unlike the đồng figures
+      // above.
+      rateVndPerUsd: configured.rateVndPerUsd,
     });
   });
 
@@ -681,6 +693,37 @@ describe("a loyalty figure an admin changes", () => {
     expect((await stored()).loyaltyPointsPerUnit).toBe(
       before.loyaltyPointsPerUnit,
     );
+  });
+});
+
+describe("the currency rate a gateway that cannot charge đồng reads", () => {
+  it("is read by the very next attempt an admin opens, with nothing restarted", async () => {
+    // `FR-IDN-03`'s claim, asserted against the one reader this figure has:
+    // `payment.service.ts` opens a PayPal attempt through the same
+    // `SystemConfigService` instance a folio posting reads the tax figures
+    // through, so an edit that reached it without a restart is the whole
+    // claim this route exists to meet.
+    await edit({ rateVndPerUsd: EDITED_RATE_VND_PER_USD }).expect(200);
+
+    expect(await posting.rateVndPerUsd(db)).toBe(EDITED_RATE_VND_PER_USD);
+  });
+
+  it("is refused to a manager, who may read it and not move it", async () => {
+    const before = await stored();
+
+    await as("MANAGER", "patch", {
+      rateVndPerUsd: EDITED_RATE_VND_PER_USD,
+    }).expect(403);
+
+    expect((await stored()).rateVndPerUsd).toBe(before.rateVndPerUsd);
+  });
+
+  it("refuses a rate of nothing, which converts nothing", async () => {
+    await refuses({ rateVndPerUsd: IMPOSSIBLE_RATE_VND_PER_USD });
+  });
+
+  it("refuses a rate that runs backwards", async () => {
+    await refuses({ rateVndPerUsd: BACKWARDS_RATE_VND_PER_USD });
   });
 });
 

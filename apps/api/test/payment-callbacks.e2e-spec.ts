@@ -26,9 +26,9 @@
 //    word rather than as a failure.
 //
 // The terminal is this file's own and is not a credential: `TERMINAL` and
-// `HASH_SECRET` name a merchant that does not exist. `PAYMENT_GATEWAY` is
-// rebound to an adapter carrying them, because a suite that ran only where a
-// real VNPay account is configured would run nowhere — and the adapter, the
+// `HASH_SECRET` name a merchant that does not exist. The registry the service
+// resolves through is rebound to one carrying them, because a suite that ran
+// only where a real VNPay account is configured would run nowhere — and the adapter, the
 // library, the service, the guard and the database are otherwise all the real
 // ones. Nothing here reaches the network: building a payment url and verifying a
 // callback are both local computation.
@@ -56,7 +56,7 @@ import { folio, folioPosting } from "../src/database/schema/folio.js";
 import { roomType } from "../src/database/schema/inventory.js";
 import { payment } from "../src/database/schema/payment.js";
 import { PaymentService } from "../src/modules/payment/payment.service.js";
-import { PAYMENT_GATEWAY } from "../src/modules/payment/ports/payment-gateway.port.js";
+import { GatewayRegistry } from "../src/modules/payment/ports/gateway-registry.js";
 import { VnpayAdapter } from "../src/modules/payment/vnpay.adapter.js";
 
 const TERMINAL = "MRVTEST1";
@@ -92,8 +92,8 @@ let bookingOrdinal = 0;
 
 beforeAll(async () => {
   const moduleRef = await Test.createTestingModule({ imports: [AppModule] })
-    .overrideProvider(PAYMENT_GATEWAY)
-    .useValue(new VnpayAdapter(merchantEnv()))
+    .overrideProvider(GatewayRegistry)
+    .useValue(new GatewayRegistry({ VNPAY: new VnpayAdapter(merchantEnv()) }))
     .compile();
 
   app = moduleRef.createNestApplication();
@@ -381,6 +381,11 @@ async function anAttempt(): Promise<Attempt> {
 
   const { reference } = await payments.createPaymentRequest({
     bookingId,
+    // The gateway whose two routes this file drives. The service resolves its
+    // verifier from the method a callback arrives under and may only claim an
+    // attempt opened at that same gateway, so the attempt and the callbacks
+    // below have to name one thing.
+    method: "VNPAY",
     amount: AMOUNT,
     description: "Deposit against the stay",
     returnUrl: `http://localhost:3001${RETURN_PATH}`,

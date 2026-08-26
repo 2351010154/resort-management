@@ -129,6 +129,7 @@ import {
   bigint,
   check,
   index,
+  numeric,
   pgEnum,
   pgTable,
   text,
@@ -144,11 +145,22 @@ import { shift } from "./shift.js";
  * How the money reached the property.
  *
  * A method and not a provider list: `CASH` and `BANK_TRANSFER` are ways of
- * paying, and `VNPAY` is the one gateway `infrastructure.md` §Payments commits
- * to. A second gateway is a second member here and a second adapter behind
- * `FR-PAY-01`'s port — never a second table and never a second folio.
+ * paying, and `VNPAY` and `PAYPAL` are the two gateways `infrastructure.md`
+ * §Payments commits to. A second gateway is a second member here and a second
+ * adapter behind `FR-PAY-01`'s port — never a second table and never a second
+ * folio, which is why `PAYPAL` arriving changed this line and nothing about the
+ * shape of the table under it.
+ *
+ * `FR-PAY-01` caps the property at two implementations, and `PAYPAL` takes the
+ * second slot. A third gateway is not a third member added quietly here; it is
+ * a decision that has to reopen that cap first.
  */
-export const PAYMENT_METHODS = ["VNPAY", "CASH", "BANK_TRANSFER"] as const;
+export const PAYMENT_METHODS = [
+  "VNPAY",
+  "PAYPAL",
+  "CASH",
+  "BANK_TRANSFER",
+] as const;
 
 export const paymentMethodEnum = pgEnum("payment_method", PAYMENT_METHODS);
 
@@ -245,6 +257,31 @@ export const payment = pgTable(
     // collected itself. Null on a gateway row, which has none — the header says
     // why the key runs in this direction and what a reversal needs it for.
     folioPostingId: uuid("folio_posting_id").references(() => folioPosting.id),
+    // What the payer was actually charged, when the gateway could not charge
+    // đồng — PayPal does not support VND at all, so a guest paying that way
+    // approves a figure in dollars while `amount` above stays the đồng this
+    // property posts and reconciles.
+    //
+    // Three columns and not one, because all three are needed to check the
+    // fourth: the currency names the unit, the amount is what left the payer's
+    // account in it, and the rate is the only lawful bridge back to `amount`.
+    // Recording the pair without the rate would leave a settlement nobody could
+    // verify a month later, once the property had edited its rate.
+    //
+    // Null on everything collected in đồng, which is cash, transfers and every
+    // VNPay row. `money.ts` states the rule these hold to: presentment is a
+    // record and never an amount — nothing sums these, and no folio reads them.
+    presentmentCurrency: text("presentment_currency"),
+    // The minor unit of that currency — cents. `mode: "bigint"` for the reason
+    // `amount` uses one: a figure routed through `number` loses its last digits
+    // in silence, and this one is compared against a gateway's own report.
+    presentmentAmount: bigint("presentment_amount", { mode: "bigint" }),
+    // Đồng per one major unit, frozen when the attempt opened and never
+    // re-read. `numeric` and not a float: this is the one fraction in the
+    // payment path, and a double would convert a stay to within a few đồng of
+    // right — the drift `FR-PAY-05` surfaces a month later as a day that will
+    // not reconcile.
+    fxRate: numeric("fx_rate"),
     createdAt: timestamp("created_at", { withTimezone: true, mode: "date" })
       .notNull()
       .defaultNow(),
@@ -310,6 +347,50 @@ export const payment = pgTable(
     check(
       "payment_shift_binding",
       sql`(${table.method} = 'CASH') = (${table.shiftId} is not null)`,
+    ),
+    // All three or none. Any two of them describe a charge nobody can check: a
+    // currency and an amount with no rate cannot be brought back to đồng, and a
+    // rate with no amount records the terms of a conversion that is not written
+    // down. The row is either silent about presentment or complete about it.
+    check(
+      "payment_presentment_is_whole_or_absent",
+      sql`num_nonnulls(${table.presentmentCurrency}, ${table.presentmentAmount}, ${table.fxRate}) in (0, 3)`,
+    ),
+    // And a gateway that cannot charge đồng must not be silent. `PAYPAL` is
+    // settled in another currency by definition, so a `PAYPAL` row without
+    // presentment is one `FR-PAY-05` could never reconcile — the ledger would
+    // hold đồng the gateway never reports and the report would hold dollars the
+    // ledger cannot match.
+    //
+    // Written as an implication over `PAYPAL` rather than as a list of the
+    // methods that are exempt, for the reason `payment_shift_binding` gives
+    // about closed lists: the exempt set is every method that settles in đồng,
+    // and naming them would refuse the first payment taken through whatever
+    // comes next.
+    // Compared as text rather than as the enum it is, and the cast is
+    // load-bearing rather than cosmetic. The migration that adds `PAYPAL` to
+    // `payment_method` and the one that adds this constraint are applied in a
+    // single transaction, and Postgres refuses to evaluate a label added in the
+    // transaction it is used in — `55P04`, `unsafe use of new value`. As text no
+    // label is materialised, and the rule is the same rule. The migration says
+    // this at greater length, and it was checked against a live server rather
+    // than reasoned about.
+    check(
+      "payment_foreign_gateway_states_what_it_charged",
+      sql`${table.method}::text <> 'PAYPAL' or ${table.presentmentCurrency} is not null`,
+    ),
+    // A charge of nothing is not a charge, and the sign convention that keeps
+    // `amount` unsigned keeps this one unsigned too.
+    check(
+      "payment_presentment_amount_is_positive",
+      sql`${table.presentmentAmount} is null or ${table.presentmentAmount} > 0`,
+    ),
+    // A rate of nothing converts nothing, and a negative one converts money
+    // into its opposite. Both would divide into a folio that cannot be made to
+    // balance against any report.
+    check(
+      "payment_fx_rate_is_positive",
+      sql`${table.fxRate} is null or ${table.fxRate} > 0`,
     ),
   ],
 );

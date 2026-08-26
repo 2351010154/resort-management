@@ -134,11 +134,63 @@
 // books agree with a gateway's by fiat, on no person's authority, and the
 // disagreement it was written to surface would disappear as it recorded it.
 //
-// Every figure is `bigint` đồng end to end and the comparison is integer
-// equality. There is no scaling, no rounding and no tolerance: `NFR-12` has no
-// minor unit to be off by, and a discrepancy of one đồng is a real one.
+// ## Which figure the two sides are held against, and the one tolerance
+//
+// For money the property both asked for and posts in đồng, the comparison is
+// integer equality and there is nothing else to say: `NFR-12` has no minor unit
+// to be off by, and a discrepancy of one đồng is a real one. That is every
+// payment taken through a gateway that collects the property's own currency, and
+// nothing about it changes below.
+//
+// A gateway that *cannot* collect đồng makes the same equality wrong. The payer
+// approved dollars, the row froze what they were charged and the rate it was
+// computed at, and `money.ts` states outright that đồng → cents → đồng does not
+// round trip: a cent is worth roughly 250 đồng, so 1,200,000 ₫ at 26,150.5 comes
+// back 1,200,046 ₫ with nothing whatever wrong. Comparing those đồng would
+// compare an adapter's own conversion against the figure it converted, file a
+// discrepancy on every foreign-settled payment the property ever takes, and page
+// a phone about the arithmetic — which is the same defect `payment.service.ts`
+// resolves on the callback path, resolved here the same way.
+//
+// **So the comparison is made in the unit that is exact, and that unit is
+// decided by the row.** A row that froze a presentment was opened at a gateway
+// that charges cents; the cents were fixed before the payer saw the gateway and
+// the gateway reports back the very field it was told to charge, so where the
+// report states them the two integers are held against each other and a
+// settlement one cent short is a discrepancy. **At the rate frozen on the row
+// and never at today's**, which is what the frozen columns are for: a property
+// that edited its rate this morning would otherwise manufacture a disagreement
+// on every night it had already reconciled.
+//
+// **Where the report states no cents, the đồng are compared to a stated
+// tolerance, and the tolerance is derived rather than chosen.** That case is a
+// report that carries the property's own currency and nothing else — a merchant
+// statement somebody re-runs by hand — and its đồng can only be a conversion of
+// the settlement at the frozen rate. The gap such a conversion can open is
+// bounded: the cents were rounded half-up out of the đồng, so they sit within
+// half a cent of the true quotient, and converting them back can therefore land
+// up to half a cent's worth of đồng away. The tolerance is exactly that — half a
+// cent, in đồng, at the row's own rate, rounded up — computed through the same
+// `convertPresentmentToVnd` the conversion used rather than written down as a
+// number somebody would have to maintain against a rate they cannot see.
+//
+// Naming it is the point. An unstated tolerance is how a real shortfall gets
+// filed as rounding, and this one is stated in both directions: it is strictly
+// narrower than a whole cent, so money genuinely short by a cent still pages,
+// and it is wide enough that no honest conversion is ever filed. It is also the
+// weaker of the two comparisons and is used only where the exact one is
+// unavailable — a shortfall of less than half a cent cannot be told from the
+// rounding by any comparison drawn in đồng, which is the reason the cents are
+// preferred wherever the report gives them.
 
-import type { StayDate, VndAmount } from "@mariva/shared";
+import {
+  convertPresentmentToVnd,
+  fxRateSchema,
+  type Presentment,
+  presentmentCurrencySchema,
+  type StayDate,
+  type VndAmount,
+} from "@mariva/shared";
 import { Injectable } from "@nestjs/common";
 import {
   and,
@@ -191,14 +243,30 @@ export interface ReconciledAttempt {
 /**
  * A payment as the ledger's side of the comparison needs it.
  *
- * Three fields and not the row, because the comparison is about a reference and
- * a figure and must not be able to reach for anything else — a folio, a status,
- * a gateway id — which is also what makes it testable without a database.
+ * Four fields and not the row, because the comparison is about a reference and
+ * what was charged for it and must not be able to reach for anything else — a
+ * folio, a status, a gateway id — which is also what makes it testable without a
+ * database.
  */
 export interface LedgerPayment {
   readonly id: string;
   readonly reference: string;
   readonly amount: VndAmount;
+
+  /**
+   * What the payer was actually charged, for an attempt opened at a gateway that
+   * could not charge đồng — and the rate it was computed at.
+   *
+   * Optional rather than nullable, which is `payment-gateway.port.ts`'s own
+   * convention for this figure: collecting the property's currency is the
+   * ordinary case and neither side should have to write `presentment: null` to
+   * say so. Absent, the comparison is the đồng equality it has always been.
+   *
+   * Present, it is what the two reports are actually held against and the header
+   * argues why. `payment_presentment_is_whole_or_absent` makes the trio on the
+   * row all-or-nothing, so this is whole or missing and never half-read.
+   */
+  readonly presentment?: Presentment;
 }
 
 /** A disagreement this run wrote down, and the row it now is. */
@@ -542,6 +610,13 @@ export class ReconciliationService {
    *
    * `dates` is applied and never re-read, so every row here is classified
    * against the one hour its caller settled on.
+   *
+   * The three presentment columns come with it, and they are what the header's
+   * comparison turns on: for an attempt opened at a gateway that cannot charge
+   * đồng they are the exact record of what the payer was charged and at what
+   * rate, frozen when the attempt opened. Read off the row rather than converted
+   * here, because the rate a row was opened at is a fact about that row and
+   * today's configuration is a different number.
    */
   private async ledgerFor(
     exec: DbExecutor,
@@ -557,6 +632,9 @@ export class ReconciliationService {
         reference: payment.attemptReference,
         amount: payment.amount,
         paidAt: payment.paidAt,
+        presentmentCurrency: payment.presentmentCurrency,
+        presentmentAmount: payment.presentmentAmount,
+        fxRate: payment.fxRate,
       })
       .from(payment)
       .where(
@@ -579,17 +657,86 @@ export class ReconciliationService {
 
       const fellIn = dates.on(row.paidAt);
 
-      if (fellIn.compare(businessDate) === 0) {
-        taken.push({
-          id: row.id,
-          reference: row.reference,
-          amount: row.amount,
-        });
+      if (fellIn.compare(businessDate) !== 0) {
+        continue;
       }
+
+      // Read after the day filter, so a malformed row outside this night is not
+      // a night that cannot be reconciled — the refusal below belongs to the
+      // money actually being compared.
+      const presentment = frozenOn({
+        reference: row.reference,
+        presentmentCurrency: row.presentmentCurrency,
+        presentmentAmount: row.presentmentAmount,
+        fxRate: row.fxRate,
+      });
+
+      taken.push({
+        id: row.id,
+        reference: row.reference,
+        amount: row.amount,
+        // Spread rather than `presentment: undefined`, so a row that froze
+        // nothing carries no such key at all — the absence the port's own
+        // optional field means, rather than a claim that there was one and it
+        // was nothing.
+        ...(presentment ? { presentment } : {}),
+      });
     }
 
     return taken;
   }
+}
+
+/**
+ * The presentment a row froze, read back out of its three columns.
+ *
+ * `payment_presentment_is_whole_or_absent` makes the trio all-or-nothing, so a
+ * row either says what the payer was charged or says nothing — there is no half
+ * of this to handle, and no service check here is standing in for that
+ * constraint.
+ *
+ * **A row that says it charged abroad and cannot be read is refused, not
+ * quietly compared in đồng.** Dropping to the đồng would be this comparison
+ * silently returning to the one the header spends its length ruling out, on the
+ * one row where nobody would ever see it happen. It is the same refusal
+ * {@link moneyTaken} makes about a report naming an attempt twice: there is no
+ * honest figure to hold the money against, and inventing one files a discrepancy
+ * — or an agreement — that nobody can point at. The run rolls back and the day
+ * stays outstanding, which is where a night whose books cannot be read belongs.
+ *
+ * The currency and the rate are parsed through the schemas `money.ts` declares
+ * rather than trusted as text, so what counts as either is decided in one place.
+ */
+function frozenOn(row: {
+  readonly reference: string;
+  readonly presentmentCurrency: string | null;
+  readonly presentmentAmount: bigint | null;
+  readonly fxRate: string | null;
+}): Presentment | undefined {
+  if (
+    row.presentmentCurrency === null ||
+    row.presentmentAmount === null ||
+    row.fxRate === null
+  ) {
+    return undefined;
+  }
+
+  const currency = presentmentCurrencySchema.safeParse(row.presentmentCurrency);
+  const rate = fxRateSchema.safeParse(row.fxRate);
+
+  if (!currency.success || !rate.success) {
+    throw new Error(
+      `The payment recorded under reference ${row.reference} says it was ` +
+        "settled abroad and does not say in what, so there is nothing to " +
+        "reconcile its settlement against",
+    );
+  }
+
+  return {
+    currency: currency.data,
+    minorUnits: row.presentmentAmount,
+    rate: rate.data,
+  };
 }
 
 /**
@@ -616,13 +763,13 @@ export function compare(
   const compared: ReconciledAttempt[] = [];
 
   for (const recorded of ledger) {
-    const gatewayAmount = taken.get(recorded.reference);
+    const settled = taken.get(recorded.reference);
 
     // Consumed, so that what is left in the map afterwards is exactly the
     // gateway's side of the day that this property has no record of.
     taken.delete(recorded.reference);
 
-    if (gatewayAmount === undefined) {
+    if (settled === undefined) {
       // The report does not account for this money. Either the gateway never
       // took it and something here recorded that it did, or the report was
       // drawn before the transaction settled into it. A refusal or an
@@ -642,22 +789,27 @@ export function compare(
 
     compared.push({
       reference: recorded.reference,
-      // Integer đồng on both sides, so this is equality and not a tolerance.
-      outcome: gatewayAmount === recorded.amount ? "MATCHED" : "AMOUNT_MISMATCH",
-      gatewayAmount,
+      outcome: agree(settled, recorded) ? "MATCHED" : "AMOUNT_MISMATCH",
+      // The report's đồng either way, and on a foreign-settled payment that is
+      // the adapter's conversion of what it settled at the rate the row froze —
+      // advisory, as the port says, and here it is what gets written down rather
+      // than what decides. A responder needs a figure in the currency the folio
+      // is kept in to go looking with; what the outcome beside it turned on is
+      // {@link agree}'s business.
+      gatewayAmount: settled.amount,
       ledgerAmount: recorded.amount,
       paymentId: recorded.id,
     });
   }
 
-  for (const [reference, gatewayAmount] of taken) {
+  for (const [reference, settled] of taken) {
     // Money the gateway says it holds, against an attempt this property has no
     // payment for. This is the direction that costs a guest: their card was
     // charged and their folio still shows the amount outstanding.
     compared.push({
       reference,
       outcome: "MISSING_LOCALLY",
-      gatewayAmount,
+      gatewayAmount: settled.amount,
       ledgerAmount: null,
       paymentId: null,
     });
@@ -687,8 +839,8 @@ export function compare(
  */
 function moneyTaken(
   report: readonly GatewayTransaction[],
-): Map<string, VndAmount> {
-  const taken = new Map<string, VndAmount>();
+): Map<string, Settlement> {
+  const taken = new Map<string, Settlement>();
 
   for (const transaction of report) {
     if (transaction.status !== "SUCCESS") {
@@ -709,10 +861,107 @@ function moneyTaken(
       );
     }
 
-    taken.set(transaction.reference, transaction.amount);
+    // The transaction and not only its đồng, because which figure the two sides
+    // are held against depends on what the report was able to say — the header
+    // sets out the three cases and {@link agree} is where they are decided.
+    taken.set(transaction.reference, transaction);
   }
 
   return taken;
+}
+
+/**
+ * What the gateway's report says it took under one reference.
+ *
+ * Named rather than left as the port's union, because only the arm that says
+ * money moved ever reaches the comparison: `moneyTaken` drops a refusal and an
+ * unfinished attempt, both of which are the claim that the gateway holds nothing
+ * under that reference.
+ */
+type Settlement = Extract<GatewayTransaction, { status: "SUCCESS" }>;
+
+/**
+ * Whether the two reports say the same thing about one attempt's money.
+ *
+ * **The unit is decided by the row and never by the report**, which is the same
+ * rule `payment.service.ts` applies to a callback and the same reason: what the
+ * attempt froze is what the payer actually approved, and it is the one figure
+ * neither side computed from the other.
+ *
+ * **A row that froze nothing is đồng equality, exactly as it always was.** The
+ * gateway collected the property's own currency and reported it back untouched,
+ * there is no minor unit to be off by, and a đồng of difference is a terminal, a
+ * currency scale or a merchant account pointed at another property. Nothing
+ * about a gateway that charges đồng changes here.
+ *
+ * **A row that froze a presentment, against a report that states one, is
+ * compared in the minor unit and to the last of it.** Both integers were fixed
+ * before the payer saw the gateway, and the gateway reports back the very field
+ * it was told to charge — so they are equal or this is not the settlement the
+ * property opened. A settlement one cent short is a real shortfall and pages.
+ * The currency is held to as well, because a day's report enumerates a merchant
+ * account rather than answering about an attempt: the same count of minor units
+ * in another currency is not the same money, and the callback path can omit that
+ * check only because the attempt was opened at an adapter whose currency is a
+ * constant.
+ *
+ * **A row that froze a presentment, against a report that states none, is the
+ * one toleranced comparison in this file**, and the header derives the
+ * tolerance. Such a report can only have arrived in đồng converted from the
+ * settlement at the row's own rate, and that conversion is bounded away from the
+ * figure it started from by half a cent's worth of đồng — real money, roughly a
+ * hundred and thirty at the rates this property configures, and not something to
+ * be discovered by whoever is paged at four in the morning.
+ */
+function agree(settled: Settlement, recorded: LedgerPayment): boolean {
+  const frozen = recorded.presentment;
+
+  if (!frozen) {
+    return settled.amount === recorded.amount;
+  }
+
+  if (settled.presentment) {
+    return (
+      settled.presentment.currency === frozen.currency &&
+      settled.presentment.minorUnits === frozen.minorUnits
+    );
+  }
+
+  const apart = settled.amount - recorded.amount;
+
+  return (apart < 0n ? -apart : apart) <= roundingTolerance(frozen);
+}
+
+/**
+ * How far a đồng figure converted from this settlement may honestly sit from the
+ * đồng the property asked for.
+ *
+ * Half a cent's worth, at the rate frozen on the row, rounded up — and derived
+ * rather than written down. `convertVndToPresentment` rounds the cents half-up
+ * out of the đồng, so they sit within half a minor unit of the true quotient,
+ * and converting them back can therefore land up to half a minor unit's worth of
+ * đồng away. Rounded up because đồng are integers and half of an odd one is not.
+ *
+ * **Computed through the conversion it is a bound on**, rather than as
+ * arithmetic on the rate repeated here. A tolerance derived from a second
+ * implementation of the same conversion would be a figure that agreed with the
+ * one it bounds until somebody changed either — and this is the number that
+ * decides whether a shortfall is filed as rounding, which is the last place in
+ * the tree worth having two answers.
+ *
+ * **A rate and never a hard-coded amount of đồng.** The rate is the property's
+ * own configuration, an `ADMIN` edits it, and a tolerance frozen as a đồng
+ * figure would go on being applied at a rate it was never derived for — too
+ * narrow after a devaluation and, far worse, wide enough to swallow a genuine
+ * cent after a revaluation.
+ */
+function roundingTolerance(frozen: Presentment): VndAmount {
+  const aMinorUnit = convertPresentmentToVnd({ ...frozen, minorUnits: 1n });
+
+  // Ceiling of half, in integer arithmetic. Never zero for any rate worth more
+  // than a đồng per minor unit, so the bound is a real one rather than an
+  // equality wearing a tolerance's name.
+  return (aMinorUnit + 1n) / 2n;
 }
 
 /**

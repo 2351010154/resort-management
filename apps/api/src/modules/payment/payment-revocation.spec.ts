@@ -70,6 +70,7 @@ import type { TierDerivationService } from "../guest/tier-derivation.service.js"
 import { SystemConfigService } from "../system-config/system-config.service.js";
 import type { GatewayPaymentRequest } from "./payment.service.js";
 import { PaymentService } from "./payment.service.js";
+import { GatewayRegistry } from "./ports/gateway-registry.js";
 import type {
   CallbackVerification,
   CreatePaymentInput,
@@ -93,6 +94,15 @@ const STAY_TOTAL: VndAmount = 5_400_000n;
 
 const RETURN_URL = "https://mariva.test/stay/payment/return";
 const PAYER_ADDRESS = "203.0.113.44";
+
+/**
+ * The gateway every request here asks for.
+ *
+ * Nothing in this file is about the choice — it is about who may open an
+ * attempt at all — but the choice is now part of the request, so it is named
+ * once here rather than repeated in each of the two builders below.
+ */
+const THE_GATEWAY = "VNPAY";
 
 let pool: pg.Pool;
 let db: Database;
@@ -173,7 +183,11 @@ beforeAll(async () => {
   );
 
   payments = new PaymentService(
-    new GatewayUnderTest(),
+    // Bound under the method every request below names. The service resolves
+    // its adapter per attempt now, so a stand-in bound to nothing would refuse
+    // each of these with a `503` before the ownership question this file is
+    // about was ever asked.
+    new GatewayRegistry({ [THE_GATEWAY]: new GatewayUnderTest() }),
     new FolioService(db, new SystemConfigService(), {
       // Never reached: nothing here agrees an account, and points are earned at
       // the close and nowhere else. Named rather than cast, so a case that
@@ -202,6 +216,10 @@ beforeAll(async () => {
         );
       },
     } as unknown as OpsAlertService,
+    // Real, and it costs nothing: every attempt here is opened through a
+    // gateway that collects đồng, so the rate is never read — but a cast would
+    // fail the day one of these stays was paid through a gateway that cannot.
+    new SystemConfigService(),
   );
 });
 
@@ -298,6 +316,7 @@ describe("a stay nobody has revoked", () => {
 function aRequestFor(bookingId: string): GatewayPaymentRequest {
   return {
     bookingId,
+    method: THE_GATEWAY,
     amount: STAY_TOTAL,
     description: "The stay, paid before arrival",
     returnUrl: RETURN_URL,
