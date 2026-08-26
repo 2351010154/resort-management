@@ -169,6 +169,25 @@
   box-shadow: var(--plate-lift);
 }
 
+/* The glyph beside a value, painted as a mask over the colour it inherits — see
+   `room-facts.ts` for why this is a mask and not an `<img>`. */
+.mark {
+  display: block;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex: 0 0 auto;
+  color: var(--dusk-amber-ink);
+  background: currentcolor;
+  mask-image: var(--mark);
+  mask-repeat: no-repeat;
+  mask-size: contain;
+  mask-position: center;
+  -webkit-mask-image: var(--mark);
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  -webkit-mask-position: center;
+}
+
 /* ---- The room, read back ------------------------------------------------- */
 
 /* Not `--text-display-sm`: that step is sized for a screen whose heading is the
@@ -1312,25 +1331,6 @@
   margin-top: 0;
   padding-left: 0;
   border-left: 0;
-}
-
-/* The glyph beside a value, painted as a mask over the colour it inherits — see
-   `room-facts.ts` for why this is a mask and not an `<img>`. */
-.mark {
-  display: block;
-  width: 1.25rem;
-  height: 1.25rem;
-  flex: 0 0 auto;
-  color: var(--dusk-amber-ink);
-  background: currentcolor;
-  mask-image: var(--mark);
-  mask-repeat: no-repeat;
-  mask-size: contain;
-  mask-position: center;
-  -webkit-mask-image: var(--mark);
-  -webkit-mask-repeat: no-repeat;
-  -webkit-mask-size: contain;
-  -webkit-mask-position: center;
 }
 
 /* The lock is a caption rather than a fact, and sits at the size of the words it
