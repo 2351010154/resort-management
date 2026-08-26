@@ -67,20 +67,28 @@ export function RoomGallery({
 
   const frame = frames[at] ?? frames[0];
 
-  // Both neighbours, because the walk wraps and the guest may go either way.
-  for (const step of [1, -1]) {
-    const next = frames[(at + step + frames.length) % frames.length];
-    if (next) {
-      preload(next.src, {
-        as: "image",
-        imageSrcSet: tierSrcSet(next),
-        imageSizes: FRAME_SIZES,
-      });
+  // Both neighbours, because the walk wraps and the guest may go either way —
+  // but only once the dialog is up. This component is mounted for the whole of
+  // the review screen, and preloading from a closed gallery would spend a guest
+  // one press from paying two full-window downloads they have not asked for,
+  // which is the cost the "one frame in the DOM" rule above exists to avoid.
+  if (open) {
+    for (const step of [1, -1]) {
+      const next = frames[(at + step + frames.length) % frames.length];
+      if (next) {
+        preload(next.src, {
+          as: "image",
+          imageSrcSet: tierSrcSet(next),
+          imageSizes: FRAME_SIZES,
+        });
+      }
     }
   }
 
   const step = (by: number) =>
     setAt((from) => (from + by + frames.length) % frames.length);
+
+  const stepTo = (by: number) => (at + by + frames.length) % frames.length;
 
   return (
     // `onClose` catches every way the element can be dismissed — Escape, the
@@ -151,7 +159,7 @@ export function RoomGallery({
 
         <div className={styles.walk}>
           <button
-            aria-label={`Previous photograph, ${at + 1} of ${frames.length}`}
+            aria-label={`Previous photograph, ${stepTo(-1) + 1} of ${frames.length}`}
             className={styles.step}
             onClick={() => step(-1)}
             type="button"
@@ -175,7 +183,7 @@ export function RoomGallery({
           </p>
 
           <button
-            aria-label={`Next photograph, ${at + 1} of ${frames.length}`}
+            aria-label={`Next photograph, ${stepTo(1) + 1} of ${frames.length}`}
             className={styles.step}
             onClick={() => step(1)}
             type="button"
