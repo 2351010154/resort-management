@@ -41,7 +41,7 @@
   align-items: center;
   /* 0.5rem, not --space-2. The row is a picture, a short block of type and a
      mark, and a full rem between each of the three spent the width the facts
-     line needs — "3 guests · 52 m² · corner · two aspects" is the longest string
+     line needs — "3 guests, 52 m², corner, two aspects" is the longest string
      the five types produce and it wrapped at 1440, which left one row of the
      five a line taller than its neighbours.
 

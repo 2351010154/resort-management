@@ -10,8 +10,16 @@ import type { Metadata } from "next";
 //
 // Every subset ships with its `unicode-range`, so a browser still downloads
 // only latin and vietnamese — the same bytes over the wire as before. The
-// variable file covers 300–700 in one download per style, which is why the two
+// variable file covers 300–700 in one download per style, which is why the
 // weights below cost what one used to.
+//
+// Plex is not variable and each weight is a file, so the three are three
+// downloads and each one has to earn itself. The Light is the document — the
+// body is set in it. The Regular is what a caps label and a form's error line
+// are set in, where Light at 12 or 13px goes thin enough to read as a rendering
+// fault. The Medium is the newest and is spent on one thing: the answer beside
+// the question, on screens dense enough that colour alone was not telling the
+// two apart — see the ramp on `.screen` in `details-screen.module.css`.
 //
 // The role names --font-display and --font-ui are assigned from these in
 // globals.css, which is the only place the face and the role are joined.
@@ -19,6 +27,7 @@ import "@fontsource-variable/cormorant-garamond/wght.css";
 import "@fontsource-variable/cormorant-garamond/wght-italic.css";
 import "@fontsource/ibm-plex-mono/300.css";
 import "@fontsource/ibm-plex-mono/400.css";
+import "@fontsource/ibm-plex-mono/500.css";
 import "@mariva/tokens/tokens.css";
 import "./globals.css";
 import { motionTokensCss } from "@/lib/motion-tokens";

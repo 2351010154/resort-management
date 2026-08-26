@@ -10,7 +10,8 @@
  * makes that a single edit.
  */
 
-export { AppNav } from "./app-nav";
+export { AppNav, ConsoleBrand, MobileNav } from "./app-nav";
+export { NavCommands } from "./nav-commands";
 export {
   isActivePath,
   NAV_GROUPS,
@@ -22,5 +23,4 @@ export {
   navItemsFor,
 } from "./nav-inventory";
 export { NavItem, type NavItemProps } from "./nav-item";
-export { NavCommands } from "./nav-commands";
 export { UserMenu } from "./user-menu";

@@ -23,6 +23,24 @@
   --umber: #3a332b;
   --ink: #1c1915;
   --dusk-amber: #b48b60;
+  /* The same accent at a lightness that can be read on ivory.
+   *
+   * --dusk-amber is a light source. Act 2's gradient, act 3's haze and act 5's
+   * lantern glow are all it at partial strength against a dark ground, and every
+   * one of those effects is that value's brightness — darkening it to fix
+   * anything would dim the four brand moments the arrival is built on.
+   *
+   * What it cannot do is carry words on a pale plate. #b48b60 on --ivory is
+   * 2.7:1, so the funnel's primary button, the links beside it and the focus
+   * rings around it were all below the 4.5:1 WCAG AA asks of text and the 3:1 it
+   * asks of a control's outline. This is the same hue held and the lightness
+   * dropped until it clears both: 5.1:1 on --ivory, and 4.8:1 on the warmer
+   * --ivory-warm the funnel lays its plates on.
+   *
+   * Which one to reach for is decided by the ground, not by the role. Amber on
+   * something dark is --dusk-amber; amber that has to be read on ivory — as ink,
+   * as a button's fill under ivory type, as an outline — is this. */
+  --dusk-amber-ink: #855c31;
   --ocean: #7fa2b7;
   /* The value the dark acts hand over on. Not a ninth colour so much as the
      one seam in the ride: Act 3's tail fade closes on it, Act 4 stands on it,
@@ -51,6 +69,11 @@
   --umber-rgb: 58 51 43;
   --ink-rgb: 28 25 21;
   --dusk-amber-rgb: 180 139 96;
+  /* The read-on-ivory rung, for the one wash that has to sit under it: a
+     selected payment provider is this colour at 0.08 behind this colour as an
+     edge, and mixing the two ambers there would print a tint of one accent
+     inside a border drawn in the other. */
+  --dusk-amber-ink-rgb: 133 92 49;
   /* The booking funnel's selected-date wash. --ocean waited for a job through
      the whole arrival; design-foundations.md §2 reserved it for exactly this —
      "an informational state, a selected date" — and a selected night is drawn as

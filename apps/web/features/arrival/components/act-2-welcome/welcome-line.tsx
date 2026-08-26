@@ -60,7 +60,7 @@ export function WelcomeLine() {
               className={`caps-label ${styles.kicker}`}
               style={{ display: "block" }}
             >
-              Mariva — Rest · Relax · Rejuvenate
+              Mariva — Rest, Relax, Rejuvenate
             </span>
           </span>
           <span className={styles.lineClip}>

@@ -40,23 +40,20 @@ function clock(seconds: number): string {
   return `${minutes}:${String(seconds % 60).padStart(2, "0")}`;
 }
 
-export function HoldTimer({
-  expiresAt,
-  onExpired,
-}: {
-  /** The server's own deadline. Never a duration — see below. */
-  readonly expiresAt: Date;
-  readonly onExpired?: () => void;
-}) {
+/**
+ * The tick, on its own, so two renderings of one deadline agree to the second.
+ *
+ * Recomputed against `Date.now()` on every tick rather than decremented, and
+ * recomputed again on `visibilitychange`. A decremented counter drifts, and a
+ * backgrounded tab is throttled to once a minute — so a guest who switches apps
+ * comes back to a clock that is minutes behind the hold it describes. The
+ * deadline is the server's because a skewed device clock otherwise lies in
+ * whichever direction it is wrong.
+ */
+function useSecondsLeft(expiresAt: Date): number {
   const [remaining, setRemaining] = useState(() => secondsLeft(expiresAt));
 
   useEffect(() => {
-    // Recomputed against `Date.now()` on every tick rather than decremented, and
-    // recomputed again on `visibilitychange`. A decremented counter drifts, and a
-    // backgrounded tab is throttled to once a minute — so a guest who switches
-    // apps comes back to a clock that is minutes behind the hold it describes.
-    // The deadline is the server's because a skewed device clock otherwise lies
-    // in whichever direction it is wrong.
     const tick = () => setRemaining(secondsLeft(expiresAt));
 
     const timer = window.setInterval(tick, 1000);
@@ -67,6 +64,43 @@ export function HoldTimer({
       document.removeEventListener("visibilitychange", tick);
     };
   }, [expiresAt]);
+
+  return remaining;
+}
+
+/**
+ * The digits alone — the same deadline, for somewhere there is no room to say
+ * more about it.
+ *
+ * Written for the review screen's narrow action bar, where the total and the one
+ * press are pinned to the bottom of a phone and the countdown has a few
+ * characters beside them rather than three lines under them.
+ *
+ * **It is hidden from the accessibility tree outright.** {@link HoldTimer} is
+ * still on the same page carrying the polite live region and the sentence under
+ * it, so everything this shows has already been said properly somewhere else.
+ * Left exposed it would be a second, mute copy of one deadline sitting in the
+ * reading order between the total and the button.
+ */
+export function HoldClock({ expiresAt }: { readonly expiresAt: Date }) {
+  const remaining = useSecondsLeft(expiresAt);
+
+  return (
+    <span aria-hidden="true" className={styles.compact}>
+      <span className={styles.digits}>{clock(remaining)}</span> left
+    </span>
+  );
+}
+
+export function HoldTimer({
+  expiresAt,
+  onExpired,
+}: {
+  /** The server's own deadline. Never a duration — see below. */
+  readonly expiresAt: Date;
+  readonly onExpired?: () => void;
+}) {
+  const remaining = useSecondsLeft(expiresAt);
 
   useEffect(() => {
     if (remaining === 0) onExpired?.();

@@ -3,7 +3,10 @@ import {
   type HeldStay,
   holdRefusal,
   isBooked,
+  isContactAnswered,
+  isEmailAnswered,
   isLost,
+  isNameAnswered,
   isSettled,
   markDeparture,
   markPresence,
@@ -34,6 +37,44 @@ const stayIn = (state: HeldStay["state"]): HeldStay => ({
   childAges: [],
   stayTotalGross: 4_200_000n,
   holdExpiresAt: null,
+});
+
+describe("the contact the review screen asks for", () => {
+  const contact = (name: string, email: string) => ({ name, email });
+
+  it("takes an address that has the three parts a mailbox needs", () => {
+    expect(isEmailAnswered(contact("Mai", "mai@example.com"))).toBe(true);
+    expect(isEmailAnswered(contact("Mai", "mai.tran@mail.example.co.uk"))).toBe(
+      true,
+    );
+  });
+
+  it("refuses one missing a mark, a host or a dot in it", () => {
+    expect(isEmailAnswered(contact("Mai", "mai"))).toBe(false);
+    expect(isEmailAnswered(contact("Mai", "mai@example"))).toBe(false);
+    expect(isEmailAnswered(contact("Mai", "@example.com"))).toBe(false);
+  });
+
+  it("ignores the space around an address rather than refusing it", () => {
+    expect(isEmailAnswered(contact("Mai", "  mai@example.com  "))).toBe(true);
+  });
+
+  it("takes any name that is not blank, because the API is the authority", () => {
+    expect(isNameAnswered(contact("M", "mai@example.com"))).toBe(true);
+    expect(isNameAnswered(contact("   ", "mai@example.com"))).toBe(false);
+    expect(isNameAnswered(contact("", "mai@example.com"))).toBe(false);
+  });
+
+  // The screen marks one field at a time and puts the cursor in it, so the pair
+  // and the halves have to agree about which of the two is unfinished.
+  it("is answered only when both halves are", () => {
+    expect(isContactAnswered(contact("Mai Tran", "mai@example.com"))).toBe(
+      true,
+    );
+    expect(isContactAnswered(contact("", "mai@example.com"))).toBe(false);
+    expect(isContactAnswered(contact("Mai Tran", "mai"))).toBe(false);
+    expect(isContactAnswered(contact("", ""))).toBe(false);
+  });
 });
 
 describe("readCaption", () => {

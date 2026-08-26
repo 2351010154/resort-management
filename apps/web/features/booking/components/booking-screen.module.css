@@ -134,7 +134,7 @@
 
   /* The list plate's width. Measured rather than chosen: a room row is a 4.75rem
      thumbnail, a 1.5rem state mark and two 0.5rem gaps — 7.25rem of furniture —
-     and what is left has to hold "3 guests · 52 m² · corner · two aspects" on
+     and what is left has to hold "3 guests, 52 m², corner, two aspects" on
      one line, which is the longest string the five types produce. At the
      21.875rem floor, less the plate's inset and the row's own padding, the type
      gets 172px against the 166px that string measures at `--plate-xs`.

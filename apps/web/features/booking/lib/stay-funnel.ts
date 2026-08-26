@@ -30,7 +30,7 @@
 // to decide what is *true*.
 
 import type { RatePlanCode, RoomTypeCode, StayDate } from "@mariva/shared";
-import { api, API_URL, apiMessage } from "@/lib/api";
+import { API_URL, api, apiMessage } from "@/lib/api";
 
 /**
  * A stay as the API answers it — the shape every screen after the hold reads.
@@ -93,19 +93,34 @@ export function stayContact(stay: HeldStay): StayContact {
 }
 
 /**
+ * The bare shape of an address, and nothing cleverer.
+ *
+ * The API's schema is the authority and will refuse what this lets through, so a
+ * stricter rule here would be a second opinion that turns away a guest the
+ * property would have accepted. What it is for is answering *before* the
+ * request, so an unfinished field is a line beside it rather than a round trip
+ * that consumes nothing and reads like a failure.
+ */
+export function isEmailAnswered(contact: StayContact): boolean {
+  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(contact.email.trim());
+}
+
+/** Something to put at the top of the confirmation. Blank is the only refusal. */
+export function isNameAnswered(contact: StayContact): boolean {
+  return contact.name.trim().length > 0;
+}
+
+/**
  * Whether the pair is answered well enough to send.
  *
- * The bare shape of an address and a name that is not blank, and nothing
- * cleverer: the API's schema is the authority on both and will refuse what this
- * lets through, so a stricter rule here would be a second opinion that refuses a
- * guest the property would have accepted. What this is for is answering *before*
- * the request, so a blank field is a line under the button rather than a round
- * trip that consumes nothing and reads like a failure.
+ * **Composed rather than written out, because the halves are now asked for
+ * separately.** The review screen marks the offending field and moves the cursor
+ * into it, which means it has to know *which* of the two is unfinished — and a
+ * screen that re-derived that with its own regex would be a third opinion about
+ * an address, disagreeing with this one the first time either was edited.
  */
 export function isContactAnswered(contact: StayContact): boolean {
-  return /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(contact.email.trim())
-    ? contact.name.trim().length > 0
-    : false;
+  return isEmailAnswered(contact) && isNameAnswered(contact);
 }
 
 /** What the funnel knows when it asks for a hold. */

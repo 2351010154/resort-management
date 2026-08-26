@@ -132,7 +132,7 @@ export function StayFeedbackPanel({
         <dl className={styles.facts}>
           <dt className={styles.factLabel}>Rating</dt>
           <dd className={styles.factValue}>
-            {left.rating} of {HIGHEST_RATING} · {RUNGS[left.rating]}
+            {left.rating} of {HIGHEST_RATING}, {RUNGS[left.rating]}
           </dd>
 
           {left.comment ? (

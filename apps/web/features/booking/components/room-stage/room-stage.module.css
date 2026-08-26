@@ -252,7 +252,7 @@
  * **Two, not four, and the property's own words are why.** Four across is the
  * shape the comp draws, and the comp's values are "1 QUEEN BED" with the
  * dimension demoted to the line under it. `property-and-tariff.md` §1 writes a
- * bed as one string with its dimension inside it — "one king bed (1.80 m) · one
+ * bed as one string with its dimension inside it — "one king bed (1.80 m), one
  * single bed (1.00 m)" for the Premier — and four tracks of a 520px column give
  * that 118px to wrap in, which is five lines and a row of facts at five
  * different heights. Splitting the string to fit the grid would mean this
@@ -523,16 +523,19 @@
   gap: var(--space-1);
 }
 
-/* The one primary action on the screen, and the one place --dusk-amber is spent
-   as ink — §2. */
+/* The one primary action on the screen, and the one place the accent is spent
+   as ink — §2. The rung is --dusk-amber-ink: the ivory label on #b48b60 is
+   2.7:1, which is under what WCAG AA asks of any text and well under what it
+   asks of the one control the step exists to offer. Same hue, read-on-ivory
+   lightness — `tokens.css` argues the split. */
 .continue {
   min-width: 12rem;
   min-height: 3rem; /* 48px. 44 is the floor, and this is the button. */
   padding: 0 var(--space-3);
   font-size: var(--text-sm);
   color: var(--ivory);
-  background: var(--dusk-amber);
-  border: 1px solid var(--dusk-amber);
+  background: var(--dusk-amber-ink);
+  border: 1px solid var(--dusk-amber-ink);
   /* The transform is the press — see `.continue:active` — and it runs at 0.16s
      against the colours' 0.4s. Two speeds because they answer two different
      things: a pointer crossing the button has all the time in the world, and a
@@ -637,8 +640,8 @@
 }
 
 /* Below the stack width the plate is a section of a scrolling page, and at a
-   phone's measure two fact tracks are 150px each — which "one king bed (1.80 m)
-   · one single bed (1.00 m)" does not survive. One column, four down, is the
+   phone's measure two fact tracks are 150px each — which "one king bed (1.80 m),
+   one single bed (1.00 m)" does not survive. One column, four down, is the
    same reading order with room to say it. The amenity list goes to one track at
    the same point and for the same reason — two would be 158px at a phone's
    width, which is under the measure its longest line needs. Twelve rows is long,

@@ -437,7 +437,7 @@ export function PendingItems({
   return (
     <section>
       <Heading className="text-muted-foreground text-xs tracking-caps uppercase">
-        Outstanding {items.data === undefined ? null : `· ${items.data.total}`}
+        Outstanding{items.data === undefined ? null : `, ${items.data.total}`}
       </Heading>
 
       {items.isPending && offered ? (

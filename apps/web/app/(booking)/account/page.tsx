@@ -19,7 +19,7 @@ import type { Metadata } from "next";
 import { ProfileForm } from "@/features/account/components/profile-form/profile-form";
 
 export const metadata: Metadata = {
-  title: "Your profile — Mariva",
+  title: "Your profile | Mariva",
   description:
     "Your details, your tier and your loyalty points, and how you sign in.",
 };

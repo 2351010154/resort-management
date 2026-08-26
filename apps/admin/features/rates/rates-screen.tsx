@@ -1234,7 +1234,7 @@ function PlanCard({ plan, mayEdit }: { plan: RatePlan; mayEdit: boolean }) {
   return (
     <Card className="p-5">
       <h3 className="font-semibold">
-        <span className="tabular-nums">{plan.code}</span> · {plan.name}
+        <span className="tabular-nums">{plan.code}</span>, {plan.name}
       </h3>
       <dl className="mt-2 text-sm">
         <div className="flex gap-2">

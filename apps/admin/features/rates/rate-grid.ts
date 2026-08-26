@@ -754,7 +754,7 @@ export function spanLabel(span: SelectionSpan): string {
       ? span.roomTypes[0]
       : `${span.roomTypes.length} room types`;
 
-  return `${types} · ${nights} · ${formatShortDate(span.from)} to ${formatShortDate(span.to)}`;
+  return `${types}, ${nights}, ${formatShortDate(span.from)} to ${formatShortDate(span.to)}`;
 }
 
 // ── Reading a figure an operator typed ─────────────────────────────────────
