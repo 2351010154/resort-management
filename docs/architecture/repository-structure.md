@@ -14,8 +14,10 @@ apps/
 packages/
   shared/           zod schemas and the types inferred from them. The contract every app reads
   api-client/       Typed fetch wrapper over the API, validating responses with `shared`
-docs/               Architecture, generated diagrams, traceability
+  tokens/           The palette, type scale, spacing rhythm and easing curves all three surfaces share
+docs/               Architecture, generated diagrams, traceability, and the assets they embed
 plans/              Stable requirement IDs, acceptance criteria, handoff packages, and research records
+scripts/            Repo-wide helper scripts. A script serving one workspace stays in that workspace
 ```
 
 One API, three consumers. Business logic exists once, in `apps/api`; the
@@ -25,7 +27,20 @@ into three that disagree.
 
 GitHub issues own execution state. Files under `plans/` preserve
 requirements, rationale, and work-package boundaries; they do not mirror issue
-status, assignment, milestone, or delivery evidence.
+status, assignment, milestone, or delivery evidence — they are stateful records,
+and a finished phase does not promote one into durable authority.
+
+**The repository root holds workspace configuration and nothing else**:
+`package.json`, `turbo.json`, `biome.jsonc`, `lefthook.yml`, the tsconfigs,
+`pnpm-workspace.yaml` and `pnpm-lock.yaml`, `README.md`, `.gitignore`,
+`.nvmrc`. Everything else there arrived by accident — a dev server started from
+the repo root writes its log beside them, and a font download lands in whatever
+directory the browser was pointed at. `.gitignore` already keeps `*.log` and
+`*.font` out of history, which makes them invisible in review and permanent on
+disk; delete a log rather than reading around it, and move an asset a document
+uses into `docs/assets/`. A root listing is the first thing a new reader sees,
+and it should show the workspace, not the last three weeks of someone's
+terminal.
 
 ## Rules that survive contact with growth
 
