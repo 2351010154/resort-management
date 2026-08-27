@@ -57,8 +57,10 @@ import {
   CheckoutPaymentIntent,
   Client,
   Environment,
+  type OAuthToken,
   OrdersController,
   PaymentsController,
+  type TransactionDetails,
   TransactionSearchController,
 } from "@paypal/paypal-server-sdk";
 import {
@@ -114,6 +116,18 @@ const VERIFY_WEBHOOK_SIGNATURE = "/v1/notifications/verify-webhook-signature";
 
 /** The only answer that means the event is PayPal's. Anything else is not. */
 const VERIFIED = "SUCCESS";
+
+/**
+ * How long before its stated expiry a held token is treated as spent.
+ *
+ * A token is checked here and spent at PayPal a moment later, so one that runs
+ * out in between is a call refused for a reason that has nothing to do with what
+ * was asked — and on the verification path that reason would surface as a `502`
+ * against a real event. A minute is the SDK's own knob for the gap, applied to
+ * every call the client makes and not only to the one this file mints a header
+ * for.
+ */
+const TOKEN_CLOCK_SKEW_SECONDS = 60;
 
 /**
  * The currency this gateway collects in — `money.ts`'s only presentment member.
@@ -204,6 +218,25 @@ export function paypalIsConfigured(env: Env): boolean {
   );
 }
 
+/**
+ * The client, the three controllers over it, and the two facts about where this
+ * deployment's PayPal lives — everything a call needs, built together.
+ *
+ * One record because they are decided by one thing and at one moment: the three
+ * variables the deployment either holds or does not. `PAYPAL_SANDBOX` picks the
+ * environment the client speaks to *and* the host the verification call is made
+ * against, and the top of this file explains what a deployment that let those
+ * two disagree would do to a real payment.
+ */
+interface PaypalCalls {
+  readonly client: Client;
+  readonly orders: OrdersController;
+  readonly payments: PaymentsController;
+  readonly transactions: TransactionSearchController;
+  readonly apiHost: string;
+  readonly webhookId: string;
+}
+
 @Injectable()
 export class PaypalAdapter implements PaymentGateway {
   /**
@@ -217,7 +250,18 @@ export class PaypalAdapter implements PaymentGateway {
   readonly settlementCurrency = SETTLEMENT_CURRENCY;
 
   /** Built on first use; see the note on deferred failure at the top. */
-  private client?: Client;
+  private calls?: PaypalCalls;
+
+  /**
+   * The bearer token the last call was made with, held for the next one.
+   *
+   * Kept here rather than inside the SDK because the SDK does not keep one: its
+   * credentials manager mints a token whenever it is asked and leaves the
+   * holding to the caller — what it does own is the expiry, which is why the
+   * token is handed back to it in {@link PaypalAdapter.accessToken} rather than
+   * judged here.
+   */
+  private token?: OAuthToken;
 
   constructor(@Inject(ENV) private readonly env: Env) {}
 
@@ -456,21 +500,12 @@ export class PaypalAdapter implements PaymentGateway {
     // capped at PayPal's own limit for a single search rather than extended past
     // it — a range the API refuses returns nothing at all, which would read as
     // money that never arrived.
-    const { transactions } = this.paypal();
+    const found = await this.reportedBetween(
+      attempt.createdAt,
+      searchWindowEnd(attempt.createdAt),
+    );
 
-    const found = await transactions.searchTransactions({
-      startDate: attempt.createdAt.toISOString(),
-      endDate: searchWindowEnd(attempt.createdAt).toISOString(),
-      // Everything the port needs is in this one block — the amount, the status,
-      // the capture id, the time and the `custom_id` the terms ride on — and
-      // asking for the payer, the cart and the shipping would be reading a
-      // guest's details to answer a question about money.
-      fields: "transaction_info",
-      pageSize: SEARCH_PAGE_SIZE,
-      page: 1,
-    });
-
-    const reported = found.result.transactionDetails?.find((detail) => {
+    const reported = found.find((detail) => {
       const terms = termsIn(detail.transactionInfo?.customField);
 
       // Matched on the reference the property minted, not on the amount and not
@@ -482,7 +517,10 @@ export class PaypalAdapter implements PaymentGateway {
 
     // PayPal has no record of the attempt in the window it was opened in. Not
     // an error: an attempt the payer abandoned was never a transaction, and
-    // `FR-PAY-05` needs to be able to tell that apart from one that failed.
+    // `FR-PAY-05` needs to be able to tell that apart from one that failed. It
+    // is an absence and not a gap in what came back, because a report that
+    // filled its page is refused before anything searches it — "still open"
+    // here means PayPal says so, never that the answer stopped short of it.
     if (!reported) {
       return {
         reference: attempt.reference,
@@ -546,8 +584,6 @@ export class PaypalAdapter implements PaymentGateway {
   async settledBetween(
     window: SettlementWindow,
   ): Promise<readonly GatewayTransaction[]> {
-    const { transactions } = this.paypal();
-
     // Nothing can have settled in a window that has not happened yet, and
     // PayPal's reporting will not draw a range ending in the future. The
     // sweep's range deliberately runs a day past the business date — a coarse
@@ -559,38 +595,7 @@ export class PaypalAdapter implements PaymentGateway {
       return [];
     }
 
-    const found = await transactions.searchTransactions({
-      startDate: window.from.toISOString(),
-      endDate: until.toISOString(),
-      // The same one block `queryTransaction` asks for, and for its reason:
-      // everything the port needs is in it, and the payer, the cart and the
-      // shipping are a guest's details being read to answer a question about
-      // money.
-      fields: "transaction_info",
-      pageSize: SEARCH_PAGE_SIZE,
-      page: 1,
-    });
-
-    const details = found.result.transactionDetails ?? [];
-
-    // A full page is a report this property cannot prove is the whole night, and
-    // an incomplete report is worse than none: every settlement past the ceiling
-    // reads at the comparison as a payment the gateway does not account for, so
-    // the property would be paged about money that is sitting safely at PayPal.
-    // Refused instead, which leaves the day with no run row and outstanding —
-    // the same standing the sweep gives a gateway it could not reach, and the
-    // next tick tries again. `SEARCH_PAGE_SIZE` is PayPal's own ceiling for one
-    // page and a property of this size settles a few dozen a day; a property
-    // that outgrows it needs this call to page, and will find out here rather
-    // than by quietly reconciling three quarters of a night.
-    if (details.length >= SEARCH_PAGE_SIZE) {
-      throw new ORPCError("BAD_GATEWAY", {
-        status: 502,
-        message:
-          `PayPal filled a whole page of ${SEARCH_PAGE_SIZE} transactions for ` +
-          "that window, so what came back cannot be read as the whole of it",
-      });
-    }
+    const details = await this.reportedBetween(window.from, until);
 
     return details.flatMap((detail) => {
       const info = detail.transactionInfo;
@@ -607,6 +612,59 @@ export class PaypalAdapter implements PaymentGateway {
 
       return settlement ? [settlement] : [];
     });
+  }
+
+  /**
+   * One window of PayPal's reporting, and never a part of one.
+   *
+   * Both searches this file makes ask the same question of the same API — the
+   * same one block of fields, the same single page — so they are one call, and
+   * the reason to make it one is the answer they have to agree about. A page
+   * PayPal filled is a window that stops somewhere neither caller can see, and
+   * each would read that silence as a different falsehood: a night's report
+   * would file every settlement past the ceiling as money the gateway does not
+   * account for, and a search for a named attempt would answer that the attempt
+   * is still open when it may have been paid on the page nobody asked for.
+   * Refused instead, so that a `PENDING` from {@link
+   * PaypalAdapter.queryTransaction} always means PayPal said so.
+   *
+   * Refusing leaves the sweep's day with no run row and outstanding — the same
+   * standing it gives a gateway it could not reach, and the next tick tries
+   * again. `SEARCH_PAGE_SIZE` is PayPal's own ceiling for one page and a
+   * property of this size settles a few dozen a day; a property that outgrows
+   * it needs these calls to page, and will find out here rather than by quietly
+   * reconciling three quarters of a night.
+   */
+  private async reportedBetween(
+    from: Date,
+    until: Date,
+  ): Promise<readonly TransactionDetails[]> {
+    const { transactions } = this.paypal();
+
+    const found = await transactions.searchTransactions({
+      startDate: from.toISOString(),
+      endDate: until.toISOString(),
+      // Everything the port needs is in this one block — the amount, the status,
+      // the capture id, the time and the `custom_id` the terms ride on — and
+      // asking for the payer, the cart and the shipping would be reading a
+      // guest's details to answer a question about money.
+      fields: "transaction_info",
+      pageSize: SEARCH_PAGE_SIZE,
+      page: 1,
+    });
+
+    const details = found.result.transactionDetails ?? [];
+
+    if (details.length >= SEARCH_PAGE_SIZE) {
+      throw new ORPCError("BAD_GATEWAY", {
+        status: 502,
+        message:
+          `PayPal filled a whole page of ${SEARCH_PAGE_SIZE} transactions for ` +
+          "that window, so what came back cannot be read as the whole of it",
+      });
+    }
+
+    return details;
   }
 
   /**
@@ -659,11 +717,24 @@ export class PaypalAdapter implements PaymentGateway {
     return await answer.json();
   }
 
-  /** A bearer token, minted and refreshed by the SDK's credentials manager. */
+  /**
+   * A bearer token, minted and refreshed by the SDK's credentials manager.
+   *
+   * Held between events rather than minted per delivery. `updateToken` is the
+   * manager's own "this one if it is still good, a fresh one if it is not": it
+   * checks the expiry it stamped on the token when it fetched it, against the
+   * clock skew the client was built with, so nothing here decides when a token
+   * has run out. Asking for a new one on every event would put a second round
+   * trip in front of every verification, and PayPal delivers each event to a
+   * property that is already answering within a timeout.
+   */
   private async accessToken(): Promise<string> {
     const { client } = this.paypal();
 
-    return (await client.clientCredentialsAuthManager.fetchToken()).accessToken;
+    this.token =
+      await client.clientCredentialsAuthManager.updateToken(this.token);
+
+    return this.token.accessToken;
   }
 
   /**
@@ -675,14 +746,14 @@ export class PaypalAdapter implements PaymentGateway {
    * explains who a mandatory credential would stop and why the refusal is
    * deferred to here instead of raised at the boot.
    */
-  private paypal(): {
-    readonly client: Client;
-    readonly orders: OrdersController;
-    readonly payments: PaymentsController;
-    readonly transactions: TransactionSearchController;
-    readonly apiHost: string;
-    readonly webhookId: string;
-  } {
+  private paypal(): PaypalCalls {
+    // Built once and answered from thereafter. The environment is read at the
+    // boot and never changes under a running process, so a second reading could
+    // only produce the same client and the same three controllers over it.
+    if (this.calls) {
+      return this.calls;
+    }
+
     const oAuthClientId = this.env.PAYPAL_CLIENT_ID;
     const oAuthClientSecret = this.env.PAYPAL_CLIENT_SECRET;
     const webhookId = this.env.PAYPAL_WEBHOOK_ID;
@@ -702,24 +773,30 @@ export class PaypalAdapter implements PaymentGateway {
 
     const sandbox = this.env.PAYPAL_SANDBOX;
 
-    this.client ??= new Client({
-      clientCredentialsAuthCredentials: { oAuthClientId, oAuthClientSecret },
+    const client = new Client({
+      clientCredentialsAuthCredentials: {
+        oAuthClientId,
+        oAuthClientSecret,
+        oAuthClockSkew: TOKEN_CLOCK_SKEW_SECONDS,
+      },
       environment: sandbox ? Environment.Sandbox : Environment.Production,
     });
 
-    return {
-      client: this.client,
-      // Rebuilt per call rather than cached beside the client, and they cost
-      // nothing to build: a controller is a thin binding over the client's
-      // request factory with no connection and no state of its own. What is
-      // cached is the thing that holds the credentials and the access token,
-      // which is the client.
-      orders: new OrdersController(this.client),
-      payments: new PaymentsController(this.client),
-      transactions: new TransactionSearchController(this.client),
+    this.calls = {
+      client,
+      // Cached beside the client rather than rebuilt per call. A controller is a
+      // thin binding over the client's request factory with no connection of its
+      // own, so this buys little — but the three of them are decided by the same
+      // configuration the client is, and a call site that reads one of them out
+      // of this record should not be the reason three objects exist.
+      orders: new OrdersController(client),
+      payments: new PaymentsController(client),
+      transactions: new TransactionSearchController(client),
       apiHost: sandbox ? PAYPAL_API_SANDBOX_HOST : PAYPAL_API_PRODUCTION_HOST,
       webhookId,
     };
+
+    return this.calls;
   }
 }
 

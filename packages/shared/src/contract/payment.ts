@@ -261,6 +261,33 @@ export const openedPaymentSchema = z.object({
 });
 
 /**
+ * The gateways this deployment can actually collect through, as the wire
+ * spells them.
+ *
+ * **A fact about a server and not about the property's price list.** Every
+ * member of {@link gatewayPaymentMethodSchema} is a method this property
+ * accepts; which of them a given deployment holds credentials for is a
+ * different question, and one only the process that holds the bindings can
+ * answer. `ports/gateway-registry.ts` is where that answer lives, and it is
+ * partial on purpose: a property part-way through a merchant onboarding runs
+ * the API and collects through whatever it has finished.
+ *
+ * Answered so that a funnel can draw the choice it actually has. Without it a
+ * screen has to guess — hard-coding a provider as choosable, and turning the
+ * registry's own refusal into the sentence a guest reads after they have typed
+ * their name, chosen that provider and pressed the button.
+ *
+ * **It says nothing about an individual attempt.** A method listed here is one
+ * the deployment has an adapter for, not a promise that the next attempt
+ * opened at it will succeed — a gateway that is bound and unreachable is still
+ * the `502` it always was, and that is the gateway's afternoon rather than
+ * this deployment's configuration.
+ */
+export const collectableGatewaysSchema = z.object({
+  methods: z.array(gatewayPaymentMethodSchema),
+});
+
+/**
  * The ways the two reports can fail to say the same thing, as the wire spells
  * them.
  *
@@ -569,6 +596,14 @@ export const refundCandidatesPageSchema = z.object({
 });
 
 export const payment = {
+  gateways: oc
+    // A read with no subject, under the same `/payments` root the rest of the
+    // module hangs off. No input at all: the answer is the same for every
+    // caller, because what it reports is which adapters this process has
+    // bound and not anything about who asked or what they are paying for.
+    .route({ method: "GET", path: "/payments/gateways" })
+    .output(collectableGatewaysSchema),
+
   openAttempt: oc
     .route({ method: "POST", path: "/bookings/{bookingId}/payment-attempts" })
     .input(openPaymentAttemptInput)

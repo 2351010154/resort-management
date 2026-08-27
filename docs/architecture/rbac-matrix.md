@@ -72,15 +72,22 @@ token on a guest route is 403. Not 401 — the token is valid, the realm is wron
   - the routes that *issue* one — staff sign-in, refresh and sign-out, and
     everything Better Auth mounts;
   - the liveness probe, which has no subject at all;
+  - the listing of the payment gateways this deployment can collect through,
+    which has no subject either: it names no stay, reads no session and answers
+    every caller the same fact about the server, and the guest funnel asks it in
+    order to offer only the providers the property can actually take money
+    through;
   - the payment gateway's IPN and return url, where the gateway holds no session
     of this property's and its signature stands in for one;
   - the two that redeem a link out of a confirmation email, where the signed
     single-use link is itself the credential — one re-issues the booking cookie,
     the other creates the account the mail offered.
 
-  The shape is the same in all four: a signature or a secret arrives where a
-  session cannot, and the route acquires authority rather than exercising it.
-  Nothing else may carry it.
+  The shape is the same in all of them that have a subject: a signature or a
+  secret arrives where a session cannot, and the route acquires authority rather
+  than exercising it. The two that have none acquire nothing — they report a
+  fact about the process that is identical for every caller. Nothing else may
+  carry it.
 - **👁 is enforced, not documentation.** A row is wider than a route — "Rate
   plans, rate calendar, promotions" is one row a receptionist may look at and a
   manager may change — so a route declares which of the two it is:

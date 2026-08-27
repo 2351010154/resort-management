@@ -34,13 +34,17 @@
 // dollars with, and a row whose `method` and whose money disagree. Nothing here
 // substitutes one provider for another.
 //
-// **It also answers what is bound, which is a question one caller has and the
-// funnel never will.** `FR-PAY-05` reconciles a night against the gateways'
-// reports, and the sweep that does it has no payer's choice to resolve — it
-// needs every provider the property collects through, because the night holds
-// money from both. That is a listing rather than a second kind of resolution,
-// and it is here rather than in the sweep for the reason the map is here at all:
-// which providers this deployment has is one fact, and a sweep assembling its
+// **It also answers what is bound, which is a question two callers have.**
+// `FR-PAY-05` reconciles a night against the gateways' reports, and the sweep
+// that does it has no payer's choice to resolve — it needs every provider the
+// property collects through, because the night holds money from both. The
+// second is the funnel, through `payment.controller.ts`'s listing route: a
+// screen that hard-coded which providers are choosable would offer a guest a
+// gateway this deployment has no credentials for, and the refusal below —
+// written for a log — would be the sentence they read after pressing the
+// button. Both are a listing rather than a second kind of resolution, and it is
+// here rather than in either caller for the reason the map is here at all:
+// which providers this deployment has is one fact, and a caller assembling its
 // own view of it would be a second one, differing the first time a binding
 // moved.
 
@@ -95,13 +99,16 @@ export class GatewayRegistry {
    * Every gateway this deployment can actually reach, with the method each one
    * answers for.
    *
-   * For the caller that has a question for all of them rather than for the one
-   * a payer chose — `FR-PAY-05`'s nightly sweep, which asks each gateway for its
-   * side of the same night and holds the two answers against one ledger. It
+   * For the callers that have a question about all of them rather than about
+   * the one a payer chose. `FR-PAY-05`'s nightly sweep asks each gateway for
+   * its side of the same night and holds the two answers against one ledger; it
    * cannot name a provider to ask, and asking about a method it read off a row
    * would give it {@link GatewayRegistry.for}'s refusal on the one deployment
    * where a method is unbound: a night that could not be reconciled at all,
-   * every hour, because one of two providers is unconfigured.
+   * every hour, because one of two providers is unconfigured. The other is the
+   * funnel, which asks so that it can offer a guest the providers this
+   * deployment can actually take money through and draw the rest as refused
+   * before anybody presses anything.
    *
    * **What is bound and not what is possible.** A method with no adapter is
    * simply absent from this list, so a payment recorded against it is money the

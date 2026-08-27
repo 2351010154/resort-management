@@ -57,6 +57,7 @@ import {
 import { ENV, type Env, parseEnv } from "../../config/env.js";
 import { TransactionRunner } from "../../database/transaction-runner.js";
 import { PaymentController } from "./payment.controller.js";
+import { GatewayRegistry } from "./ports/gateway-registry.js";
 import {
   type CallbackDisagreement,
   type CallbackOutcome,
@@ -110,12 +111,25 @@ const A_CALLBACK = {
 } as const;
 
 let app: INestApplication;
+
+/**
+ * What this deployment has bound, as the registry reads it.
+ *
+ * Mutable and handed to the registry by reference, so a test may take a
+ * gateway away between the module being built and the request being made —
+ * which is the only fact the listing route reports.
+ */
+let bound: { VNPAY?: PaymentGateway; PAYPAL?: PaymentGateway };
 let handleIpn: Mock<PaymentService["handleIpn"]>;
 let createPaymentRequest: Mock<PaymentService["createPaymentRequest"]>;
 let listRefundCandidates: Mock<PaymentService["listRefundCandidates"]>;
 let verifyCallback: Mock<PaymentGateway["verifyCallback"]>;
 
 beforeEach(async () => {
+  // Both adapters, which is the deployment that has finished both merchant
+  // onboardings. The suite that cares takes one away.
+  bound = { VNPAY: aGateway(), PAYPAL: aGateway() };
+
   handleIpn = vi.fn<PaymentService["handleIpn"]>();
   createPaymentRequest = vi.fn<PaymentService["createPaymentRequest"]>();
   listRefundCandidates = vi.fn<PaymentService["listRefundCandidates"]>();
@@ -158,6 +172,10 @@ beforeEach(async () => {
           run: async (work: (exec: never) => Promise<unknown>) => work(undefined as never),
         },
       },
+      // The real registry over the bindings above, rather than a stand-in: what
+      // the route answers is `GatewayRegistry.all()`'s own ordering and its own
+      // idea of what "bound" means, and a fake here would be a second one.
+      { provide: GatewayRegistry, useValue: new GatewayRegistry(bound) },
       { provide: ENV, useValue: environment() },
       // The handler logs on every path; the assertions are about what it
       // answers, so the sink is a no-op rather than a spy.
@@ -580,6 +598,54 @@ describe("the attempt the desk opens", () => {
   });
 });
 
+describe("the gateways this deployment can collect through", () => {
+  it("names every method an adapter is bound for", async () => {
+    const response = await gateways();
+
+    expect(response.status).toBe(200);
+    // The contract's own order and not the order the bindings were assembled
+    // in, so two reads draw the funnel's tiles the same way round.
+    expect(response.body).toEqual({ methods: ["VNPAY", "PAYPAL"] });
+  });
+
+  it("withholds a method this deployment holds no credentials for", async () => {
+    // The failure this route exists to close. PayPal is bound only where the
+    // three variables are set — `payment.module.ts` argues why — and a funnel
+    // that offered it anyway would send a guest who had typed their name and
+    // chosen the tile into `ports/gateway-registry.ts`'s refusal, which is a
+    // sentence written for a log.
+    delete bound.PAYPAL;
+
+    const response = await gateways();
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ methods: ["VNPAY"] });
+  });
+
+  it("answers an empty list rather than a refusal when nothing is bound", async () => {
+    // A property part-way through both onboardings. Nothing to offer is an
+    // answer; a 503 here would be a payment step that cannot be drawn at all.
+    delete bound.VNPAY;
+    delete bound.PAYPAL;
+
+    const response = await gateways();
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ methods: [] });
+  });
+
+  it("reads nothing off the caller", async () => {
+    // The answer is a fact about this process, so a query string is not a
+    // narrowing of it. Asserted because a route whose answer turned on who
+    // asked would be one a screen could talk into offering a gateway.
+    const response = await request(app.getHttpServer())
+      .get("/payments/gateways")
+      .query({ method: "PAYPAL" });
+
+    expect(response.body).toEqual({ methods: ["VNPAY", "PAYPAL"] });
+  });
+});
+
 describe("what the five routes declare about access", () => {
   // Asserted as metadata rather than by calling them without a session, because
   // the guard is global and this module does not install it — `rbac-matrix.md`
@@ -639,6 +705,22 @@ describe("what the five routes declare about access", () => {
     }
   });
 
+  it("the gateway listing is unguarded, and says why it may be", () => {
+    // `access.decorators.ts`'s second kind: a route with no subject at all,
+    // which is the standing the liveness probe has. It names no stay, reads no
+    // session and answers everybody the same sentence — and the funnel asks it
+    // before a guest has typed anything, so a capability would close it to the
+    // one caller it exists for.
+    expect(
+      reflector.get<string>(UNGUARDED_KEY, PaymentController.prototype.gateways),
+    ).toMatch(/no subject/i);
+
+    // Both would be a contradiction the guard has to break a tie on.
+    expect(
+      reflector.get(CAPABILITY_KEY, PaymentController.prototype.gateways),
+    ).toBeUndefined();
+  });
+
   it("the refund worklist names policy refund, not reconciliation", () => {
     expect(
       reflector.get<CapabilityRequirement>(
@@ -696,6 +778,28 @@ describe("the policy-refund worklist", () => {
     );
   });
 });
+
+/** The listing, as the funnel asks for it: a `GET` carrying nothing. */
+async function gateways() {
+  return await request(app.getHttpServer()).get("/payments/gateways");
+}
+
+/**
+ * An adapter the listing route never reaches through.
+ *
+ * What the registry answers with is the method each binding sits under, and no
+ * route in this file calls one of them — so every method throws, and a handler
+ * that started asking a gateway whether it is configured fails loudly rather
+ * than passing on a stand-in that said yes.
+ */
+function aGateway(): PaymentGateway {
+  return {
+    createPayment: unreached("opens an attempt"),
+    verifyCallback: unreached("verifies a callback"),
+    refund: unreached("sends money back"),
+    queryTransaction: unreached("asks the gateway about an attempt"),
+  } satisfies PaymentGateway;
+}
 
 /** The IPN, as VNPay calls it: a `GET` carrying the transaction in the query. */
 function ipn(): request.Test {

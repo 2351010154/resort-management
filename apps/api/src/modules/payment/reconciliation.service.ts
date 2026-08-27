@@ -701,8 +701,10 @@ export class ReconciliationService {
  * one row where nobody would ever see it happen. It is the same refusal
  * {@link moneyTaken} makes about a report naming an attempt twice: there is no
  * honest figure to hold the money against, and inventing one files a discrepancy
- * — or an agreement — that nobody can point at. The run rolls back and the day
- * stays outstanding, which is where a night whose books cannot be read belongs.
+ * — or an agreement — that nobody can point at. The night is abandoned and left
+ * outstanding, which is where a night whose books cannot be read belongs;
+ * `reconciliation.job.ts` catches this per business date, so the other days in
+ * the same sweep still reconcile and somebody is paged about this one.
  *
  * The currency and the rate are parsed through the schemas `money.ts` declares
  * rather than trusted as text, so what counts as either is decided in one place.
