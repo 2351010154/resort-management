@@ -10,6 +10,7 @@
     "db:migrate": "drizzle-kit migrate",
     "db:seed": "pnpm exec turbo run build --filter=@mariva/api && node dist/database/seed/seed.script.js",
     "dev": "nest start --watch",
+    "perf:availability": "k6 run perf/availability-calendar.js",
     "start": "node dist/main.js",
     "test": "vitest run",
     "test:watch": "vitest",
