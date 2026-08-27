@@ -113,6 +113,8 @@ import {
 } from "@/features/booking/lib/room-images";
 import { roomType } from "@/features/booking/lib/room-types";
 import {
+  collectableGateways,
+  gatewayOffer,
   type HeldStay,
   isContactAnswered,
   isEmailAnswered,
@@ -159,51 +161,73 @@ type PayHow = "card" | "provider";
 type ForeignAttempt = OpenedPayment & { readonly presentment: Presentment };
 
 /**
- * The providers the tiles offer, and which of them this property can actually
- * take money through.
+ * The providers the tiles offer, and the method each one would open an attempt
+ * at.
  *
- * **`accepted` is a fact about the API and not a feature flag.** `payment.ts`
- * has two gateway adapters now — VNPay and PayPal — and `openAttempt` takes a
- * `method` naming which of them to open the attempt at, so MoMo is drawn and
- * refused rather than drawn and broken: `FR-PAY-06` re-pointed its slot to
- * PayPal, and `contract/payment.ts`'s `gatewayPaymentMethodSchema` has no
- * member for it. `design-foundations.md` §6 forbids a component inventing a
- * hotel fact, and "we take MoMo" is one.
+ * **Whether a tile is accepted is a fact about the API and not a feature flag,
+ * and it is asked rather than written down here.** `collectableGateways` reads
+ * the adapters this deployment actually bound — a property collects through a
+ * provider from the deploy that gives it that provider's credentials, and not
+ * before — so a tile is choosable when this list gives it a method and the API
+ * answers with that method. A method the API leaves out is drawn and refused
+ * rather than drawn and broken, which is what a hard-coded `accepted: true`
+ * bought: a guest who typed their name, chose the provider and pressed the
+ * button, and read `ports/gateway-registry.ts`'s internal refusal as their
+ * answer. A tile the API has not answered about *yet* is neither — it keeps
+ * its own blurb and claims nothing, which `gatewayOffer` in `stay-funnel.ts`
+ * is the third state for.
+ * `design-foundations.md` §6 forbids a component inventing a hotel fact, and
+ * "we take PayPal" is one.
  *
- * **`method` is absent on exactly the row that is not `accepted`.** A tile a
- * guest cannot choose has nothing to open an attempt with, and the absence
- * says so at the type rather than leaving `complete()` to trust a disabled
- * radio never gets pressed.
+ * **`method` is absent on exactly the row no gateway could ever answer for.**
+ * MoMo is a slot in the comp with nothing behind it —
+ * `contract/payment.ts`'s `gatewayPaymentMethodSchema` has no member for it —
+ * and the absence says so at the type rather than leaving `complete()` to
+ * trust a disabled radio never gets pressed.
  */
 const PROVIDERS: readonly {
   readonly id: string;
   readonly name: string;
   readonly blurb: string;
-  readonly accepted: boolean;
   readonly method?: GatewayPaymentMethod;
 }[] = [
   {
     id: "vnpay",
     name: "VNPay",
     blurb: "Cards, bank transfer and QR, on VNPay's secure page.",
-    accepted: true,
     method: "VNPAY",
   },
   {
     id: "momo",
     name: "MoMo",
     blurb: "Not accepted yet.",
-    accepted: false,
   },
   {
     id: "paypal",
     name: "PayPal",
     blurb:
       "Pays in US dollars, at the property's own rate. You'll see the exact figure before you're sent to PayPal.",
-    accepted: true,
     method: "PAYPAL",
   },
 ];
+
+/**
+ * What a tile says in place of its blurb when this property cannot collect
+ * through it today.
+ *
+ * The blurbs above describe what paying through a provider is like, which is
+ * an invitation; printing one under a tile nobody can choose would be the
+ * screen selling a route out of the funnel that does not exist. MoMo keeps its
+ * own line, because "not accepted yet" is a fact about the property rather
+ * than about this deployment's credentials.
+ *
+ * **Only once the API has actually refused the provider**, and never while the
+ * answer is still on its way. A tile whose standing is not yet known has been
+ * refused by nobody — saying otherwise would print this under VNPay, the
+ * gateway nearly every guest pays through, for the length of one request on
+ * every booking.
+ */
+const NOT_COLLECTABLE = "Not available at this property just now.";
 
 /**
  * Why a press on the card panel cannot finish the booking.
@@ -218,6 +242,21 @@ const PROVIDERS: readonly {
  * same slot under the button that every other refusal on this screen lands in.
  */
 const CARD_NOT_ACCEPTED = "Choose a provider to complete this booking.";
+
+/**
+ * Why a press on a provider panel cannot finish the booking either — the two
+ * cases, said apart.
+ *
+ * The first is the property's answer: this deployment holds no credentials for
+ * the chosen provider, and another one has to be picked. The second is a press
+ * that beat the listing back, which asks the guest for nothing but a moment —
+ * telling them to choose another provider would be advice about a tile that is
+ * probably about to be fine.
+ */
+const PROVIDER_NOT_ACCEPTED =
+  "That provider is not available just now. Choose another to complete this booking.";
+const PROVIDERS_NOT_KNOWN_YET =
+  "One moment — the property is still confirming which providers it can take money through.";
 
 /**
  * The three refusals the screen writes itself, before any request is made.
@@ -377,6 +416,13 @@ function Review({
   // A stay's own hold clock keeps running underneath it, because the attempt
   // that produced this is already open and the room is already extended.
   const [confirming, setConfirming] = useState<ForeignAttempt | null>(null);
+  // The gateways this deployment can collect through, once the API has said.
+  // Undefined until it has — which the tiles read as "not asked yet" and never
+  // as a refusal — and empty if it could not be asked at all, which is a
+  // refusal of everything and the safe way round: a provider is choosable only
+  // once the property has said it can take money through it.
+  const [collectable, setCollectable] =
+    useState<readonly GatewayPaymentMethod[]>();
 
   // The stay is re-read while this screen is open — the timer asks again when it
   // falls due — so an address written by another tab, or by this one before a
@@ -391,17 +437,48 @@ function Review({
     }));
   }, [known.email, known.name]);
 
+  // Asked once, when the payment step opens. What comes back changes on a
+  // deploy rather than while somebody is reading the page, so there is nothing
+  // to poll — and a failure to ask is not shown as an error, because the tiles
+  // already say the only thing this screen knows: none of them can be chosen
+  // until the property has said which ones it collects through.
+  useEffect(() => {
+    let live = true;
+
+    collectableGateways()
+      .then((methods) => {
+        if (live) {
+          setCollectable(methods);
+        }
+      })
+      .catch(() => {
+        if (live) {
+          setCollectable([]);
+        }
+      });
+
+    return () => {
+      live = false;
+    };
+  }, []);
+
   const namedOk = isNameAnswered(contact);
   const emailOk = isEmailAnswered(contact);
   const answered = isContactAnswered(contact);
+  // What each tile may say about itself, decided in one place and read by the
+  // radios, the blurbs and the press. `stay-funnel.ts` holds the rule, so the
+  // three states are one derivation rather than a condition per reader.
+  const offerOf = (method: GatewayPaymentMethod | undefined) =>
+    gatewayOffer(method, collectable);
+
   // The provider tile the guest actually chose, and the method it opens an
-  // attempt with — undefined for the card panel and for a tile this property
-  // cannot yet collect through. `complete()` reads its presence rather than
-  // a second list of accepted ids kept level with `PROVIDERS` by hand.
+  // attempt with — undefined for the card panel, for a tile this property
+  // cannot collect through, and for one whose standing has not come back yet.
+  // `complete()` reads its presence rather than a second list of accepted ids
+  // kept level with `PROVIDERS` by hand.
+  const chosen = PROVIDERS.find((option) => option.id === provider)?.method;
   const chosenMethod: GatewayPaymentMethod | undefined =
-    how === "provider"
-      ? PROVIDERS.find((option) => option.id === provider)?.method
-      : undefined;
+    how === "provider" && offerOf(chosen) === "offered" ? chosen : undefined;
   const nameWrong = asked && !namedOk;
   const emailWrong = asked && !emailOk;
 
@@ -441,6 +518,24 @@ function Review({
    * stops here and hands the interstitial exactly what the attempt returned,
    * and `continueToGateway` is the press that actually leaves.
    */
+  /**
+   * Which of the three refusals a press that cannot finish the booking gets.
+   *
+   * The card panel has its own, and the provider panel has two: a tile the
+   * property has refused, and a press that arrived before the listing did. A
+   * single sentence for the last two would tell a guest to choose a different
+   * provider on the one occasion when the provider they chose is fine.
+   */
+  function refusalForPress(): string {
+    if (how !== "provider") {
+      return CARD_NOT_ACCEPTED;
+    }
+
+    return offerOf(chosen) === "unasked"
+      ? PROVIDERS_NOT_KNOWN_YET
+      : PROVIDER_NOT_ACCEPTED;
+  }
+
   async function complete(): Promise<void> {
     if (leaving) {
       return;
@@ -457,7 +552,7 @@ function Review({
     }
 
     if (!chosenMethod) {
-      setNote(CARD_NOT_ACCEPTED);
+      setNote(refusalForPress());
       return;
     }
 
@@ -838,40 +933,55 @@ function Review({
               ) : (
                 <fieldset className={styles.providers}>
                   <legend className={styles.swapLegend}>Which provider</legend>
-                  {PROVIDERS.map((option) => (
-                    <label
-                      className={styles.provider}
-                      data-accepted={option.accepted}
-                      key={option.id}
-                    >
-                      <input
-                        checked={provider === option.id}
-                        className={styles.swapInput}
-                        disabled={leaving || !option.accepted}
-                        name="pay-provider"
-                        onChange={() => {
-                          setProvider(option.id);
-                          setNote(null);
-                        }}
-                        type="radio"
-                        value={option.id}
-                      />
-                      <span className={styles.providerFace}>
-                        <span
-                          aria-hidden="true"
-                          className={styles.providerDot}
+                  {PROVIDERS.map((option) => {
+                    // Asked once per tile and read three times below, so a
+                    // tile cannot say one thing with its border and another
+                    // with its blurb. Refused is the only state that closes
+                    // the radio: a tile still waiting on the listing stays
+                    // pressable, because the press is checked again in
+                    // `complete()` and answers with a sentence, whereas a
+                    // control that disables itself for the length of one
+                    // request loses the tap of anybody quick enough to make
+                    // it.
+                    const offer = offerOf(option.method);
+
+                    return (
+                      <label
+                        className={styles.provider}
+                        data-accepted={offer !== "refused"}
+                        key={option.id}
+                      >
+                        <input
+                          checked={provider === option.id}
+                          className={styles.swapInput}
+                          disabled={leaving || offer === "refused"}
+                          name="pay-provider"
+                          onChange={() => {
+                            setProvider(option.id);
+                            setNote(null);
+                          }}
+                          type="radio"
+                          value={option.id}
                         />
-                        <span className={styles.providerLines}>
-                          <span className={styles.providerName}>
-                            {option.name}
-                          </span>
-                          <span className={styles.providerBlurb}>
-                            {option.blurb}
+                        <span className={styles.providerFace}>
+                          <span
+                            aria-hidden="true"
+                            className={styles.providerDot}
+                          />
+                          <span className={styles.providerLines}>
+                            <span className={styles.providerName}>
+                              {option.name}
+                            </span>
+                            <span className={styles.providerBlurb}>
+                              {option.method && offer === "refused"
+                                ? NOT_COLLECTABLE
+                                : option.blurb}
+                            </span>
                           </span>
                         </span>
-                      </span>
-                    </label>
-                  ))}
+                      </label>
+                    );
+                  })}
                 </fieldset>
               )}
             </section>

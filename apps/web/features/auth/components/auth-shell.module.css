@@ -115,7 +115,14 @@
    light-blue background via an internal `:-webkit-autofill` rule that a plain
    `background` declaration cannot override. The only property that rule lets
    through is `box-shadow`, so an opaque inset shadow the size of the field is
-   used to paint over it with the screen's own colour instead. */
+   used to paint over it with --ivory — the ground the field is standing on.
+
+   `login-screen.module.css` carries this block verbatim, and the repetition is
+   deliberate: nothing in this app composes across module files, so the only way
+   to state the repair once is a rule in globals.css, which would repaint the
+   autofill of every input in the guest realm — including fields on grounds that
+   are not --ivory and screens neither of these two dresses. Ten duplicated
+   lines are the cheaper of the two. If one copy moves, the other has to. */
 .input:-webkit-autofill,
 .input:-webkit-autofill:hover,
 .input:-webkit-autofill:focus {

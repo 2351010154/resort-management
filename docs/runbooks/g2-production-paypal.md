@@ -98,7 +98,9 @@ value into this repository: deployed values live in `fly secrets`.
 
 11. **Take one real PayPal payment of the smallest amount the property is
     willing to lose**, through the live funnel, choosing PayPal at the
-    payment step. Confirm the stay reaches `CONFIRMED` from the webhook and
+    payment step. The tile is drawn unavailable until this deploy — the funnel
+    asks the API which gateways are bound rather than assuming — so the tile
+    becoming choosable is itself the first check that the flip took. Confirm the stay reaches `CONFIRMED` from the webhook and
     that the folio carries the payment in whole đồng, at the rate the
     attempt froze.
 12. **Refund that payment in the PayPal business dashboard**, which is where a

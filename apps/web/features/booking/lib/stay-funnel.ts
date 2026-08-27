@@ -340,6 +340,67 @@ export function markDeparture(bookingId: string): void {
   );
 }
 
+/**
+ * The gateways this deployment can actually collect through.
+ *
+ * **The provider tiles are drawn from this and never from a list written into
+ * a component.** A deployment holds credentials for the providers whose
+ * merchant onboarding it has finished, so which of them a guest may choose is
+ * a fact about the server the browser cannot know — and a screen that assumed
+ * one would send a guest who typed their name, picked that provider and
+ * pressed the button into the API's own internal refusal, which is a sentence
+ * written for a log.
+ *
+ * Asked once when the payment step opens, because the answer changes on a
+ * deploy rather than while somebody is reading the page.
+ */
+export async function collectableGateways(): Promise<
+  readonly GatewayPaymentMethod[]
+> {
+  const { methods } = await api.payment.gateways();
+
+  return methods;
+}
+
+/**
+ * What a payment tile may say about itself: offered, refused, or not yet
+ * asked about.
+ *
+ * Three and not two, because "the property cannot collect through this" and
+ * "we have not heard back yet" are different sentences and only one of them is
+ * about the property. A screen that folded the second into the first would
+ * tell every guest booking through the gateway the property *does* have that
+ * it is unavailable, for as long as one request takes.
+ */
+export type GatewayOffer = "offered" | "refused" | "unasked";
+
+/**
+ * Which of the three a provider tile is in.
+ *
+ * `unasked` only while {@link collectableGateways} has not answered. A tile
+ * with no method behind it is refused outright and never waits on an answer,
+ * because no gateway could ever be bound for it — MoMo is a slot in the comp
+ * and not a member of the contract's own list.
+ *
+ * Refusing is what the press is checked against, so a tile that is merely
+ * unasked is not choosable either: `openPayment` is not called for one. What
+ * changes is only what the screen *says* while it does not know.
+ */
+export function gatewayOffer(
+  method: GatewayPaymentMethod | undefined,
+  collectable: readonly GatewayPaymentMethod[] | undefined,
+): GatewayOffer {
+  if (!method) {
+    return "refused";
+  }
+
+  if (!collectable) {
+    return "unasked";
+  }
+
+  return collectable.includes(method) ? "offered" : "refused";
+}
+
 /** What opening an attempt hands back — where to send the payer, and, for a
  *  gateway that cannot take đồng, exactly what it will charge. */
 export interface OpenedPayment {

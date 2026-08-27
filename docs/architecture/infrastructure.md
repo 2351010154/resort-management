@@ -156,8 +156,14 @@ One internal `PaymentGateway` port — `createPayment` / `verifyCallback` /
   `NODE_ENV=production`. Delivery never fails a reconciliation: the discrepancy
   rows are the durable record and an alerter that threw would roll them back.
 - **Reconciliation is not the only thing that pages**, and routing written from
-  this document has to expect the other. `payment-discrepancy` is the sweep's,
-  hours or a day after the money moved. `payment-on-cancelled-stay` comes off the
+  this document has to expect the others. `payment-discrepancy` is the sweep's,
+  hours or a day after the money moved. `payment-reconciliation-unfinished` is
+  the sweep's too and is a different fault: a trading day it could not read at
+  all — a gateway that refused its window, a payment row whose recorded
+  presentment cannot be parsed — left outstanding so the next tick retries it,
+  and paged because a day that stays outstanding in silence is indistinguishable
+  from one the sweep has not reached yet. One night failing no longer ends the
+  tick; the other outstanding days in it still reconcile. `payment-on-cancelled-stay` comes off the
   IPN path and is minutes old: money landed for a stay already `CANCELLED`, so
   nobody will supply the room and the amount has to be handed back by hand at the
   gateway. `payment.service.ts` posts the payment, leaves the cancellation
@@ -165,7 +171,11 @@ One internal `PaymentGateway` port — `createPayment` / `verifyCallback` /
   money that is durably on an account.
 - **PayPal is the second gateway**, behind the same port
   (`FR-PAY-01`/`FR-PAY-06`) and offered beside VNPay as an explicit choice in
-  the booking funnel. It answers on two routes under `API_URL`: `POST
+  the booking funnel — on the deployments that can reach it. The gateways a
+  deployment has bound are read by the funnel from `GET /payments/gateways`,
+  which reports the registry's own bindings, and a provider the property holds
+  no credentials for is drawn as unavailable rather than offered and then
+  refused at the button. It answers on two routes under `API_URL`: `POST
   /payments/paypal/webhook` for PayPal's own delivery (retried until it gets a
   `2xx`, verified by calling PayPal's
   `/v1/notifications/verify-webhook-signature` because PayPal's server SDK

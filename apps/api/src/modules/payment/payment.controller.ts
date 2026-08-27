@@ -29,6 +29,17 @@
 // both are one conversation — and because `payment.module.ts` registers one
 // controller for this module.
 //
+// **One route here holds no capability at all and is not the gateway's**, and
+// it is the listing of the gateways this deployment can collect through. It has
+// no subject: it names no stay, reads no session and answers the same sentence
+// to everybody, because what it reports is which adapters this process has
+// bound. That is what `access.decorators.ts` admits as unguarded — a route with
+// no subject at all — and it is why the funnel may ask it before a guest has
+// typed anything. What it forecloses is the alternative the funnel had, which
+// was to draw a provider as choosable on a guess and let
+// `ports/gateway-registry.ts`'s internal refusal be the sentence a guest reads
+// after they have pressed the button.
+//
 // **Opening an attempt is the one route here a guest can reach**, and the row
 // grants the guest realm `⚠` rather than `✅`: the desk collects against any
 // stay, and a guest only against the one they booked. `roles.ts` is explicit
@@ -141,6 +152,7 @@ import {
   type ListedPayment,
   PaymentService,
 } from "./payment.service.js";
+import { GatewayRegistry } from "./ports/gateway-registry.js";
 import {
   PAYMENT_GATEWAY,
   type PaymentGateway,
@@ -282,9 +294,48 @@ export class PaymentController {
     // signature, and that which of them the property *acts* on is the caller's
     // policy. This is that policy, and it is to act on one of them.
     @Inject(PAYMENT_GATEWAY) private readonly gateway: PaymentGateway,
+    // Every adapter this deployment bound, for the one route below that
+    // reports them. The registry is asked rather than the environment, so
+    // what the funnel is told and what an attempt will actually resolve are
+    // one fact read twice — `payment.module.ts` is the only place either is
+    // decided.
+    private readonly registry: GatewayRegistry,
     @Inject(ENV) private readonly env: Env,
     @InjectPinoLogger(PaymentController.name) private readonly logger: PinoLogger,
   ) {}
+
+  /**
+   * Which gateways this deployment can actually collect through.
+   *
+   * **Read off the registry rather than off the environment**, because the
+   * registry is what an attempt will be resolved against a moment later —
+   * `payment.module.ts` decides both from one predicate, and a second reading
+   * of the credentials here would be a fact this property held twice.
+   *
+   * **Unguarded, and it costs the sentence `access.decorators.ts` asks for.**
+   * The route has no subject: it names no stay, reads no session and answers
+   * identically to everybody, which is the same standing the liveness probe
+   * has. What it discloses is which payment providers the property collects
+   * through, which is written on the funnel's own payment step for every guest
+   * who reaches it.
+   *
+   * The order is the registry's, which is the contract's own list — so two
+   * reads answer the same way and a screen drawing tiles from it does not
+   * reshuffle them between paints.
+   */
+  @Unguarded(
+    "the gateways this deployment collects through — a fact about the server " +
+      "with no subject and no session, and the same sentence the funnel's " +
+      "payment step shows every guest",
+  )
+  @Implement(contract.payment.gateways)
+  gateways() {
+    return implement(contract.payment.gateways).handler(async () =>
+      await Promise.resolve({
+        methods: this.registry.all().map(([method]) => method),
+      }),
+    );
+  }
 
   /**
    * Asking a gateway to collect against a stay — `FR-PAY-02`.

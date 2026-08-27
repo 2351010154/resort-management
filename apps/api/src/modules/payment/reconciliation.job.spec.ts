@@ -25,7 +25,7 @@
 
 import "reflect-metadata";
 
-import { parseDate } from "@internationalized/date";
+import { type CalendarDate, parseDate } from "@internationalized/date";
 import {
   convertPresentmentToVnd,
   convertVndToPresentment,
@@ -34,6 +34,7 @@ import {
   type Presentment,
   type VndAmount,
 } from "@mariva/shared";
+import { ORPCError } from "@orpc/nest";
 import type { PinoLogger } from "nestjs-pino";
 import { describe, expect, it } from "vitest";
 import type { DbExecutor } from "../../database/database.module.js";
@@ -359,6 +360,159 @@ describe("a night with money from both of the property's gateways", () => {
   }
 });
 
+describe("a night the sweep cannot finish", () => {
+  it("reconciles the rest of the tick when one date throws", async () => {
+    // The failure this guards. `paypal.adapter.ts` refuses a settlement page it
+    // cannot trust to be whole, and a window that filled once fills again every
+    // hour — so an uncaught throw here did not cost one night, it cost every
+    // outstanding night behind it, every tick, until they aged past the
+    // look-back window and stopped being reconcilable at all.
+    const swept = await sweepTwoNights();
+
+    expect(swept.reconciled).toEqual([THE_NIGHT.toString()]);
+    expect(swept.markedReconciled).toEqual([THE_NIGHT.toString()]);
+  });
+
+  it("leaves the failed date outstanding, so the next tick tries it again", async () => {
+    // No `payment_reconciliation_run` row for it, which is the whole of how a
+    // day is picked up again — and the reason the run row is written last.
+    const swept = await sweepTwoNights();
+
+    expect(swept.markedReconciled).not.toContain(theNightBefore().toString());
+  });
+
+  it("pages about the date it could not finish, and says which one", async () => {
+    // A date that stays outstanding in silence is indistinguishable from one
+    // the sweep has not reached yet, and that is the state a night's money
+    // goes missing in.
+    const swept = await sweepTwoNights();
+
+    const [page] = swept.unfinishedPages();
+
+    expect(page?.details.businessDate).toBe(theNightBefore().toString());
+    expect(page?.text).toContain(theNightBefore().toString());
+    // The gateway's own words, carried onto the page — a responder woken by
+    // this acts on why the night could not be read.
+    expect(page?.text).toContain(WHAT_THE_GATEWAY_SAID);
+  });
+
+  it("pages once about the failed date, whatever the runner does with the sweep", async () => {
+    // `job-runner.service.ts` runs a sweep that touched anything a second time
+    // inside the same transaction, and the failed date is deliberately still
+    // outstanding when it does. Left to re-enter it, the sweep fetches that
+    // night's reports again, fails again and rings the phone a second time
+    // inside a minute — and a duplicate on the one alert that means a day's
+    // money was never reconciled is how an operator learns to skim it.
+    const swept = await sweepTwoNights();
+
+    const residue = await swept.runAgain();
+
+    // The runner's own requirement: the second pass finds nothing left to do.
+    expect(residue).toEqual([]);
+
+    expect(swept.unfinishedPages()).toHaveLength(1);
+
+    // And the night was not fetched a second time either. The duplicate page
+    // was the symptom; re-doing the work for a date this run had already
+    // failed on is what produced it.
+    expect(swept.refusedWindows()).toBe(1);
+  });
+
+  /** What the gateway says when it will not answer for a window. */
+  const WHAT_THE_GATEWAY_SAID =
+    "PayPal returned a full page of settled transactions";
+
+  /**
+   * Two closed days outstanding at once, which is the ordinary shape of a
+   * backlog: a gateway that refused a window an hour ago refuses it again, so
+   * the day it refused is never the only one waiting.
+   */
+  function twoNightsOutstanding(): readonly string[] {
+    return [7, 6, 5, 4, 3].map((back) =>
+      TODAY.subtract({ days: back }).toString(),
+    );
+  }
+
+  /** The older of the two, and the one the gateway will not answer for. */
+  function theNightBefore() {
+    return TODAY.subtract({ days: 2 });
+  }
+
+  /**
+   * Two outstanding nights, a gateway that refuses the older one's window and
+   * answers for the newer.
+   *
+   * Told apart by the window it is asked for rather than by call order,
+   * because the claim is about one date failing and not about one call
+   * failing — the sweep works a backlog oldest first, and a stand-in counting
+   * calls would still pass a job that had stopped doing so.
+   */
+  async function sweepTwoNights() {
+    const businessDates = new BusinessDateService(
+      new RolloverHours([4]) as unknown as SystemConfigService,
+    );
+    const books = new TheNightsBooks(twoNightsOutstanding(), []);
+    const paged: OpsAlert[] = [];
+
+    // Counted rather than only refused, so a caller can say the night was
+    // never fetched twice — which is the fault behind a second page rather
+    // than the second page itself.
+    let refusedWindows = 0;
+
+    const refusesTheOlderNight = {
+      settledBetween: async ({ from }: SettlementWindow) => {
+        if (from < midnightUtcOn(THE_NIGHT.subtract({ days: 1 }))) {
+          refusedWindows += 1;
+
+          throw new ORPCError("BAD_GATEWAY", { message: WHAT_THE_GATEWAY_SAID });
+        }
+
+        return await Promise.resolve([]);
+      },
+    } as unknown as PaymentGateway;
+
+    const job = new ReconciliationJob(
+      new GatewayRegistry({ PAYPAL: refusesTheOlderNight }),
+      new ReconciliationService(),
+      businessDates,
+      {
+        page: async (alert: OpsAlert) => {
+          paged.push(alert);
+
+          return await Promise.resolve(true);
+        },
+      } as unknown as OpsAlertService,
+      {
+        setContext: () => undefined,
+        error: () => undefined,
+      } as unknown as PinoLogger,
+    );
+
+    const reconciled = await job.run(books.executor, TODAY);
+
+    return {
+      reconciled,
+      paged,
+      markedReconciled: books.markedReconciled,
+      /** The runner's second pass, over the executor the first one used. */
+      runAgain: async () => await job.run(books.executor, TODAY),
+      unfinishedPages: () =>
+        paged.filter(
+          (alert) => alert.kind === "payment-reconciliation-unfinished",
+        ),
+      refusedWindows: () => refusedWindows,
+    };
+  }
+});
+
+/**
+ * Midnight UTC on a date — the bound the sweep asks a gateway's window by, and
+ * the only thing this file needs in order to say which night a call is about.
+ */
+function midnightUtcOn(date: CalendarDate): Date {
+  return new Date(`${date.toString()}T00:00:00Z`);
+}
+
 /** One classified attempt, with only the fields the sentence reads. */
 function attempt(
   outcome: Omit<ReconciledAttempt, "reference">,
@@ -663,8 +817,16 @@ class TheNightsBooks {
       from: (table: unknown) => ({
         where: async (condition: unknown) => {
           if (table === paymentReconciliationRun) {
+            // The rows this run has written count as looked-at, exactly as the
+            // real table does inside one transaction. Without that a second
+            // pass over the same executor — which `job-runner.service.ts`
+            // takes to prove idempotency — would find every night outstanding
+            // again, and an assertion about what that pass returns would be
+            // about this stand-in rather than about the sweep.
             return await Promise.resolve(
-              this.alreadyLookedAt.map((businessDate) => ({ businessDate })),
+              [...this.alreadyLookedAt, ...this.markedReconciled].map(
+                (businessDate) => ({ businessDate }),
+              ),
             );
           }
 

@@ -31,6 +31,7 @@ import "reflect-metadata";
 import { ORPCError } from "@orpc/nest";
 import {
   ClientCredentialsAuthManager,
+  type OAuthToken,
   OrdersController,
   PaymentsController,
   TransactionSearchController,
@@ -438,6 +439,88 @@ describe("asking PayPal what became of an attempt", () => {
     expect(reported.status).toBe("PENDING");
     expect(reported.reference).toBe(REFERENCE);
   });
+
+  it("refuses a window PayPal filled a whole page of rather than calling the attempt still open", async () => {
+    // The window came back full, so it stopped somewhere and nobody can say
+    // where. The attempt is not among what arrived, and the one thing that must
+    // not follow from that is "still open": the payer may have been charged on
+    // the page this property never asked for, and an attempt reported as open
+    // is a folio still showing a balance the guest has already settled. Refused
+    // for the same reason a night's report is, and the two searches are one call
+    // so that they cannot drift apart on it.
+    searchAnswering(
+      ...Array.from({ length: 500 }, (_, index) => ({
+        transactionInfo: {
+          transactionId: `SOMEONE-ELSES-${index}`,
+          customField: `${"cd".repeat(32)}@${RATE}`,
+          transactionStatus: "S",
+          transactionAmount: { currencyCode: "USD", value: "99.00" },
+          transactionInitiationDate: CAPTURED_AT,
+        },
+      })),
+    );
+
+    const refusal = await refused(configuredAdapter().queryTransaction(ATTEMPT));
+
+    expect(refusal.code).toBe("BAD_GATEWAY");
+    expect(refusal.message).toContain("500");
+  });
+});
+
+describe("the token a verification is made with", () => {
+  it("is held between events for as long as PayPal honours it", async () => {
+    // A webhook is a payment arriving, and PayPal expects an answer inside a
+    // few seconds. A token round trip in front of every one of them is a second
+    // call on every payment this property takes, so the token the last event was
+    // answered with is kept and handed back to the credentials manager, which
+    // answers with it while it is still good.
+    const asked = paypalAnswering(
+      { verification_status: "SUCCESS" },
+      { verification_status: "SUCCESS" },
+    );
+    const minted = tokensAnswering(aToken("an-hour-of-life-left", 3600));
+    const adapter = configuredAdapter();
+
+    await adapter.verifyCallback(
+      aDeliveryOf(anEventOf("PAYMENT.CAPTURE.COMPLETED")),
+    );
+    await adapter.verifyCallback(
+      aDeliveryOf(anEventOf("PAYMENT.CAPTURE.COMPLETED")),
+    );
+
+    expect(asked).toHaveLength(2);
+    expect(minted).toHaveLength(1);
+    expect(asked[1]?.bearer).toBe("Bearer an-hour-of-life-left");
+  });
+
+  it("is minted again when the one in hand has run out", async () => {
+    // The other half of holding one, and the half that would fail silently: a
+    // token kept past its expiry is a `401` from PayPal on the verification
+    // call, which this adapter reports as a gateway that would not answer — so
+    // every webhook would be retried and no capture would ever reach a folio.
+    // What decides is the expiry the SDK stamped on the token, which is why the
+    // token goes back to the manager rather than being judged here.
+    const asked = paypalAnswering(
+      { verification_status: "SUCCESS" },
+      { verification_status: "SUCCESS" },
+    );
+    const minted = tokensAnswering(
+      aToken("spent-before-the-second-event", -120),
+      aToken("minted-in-its-place", 3600),
+    );
+    const adapter = configuredAdapter();
+
+    await adapter.verifyCallback(
+      aDeliveryOf(anEventOf("PAYMENT.CAPTURE.COMPLETED")),
+    );
+    await adapter.verifyCallback(
+      aDeliveryOf(anEventOf("PAYMENT.CAPTURE.COMPLETED")),
+    );
+
+    expect(minted).toHaveLength(2);
+    // The second event went out under the new token and not the stale one.
+    expect(asked[1]?.bearer).toBe("Bearer minted-in-its-place");
+  });
 });
 
 describe("a deployment with no PayPal credentials", () => {
@@ -498,9 +581,17 @@ function adapterWith(overrides: Record<string, string>): PaypalAdapter {
   return new PaypalAdapter(parseEnv({ ...BASE, ...overrides }) as Env);
 }
 
+/** As much of `fetch`'s second argument as the adapter fills in. */
+interface SentRequest {
+  readonly body?: string;
+  readonly headers?: Record<string, string>;
+}
+
 /** One question this property put to PayPal over plain HTTP. */
 interface Asked {
   readonly url: string;
+  /** The `Authorization` header it went out under, token and all. */
+  readonly bearer: string;
   readonly body: Record<string, unknown>;
 }
 
@@ -529,9 +620,10 @@ function paypalAnswering(...answers: readonly Record<string, unknown>[]): Asked[
     tokenType: "Bearer",
   });
 
-  vi.stubGlobal("fetch", (url: unknown, init: { body?: string } = {}) => {
+  vi.stubGlobal("fetch", (url: unknown, init: SentRequest = {}) => {
     asked.push({
       url: String(url),
+      bearer: init.headers?.authorization ?? "",
       body: JSON.parse(init.body ?? "{}") as Record<string, unknown>,
     });
 
@@ -624,6 +716,63 @@ function searchAnswering(
   });
 
   return calls;
+}
+
+/**
+ * The tokens the SDK's credentials manager mints, in order, and a record of how
+ * many it was asked for.
+ *
+ * Installed over the stub {@link paypalAnswering} already puts on `fetchToken`,
+ * because that one answers with the same token forever and these two cases turn
+ * on which token came back and when. Nothing else about the manager is replaced:
+ * `updateToken` is the shipped implementation, and whether it hands back the
+ * held token or fetches another is exactly what is under test — a future SDK
+ * that changed its mind about that would fail here rather than in production.
+ *
+ * A call the test supplied no token for fails loudly, for the reason the answer
+ * list above gives: a run that quietly reused the last one would pass while
+ * proving nothing.
+ */
+function tokensAnswering(...tokens: readonly OAuthToken[]): OAuthToken[] {
+  const minted: OAuthToken[] = [];
+
+  vi.spyOn(
+    ClientCredentialsAuthManager.prototype,
+    "fetchToken",
+  ).mockImplementation(async () => {
+    const token = tokens[minted.length];
+
+    if (!token) {
+      throw new Error(
+        `the adapter asked for ${minted.length + 1} tokens and this test supplied ${tokens.length}`,
+      );
+    }
+
+    minted.push(token);
+
+    return await Promise.resolve(token);
+  });
+
+  return minted;
+}
+
+/**
+ * A token as the credentials manager hands one over, alive for a stated number
+ * of seconds.
+ *
+ * `expiry` is the SDK's own stamp — it writes `now + expires_in` onto the token
+ * the moment it fetches one — and the SDK is what reads it back, minus the
+ * clock skew the client was built with. A negative life is a token that has
+ * already run out, which is the only way to hold an expired one without
+ * waiting an hour for it.
+ */
+function aToken(accessToken: string, lasts: number): OAuthToken {
+  return {
+    accessToken,
+    tokenType: "Bearer",
+    expiresIn: BigInt(lasts),
+    expiry: BigInt(Math.round(Date.now() / 1000) + lasts),
+  };
 }
 
 /** A webhook event of this property's, in the shape PayPal delivers one. */

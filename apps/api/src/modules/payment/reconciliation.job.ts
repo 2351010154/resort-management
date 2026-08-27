@@ -61,12 +61,25 @@
 // about every other gateway's attempts, which is a round trip spent to be told
 // about a reference the provider has never seen.
 //
-// A failure to reach a gateway is not caught. It rolls the run back whole —
-// `JobRunner`'s contract — which leaves the day with no `payment_reconciliation_
-// run` row and therefore still outstanding, so the next tick simply does it
-// again. Catching per attempt and carrying on would file a `MISSING_AT_GATEWAY`
-// against every payment the gateway was too busy to answer about, which is a
-// page about the property's own network.
+// A failure to reach a gateway is not caught inside a night. Nothing here
+// carries on attempt by attempt, because filing a `MISSING_AT_GATEWAY` against
+// every payment the gateway was too busy to answer about is a page about the
+// property's own network. The night fails whole, and it fails alone: the loop
+// over the outstanding dates catches it, writes no `payment_reconciliation_run`
+// row for that date — so it is still outstanding and the next tick does it
+// again — and carries on to the other dates in the same tick.
+//
+// **One night's failure used to end the sweep, and that was the expensive
+// half.** A window a gateway refuses to answer is refused again an hour later,
+// so the same night fails on every tick — and while it did, it took every other
+// outstanding date with it. Those dates aged past `LOOK_BACK_DAYS` without
+// anybody ever holding them against a report, which is a larger loss than the
+// one night that could not be fetched and a silent one besides: a run that
+// throws pages nobody about the days it never reached.
+//
+// A caught night raises a page of its own through `OpsAlertService`, and it has
+// to. A date that quietly stays outstanding looks exactly like a date the sweep
+// has not got to yet.
 //
 // ## Only a closed day can be reconciled
 //
@@ -117,7 +130,22 @@
 // transaction and requires the second pass to come back empty. This satisfies
 // that in the strongest available form rather than by promising it: the first
 // pass writes a run row per date it reconciled, and the second pass finds those
-// dates no longer outstanding and returns nothing. The discrepancy rows
+// dates no longer outstanding and returns nothing.
+//
+// A date that *failed* is the one thing the run row cannot speak for. It is
+// deliberately still outstanding — that is how the next tick picks it up — so
+// the second pass finds it, and left to it would fetch its reports again, fail
+// on it again and page about it a second time inside the same minute. A
+// duplicate on the one alert that means a day's money was never reconciled is
+// how somebody learns to skim it. So a date this run has already failed on is
+// skipped for the rest of the run, remembered against the executor the two
+// passes share — the only thing that identifies one tick from inside a sweep
+// that is otherwise supposed to be indistinguishable across its passes. The
+// next tick opens a new transaction and knows nothing about this one.
+//
+// The dates that *succeeded* are not remembered, and that is the line worth
+// holding: they are excluded on the second pass by their own run row, which is
+// the sweep showing it is idempotent rather than being told it is. The discrepancy rows
 // underneath are held by their own unique key, so even a caller that reached
 // past the predicate would write no duplicate — `reconciliation.service.ts`
 // designed its insert for exactly this.
@@ -181,6 +209,25 @@ export class ReconciliationJob implements SweepJob {
   readonly name = "payment-reconciliation";
   readonly schedule = HOURLY;
 
+  /**
+   * The dates this run tried and could not finish.
+   *
+   * Keyed on the executor because that is what one run *is* from in here: the
+   * runner opens a transaction, hands the same executor to both passes, and a
+   * sweep is otherwise given nothing that tells the second pass from the
+   * first. Weak, so the set goes when that executor does and nothing
+   * accumulates across the ticks of a process that runs for months.
+   *
+   * **The failures and never the successes**, which is the difference between
+   * skipping work that cannot succeed and hollowing out the check the runner
+   * exists to make. A reconciled date has a run row, so the second pass finds
+   * it no longer outstanding and does nothing about it — and that is the
+   * sweep *demonstrating* it is idempotent. A date remembered here is one with
+   * no row on purpose, where a second attempt could only fetch the same
+   * reports, fail the same way and page a second time.
+   */
+  private readonly unfinished = new WeakMap<DbExecutor, Set<string>>();
+
   constructor(
     private readonly registry: GatewayRegistry,
     private readonly reconciliation: ReconciliationService,
@@ -216,30 +263,73 @@ export class ReconciliationJob implements SweepJob {
     // Sequential, and for two reasons at once: every statement is on the
     // runner's one connection inside its one transaction, and each date is also
     // a series of round trips to the gateway.
+    const unfinished = this.unfinishedIn(exec);
+
     for (const businessDate of outstanding) {
-      const report = await this.report(exec, businessDate, dates);
+      // A date this run has already failed on is left alone. It is still
+      // outstanding because that is where a night whose reports could not be
+      // read belongs, so the pass `JobRunner` takes to prove idempotency finds
+      // it again — and re-fetching what refused a moment ago, to fail the same
+      // way and page a second time, is no part of that proof.
+      if (unfinished.has(businessDate.toString())) {
+        continue;
+      }
 
-      const { compared, recorded } = await this.reconciliation.reconcile(
-        exec,
-        businessDate,
-        report,
-        dates,
-      );
+      // One night at a time, and a night that cannot be finished is left where
+      // it was rather than taking the tick with it — the header says what that
+      // used to cost. Nothing half-done survives the catch: the run row is the
+      // last thing written, so a date that threw before it has no row, is
+      // still outstanding, and is tried again on the next tick.
+      try {
+        const report = await this.report(exec, businessDate, dates);
 
-      // Written before the pages go out, so that a day is marked looked-at by
-      // the same transaction that recorded what looking found. The alternative
-      // — page first, mark after — buys nothing: both are inside one commit,
-      // and a rollback takes the row and the discrepancies together.
-      await exec
-        .insert(paymentReconciliationRun)
-        .values({ businessDate: businessDate.toString() });
+        const { compared, recorded } = await this.reconciliation.reconcile(
+          exec,
+          businessDate,
+          report,
+          dates,
+        );
 
-      await this.pageFor(businessDate, compared, recorded);
+        // Written before the pages go out, so that a day is marked looked-at
+        // by the same transaction that recorded what looking found. The
+        // alternative — page first, mark after — buys nothing: both are inside
+        // one commit, and a rollback takes the row and the discrepancies
+        // together.
+        await exec
+          .insert(paymentReconciliationRun)
+          .values({ businessDate: businessDate.toString() });
 
-      reconciled.push(businessDate.toString());
+        await this.pageFor(businessDate, compared, recorded);
+
+        reconciled.push(businessDate.toString());
+      } catch (error) {
+        unfinished.add(businessDate.toString());
+
+        await this.pageForUnfinished(businessDate, error);
+      }
     }
 
     return reconciled;
+  }
+
+  /**
+   * The dates one run has failed on, made on first use.
+   *
+   * A method rather than an inline `??=` at the call site, so that the reason
+   * the executor is the key is written once and next to the map it keys.
+   */
+  private unfinishedIn(exec: DbExecutor): Set<string> {
+    const already = this.unfinished.get(exec);
+
+    if (already) {
+      return already;
+    }
+
+    const fresh = new Set<string>();
+
+    this.unfinished.set(exec, fresh);
+
+    return fresh;
   }
 
   /**
@@ -297,10 +387,11 @@ export class ReconciliationJob implements SweepJob {
       // window — `paypal.adapter.ts` opens with `this.paypal()` — and a method
       // lifted off the object and called on its own has no receiver to reach
       // through, so the call throws before a single transaction is fetched.
-      // Nothing catches it per gateway, deliberately, so the whole run rolls
-      // back and the night is never reconciled at all. A gateway written as a
-      // closure would survive the lift and is exactly what makes this cheap to
-      // miss in a fixture, which is why it is said here.
+      // Nothing catches it per gateway, deliberately, so the night is
+      // abandoned whole and never reconciled — the loop above pages about it
+      // and moves on to the next date. A gateway written as a closure would
+      // survive the lift and is exactly what makes this cheap to miss in a
+      // fixture, which is why it is said here.
       const settledBetween = gateway.settledBetween?.bind(gateway);
 
       const settled = settledBetween
@@ -433,6 +524,53 @@ export class ReconciliationJob implements SweepJob {
         ? []
         : [{ reference: row.reference, createdAt: row.createdAt }],
     );
+  }
+
+  /**
+   * Wakes somebody about a night the sweep could not finish, and leaves the
+   * night outstanding.
+   *
+   * **The page is what keeps "outstanding" from meaning two things.** A date
+   * with no `payment_reconciliation_run` row is a date nobody has looked at,
+   * and that is equally the ordinary state of a night the sweep has not
+   * reached yet and the state of one it cannot read at all. Only this tells
+   * them apart, and without it a day that fails every hour ages out of the
+   * look-back window in silence, taking that night's money with it.
+   *
+   * The reason travels as text rather than as the error itself, because a page
+   * is JSON and a gateway's refusal, an unreadable presentment and a bug are
+   * all the same shape by the time they reach here. The error goes to the log
+   * beside it, which is where a stack belongs.
+   *
+   * Logged first and paged after, so the sentence survives a deployment with
+   * no webhook configured. Nothing in here throws: `ops-alert.service.ts`
+   * never does, and this method is the last thing standing between a failed
+   * night and a tick that said nothing about it.
+   *
+   * **Once per run, whatever `JobRunner` does with the sweep.** A tick that
+   * reconciled anything runs it a second time to prove idempotency, and a
+   * failed date is still outstanding when it does — so the loop above skips
+   * the dates this run has already failed on rather than letting the same
+   * night be fetched, failed and paged about twice inside one minute. A
+   * duplicate on this particular alert is how somebody learns to skim the one
+   * that means a day was never reconciled at all.
+   */
+  private async pageForUnfinished(
+    businessDate: StayDate,
+    error: unknown,
+  ): Promise<void> {
+    const reason = error instanceof Error ? error.message : String(error);
+
+    this.logger.error(
+      { businessDate: businessDate.toString(), err: error },
+      "a business date could not be reconciled and has been left outstanding",
+    );
+
+    await this.alerts.page({
+      kind: "payment-reconciliation-unfinished",
+      text: `${businessDate.toString()} could not be reconciled and is still outstanding — ${reason}`,
+      details: { businessDate: businessDate.toString(), reason },
+    });
   }
 
   /**
