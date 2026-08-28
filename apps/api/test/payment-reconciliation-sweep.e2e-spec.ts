@@ -39,7 +39,7 @@ import type { AddressInfo } from "node:net";
 import { parseDate } from "@internationalized/date";
 import type { StayDate } from "@mariva/shared";
 import { Test } from "@nestjs/testing";
-import { eq, sql } from "drizzle-orm";
+import { eq, isNotNull, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import type { PinoLogger } from "nestjs-pino";
@@ -359,9 +359,9 @@ describe("a night the two reports agree on", () => {
   it("is recorded as looked at, and wakes nobody", async () => {
     await anAttempt(AGREED, { openedOn: CLOSED_DAY, paid: true, amount: A_SUM });
 
-    const { affected } = await runTheSweep(
-      gatewayHolding([took(AGREED, A_SUM, CLOSED_DAY)]),
-    );
+    const report = [took(AGREED, A_SUM, CLOSED_DAY)];
+
+    const { affected } = await runTheSweep(gatewayHolding(report));
 
     // The day is work even though it produced no row. A sweep that reported
     // nothing here would be logged as having done nothing on the night it
@@ -376,6 +376,46 @@ describe("a night the two reports agree on", () => {
     expect(days.map((row) => row.businessDate).sort()).toEqual(
       EVERY_CLOSED_DAY,
     );
+
+    // No discrepancy row says no attempt disagreed. It does not say the two
+    // sides of the night add to the same figure, and that sum equality is the
+    // property a night being reconciled actually asserts — so it is asserted
+    // here rather than inferred from an empty table.
+    //
+    // Both sides are totalled in đồng as `bigint`, the one representation money
+    // has anywhere in this tree, and on one reading of the rollover hour: the
+    // same boundary the sweep drew, so the ledger's side is the night the
+    // gateway's side is. `NFR-12` gives đồng no minor unit, so the comparison
+    // is integer equality and the delta is a whole number of đồng or it is
+    // nothing.
+    const dates = await new BusinessDateService(
+      new SystemConfigService(),
+    ).rule(db);
+
+    const settled = report.reduce(
+      (total, entry) =>
+        entry.status === "SUCCESS" &&
+        dates.on(entry.paidAt).compare(CLOSED_DAY) === 0
+          ? total + entry.amount
+          : total,
+      0n,
+    );
+
+    const postings = await db
+      .select({ amount: payment.amount, paidAt: payment.paidAt })
+      .from(payment)
+      .where(isNotNull(payment.attemptReference));
+
+    const posted = postings.reduce(
+      (total, row) =>
+        row.paidAt !== null && dates.on(row.paidAt).compare(CLOSED_DAY) === 0
+          ? total + row.amount
+          : total,
+      0n,
+    );
+
+    expect(posted).toBe(settled);
+    expect(settled - posted).toBe(0n);
   });
 });
 
