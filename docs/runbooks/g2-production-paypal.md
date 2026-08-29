@@ -33,7 +33,8 @@ collects through.** `payment.module.ts` binds an adapter into the registry only
 where the deployment can reach it, so before the flip the map holds VNPay alone:
 a guest who chooses PayPal is refused by name, and the nightly reconciliation
 sweeps VNPay's night exactly as it did before this gateway existed. It is bound
-by the deploy at step 8 and by nothing else — there is no separate enable flag.
+by the deploy that sets the production app credentials and by nothing else —
+there is no separate enable flag.
 
 Variable names, and what each one is for, are in
 [`../../apps/api/.env.example`](../../apps/api/.env.example). Never write a
@@ -59,18 +60,29 @@ value into this repository: deployed values live in `fly secrets`.
    (`FR-PAY-02` — the codebase computes no signature and checks no
    certificate chain); a webhook id from the wrong app or environment fails
    every verification silently rather than posting money.
-5. **Confirm the on-call endpoint is live and routes to a person.** Send a
+5. **Confirm the live app has Transaction Search enabled**, in the app's own
+   feature list in the developer dashboard. It is off by default and it is
+   granted per app, so the live app does not inherit it from the sandbox one
+   the staging flow was proved against. `PaypalAdapter.settledBetween` and
+   `queryTransaction` both read PayPal's reporting API, and without the
+   feature that API answers `403` to a correctly signed request — which is not
+   a boot failure and not a payment failure. Money is taken and posted exactly
+   as it should be; it is the nightly comparison that stops, raising against
+   PayPal's side of every date and leaving each one outstanding for the next
+   run. The reconciliation-cycle step below is where that surfaces, a day after
+   the flip, and this step is where it is prevented.
+6. **Confirm the on-call endpoint is live and routes to a person.** Send a
    test POST to whatever `OPS_ALERT_WEBHOOK_URL` holds and check that a phone
    rings — the same endpoint VNPay's reconciliation pages, since
    `reconciliation.job.ts` asks every bound gateway for its side of a night
    through the one alert path.
-6. **Confirm the sandbox path still passes end to end** against the sandbox
+7. **Confirm the sandbox path still passes end to end** against the sandbox
    app: a hold, a PayPal attempt, an approval, a webhook delivery, a confirmed
    stay and a posted folio line at the frozen presentment. A developer's
    machine cannot receive a live PayPal webhook — it is a server-to-server
    call to a public address — so this has to run against a deployed staging
    environment PayPal can reach.
-7. **Confirm `rate_vnd_per_usd` in `system_config` is a rate the property set
+8. **Confirm `rate_vnd_per_usd` in `system_config` is a rate the property set
    on purpose**, not the migration's placeholder default. Set it from the
    admin console's Settings screen, under "Currency conversion" — the one
    `ADMIN`-only route this figure has (`PATCH /system/config`). It is frozen
@@ -84,32 +96,32 @@ value into this repository: deployed values live in `fly secrets`.
 
 ## The flip
 
-8. **Set the production app credentials** — `PAYPAL_CLIENT_ID`,
+9. **Set the production app credentials** — `PAYPAL_CLIENT_ID`,
    `PAYPAL_CLIENT_SECRET` and `PAYPAL_WEBHOOK_ID` — in the API's secret store,
    all three together; any subset is refused at boot.
-9. **Set `PAYPAL_SANDBOX=false`** in the same change. Omitting it is not
-   neutral: the variable defaults to sandbox, and a production boot with a
-   client id and no explicit `false` is refused.
-10. **Deploy and watch the boot.** A refusal prints `Invalid environment:`
+10. **Set `PAYPAL_SANDBOX=false`** in the same change. Omitting it is not
+    neutral: the variable defaults to sandbox, and a production boot with a
+    client id and no explicit `false` is refused.
+11. **Deploy and watch the boot.** A refusal prints `Invalid environment:`
     followed by the variable at fault. Any refusal here means the flip is
     incomplete — fix the variable, do not work around the check.
 
 ## After the flip
 
-11. **Take one real PayPal payment of the smallest amount the property is
+12. **Take one real PayPal payment of the smallest amount the property is
     willing to lose**, through the live funnel, choosing PayPal at the
     payment step. The tile is drawn unavailable until this deploy — the funnel
     asks the API which gateways are bound rather than assuming — so the tile
     becoming choosable is itself the first check that the flip took. Confirm the stay reaches `CONFIRMED` from the webhook and
     that the folio carries the payment in whole đồng, at the rate the
     attempt froze.
-12. **Refund that payment in the PayPal business dashboard**, which is where a
+13. **Refund that payment in the PayPal business dashboard**, which is where a
     refund is made today — `paypal.adapter.ts` implements `refund` and proves
     it against a mocked client, the same standing `vnpay.adapter.ts` gives:
     handing money back is a staff act through the folio's refund paths,
     performed out of band, and nothing in this codebase calls the gateway's
     refund method.
-13. **Wait for one reconciliation cycle to close a trading day** and confirm
+14. **Wait for one reconciliation cycle to close a trading day** and confirm
     the `payment_reconciliation_run` row for it carries no discrepancy for
     PayPal's side. `PaypalAdapter.settledBetween` answers the sweep directly —
     unlike VNPay, PayPal reports a window rather than being asked attempt by

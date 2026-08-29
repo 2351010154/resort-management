@@ -25,7 +25,8 @@
 //
 // So what is asserted here is the binding itself, from outside, against the two
 // environments a deployment is actually in — before `g2-production-paypal.md`
-// step 8 and after it. The ambient stand-ins are `guest.module.spec.ts`'s
+// sets the production app credentials and after it. The ambient stand-ins are
+// `guest.module.spec.ts`'s
 // arrangement and are never called: compiling the graph and reading the map back
 // is the whole assertion, and what the gateways do with a real merchant account
 // is the e2e suite's.

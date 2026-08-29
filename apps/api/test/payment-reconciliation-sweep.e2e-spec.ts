@@ -415,7 +415,6 @@ describe("a night the two reports agree on", () => {
     );
 
     expect(posted).toBe(settled);
-    expect(settled - posted).toBe(0n);
   });
 });
 
