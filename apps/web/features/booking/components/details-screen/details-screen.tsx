@@ -77,7 +77,10 @@ import { type CalendarDate, parseDate } from "@internationalized/date";
 import {
   CHECK_IN_TIME,
   CHECK_OUT_TIME,
+  formatPresentment,
+  type GatewayPaymentMethod,
   nightCount,
+  type Presentment,
   roundVndForDisplay,
 } from "@mariva/shared";
 import { useRouter } from "next/navigation";
@@ -110,12 +113,15 @@ import {
 } from "@/features/booking/lib/room-images";
 import { roomType } from "@/features/booking/lib/room-types";
 import {
+  collectableGateways,
+  gatewayOffer,
   type HeldStay,
   isContactAnswered,
   isEmailAnswered,
   isLost,
   isNameAnswered,
   isSettled,
+  type OpenedPayment,
   openPayment,
   type StayContact,
   saveContact,
@@ -127,6 +133,7 @@ import { apiMessage } from "@/lib/api";
 import { FunnelNav } from "../funnel-nav/funnel-nav";
 import { pad, RoomGallery } from "../room-gallery/room-gallery";
 import { Money } from "../money";
+import { formatRate } from "./presentment-rate";
 import styles from "./details-screen.module.css";
 
 /**
@@ -141,41 +148,86 @@ import styles from "./details-screen.module.css";
 type PayHow = "card" | "provider";
 
 /**
- * The providers the tiles offer, and which of them this property can actually
- * take money through.
+ * An opened attempt that froze what a foreign gateway will charge — the one
+ * shape {@link Review} keeps between opening it and sending the payer on.
  *
- * **`accepted` is a fact about the API and not a feature flag.** `payment.ts`
- * has exactly one gateway adapter — VNPay — and `openAttempt` takes no provider
- * argument, so MoMo and PayPal are drawn and refused rather than drawn and
- * broken. `design-foundations.md` §6 forbids a component inventing a hotel
- * fact, and "we take PayPal" is one. When an adapter lands, this line and the
- * contract change together.
+ * A narrower type than {@link OpenedPayment} rather than that interface with
+ * an optional field re-checked at every read: `presentment` is what decides
+ * whether this screen shows the interstitial at all, and asserting it once,
+ * where the attempt is opened, is what lets everything downstream — the
+ * confirmation screen among it — read it as present rather than guard it
+ * again.
+ */
+type ForeignAttempt = OpenedPayment & { readonly presentment: Presentment };
+
+/**
+ * The providers the tiles offer, and the method each one would open an attempt
+ * at.
+ *
+ * **Whether a tile is accepted is a fact about the API and not a feature flag,
+ * and it is asked rather than written down here.** `collectableGateways` reads
+ * the adapters this deployment actually bound — a property collects through a
+ * provider from the deploy that gives it that provider's credentials, and not
+ * before — so a tile is choosable when this list gives it a method and the API
+ * answers with that method. A method the API leaves out is drawn and refused
+ * rather than drawn and broken, which is what a hard-coded `accepted: true`
+ * bought: a guest who typed their name, chose the provider and pressed the
+ * button, and read `ports/gateway-registry.ts`'s internal refusal as their
+ * answer. A tile the API has not answered about *yet* is neither — it keeps
+ * its own blurb and claims nothing, which `gatewayOffer` in `stay-funnel.ts`
+ * is the third state for.
+ * `design-foundations.md` §6 forbids a component inventing a hotel fact, and
+ * "we take PayPal" is one.
+ *
+ * **`method` is absent on exactly the row no gateway could ever answer for.**
+ * MoMo is a slot in the comp with nothing behind it —
+ * `contract/payment.ts`'s `gatewayPaymentMethodSchema` has no member for it —
+ * and the absence says so at the type rather than leaving `complete()` to
+ * trust a disabled radio never gets pressed.
  */
 const PROVIDERS: readonly {
   readonly id: string;
   readonly name: string;
   readonly blurb: string;
-  readonly accepted: boolean;
+  readonly method?: GatewayPaymentMethod;
 }[] = [
   {
     id: "vnpay",
     name: "VNPay",
     blurb: "Cards, bank transfer and QR, on VNPay's secure page.",
-    accepted: true,
+    method: "VNPAY",
   },
   {
     id: "momo",
     name: "MoMo",
     blurb: "Not accepted yet.",
-    accepted: false,
   },
   {
     id: "paypal",
     name: "PayPal",
-    blurb: "Not accepted yet.",
-    accepted: false,
+    blurb:
+      "Pays in US dollars, at the property's own rate. You'll see the exact figure before you're sent to PayPal.",
+    method: "PAYPAL",
   },
 ];
+
+/**
+ * What a tile says in place of its blurb when this property cannot collect
+ * through it today.
+ *
+ * The blurbs above describe what paying through a provider is like, which is
+ * an invitation; printing one under a tile nobody can choose would be the
+ * screen selling a route out of the funnel that does not exist. MoMo keeps its
+ * own line, because "not accepted yet" is a fact about the property rather
+ * than about this deployment's credentials.
+ *
+ * **Only once the API has actually refused the provider**, and never while the
+ * answer is still on its way. A tile whose standing is not yet known has been
+ * refused by nobody — saying otherwise would print this under VNPay, the
+ * gateway nearly every guest pays through, for the length of one request on
+ * every booking.
+ */
+const NOT_COLLECTABLE = "Not available at this property just now.";
 
 /**
  * Why a press on the card panel cannot finish the booking.
@@ -190,6 +242,21 @@ const PROVIDERS: readonly {
  * same slot under the button that every other refusal on this screen lands in.
  */
 const CARD_NOT_ACCEPTED = "Choose a provider to complete this booking.";
+
+/**
+ * Why a press on a provider panel cannot finish the booking either — the two
+ * cases, said apart.
+ *
+ * The first is the property's answer: this deployment holds no credentials for
+ * the chosen provider, and another one has to be picked. The second is a press
+ * that beat the listing back, which asks the guest for nothing but a moment —
+ * telling them to choose another provider would be advice about a tile that is
+ * probably about to be fine.
+ */
+const PROVIDER_NOT_ACCEPTED =
+  "That provider is not available just now. Choose another to complete this booking.";
+const PROVIDERS_NOT_KNOWN_YET =
+  "One moment — the property is still confirming which providers it can take money through.";
 
 /**
  * The three refusals the screen writes itself, before any request is made.
@@ -344,6 +411,18 @@ function Review({
   // completed. Validating as somebody types tells them their address is invalid
   // after the first letter of it, which is true and useless.
   const [asked, setAsked] = useState(false);
+  // Set the moment an attempt froze a presentment, which is the moment this
+  // screen has anything honest to quote a payer in dollars — see `complete`.
+  // A stay's own hold clock keeps running underneath it, because the attempt
+  // that produced this is already open and the room is already extended.
+  const [confirming, setConfirming] = useState<ForeignAttempt | null>(null);
+  // The gateways this deployment can collect through, once the API has said.
+  // Undefined until it has — which the tiles read as "not asked yet" and never
+  // as a refusal — and empty if it could not be asked at all, which is a
+  // refusal of everything and the safe way round: a provider is choosable only
+  // once the property has said it can take money through it.
+  const [collectable, setCollectable] =
+    useState<readonly GatewayPaymentMethod[]>();
 
   // The stay is re-read while this screen is open — the timer asks again when it
   // falls due — so an address written by another tab, or by this one before a
@@ -358,10 +437,48 @@ function Review({
     }));
   }, [known.email, known.name]);
 
+  // Asked once, when the payment step opens. What comes back changes on a
+  // deploy rather than while somebody is reading the page, so there is nothing
+  // to poll — and a failure to ask is not shown as an error, because the tiles
+  // already say the only thing this screen knows: none of them can be chosen
+  // until the property has said which ones it collects through.
+  useEffect(() => {
+    let live = true;
+
+    collectableGateways()
+      .then((methods) => {
+        if (live) {
+          setCollectable(methods);
+        }
+      })
+      .catch(() => {
+        if (live) {
+          setCollectable([]);
+        }
+      });
+
+    return () => {
+      live = false;
+    };
+  }, []);
+
   const namedOk = isNameAnswered(contact);
   const emailOk = isEmailAnswered(contact);
   const answered = isContactAnswered(contact);
-  const payable = how === "provider" && provider === "vnpay";
+  // What each tile may say about itself, decided in one place and read by the
+  // radios, the blurbs and the press. `stay-funnel.ts` holds the rule, so the
+  // three states are one derivation rather than a condition per reader.
+  const offerOf = (method: GatewayPaymentMethod | undefined) =>
+    gatewayOffer(method, collectable);
+
+  // The provider tile the guest actually chose, and the method it opens an
+  // attempt with — undefined for the card panel, for a tile this property
+  // cannot collect through, and for one whose standing has not come back yet.
+  // `complete()` reads its presence rather than a second list of accepted ids
+  // kept level with `PROVIDERS` by hand.
+  const chosen = PROVIDERS.find((option) => option.id === provider)?.method;
+  const chosenMethod: GatewayPaymentMethod | undefined =
+    how === "provider" && offerOf(chosen) === "offered" ? chosen : undefined;
   const nameWrong = asked && !namedOk;
   const emailWrong = asked && !emailOk;
 
@@ -390,7 +507,35 @@ function Review({
    * with the field at fault scrolled off the top of the window; a line under the
    * button and nothing else would answer a guest who cannot see the question.
    * The browser scrolls a focused input into view for free.
+   *
+   * **A PayPal attempt does not leave from here.** VNPay is unchanged — the
+   * gateway hands back no presentment, `confirming` stays null, and the browser
+   * is sent on the moment the attempt is open. PayPal freezes a dollar figure
+   * on the very row this call opens, and `contract/payment.ts` argues why that
+   * frozen figure is the only one this property may ever show a payer: not a
+   * quote computed here from today's rate, which could disagree with the rate
+   * the row just froze the instant an `ADMIN` edits it. So a PayPal attempt
+   * stops here and hands the interstitial exactly what the attempt returned,
+   * and `continueToGateway` is the press that actually leaves.
    */
+  /**
+   * Which of the three refusals a press that cannot finish the booking gets.
+   *
+   * The card panel has its own, and the provider panel has two: a tile the
+   * property has refused, and a press that arrived before the listing did. A
+   * single sentence for the last two would tell a guest to choose a different
+   * provider on the one occasion when the provider they chose is fine.
+   */
+  function refusalForPress(): string {
+    if (how !== "provider") {
+      return CARD_NOT_ACCEPTED;
+    }
+
+    return offerOf(chosen) === "unasked"
+      ? PROVIDERS_NOT_KNOWN_YET
+      : PROVIDER_NOT_ACCEPTED;
+  }
+
   async function complete(): Promise<void> {
     if (leaving) {
       return;
@@ -406,8 +551,8 @@ function Review({
       return;
     }
 
-    if (!payable) {
-      setNote(CARD_NOT_ACCEPTED);
+    if (!chosenMethod) {
+      setNote(refusalForPress());
       return;
     }
 
@@ -416,14 +561,22 @@ function Review({
 
     try {
       const named = await saveContact(stay, contact);
-      const { paymentUrl } = await openPayment(named);
+      const opened = await openPayment(named, chosenMethod);
 
-      window.location.assign(paymentUrl);
+      if (opened.presentment) {
+        setConfirming({ ...opened, presentment: opened.presentment });
+        setLeaving(false);
+        return;
+      }
+
+      window.location.assign(opened.paymentUrl);
     } catch (error) {
       // The button comes back, because every refusal these calls can carry is
       // one a second press might get past — a gateway with no credentials
-      // configured, a hold that has just expired, a network that was not there.
-      // Leaving it disabled would strand a guest on a dead page.
+      // configured, a hold that has just expired, a network that was not
+      // there, or the registry's `503` when a property has not finished
+      // onboarding the gateway it was just asked for. Leaving it disabled
+      // would strand a guest on a dead page.
       setLeaving(false);
       setNote(
         apiMessage(
@@ -432,6 +585,22 @@ function Review({
         ),
       );
     }
+  }
+
+  /**
+   * Sends the payer on to PayPal, once they have seen what it will charge.
+   *
+   * The url is the one the attempt already returned — nothing is asked for
+   * again, and the figure the guest just read is the figure the payer is
+   * about to be shown at the gateway, because both came off the one row.
+   */
+  function continueToGateway(): void {
+    if (!confirming || leaving) {
+      return;
+    }
+
+    setLeaving(true);
+    window.location.assign(confirming.paymentUrl);
   }
 
   /**
@@ -447,6 +616,25 @@ function Review({
   function onSubmit(event: FormEvent<HTMLFormElement>): void {
     event.preventDefault();
     void complete();
+  }
+
+  // The interstitial replaces the form the moment PayPal's attempt is open,
+  // rather than sitting inside it. It has one question left to ask — go, or
+  // choose again — and a dialog layered over a form still holding a card
+  // number and an address is a second, unrelated way to answer that question.
+  if (confirming) {
+    return (
+      <PaypalConfirm
+        leaving={leaving}
+        onChooseAgain={() => {
+          setConfirming(null);
+          setNote(null);
+        }}
+        onContinue={continueToGateway}
+        opened={confirming}
+        stay={stay}
+      />
+    );
   }
 
   /** Back to the room list, on the stay this hold was taken for. */
@@ -745,40 +933,55 @@ function Review({
               ) : (
                 <fieldset className={styles.providers}>
                   <legend className={styles.swapLegend}>Which provider</legend>
-                  {PROVIDERS.map((option) => (
-                    <label
-                      className={styles.provider}
-                      data-accepted={option.accepted}
-                      key={option.id}
-                    >
-                      <input
-                        checked={provider === option.id}
-                        className={styles.swapInput}
-                        disabled={leaving || !option.accepted}
-                        name="pay-provider"
-                        onChange={() => {
-                          setProvider(option.id);
-                          setNote(null);
-                        }}
-                        type="radio"
-                        value={option.id}
-                      />
-                      <span className={styles.providerFace}>
-                        <span
-                          aria-hidden="true"
-                          className={styles.providerDot}
+                  {PROVIDERS.map((option) => {
+                    // Asked once per tile and read three times below, so a
+                    // tile cannot say one thing with its border and another
+                    // with its blurb. Refused is the only state that closes
+                    // the radio: a tile still waiting on the listing stays
+                    // pressable, because the press is checked again in
+                    // `complete()` and answers with a sentence, whereas a
+                    // control that disables itself for the length of one
+                    // request loses the tap of anybody quick enough to make
+                    // it.
+                    const offer = offerOf(option.method);
+
+                    return (
+                      <label
+                        className={styles.provider}
+                        data-accepted={offer !== "refused"}
+                        key={option.id}
+                      >
+                        <input
+                          checked={provider === option.id}
+                          className={styles.swapInput}
+                          disabled={leaving || offer === "refused"}
+                          name="pay-provider"
+                          onChange={() => {
+                            setProvider(option.id);
+                            setNote(null);
+                          }}
+                          type="radio"
+                          value={option.id}
                         />
-                        <span className={styles.providerLines}>
-                          <span className={styles.providerName}>
-                            {option.name}
-                          </span>
-                          <span className={styles.providerBlurb}>
-                            {option.blurb}
+                        <span className={styles.providerFace}>
+                          <span
+                            aria-hidden="true"
+                            className={styles.providerDot}
+                          />
+                          <span className={styles.providerLines}>
+                            <span className={styles.providerName}>
+                              {option.name}
+                            </span>
+                            <span className={styles.providerBlurb}>
+                              {option.method && offer === "refused"
+                                ? NOT_COLLECTABLE
+                                : option.blurb}
+                            </span>
                           </span>
                         </span>
-                      </span>
-                    </label>
-                  ))}
+                      </label>
+                    );
+                  })}
                 </fieldset>
               )}
             </section>
@@ -934,6 +1137,81 @@ function Review({
 }
 
 /**
+ * What PayPal will charge, quoted from the one row that can honestly say —
+ * the screen a PayPal attempt lands on instead of the gateway.
+ *
+ * **The whole reason this component exists.** `stay-total.gross` is đồng and
+ * PayPal collects dollars, so a payer approving a figure they were never shown
+ * is a chargeback the property loses. The fix is not a converter drawn in this
+ * app: `opened.presentment` is what `payment.service.ts` already froze onto
+ * the row the instant the attempt opened, and this component's only job is to
+ * print it — never to call {@link convertVndToPresentment} or anything like
+ * it. A quote computed here would be a second read of the configured rate,
+ * and the one property fact that must never be read twice for one guest is
+ * the rate a payer is about to be charged at.
+ *
+ * `StayShell` for the same reason `payment-screen.tsx` stands on it: this is
+ * a full screen of its own, between the review and the gateway, and the four
+ * screens after a room choice already share one frame for exactly this kind
+ * of interstitial.
+ */
+function PaypalConfirm({
+  stay,
+  opened,
+  leaving,
+  onContinue,
+  onChooseAgain,
+}: {
+  readonly stay: HeldStay;
+  readonly opened: ForeignAttempt;
+  readonly leaving: boolean;
+  readonly onContinue: () => void;
+  readonly onChooseAgain: () => void;
+}) {
+  return (
+    <StayShell
+      footnote="You will be taken to PayPal to approve this charge. The property never sees your PayPal password. When you are finished PayPal brings you back here."
+      stay={stay}
+      step="Step 3 of 4"
+      subtitle="This is the exact figure PayPal will ask you to approve, converted from the đồng total at the rate the property has just frozen for this attempt."
+      title="Confirm with PayPal"
+    >
+      <div className={shellStyles.total}>
+        <span className={shellStyles.totalLabel}>PayPal will charge</span>
+        <span className={shellStyles.totalAmount}>
+          {formatPresentment(opened.presentment)}
+        </span>
+      </div>
+
+      <p className={shellStyles.notice} role="status">
+        At {formatRate(opened.presentment.rate)} to US$1 — the property's own
+        configured rate, frozen the moment this attempt opened.
+      </p>
+
+      <div className={shellStyles.actions}>
+        <button
+          className={shellStyles.submit}
+          disabled={leaving}
+          onClick={onContinue}
+          type="button"
+        >
+          {leaving ? "Opening PayPal…" : "Continue to PayPal"}
+        </button>
+
+        <button
+          className={shellStyles.secondary}
+          disabled={leaving}
+          onClick={onChooseAgain}
+          type="button"
+        >
+          Choose a different way to pay
+        </button>
+      </div>
+    </StayShell>
+  );
+}
+
+/**
  * One end of the stay: a mark on the rail, the day, and the property's clock.
  *
  * The mark carries the rail as a `::before`, so the line between the two stops
@@ -1033,7 +1311,6 @@ const ROOM_SHOT_SIZES = "(max-width: 60rem) 92vw, min(60rem, 60vw)";
 
 /** The summary's frame: a fixed 32rem column, or the full measure once stacked. */
 const ASIDE_SHOT_SIZES = "(max-width: 60rem) 92vw, 29rem";
-
 /**
  * "Mon 19 August 2026" — the property's own date, never the browser's instant.
  *

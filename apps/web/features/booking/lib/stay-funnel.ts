@@ -29,7 +29,13 @@
 // the caption to decide what to *say* while it waits, and reads the stay's state
 // to decide what is *true*.
 
-import type { RatePlanCode, RoomTypeCode, StayDate } from "@mariva/shared";
+import type {
+  GatewayPaymentMethod,
+  Presentment,
+  RatePlanCode,
+  RoomTypeCode,
+  StayDate,
+} from "@mariva/shared";
 import { API_URL, api, apiMessage } from "@/lib/api";
 
 /**
@@ -335,6 +341,90 @@ export function markDeparture(bookingId: string): void {
 }
 
 /**
+ * The gateways this deployment can actually collect through.
+ *
+ * **The provider tiles are drawn from this and never from a list written into
+ * a component.** A deployment holds credentials for the providers whose
+ * merchant onboarding it has finished, so which of them a guest may choose is
+ * a fact about the server the browser cannot know — and a screen that assumed
+ * one would send a guest who typed their name, picked that provider and
+ * pressed the button into the API's own internal refusal, which is a sentence
+ * written for a log.
+ *
+ * Asked once when the payment step opens, because the answer changes on a
+ * deploy rather than while somebody is reading the page.
+ */
+export async function collectableGateways(): Promise<
+  readonly GatewayPaymentMethod[]
+> {
+  const { methods } = await api.payment.gateways();
+
+  return methods;
+}
+
+/**
+ * What a payment tile may say about itself: offered, refused, or not yet
+ * asked about.
+ *
+ * Three and not two, because "the property cannot collect through this" and
+ * "we have not heard back yet" are different sentences and only one of them is
+ * about the property. A screen that folded the second into the first would
+ * tell every guest booking through the gateway the property *does* have that
+ * it is unavailable, for as long as one request takes.
+ */
+export type GatewayOffer = "offered" | "refused" | "unasked";
+
+/**
+ * Which of the three a provider tile is in.
+ *
+ * `unasked` only while {@link collectableGateways} has not answered. A tile
+ * with no method behind it is refused outright and never waits on an answer,
+ * because no gateway could ever be bound for it — MoMo is a slot in the comp
+ * and not a member of the contract's own list.
+ *
+ * Refusing is what the press is checked against, so a tile that is merely
+ * unasked is not choosable either: `openPayment` is not called for one. What
+ * changes is only what the screen *says* while it does not know.
+ */
+export function gatewayOffer(
+  method: GatewayPaymentMethod | undefined,
+  collectable: readonly GatewayPaymentMethod[] | undefined,
+): GatewayOffer {
+  if (!method) {
+    return "refused";
+  }
+
+  if (!collectable) {
+    return "unasked";
+  }
+
+  return collectable.includes(method) ? "offered" : "refused";
+}
+
+/** What opening an attempt hands back — where to send the payer, and, for a
+ *  gateway that cannot take đồng, exactly what it will charge. */
+export interface OpenedPayment {
+  readonly paymentUrl: string;
+  readonly reference: string;
+  /**
+   * What the payer will actually be charged, present only when
+   * {@link openPayment} was asked for a gateway that settles in something
+   * other than đồng.
+   *
+   * **This is the one read a screen may ever quote a payer from.** The
+   * property converts at its configured rate the moment the attempt opens
+   * and freezes the result onto the row before anything is asked of the
+   * gateway — `payment.service.ts` argues why — and this is that same
+   * figure, handed back rather than computed a second time. There is no
+   * route that answers "what would PayPal charge" ahead of an attempt, and
+   * this file must never grow one: a quote read before the row exists is a
+   * second read of the configured rate, and an `ADMIN` editing it between
+   * the two would quote the guest one figure and charge them another.
+   */
+  readonly presentment?: Presentment;
+}
+
+/**
  * Opens a payment attempt against the stay and hands back where to send the
  * payer — `FR-PAY-02`.
  *
@@ -343,11 +433,17 @@ export function markDeparture(bookingId: string): void {
  * priced. Nothing about money has happened when this answers: the attempt is
  * `PENDING` until a callback resolves it, which is why the screen that follows
  * is called `confirming` and not `paid`.
+ *
+ * **The gateway is the caller's explicit choice and never inferred.** A guest
+ * abroad may hold a Vietnamese card and a guest here may hold a PayPal
+ * balance, so a locale or a currency guessed from the browser would get both
+ * of them wrong in a way that cannot be undone once the payer has been sent
+ * to the wrong gateway's page.
  */
-export async function openPayment(stay: HeldStay): Promise<{
-  readonly paymentUrl: string;
-  readonly reference: string;
-}> {
+export async function openPayment(
+  stay: HeldStay,
+  method: GatewayPaymentMethod,
+): Promise<OpenedPayment> {
   return await api.payment.openAttempt({
     bookingId: stay.id,
     // The figure the API priced, handed straight back — not re-derived, not
@@ -358,6 +454,7 @@ export async function openPayment(stay: HeldStay): Promise<{
     // rather than leaving a `toString` on whatever type happened to arrive.
     amount: stayTotal(stay).toString(),
     description: `Mariva stay ${stay.reference}`,
+    method,
   });
 }
 

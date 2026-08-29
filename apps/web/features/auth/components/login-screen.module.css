@@ -226,6 +226,26 @@
   color: var(--stone);
 }
 
+/* Chrome (and other Chromium browsers) paint autofilled inputs with their own
+   light-blue background via an internal `:-webkit-autofill` rule that a plain
+   `background` declaration cannot override. The only property that rule lets
+   through is `box-shadow`, so an opaque inset shadow the size of the field is
+   used to paint over it with --ivory — the ground the field is standing on.
+
+   `auth-shell.module.css` carries this block verbatim, and the repetition is
+   deliberate: nothing in this app composes across module files, so the only way
+   to state the repair once is a rule in globals.css, which would repaint the
+   autofill of every input in the guest realm — including fields on grounds that
+   are not --ivory and screens neither of these two dresses. Ten duplicated
+   lines are the cheaper of the two. If one copy moves, the other has to. */
+.input:-webkit-autofill,
+.input:-webkit-autofill:hover,
+.input:-webkit-autofill:focus {
+  box-shadow: 0 0 0 1000px var(--ivory) inset;
+  -webkit-text-fill-color: var(--ink);
+  caret-color: var(--ink);
+}
+
 /* The drawn rule is the focus indicator. Removing the UA outline is only
    defensible because this replaces it — it is 2px of --ink against a hairline
    at 0.18, and it is drawn for pointer and keyboard alike. */

@@ -161,12 +161,15 @@ const CORRELATION_HEADER = "x-request-id";
     // back.
     FeedbackModule,
 
-    // M6, and after both of the modules it reaches into: `FolioModule` for the
-    // account a verified callback posts to, `BookingModule` for the rollover
-    // rule that dates the posting. It registers the two routes VNPay calls —
-    // both unguarded, and both governed by the guard `AuthModule` installs like
-    // every other route here — and the binding of `PAYMENT_GATEWAY` to the one
-    // adapter that knows what VNPay is, which is the whole of `FR-PAY-01`.
+    // M6, and after every module it reaches into: `FolioModule` for the account
+    // a verified callback posts to, `BookingModule` for the rollover rule that
+    // dates the posting, `SystemConfigModule` for the rate a stay is converted
+    // at when the gateway cannot take đồng. It registers the two routes VNPay
+    // calls — both unguarded, and both governed by the guard `AuthModule`
+    // installs like every other route here — and it binds each payment method to
+    // the one adapter that knows the provider answering for it, which is the
+    // whole of `FR-PAY-01`. Two adapters now, one folio, and nothing outside
+    // that module knowing which of them took the money.
     PaymentModule,
 
     // M8. It registers three read-only routes and nothing else — the Excel

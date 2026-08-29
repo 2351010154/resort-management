@@ -101,7 +101,11 @@
 
 import { oc } from "@orpc/contract";
 import { z } from "zod";
-import { vndAmountInputSchema, vndAmountSchema } from "../money.js";
+import {
+  presentmentSchema,
+  vndAmountInputSchema,
+  vndAmountSchema,
+} from "../money.js";
 import { isoStayDateSchema, stayDateSchema } from "../stay-date.js";
 
 /**
@@ -115,6 +119,50 @@ import { isoStayDateSchema, stayDateSchema } from "../stay-date.js";
  * page with the explanation cut off halfway.
  */
 const descriptionSchema = z.string().trim().min(1).max(255);
+
+/**
+ * How the money reached the property, as the wire spells it.
+ *
+ * A method and not a provider list, which is `schema/payment.ts`'s own word for
+ * the column: cash and a bank transfer are ways of paying, and the two gateways
+ * beside them are the two `FR-PAY-01` puts behind one port. `FR-PAY-06`'s second
+ * gateway is `PAYPAL` — a member here and a second implementation behind the
+ * port, never a gateway's own vocabulary, which is what `FR-PAY-01` keeps inside
+ * the adapter. A member is a payment method the property accepts, and that is
+ * all a reader of this list learns.
+ *
+ * The same four members `payment_method` holds, stated here and built into a
+ * Postgres enum there from a tuple of its own — the arrangement
+ * {@link paymentDiscrepancyKindSchema} uses, and nothing has to remember to keep
+ * the two level: the handler returns rows whose `method` is the database's
+ * union, so a member this schema lacks stops the API compiling rather than
+ * failing output validation at run time.
+ */
+export const paymentMethodSchema = z.enum([
+  "VNPAY",
+  "PAYPAL",
+  "CASH",
+  "BANK_TRANSFER",
+]);
+
+export type PaymentMethod = z.infer<typeof paymentMethodSchema>;
+
+/**
+ * The subset a funnel may open an attempt with — the methods a gateway answers
+ * for, and not the two the desk collects itself.
+ *
+ * Derived from the union above rather than written out again, so a third
+ * gateway is one member in one place. `CASH` and `BANK_TRANSFER` are excluded
+ * because there is nowhere to send a payer for either: they are money somebody
+ * counted at the desk, and an attempt opened against one would be a payment
+ * url for a transaction that happens in a room.
+ */
+export const gatewayPaymentMethodSchema = paymentMethodSchema.exclude([
+  "CASH",
+  "BANK_TRANSFER",
+]);
+
+export type GatewayPaymentMethod = z.infer<typeof gatewayPaymentMethodSchema>;
 
 /**
  * The stay to collect against, how much, and what to tell the payer it is for.
@@ -138,6 +186,34 @@ export const openPaymentAttemptInput = z.object({
   bookingId: z.uuid(),
   amount: vndAmountInputSchema,
   description: descriptionSchema,
+  /**
+   * Which gateway to collect through — the caller's choice, and the one field
+   * here that is genuinely the payer's.
+   *
+   * `FR-PAY-06` puts a second implementation behind the port, and two adapters
+   * that both answer are only useful if something picks between them. The pick
+   * is per attempt rather than per deployment because it is the guest's: one
+   * stay may be paid twice on the same afternoon, and a card that works abroad
+   * and a Vietnamese bank account are different answers to the same question.
+   *
+   * Narrowed to {@link gatewayPaymentMethodSchema} and not the whole method
+   * list, so the two the desk counts itself are unrepresentable here — there is
+   * nowhere to send a payer for cash, and an attempt opened against it would be
+   * a payment url for a transaction that happens in a room.
+   *
+   * **Defaulted rather than required**, and the default is the gateway the
+   * property already had. Every caller that predates the second one keeps
+   * working unchanged, which is the same courtesy the port extends to
+   * `VnpayAdapter`; a required field would have made a second gateway a
+   * breaking change to a route that had nothing to do with it.
+   *
+   * Nothing here says the property can actually collect through the method
+   * named. A deployment holds credentials for the gateways it has finished
+   * onboarding, which is a fact about a server and not about a request, so a
+   * method with no adapter behind it is a `503` from
+   * `ports/gateway-registry.ts` rather than a member this schema withholds.
+   */
+  method: gatewayPaymentMethodSchema.default("VNPAY"),
 });
 
 /**
@@ -158,6 +234,57 @@ export const openPaymentAttemptInput = z.object({
 export const openedPaymentSchema = z.object({
   paymentUrl: z.url(),
   reference: z.string().min(1),
+  /**
+   * What the payer will actually be charged, when the gateway just chosen
+   * cannot take đồng — the same figure `payment.service.ts` froze onto the
+   * row a moment before this answered.
+   *
+   * **Optional and not nullable**, `payment-gateway.port.ts`'s own
+   * convention for the field this one restates on the wire: a VNPay attempt
+   * settles in đồng and needs to say nothing about it, and `presentment:
+   * null` would be a caller inventing an answer to a question a đồng
+   * attempt was never asked.
+   *
+   * **This is the read the funnel is allowed to quote a payer from, and the
+   * only one.** The property computes what a foreign gateway will charge at
+   * the moment the attempt opens — `system_config.rate_vnd_per_usd`, read
+   * once and frozen onto the row before anything is asked of PayPal — and
+   * this is that same computation handed back rather than a second one. A
+   * route that answered a quote before an attempt existed would be reading
+   * the configured rate a second time, and an `ADMIN` editing it between the
+   * two reads would quote the guest one figure and charge them another. So
+   * there is no such route: a screen that wants to tell a payer what PayPal
+   * will charge opens the attempt first and shows exactly what this answers,
+   * never a figure it converted itself.
+   */
+  presentment: presentmentSchema.optional(),
+});
+
+/**
+ * The gateways this deployment can actually collect through, as the wire
+ * spells them.
+ *
+ * **A fact about a server and not about the property's price list.** Every
+ * member of {@link gatewayPaymentMethodSchema} is a method this property
+ * accepts; which of them a given deployment holds credentials for is a
+ * different question, and one only the process that holds the bindings can
+ * answer. `ports/gateway-registry.ts` is where that answer lives, and it is
+ * partial on purpose: a property part-way through a merchant onboarding runs
+ * the API and collects through whatever it has finished.
+ *
+ * Answered so that a funnel can draw the choice it actually has. Without it a
+ * screen has to guess — hard-coding a provider as choosable, and turning the
+ * registry's own refusal into the sentence a guest reads after they have typed
+ * their name, chosen that provider and pressed the button.
+ *
+ * **It says nothing about an individual attempt.** A method listed here is one
+ * the deployment has an adapter for, not a promise that the next attempt
+ * opened at it will succeed — a gateway that is bound and unreachable is still
+ * the `502` it always was, and that is the gateway's afternoon rather than
+ * this deployment's configuration.
+ */
+export const collectableGatewaysSchema = z.object({
+  methods: z.array(gatewayPaymentMethodSchema),
 });
 
 /**
@@ -296,28 +423,6 @@ export const reconciledDaySchema = z.object({
 export const readReconciledDayInput = z.object({
   businessDate: stayDateSchema,
 });
-
-/**
- * How the money reached the property, as the wire spells it.
- *
- * A method and not a provider list, which is `schema/payment.ts`'s own word for
- * the column: cash and a bank transfer are ways of paying, and `VNPAY` is the
- * one gateway the property has an adapter for. `FR-PAY-06`'s second gateway is a
- * fourth member here and a second implementation behind the port — never a
- * gateway's own vocabulary, which is what `FR-PAY-01` keeps inside the adapter.
- * A member is a payment method the property accepts, and that is all a reader of
- * this list learns.
- *
- * The same three members `payment_method` holds, stated here and built into a
- * Postgres enum there from a tuple of its own — the arrangement
- * {@link paymentDiscrepancyKindSchema} uses, and nothing has to remember to keep
- * the two level: the handler returns rows whose `method` is the database's
- * union, so a member this schema lacks stops the API compiling rather than
- * failing output validation at run time.
- */
-export const paymentMethodSchema = z.enum(["VNPAY", "CASH", "BANK_TRANSFER"]);
-
-export type PaymentMethod = z.infer<typeof paymentMethodSchema>;
 
 /**
  * What became of the money — the four states `payment_status` holds.
@@ -491,6 +596,14 @@ export const refundCandidatesPageSchema = z.object({
 });
 
 export const payment = {
+  gateways: oc
+    // A read with no subject, under the same `/payments` root the rest of the
+    // module hangs off. No input at all: the answer is the same for every
+    // caller, because what it reports is which adapters this process has
+    // bound and not anything about who asked or what they are paying for.
+    .route({ method: "GET", path: "/payments/gateways" })
+    .output(collectableGatewaysSchema),
+
   openAttempt: oc
     .route({ method: "POST", path: "/bookings/{bookingId}/payment-attempts" })
     .input(openPaymentAttemptInput)

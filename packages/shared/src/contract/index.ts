@@ -178,8 +178,16 @@ export {
   shiftPageSchema,
   shiftSchema,
 } from "./operations.js";
+// The method a gateway answers for crosses as a type as well as a schema, which
+// none of this family needed until there were two gateways to tell apart. The
+// API keys its adapter registry on it and stores it on the row an attempt
+// opens, so the union has to be the contract's own rather than a second list
+// written out beside it — `contract/payment.ts` derives it from the methods the
+// property accepts, and a member added there reaches every caller at once.
+export type { GatewayPaymentMethod, PaymentMethod } from "./payment.js";
 export {
   LONGEST_PAYMENT_PAGE,
+  gatewayPaymentMethodSchema,
   listedPaymentSchema,
   listPaymentsInput,
   listRefundCandidatesInput,

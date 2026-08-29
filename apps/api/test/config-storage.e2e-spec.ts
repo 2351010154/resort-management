@@ -102,6 +102,16 @@ describe("the seeded configuration", () => {
       tierSilverRevenueVnd: 15_000_000n,
       tierGoldStays: 4,
       tierGoldRevenueVnd: 40_000_000n,
+      // Đồng per dollar, and the one figure here that comes back as text.
+      // `numeric` is read as a string on purpose: it is the only fraction the
+      // payment path carries, and `money.ts` argues that a rate routed through
+      // a double converts a stay to within a few đồng of right — which is worse
+      // than one that fails outright, because it reconciles a month later.
+      //
+      // So this assertion is the round trip that matters for it: written as a
+      // column default, read back as "26150" and not as 26150, 26_150n or
+      // "26150.0".
+      rateVndPerUsd: "26150",
     });
   });
 
@@ -252,6 +262,28 @@ describe("a figure outside its scale", () => {
     expect(stored?.standardVatRateBps).toBe(0);
     expect(stored?.reducedVatRateBps).toBe(0);
     expect(stored?.serviceChargeRateBps).toBe(0);
+  });
+
+  it("refuses a currency rate of nothing", async () => {
+    // The figure `payment.service.ts` divides đồng by when it opens a PayPal
+    // attempt. Before this constraint existed a zero here reached that division
+    // unrefused and turned into a 500 for the guest; refused here, it is a write
+    // an `ADMIN` gets back with a reason instead.
+    const refusal = await refused(
+      db.insert(systemConfig).values({ ...SEEDED, rateVndPerUsd: "0" }),
+    );
+
+    expect(refusal.code).toBe(CHECK_VIOLATION);
+    expect(refusal.constraint).toBe("system_config_fx_rate_is_positive");
+  });
+
+  it("refuses a currency rate that runs backwards", async () => {
+    const refusal = await refused(
+      db.insert(systemConfig).values({ ...SEEDED, rateVndPerUsd: "-26150" }),
+    );
+
+    expect(refusal.code).toBe(CHECK_VIOLATION);
+    expect(refusal.constraint).toBe("system_config_fx_rate_is_positive");
   });
 
   it("refuses an hour that is not one", async () => {

@@ -123,9 +123,10 @@ A pnpm workspace driven by Turborepo.
 | `packages/api-client` | Browser-to-API client boundary |
 
 [`docs/architecture/repository-structure.md`](docs/architecture/repository-structure.md)
-is the authority on what goes where and why. A directory that exists but holds no code is
-a reserved boundary, not an oversight: an imported empty module misrepresents the
-dependency graph.
+is the authority on what goes where and why, including the rule that the repository root
+holds workspace configuration only — no logs, no downloaded assets. A directory that
+exists but holds no code is a reserved boundary, not an oversight: an imported empty
+module misrepresents the dependency graph.
 
 **Two type distinctions the contract makes into compile errors**, because both are
 otherwise the most common bug class in this domain:

@@ -1,13 +1,14 @@
-// The three answers that are settled before a database is involved.
+// The four answers that are settled before a database is involved.
 //
 // A callback arrives on a route anyone may post to, and most of what arrives
 // there is not a payment. This file is about the part of the handler that has to
 // establish that *without* touching anything: an unsigned callback, a signed one
-// naming a reference this property never issued, and a signed one about an
-// attempt the payer has not finished. All three must post nothing, and "nothing"
-// is a stronger claim than "no rows afterwards" — a handler that opened a
-// transaction, looked, and closed it again would satisfy the second and would
-// still be spending a connection on traffic.
+// naming a reference this property never issued, a signed one about an attempt
+// the payer has not finished, and one naming a gateway this deployment holds no
+// credentials for. All four must post nothing, and "nothing" is a stronger claim
+// than "no rows afterwards" — a handler that opened a transaction, looked, and
+// closed it again would satisfy the second and would still be spending a
+// connection on traffic.
 //
 // So the transaction boundary here refuses to open. It is not a stand-in for
 // Postgres and holds no rows; it fails the case if the service reaches it at
@@ -34,7 +35,9 @@ import type { BookingService } from "../booking/booking.service.js";
 import type { BusinessDateService } from "../booking/business-date.service.js";
 import type { FolioService } from "../folio/folio.service.js";
 import { OpsAlertService } from "../notification/ops-alert.service.js";
+import type { SystemConfigService } from "../system-config/system-config.service.js";
 import { PaymentService } from "./payment.service.js";
+import { GatewayRegistry } from "./ports/gateway-registry.js";
 import type {
   CallbackVerification,
   PaymentGateway,
@@ -62,6 +65,17 @@ const A_FOREIGN_REFERENCE = "PAY-7QX2";
 /** Whatever a callback carries. Nothing here reads it — the port does. */
 const A_CALLBACK = { vnp_TxnRef: OUR_REFERENCE } as const;
 
+/**
+ * The gateway the callback arrived through, named the property's way.
+ *
+ * A callback route has one gateway posting to it and the route is what says
+ * which, so the method travels with the callback rather than being read off a
+ * row: the reference is inside the callback, and a row consulted to decide how
+ * to authenticate the thing that named it would be the database visit every
+ * case in this file is asserting does not happen.
+ */
+const THE_GATEWAY = "VNPAY";
+
 describe("a callback that carries no signature", () => {
   it("is refused, and never reaches the database", async () => {
     // Refused rather than filed as a failed payment. `FR-PAY-03` leaves the
@@ -69,7 +83,7 @@ describe("a callback that carries no signature", () => {
     // signature *is* the authentication — so anything at all may be posted to
     // them, and a `FAILED` row per crawler is a table nobody can read.
     const refusal = await refused(
-      serviceTold({ verified: false }).handleIpn(A_CALLBACK),
+      serviceTold({ verified: false }).handleIpn(A_CALLBACK, THE_GATEWAY),
     );
 
     expect(refusal.code).toBe("UNAUTHORIZED");
@@ -93,7 +107,7 @@ describe("a signed callback about a reference this property never issued", () =>
           gatewayTransactionId: "14528901",
           paidAt: new Date("2027-11-02T09:12:00Z"),
         },
-      }).handleIpn(A_CALLBACK),
+      }).handleIpn(A_CALLBACK, THE_GATEWAY),
     );
 
     expect(refusal.code).toBe("NOT_FOUND");
@@ -113,16 +127,37 @@ describe("a signed callback about an attempt nobody has finished", () => {
         reference: OUR_REFERENCE,
         amount: 1_200_000n,
       },
-    }).handleIpn(A_CALLBACK);
+    }).handleIpn(A_CALLBACK, THE_GATEWAY);
 
     expect(outcome).toBe("STILL_OPEN");
+  });
+});
+
+describe("a callback naming a gateway this deployment cannot reach", () => {
+  it("is refused as a fact about the server, and never reaches the database", async () => {
+    // Not a forgery and not a mistake by whoever posted it: the method is one
+    // the property accepts, and what is missing is this deployment's
+    // credentials for it. `ports/gateway-registry.ts` argues why that is a
+    // `503` rather than a boot failure, and the assertion here is the half that
+    // belongs to the service — the refusal arrives before a transaction is
+    // opened, because there is no adapter to authenticate anything with and
+    // nothing to look up until there is.
+    const refusal = await refused(
+      serviceTold({ verified: false }).handleIpn(A_CALLBACK, "PAYPAL"),
+    );
+
+    expect(refusal.code).toBe("SERVICE_UNAVAILABLE");
   });
 });
 
 /** A service whose gateway reports exactly this about whatever it is handed. */
 function serviceTold(verification: CallbackVerification): PaymentService {
   return new PaymentService(
-    new GatewayThatReports(verification),
+    // A registry holding one adapter, under the method the callbacks below say
+    // they arrived through. The service resolves through it rather than holding
+    // a gateway, so binding the stand-in this way is also the assertion that a
+    // callback is authenticated by the adapter its own route named.
+    new GatewayRegistry({ [THE_GATEWAY]: new GatewayThatReports(verification) }),
     // Never reached: every case here is settled before the folio is asked for
     // anything, which is the claim. Handed nothing rather than a stand-in that
     // would have to imitate a ledger it is not allowed to imitate.
@@ -142,6 +177,11 @@ function serviceTold(verification: CallbackVerification): PaymentService {
     undefined as unknown as BookingService,
     new ClosedBoundary(),
     new AlerterThatIsNeverPaged(),
+    // Never reached either, and for a reason worth naming: the configured rate
+    // is read when an attempt *opens*, through the executor of the transaction
+    // that writes the row, and every case in this file is a callback arriving
+    // about an attempt somebody else opened.
+    undefined as unknown as SystemConfigService,
   );
 }
 

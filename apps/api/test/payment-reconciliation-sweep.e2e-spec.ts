@@ -20,7 +20,8 @@
 //   whole design is arranged to avoid;
 // - a clean day is still work — the run is recorded, and nobody is woken;
 // - a gateway that cannot be reached leaves the day outstanding rather than
-//   filing every payment it failed to ask about as missing.
+//   filing every payment it failed to ask about as missing, and says so on the
+//   same phone a discrepancy rings.
 //
 // The server listens on port 0 — an ephemeral port the OS picks — so two suites
 // running at once cannot collide on a number, and it is closed in `afterAll`.
@@ -38,7 +39,7 @@ import type { AddressInfo } from "node:net";
 import { parseDate } from "@internationalized/date";
 import type { StayDate } from "@mariva/shared";
 import { Test } from "@nestjs/testing";
-import { eq, sql } from "drizzle-orm";
+import { eq, isNotNull, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import type { PinoLogger } from "nestjs-pino";
@@ -61,6 +62,7 @@ import { JobRunner } from "../src/jobs/job-runner.service.js";
 import { JobsModule } from "../src/jobs/jobs.module.js";
 import { BusinessDateService } from "../src/modules/booking/business-date.service.js";
 import { OpsAlertService } from "../src/modules/notification/ops-alert.service.js";
+import { GatewayRegistry } from "../src/modules/payment/ports/gateway-registry.js";
 import type {
   GatewayTransaction,
   PaymentAttempt,
@@ -357,9 +359,9 @@ describe("a night the two reports agree on", () => {
   it("is recorded as looked at, and wakes nobody", async () => {
     await anAttempt(AGREED, { openedOn: CLOSED_DAY, paid: true, amount: A_SUM });
 
-    const { affected } = await runTheSweep(
-      gatewayHolding([took(AGREED, A_SUM, CLOSED_DAY)]),
-    );
+    const report = [took(AGREED, A_SUM, CLOSED_DAY)];
+
+    const { affected } = await runTheSweep(gatewayHolding(report));
 
     // The day is work even though it produced no row. A sweep that reported
     // nothing here would be logged as having done nothing on the night it
@@ -374,6 +376,45 @@ describe("a night the two reports agree on", () => {
     expect(days.map((row) => row.businessDate).sort()).toEqual(
       EVERY_CLOSED_DAY,
     );
+
+    // No discrepancy row says no attempt disagreed. It does not say the two
+    // sides of the night add to the same figure, and that sum equality is the
+    // property a night being reconciled actually asserts — so it is asserted
+    // here rather than inferred from an empty table.
+    //
+    // Both sides are totalled in đồng as `bigint`, the one representation money
+    // has anywhere in this tree, and on one reading of the rollover hour: the
+    // same boundary the sweep drew, so the ledger's side is the night the
+    // gateway's side is. `NFR-12` gives đồng no minor unit, so the comparison
+    // is integer equality and the delta is a whole number of đồng or it is
+    // nothing.
+    const dates = await new BusinessDateService(
+      new SystemConfigService(),
+    ).rule(db);
+
+    const settled = report.reduce(
+      (total, entry) =>
+        entry.status === "SUCCESS" &&
+        dates.on(entry.paidAt).compare(CLOSED_DAY) === 0
+          ? total + entry.amount
+          : total,
+      0n,
+    );
+
+    const postings = await db
+      .select({ amount: payment.amount, paidAt: payment.paidAt })
+      .from(payment)
+      .where(isNotNull(payment.attemptReference));
+
+    const posted = postings.reduce(
+      (total, row) =>
+        row.paidAt !== null && dates.on(row.paidAt).compare(CLOSED_DAY) === 0
+          ? total + row.amount
+          : total,
+      0n,
+    );
+
+    expect(posted).toBe(settled);
   });
 });
 
@@ -443,16 +484,72 @@ describe("a gateway that cannot be reached", () => {
   it("leaves the night outstanding rather than filing every payment as missing", async () => {
     await anAttempt(AGREED, { openedOn: CLOSED_DAY, paid: true, amount: A_SUM });
 
-    await expect(runTheSweep(new UnreachableGateway())).rejects.toThrow(
-      /ETIMEDOUT/,
+    // The nights this gateway is actually asked about: the one the attempt was
+    // opened on, and the day before it — the sweep's attempt window spans the
+    // neighbouring days on purpose, so both nights reach for the same attempt
+    // and both fail on it. The rest of the window holds no attempt of this
+    // method at all, so nobody is asked anything about those days and they
+    // reconcile clean.
+    const NEVER_ANSWERED = [
+      CLOSED_DAY.subtract({ days: 1 }).toString(),
+      CLOSED_DAY.toString(),
+    ];
+
+    // The run itself does not fail, and that is the point: a night whose
+    // reports cannot be fetched is one night's problem. Treating it as the
+    // run's would abandon every other outstanding day behind it, every tick,
+    // until they aged out of the window with their money never compared.
+    const { affected } = await runTheSweep(new UnreachableGateway());
+
+    expect(affected).toBe(THE_WINDOW - NEVER_ANSWERED.length);
+
+    const looked = (await db.select().from(paymentReconciliationRun)).map(
+      (row) => row.businessDate,
     );
 
-    // Nothing committed: no run row, so the next tick does the night again, and
-    // no discrepancy against a payment the gateway was never actually asked
-    // about. Catching per attempt and carrying on would have written one here.
-    expect(await db.select().from(paymentReconciliationRun)).toEqual([]);
+    // No run row for the nights that failed, so the next tick does them again,
+    // and no discrepancy against a payment the gateway was never actually
+    // asked about. Catching per attempt and carrying on would have written one
+    // here — every payment the gateway was too busy to answer about, filed as
+    // money it never took, which is a page about the property's own network.
+    for (const night of NEVER_ANSWERED) {
+      expect(looked).not.toContain(night);
+    }
+
     expect(await db.select().from(paymentDiscrepancy)).toEqual([]);
-    expect(pages).toEqual([]);
+
+    // And the days behind them are still looked at. Nothing was assumed about
+    // a day this gateway was never asked about, so recording it is the honest
+    // answer rather than one provider's bad night deciding the whole tick.
+    expect(looked.sort()).toEqual(
+      EVERY_CLOSED_DAY.filter((day) => !NEVER_ANSWERED.includes(day)),
+    );
+
+    // And somebody is told, which is the other half of leaving a night
+    // outstanding. A date with no run row is equally a date nobody has reached
+    // yet, so a sweep that failed in silence would let these nights age past
+    // the window with their money unreconciled and nothing anywhere saying it
+    // had happened.
+    //
+    // One page per failed night rather than one for the run: each is its own
+    // outstanding day, and what a responder is being handed is which days to
+    // look at rather than that something went wrong tonight.
+    expect(pages.map((page) => page.kind)).toEqual(
+      NEVER_ANSWERED.map(() => "payment-reconciliation-unfinished"),
+    );
+    expect(pages.map((page) => page.businessDate).sort()).toEqual(
+      NEVER_ANSWERED,
+    );
+
+    // The night this case wrote its attempt on, and the gateway's own words
+    // carried onto the page — a responder acts on that sentence before they
+    // open anything, so it has to say which day and why.
+    const [about] = pages.filter(
+      (page) => page.businessDate === CLOSED_DAY.toString(),
+    );
+
+    expect(about?.text).toContain(CLOSED_DAY.toString());
+    expect(about?.text).toContain("ETIMEDOUT");
   });
 });
 
@@ -495,8 +592,13 @@ describe("the sweep itself", () => {
 function runTheSweep(gateway: PaymentGateway) {
   const businessDates = new BusinessDateService(new SystemConfigService());
 
+  // Bound as the property's VNPay adapter, which is what every case below is
+  // written about: one gateway, no reporting API, and therefore a report the
+  // sweep reconstructs from the attempts this property minted. The sweep asks
+  // the registry rather than holding an adapter, so a fixture that handed it a
+  // bare gateway would be testing a shape the application no longer has.
   const job = new ReconciliationJob(
-    gateway,
+    new GatewayRegistry({ VNPAY: gateway }),
     new ReconciliationService(),
     businessDates,
     new OpsAlertService({ OPS_ALERT_WEBHOOK_URL: webhook } as Env, log),

@@ -294,6 +294,9 @@ function paidAt(
     reference,
     amount,
     paidAt: new Date(instant),
+    presentmentCurrency: null,
+    presentmentAmount: null,
+    fxRate: null,
   };
 }
 
@@ -347,6 +350,17 @@ interface StoredPayment {
   readonly reference: string | null;
   readonly amount: VndAmount;
   readonly paidAt: Date | null;
+
+  // The three the statement selects for a payment taken abroad, whole or all
+  // absent — the row's own check constraint allows nothing in between. Every
+  // case in this file is money collected in đồng, so all three are null here
+  // and the comparison downstream is the integer equality it has always been.
+  // They are on the fixture rather than left off it because leaving a column
+  // off is not the same claim as its being null, and the code that reads them
+  // can tell the difference.
+  readonly presentmentCurrency: string | null;
+  readonly presentmentAmount: bigint | null;
+  readonly fxRate: string | null;
 }
 
 type DiscrepancyValues = typeof paymentDiscrepancy.$inferInsert;

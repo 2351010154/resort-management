@@ -142,6 +142,7 @@ export function mayReconcile(role: StaffRole): boolean {
  */
 export const METHOD_LABELS: Record<PaymentMethod, string> = {
   VNPAY: "VNPay",
+  PAYPAL: "PayPal",
   CASH: "Cash",
   BANK_TRANSFER: "Bank transfer",
 };
