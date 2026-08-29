@@ -43,6 +43,10 @@
  *    figure humanely beside the field, both by integer arithmetic, so nothing on
  *    the way in or out of this screen touches a float. `NFR-12` is the reason,
  *    and `packages/shared/src/contract/system-config.ts` states it at the field.
+ *    The currency rate is the one declared exception: `fxRateSchema` is a
+ *    decimal precisely because a currency pair genuinely has a fraction, so
+ *    {@link fxRateLabel} is the one echo on this screen built with `Number`
+ *    rather than with integer arithmetic — and still never what travels.
  *
  * What is deliberately absent: any notion of a previous rate. `screens.md` is
  * emphatic that the tax values are "one mutable row an `ADMIN` edits" and that
@@ -367,6 +371,9 @@ export interface ConfigFields {
   tierSilverRevenueVnd: string;
   tierGoldStays: string;
   tierGoldRevenueVnd: string;
+  /** Đồng per one US dollar, as decimal text — the one figure on this form
+   *  that is allowed a fraction, for `fxRateSchema`'s reason. */
+  rateVndPerUsd: string;
 }
 
 /**
@@ -396,6 +403,10 @@ export function fieldsFrom(config: SystemConfiguration): ConfigFields {
     tierSilverRevenueVnd: config.tierSilverRevenueVnd.toString(),
     tierGoldStays: String(config.tierGoldStays),
     tierGoldRevenueVnd: config.tierGoldRevenueVnd.toString(),
+    // Already text — `numeric` comes back from the API as decimal text, not as
+    // a bigint — so nothing is stringified here the way the đồng figures above
+    // are.
+    rateVndPerUsd: config.rateVndPerUsd,
   };
 }
 
@@ -457,6 +468,7 @@ const FIGURE_LABELS: Readonly<Record<string, string>> = {
   tierSilverRevenueVnd: "Silver's revenue threshold",
   tierGoldStays: "Gold's stay count",
   tierGoldRevenueVnd: "Gold's revenue threshold",
+  rateVndPerUsd: "the đồng-per-dollar rate",
 };
 
 /**
@@ -543,6 +555,12 @@ export function configEdit(
   const tierSilverRevenueVnd = fields.tierSilverRevenueVnd.trim();
   const tierGoldRevenueVnd = fields.tierGoldRevenueVnd.trim();
 
+  // Left as trimmed text for the same reason the đồng figures above are: this
+  // is the one field on the whole form `fxRateSchema` allows a fraction in, so
+  // there is no whole-number reading to do here at all, and what is unreadable
+  // is left for the contract's schema below to refuse in its own words.
+  const rateVndPerUsd = fields.rateVndPerUsd.trim();
+
   const from = windowEnd(
     fields.reducedVatFrom,
     fields.reducedVatFromBound,
@@ -600,6 +618,7 @@ export function configEdit(
     ...(sameDong(tierGoldRevenueVnd, config.tierGoldRevenueVnd)
       ? {}
       : { tierGoldRevenueVnd }),
+    ...(rateVndPerUsd === config.rateVndPerUsd ? {} : { rateVndPerUsd }),
   };
 
   const changed = Object.keys(input).map((key) => FIGURE_LABELS[key] ?? key);
@@ -759,6 +778,28 @@ export function dongLabel(typed: string): string | null {
   return WHOLE_DIGITS.test(trimmed) ? formatVnd(BigInt(trimmed)) : null;
 }
 
+/** A positive decimal, `fxRateSchema`'s own shape — the one figure on this
+ *  form allowed a fraction. */
+const FX_RATE_TEXT = /^\d+(\.\d+)?$/;
+
+/**
+ * A typed currency rate read the way the property reads it — "26,150.50 đồng
+ * per US$1". Display only, and the one echo on this screen built with `Number`
+ * rather than with integer arithmetic: `money.ts` reserves that allowance for
+ * exactly this figure, because a currency pair is the one place a fraction is
+ * real rather than a defect. Nothing typed here is parsed back into what
+ * travels — the field's own text is.
+ */
+export function fxRateLabel(typed: string): string | null {
+  const trimmed = typed.trim();
+
+  if (!FX_RATE_TEXT.test(trimmed) || Number(trimmed) <= 0) {
+    return null;
+  }
+
+  return `${Number(trimmed).toLocaleString("vi-VN", { maximumFractionDigits: 2 })} đồng per US$1`;
+}
+
 // ── The sentences ────────────────────────────────────────────────────────────
 
 function rateIsBasisPoints(figure: string): string {
@@ -780,7 +821,7 @@ function windowEndUnreadable(side: string, example: string): string {
  * The schema's own words rather than a translation, for `room-list.ts`'s reason:
  * a bound changed in `packages/shared` should change what the operator reads.
  * The field's name is prefixed because those words are written about a value —
- * "Too big: expected number to be <=10000" — and this form has thirteen of them
+ * "Too big: expected number to be <=10000" — and this form has fourteen of them
  * on screen at once.
  */
 function firstRefusal(issues: readonly ContractRefusal[]): string {

@@ -142,6 +142,7 @@ import {
   boolean,
   check,
   date,
+  numeric,
   pgTable,
   smallint,
 } from "drizzle-orm/pg-core";
@@ -244,6 +245,33 @@ export const systemConfig = pgTable(
     tierGoldRevenueVnd: bigint("tier_gold_revenue_vnd", { mode: "bigint" })
       .notNull()
       .default(sql`40000000`),
+    // Đồng per one US dollar, for whatever collects money in dollars.
+    //
+    // Named for the currency pair and not for a provider, deliberately. A rate
+    // is a fact about two currencies; which gateway happens to settle in the
+    // second one is a binding in `payment.module.ts`, and a column called after
+    // a provider would put that provider's name in the property's own
+    // configuration — the leak `FR-PAY-01` spends a port preventing. The
+    // gateway that needs this today cannot charge đồng at all, VND being absent
+    // from its transaction currencies; the next one that cannot will read the
+    // same figure.
+    //
+    // **Property-configured and not fetched.** A rate feed in the payment path
+    // is a third party who can stop a guest from paying, and a rate that moves
+    // between the screen quoting it and the gateway charging it is a
+    // chargeback. This is read once when the attempt opens and frozen onto the
+    // payment, so the guest, the refund and the reconciliation all quote the
+    // one figure — `payment.fx_rate` holds the copy that matters.
+    //
+    // `numeric` rather than the `bigint` every other money column here uses,
+    // because this is not money: it is a ratio, and the only fraction the
+    // payment path is allowed to carry. `money.ts` says why it is read as text
+    // rather than through a double.
+    //
+    // The default is a plausible mid-market figure and is **not** a rate
+    // anybody agreed to. It exists so the column is never null on an upgrade;
+    // the property sets its own before `G2` opens PayPal to real money.
+    rateVndPerUsd: numeric("rate_vnd_per_usd").notNull().default(sql`26150`),
   },
   (table) => [
     check(
@@ -327,6 +355,14 @@ export const systemConfig = pgTable(
       "system_config_gold_revenue_not_below_silver",
       sql`${table.tierGoldRevenueVnd} >= ${table.tierSilverRevenueVnd}`,
     ),
+    // A rate of nothing converts nothing, and a negative one converts money into
+    // its opposite — the same rule `payment_fx_rate_is_positive` puts on the copy
+    // this column feeds. Before this constraint existed, a zero here reached
+    // `convertVndToPresentment`'s division unrefused and the guest saw a 500
+    // instead of an `ADMIN` who typed it wrong; the reader still divides by this
+    // figure, so nothing downstream may treat zero or negative as a rate anybody
+    // could have meant.
+    check("system_config_fx_rate_is_positive", sql`${table.rateVndPerUsd} > 0`),
   ],
 );
 

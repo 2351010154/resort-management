@@ -125,5 +125,6 @@ function onWire(configured: SystemConfigRow) {
     tierSilverRevenueVnd: configured.tierSilverRevenueVnd,
     tierGoldStays: configured.tierGoldStays,
     tierGoldRevenueVnd: configured.tierGoldRevenueVnd,
+    rateVndPerUsd: configured.rateVndPerUsd,
   };
 }

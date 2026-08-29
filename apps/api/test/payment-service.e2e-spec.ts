@@ -110,6 +110,7 @@ import {
   type OpsAlert,
   OpsAlertService,
 } from "../src/modules/notification/ops-alert.service.js";
+import { GatewayRegistry } from "../src/modules/payment/ports/gateway-registry.js";
 import { PaymentService } from "../src/modules/payment/payment.service.js";
 import type {
   CallbackVerification,
@@ -191,9 +192,21 @@ const CLOCK_SLACK_MINUTES = 1;
  */
 const A_CALLBACK = { vnp_ResponseCode: "00" } as const;
 
+/**
+ * The gateway every attempt here is opened at and every callback arrives
+ * through, named the property's way.
+ *
+ * One constant rather than a literal per call, because the two sides of it are
+ * an invariant this file now depends on: an attempt is claimable only through
+ * the gateway it was opened at, so a case that named different methods on the
+ * two would be asserting the refusal instead of the payment.
+ */
+const THE_GATEWAY = "VNPAY";
+
 let pool: pg.Pool;
 let db: ReturnType<typeof drizzle<typeof schema>>;
 let gateway: GatewayUnderTest;
+let gateways: GatewayRegistry;
 let payments: PaymentService;
 let folios: FolioService;
 let bookings: BookingService;
@@ -245,10 +258,15 @@ beforeAll(async () => {
   roomTypeId = created!.id;
 
   gateway = new GatewayUnderTest();
+  // Bound under the method every attempt and every callback below names. The
+  // service resolves its adapter per attempt and may only claim an attempt
+  // opened at the gateway a callback arrived through, so the two have to agree
+  // and this is the one place that is stated.
+  gateways = new GatewayRegistry({ [THE_GATEWAY]: gateway });
   folios = new FolioService(db, new SystemConfigService(), noAccrual);
   bookings = realBookings();
   payments = new PaymentService(
-    gateway,
+    gateways,
     folios,
     new BusinessDateService(new SystemConfigService()),
     // Real, and it has to be. A callback that takes money confirms the stay it
@@ -263,6 +281,11 @@ beforeAll(async () => {
     // part of what this file proves, and *when* it is sent is the rest of it —
     // see {@link AlerterUnderTest}.
     new AlerterUnderTest(),
+    // Real, like the business date beside it. Every attempt opened here is
+    // through a gateway that collects đồng, so the rate is never read — and a
+    // cast would fail the day one of them was opened through a gateway that
+    // cannot.
+    new SystemConfigService(),
   );
 });
 
@@ -279,6 +302,7 @@ describe("opening an attempt", () => {
 
     const opened = await payments.createPaymentRequest({
       bookingId,
+      method: THE_GATEWAY,
       amount: AMOUNT,
       description: "Deposit against the stay",
       returnUrl: RETURN_URL,
@@ -330,6 +354,7 @@ describe("opening an attempt", () => {
     const refusal = await refused(
       payments.createPaymentRequest({
         bookingId: "K7QX-2M9P",
+        method: THE_GATEWAY,
         amount: AMOUNT,
         description: "Deposit against a stay named the wrong way",
         returnUrl: RETURN_URL,
@@ -347,6 +372,7 @@ describe("opening an attempt", () => {
     const refusal = await refused(
       payments.createPaymentRequest({
         bookingId: ABSENT_ID,
+        method: THE_GATEWAY,
         amount: AMOUNT,
         description: "Deposit against nobody's stay",
         returnUrl: RETURN_URL,
@@ -372,6 +398,7 @@ describe("opening an attempt", () => {
     const refusal = await refused(
       payments.createPaymentRequest({
         bookingId,
+        method: THE_GATEWAY,
         amount: 0n as VndAmount,
         description: "Deposit against a stay, for nothing",
         returnUrl: RETURN_URL,
@@ -461,7 +488,7 @@ describe("a callback the gateway signed", () => {
 
     gateway.verification = takenBy(attempt.reference, "14528901");
 
-    expect(await payments.handleIpn(A_CALLBACK)).toBe("RECORDED");
+    expect(await payments.handleIpn(A_CALLBACK, THE_GATEWAY)).toBe("RECORDED");
 
     const taken = (await paymentsOn(attempt.bookingId)).filter(
       (row) => row.status === "SUCCESS",
@@ -508,7 +535,7 @@ describe("a callback the gateway signed", () => {
 
     gateway.verification = takenBy(attempt.reference, "14528902");
 
-    await payments.handleIpn(A_CALLBACK);
+    await payments.handleIpn(A_CALLBACK, THE_GATEWAY);
 
     const [line] = await linesOf(attempt.bookingId);
 
@@ -525,7 +552,7 @@ describe("a callback the gateway signed", () => {
 
     gateway.verification = takenBy(mine.reference, "14528903");
 
-    await payments.handleIpn(A_CALLBACK);
+    await payments.handleIpn(A_CALLBACK, THE_GATEWAY);
 
     expect(await folios.getBalance(mine.bookingId)).toBe(-AMOUNT);
     expect(await folios.getBalance(somebodyElses.bookingId)).toBe(0n);
@@ -538,7 +565,7 @@ describe("a callback the gateway signed", () => {
     // the refusal.
     gateway.verification = takenBy(referenceNaming(ABSENT_ID), "14528904");
 
-    const refusal = await refused(payments.handleIpn(A_CALLBACK));
+    const refusal = await refused(payments.handleIpn(A_CALLBACK, THE_GATEWAY));
 
     expect(refusal.code).toBe("NOT_FOUND");
     expect(await paymentsUnder("14528904")).toHaveLength(0);
@@ -561,11 +588,11 @@ describe("the attempt a callback names", () => {
       },
     };
 
-    expect(await payments.handleIpn(A_CALLBACK)).toBe("STILL_OPEN");
+    expect(await payments.handleIpn(A_CALLBACK, THE_GATEWAY)).toBe("STILL_OPEN");
 
     gateway.verification = takenBy(attempt.reference, "14528930");
 
-    expect(await payments.handleIpn(A_CALLBACK)).toBe("RECORDED");
+    expect(await payments.handleIpn(A_CALLBACK, THE_GATEWAY)).toBe("RECORDED");
 
     const rows = await paymentsOn(attempt.bookingId);
 
@@ -592,7 +619,7 @@ describe("the attempt a callback names", () => {
 
     gateway.verification = takenBy(paid.reference, "14528931");
 
-    expect(await payments.handleIpn(A_CALLBACK)).toBe("RECORDED");
+    expect(await payments.handleIpn(A_CALLBACK, THE_GATEWAY)).toBe("RECORDED");
 
     const byReference = new Map(
       (await paymentsOn(bookingId)).map((row) => [row.attemptReference, row]),
@@ -623,7 +650,7 @@ describe("the attempt a callback names", () => {
 
     gateway.verification = takenBy(attempt.reference, "14528932");
 
-    const refusal = await refused(payments.handleIpn(A_CALLBACK));
+    const refusal = await refused(payments.handleIpn(A_CALLBACK, THE_GATEWAY));
 
     expect(refusal.code).toBe("NOT_FOUND");
 
@@ -652,11 +679,11 @@ describe("a callback contradicting what the attempt already says", () => {
       },
     };
 
-    expect(await payments.handleIpn(A_CALLBACK)).toBe("REFUSED");
+    expect(await payments.handleIpn(A_CALLBACK, THE_GATEWAY)).toBe("REFUSED");
 
     gateway.verification = takenBy(attempt.reference, "14528933");
 
-    const refusal = await refused(payments.handleIpn(A_CALLBACK));
+    const refusal = await refused(payments.handleIpn(A_CALLBACK, THE_GATEWAY));
 
     expect(refusal.code).toBe("CONFLICT");
 
@@ -683,7 +710,7 @@ describe("a callback contradicting what the attempt already says", () => {
 
     gateway.verification = takenBy(attempt.reference, "14528934");
 
-    expect(await payments.handleIpn(A_CALLBACK)).toBe("RECORDED");
+    expect(await payments.handleIpn(A_CALLBACK, THE_GATEWAY)).toBe("RECORDED");
 
     gateway.verification = {
       verified: true,
@@ -694,7 +721,7 @@ describe("a callback contradicting what the attempt already says", () => {
       },
     };
 
-    const refusal = await refused(payments.handleIpn(A_CALLBACK));
+    const refusal = await refused(payments.handleIpn(A_CALLBACK, THE_GATEWAY));
 
     expect(refusal.code).toBe("CONFLICT");
 
@@ -721,11 +748,11 @@ describe("a callback contradicting what the attempt already says", () => {
 
     gateway.verification = takenBy(first.reference, "14528935");
 
-    expect(await payments.handleIpn(A_CALLBACK)).toBe("RECORDED");
+    expect(await payments.handleIpn(A_CALLBACK, THE_GATEWAY)).toBe("RECORDED");
 
     gateway.verification = takenBy(second.reference, "14528935");
 
-    const refusal = await refused(payments.handleIpn(A_CALLBACK));
+    const refusal = await refused(payments.handleIpn(A_CALLBACK, THE_GATEWAY));
 
     expect(refusal.code).toBe("CONFLICT");
 
@@ -761,7 +788,7 @@ describe("a callback naming an amount the attempt was not opened for", () => {
       },
     };
 
-    const refusal = await refused(payments.handleIpn(A_CALLBACK));
+    const refusal = await refused(payments.handleIpn(A_CALLBACK, THE_GATEWAY));
 
     expect(refusal.code).toBe("CONFLICT");
 
@@ -801,11 +828,11 @@ describe("a callback naming an amount the attempt was not opened for", () => {
       },
     };
 
-    await refused(payments.handleIpn(A_CALLBACK));
+    await refused(payments.handleIpn(A_CALLBACK, THE_GATEWAY));
 
     gateway.verification = takenBy(attempt.reference, "14528952");
 
-    expect(await payments.handleIpn(A_CALLBACK)).toBe("RECORDED");
+    expect(await payments.handleIpn(A_CALLBACK, THE_GATEWAY)).toBe("RECORDED");
     expect(await paymentsOn(attempt.bookingId)).toHaveLength(1);
     expect(await folios.getBalance(attempt.bookingId)).toBe(-AMOUNT);
   });
@@ -828,7 +855,7 @@ describe("the same callback delivered again", () => {
     gateway.verification = takenBy(replayed.reference, GATEWAY_TRANSACTION_ID);
 
     const outcomes = await Promise.all(
-      Array.from({ length: REPLAYS }, () => payments.handleIpn(A_CALLBACK)),
+      Array.from({ length: REPLAYS }, () => payments.handleIpn(A_CALLBACK, THE_GATEWAY)),
     );
 
     expect(outcomes.filter((each) => each === "RECORDED")).toHaveLength(1);
@@ -849,7 +876,7 @@ describe("the same callback delivered again", () => {
     // column could still pass the concurrent case by accident of ordering.
     gateway.verification = takenBy(replayed.reference, GATEWAY_TRANSACTION_ID);
 
-    expect(await payments.handleIpn(A_CALLBACK)).toBe("ALREADY_RECORDED");
+    expect(await payments.handleIpn(A_CALLBACK, THE_GATEWAY)).toBe("ALREADY_RECORDED");
 
     expect(await paymentsUnder(GATEWAY_TRANSACTION_ID)).toHaveLength(1);
     expect(await linesOf(replayed.bookingId)).toHaveLength(1);
@@ -867,7 +894,7 @@ describe("a callback the gateway did not sign", () => {
 
     gateway.verification = { verified: false };
 
-    const refusal = await refused(payments.handleIpn(A_CALLBACK));
+    const refusal = await refused(payments.handleIpn(A_CALLBACK, THE_GATEWAY));
 
     expect(refusal.code).toBe("UNAUTHORIZED");
 
@@ -893,7 +920,7 @@ describe("a payment the gateway refused", () => {
       },
     };
 
-    expect(await payments.handleIpn(A_CALLBACK)).toBe("REFUSED");
+    expect(await payments.handleIpn(A_CALLBACK, THE_GATEWAY)).toBe("REFUSED");
 
     const kept = (await paymentsOn(attempt.bookingId)).filter(
       (row) => row.status === "FAILED",
@@ -928,9 +955,9 @@ describe("a payment the gateway refused", () => {
       },
     };
 
-    expect(await payments.handleIpn(A_CALLBACK)).toBe("REFUSED");
-    expect(await payments.handleIpn(A_CALLBACK)).toBe("REFUSED");
-    expect(await payments.handleIpn(A_CALLBACK)).toBe("REFUSED");
+    expect(await payments.handleIpn(A_CALLBACK, THE_GATEWAY)).toBe("REFUSED");
+    expect(await payments.handleIpn(A_CALLBACK, THE_GATEWAY)).toBe("REFUSED");
+    expect(await payments.handleIpn(A_CALLBACK, THE_GATEWAY)).toBe("REFUSED");
 
     const rows = await paymentsOn(attempt.bookingId);
 
@@ -958,7 +985,7 @@ describe("a payment the gateway refused", () => {
       },
     };
 
-    expect(await payments.handleIpn(A_CALLBACK)).toBe("STILL_OPEN");
+    expect(await payments.handleIpn(A_CALLBACK, THE_GATEWAY)).toBe("STILL_OPEN");
 
     // Only the row the request that opened the attempt wrote.
     expect(await paymentsOn(attempt.bookingId)).toHaveLength(1);
@@ -981,13 +1008,14 @@ describe("a posting the ledger refuses", () => {
 
     const refusal = await refused(
       new PaymentService(
-        gateway,
+        gateways,
         new LedgerThatRefuses(db, new SystemConfigService(), noAccrual),
         new BusinessDateService(new SystemConfigService()),
         bookings,
         new TransactionRunner(db),
         new AlerterUnderTest(),
-      ).handleIpn(A_CALLBACK),
+        new SystemConfigService(),
+      ).handleIpn(A_CALLBACK, THE_GATEWAY),
     );
 
     expect(refusal.code).toBe("CONFLICT");
@@ -998,7 +1026,7 @@ describe("a posting the ledger refuses", () => {
     // the rollback left nothing holding the key. A handler that had committed
     // the payment would answer this one "already recorded" and never write the
     // line at all.
-    expect(await payments.handleIpn(A_CALLBACK)).toBe("RECORDED");
+    expect(await payments.handleIpn(A_CALLBACK, THE_GATEWAY)).toBe("RECORDED");
     expect(await folios.getBalance(attempt.bookingId)).toBe(-AMOUNT);
   });
 });
@@ -1014,7 +1042,7 @@ describe("the stay a callback pays for", () => {
 
     gateway.verification = takenBy(attempt.reference, "14528960");
 
-    expect(await payments.handleIpn(A_CALLBACK)).toBe("RECORDED");
+    expect(await payments.handleIpn(A_CALLBACK, THE_GATEWAY)).toBe("RECORDED");
 
     const stay = await stayOf(attempt.bookingId);
 
@@ -1042,13 +1070,14 @@ describe("the stay a callback pays for", () => {
 
     await refused(
       new PaymentService(
-        gateway,
+        gateways,
         new LedgerThatRefuses(db, new SystemConfigService(), noAccrual),
         new BusinessDateService(new SystemConfigService()),
         bookings,
         new TransactionRunner(db),
         new AlerterUnderTest(),
-      ).handleIpn(A_CALLBACK),
+        new SystemConfigService(),
+      ).handleIpn(A_CALLBACK, THE_GATEWAY),
     );
 
     const stay = await stayOf(held);
@@ -1067,7 +1096,7 @@ describe("the stay a callback pays for", () => {
 
     gateway.verification = takenBy(attempt.reference, "14528962");
 
-    expect(await payments.handleIpn(A_CALLBACK)).toBe("RECORDED");
+    expect(await payments.handleIpn(A_CALLBACK, THE_GATEWAY)).toBe("RECORDED");
 
     expect((await stayOf(attempt.bookingId)).state).toBe("CONFIRMED");
     expect(await folios.getBalance(attempt.bookingId)).toBe(-AMOUNT);
@@ -1087,7 +1116,7 @@ describe("the stay a callback pays for", () => {
 
     gateway.verification = takenBy(attempt.reference, "14528963");
 
-    expect(await payments.handleIpn(A_CALLBACK)).toBe("RECORDED");
+    expect(await payments.handleIpn(A_CALLBACK, THE_GATEWAY)).toBe("RECORDED");
 
     expect((await stayOf(held)).state).toBe("CANCELLED");
     expect(await folios.getBalance(held)).toBe(-AMOUNT);
@@ -1110,7 +1139,7 @@ describe("money landing on a stay nobody can honour", () => {
 
     gateway.verification = takenBy(attempt.reference, "14528970");
 
-    expect(await payments.handleIpn(A_CALLBACK)).toBe("RECORDED");
+    expect(await payments.handleIpn(A_CALLBACK, THE_GATEWAY)).toBe("RECORDED");
 
     // Posted, and the stay left exactly where the sweep left it. A page that
     // had cost the guest their payment, or quietly resurrected the booking,
@@ -1155,9 +1184,9 @@ describe("money landing on a stay nobody can honour", () => {
     gateway.verification = takenBy(attempt.reference, "14528971");
 
     const outcomes = [
-      await payments.handleIpn(A_CALLBACK),
-      await payments.handleIpn(A_CALLBACK),
-      await payments.handleIpn(A_CALLBACK),
+      await payments.handleIpn(A_CALLBACK, THE_GATEWAY),
+      await payments.handleIpn(A_CALLBACK, THE_GATEWAY),
+      await payments.handleIpn(A_CALLBACK, THE_GATEWAY),
     ];
 
     // Asserted before the outcomes, because the page count is the claim and the
@@ -1187,13 +1216,14 @@ describe("money landing on a stay nobody can honour", () => {
 
     await refused(
       new PaymentService(
-        gateway,
+        gateways,
         new LedgerThatRefuses(db, new SystemConfigService(), noAccrual),
         new BusinessDateService(new SystemConfigService()),
         bookings,
         new TransactionRunner(db),
         new AlerterUnderTest(),
-      ).handleIpn(A_CALLBACK),
+        new SystemConfigService(),
+      ).handleIpn(A_CALLBACK, THE_GATEWAY),
     );
 
     expect(await linesOf(held)).toHaveLength(0);
@@ -1218,7 +1248,7 @@ describe("money landing on a stay nobody can honour", () => {
 
     gateway.verification = takenBy(attempt.reference, "14528973");
 
-    expect(await payments.handleIpn(A_CALLBACK)).toBe("RECORDED");
+    expect(await payments.handleIpn(A_CALLBACK, THE_GATEWAY)).toBe("RECORDED");
 
     expect(pagesAbout(reference)[0]!.paymentsCommitted).toBe(1);
   });
@@ -1238,13 +1268,14 @@ describe("money landing on a stay nobody can honour", () => {
     gateway.verification = takenBy(attempt.reference, "14528974");
 
     const outcome = await new PaymentService(
-      gateway,
+      gateways,
       folios,
       new BusinessDateService(new SystemConfigService()),
       bookings,
       new TransactionRunner(db),
       new AlerterThatCannotDeliver(),
-    ).handleIpn(A_CALLBACK);
+      new SystemConfigService(),
+    ).handleIpn(A_CALLBACK, THE_GATEWAY);
 
     expect(outcome).toBe("RECORDED");
     expect(await folios.getBalance(held)).toBe(-AMOUNT);
@@ -1259,7 +1290,7 @@ describe("money landing on a stay the property can still honour", () => {
 
     gateway.verification = takenBy(attempt.reference, "14528975");
 
-    expect(await payments.handleIpn(A_CALLBACK)).toBe("RECORDED");
+    expect(await payments.handleIpn(A_CALLBACK, THE_GATEWAY)).toBe("RECORDED");
 
     expect((await stayOf(held)).state).toBe("CONFIRMED");
     expect(pagesAbout(reference)).toHaveLength(0);
@@ -1274,7 +1305,7 @@ describe("money landing on a stay the property can still honour", () => {
 
     gateway.verification = takenBy(attempt.reference, "14528976");
 
-    expect(await payments.handleIpn(A_CALLBACK)).toBe("RECORDED");
+    expect(await payments.handleIpn(A_CALLBACK, THE_GATEWAY)).toBe("RECORDED");
 
     expect(pagesAbout(reference)).toHaveLength(0);
   });
@@ -1296,7 +1327,7 @@ describe("money landing on a stay the property can still honour", () => {
 
     gateway.verification = takenBy(attempt.reference, "14528977");
 
-    expect(await payments.handleIpn(A_CALLBACK)).toBe("RECORDED");
+    expect(await payments.handleIpn(A_CALLBACK, THE_GATEWAY)).toBe("RECORDED");
 
     expect(await folios.getBalance(attempt.bookingId)).toBe(-AMOUNT);
     expect(pagesAbout(reference)).toHaveLength(0);
@@ -1319,6 +1350,7 @@ async function anAttempt(): Promise<Attempt> {
 async function anAttemptOn(bookingId: string): Promise<Attempt> {
   const { reference } = await payments.createPaymentRequest({
     bookingId,
+    method: THE_GATEWAY,
     amount: AMOUNT,
     description: "Deposit against the stay",
     returnUrl: RETURN_URL,

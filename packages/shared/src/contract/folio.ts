@@ -70,7 +70,7 @@ import { cashPaymentRefusalSchema } from "../payment-refusal.js";
 import { chargeBasisSchema } from "../policy-charge.js";
 import { serviceCodeSchema } from "../service-catalog.js";
 import { isoStayDateSchema, stayDateSchema } from "../stay-date.js";
-import { paymentMethodSchema } from "./payment.js";
+import { gatewayPaymentMethodSchema, paymentMethodSchema } from "./payment.js";
 
 const bookingIdFields = { bookingId: z.uuid() };
 
@@ -398,11 +398,15 @@ export const postServiceItemInput = z.object({
  * How the desk took the money — the property's methods less the one no desk can
  * take.
  *
- * Derived from {@link paymentMethodSchema} by naming the exclusion rather than
- * restating two of its three members, so the property's list stays in one place:
- * `FR-PAY-06`'s second gateway is a member there and is excluded here for the
- * same reason `VNPAY` is, and a fourth *desk* method the property starts
- * accepting arrives here without anyone remembering to widen a second list.
+ * Derived by subtracting {@link gatewayPaymentMethodSchema} from
+ * {@link paymentMethodSchema} rather than by naming the gateways, so the
+ * property's list stays in one place and neither list has to be widened twice.
+ * Naming them was how the second gateway got through: the exclusion said
+ * `VNPAY` alone, so `PAYPAL` joining the union arrived at the desk as a method
+ * a receptionist could post by hand. Subtracting the gateway list means a third
+ * gateway is excluded here the moment it is a gateway anywhere, and a fourth
+ * *desk* method the property starts accepting arrives without anyone
+ * remembering a second list exists.
  *
  * **The gateway is absent, and that is a safety boundary rather than tidiness.**
  * A `VNPAY` payment exists because the gateway confirmed it — the IPN handler
@@ -413,7 +417,9 @@ export const postServiceItemInput = z.object({
  * gateway's report against a figure somebody typed at the counter, which is the
  * one comparison it exists to make impossible.
  */
-const deskPaymentMethodSchema = paymentMethodSchema.exclude(["VNPAY"]);
+const deskPaymentMethodSchema = paymentMethodSchema.exclude(
+  gatewayPaymentMethodSchema.options,
+);
 
 /**
  * Money the property has received, as the guest handed it over.

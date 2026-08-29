@@ -13,6 +13,7 @@ import {
   configFingerprint,
   dongLabel,
   fieldsFrom,
+  fxRateLabel,
   lastSignedInLabel,
   mayEditConfiguration,
   mayManageStaffAccounts,
@@ -63,6 +64,7 @@ const PROPERTY: SystemConfiguration = {
   tierSilverRevenueVnd: 30_000_000n,
   tierGoldStays: 8,
   tierGoldRevenueVnd: 80_000_000n,
+  rateVndPerUsd: "26150",
 };
 
 /** The day relative dates are counted from, as the API would answer it. */
@@ -330,6 +332,13 @@ describe("fieldsFrom", () => {
 
     expect(fields.reducedVatToBound).toBe(false);
     expect(fields.reducedVatTo).toBe("");
+  });
+
+  it("carries the currency rate as the decimal text it already is", () => {
+    // `numeric` answers as a string, so this is the one figure `fieldsFrom`
+    // does not stringify — unlike the đồng amounts above, which arrive as
+    // `bigint`.
+    expect(fieldsFrom(PROPERTY).rateVndPerUsd).toBe("26150");
   });
 });
 
@@ -610,6 +619,34 @@ describe("configEdit — refusals the operator can act on", () => {
       tierGoldRevenueVnd: "30000000",
     });
   });
+
+  it("sends the currency rate as the decimal text the contract takes", () => {
+    expect(sent({ rateVndPerUsd: "24680.5" })).toEqual({
+      rateVndPerUsd: "24680.5",
+    });
+  });
+
+  it("does not read the currency rate as changed when it is only retyped the same", () => {
+    expect(attempt({ rateVndPerUsd: "26150" })).toEqual({ unchanged: true });
+  });
+
+  it("refuses a currency rate of nothing, which converts nothing", () => {
+    expect(refusal({ rateVndPerUsd: "0" })).toContain(
+      "the đồng-per-dollar rate",
+    );
+  });
+
+  it("refuses a currency rate that runs backwards", () => {
+    expect(refusal({ rateVndPerUsd: "-100" })).toContain(
+      "the đồng-per-dollar rate",
+    );
+  });
+
+  it("refuses a currency rate typed in a shape the contract cannot read", () => {
+    expect(refusal({ rateVndPerUsd: "twenty-six thousand" })).toContain(
+      "the đồng-per-dollar rate",
+    );
+  });
 });
 
 // ── Rendering a figure without becoming its storage model ────────────────────
@@ -657,6 +694,26 @@ describe("dongLabel", () => {
   });
 });
 
+describe("fxRateLabel", () => {
+  it("reads a decimal rate the way the property reads it", () => {
+    expect(fxRateLabel("26150")).toBe("26.150 đồng per US$1");
+    expect(fxRateLabel("24680.5")).toBe("24.680,5 đồng per US$1");
+  });
+
+  it("says nothing about a rate of nothing or one that runs backwards", () => {
+    // Display only, so this echo declines the figure the database and the
+    // contract both refuse, rather than rendering "0 đồng per US$1" as though
+    // it were a coherent answer.
+    expect(fxRateLabel("0")).toBeNull();
+    expect(fxRateLabel("-100")).toBeNull();
+  });
+
+  it("says nothing about text that is not a rate at all", () => {
+    expect(fxRateLabel("")).toBeNull();
+    expect(fxRateLabel("twenty-six thousand")).toBeNull();
+  });
+});
+
 describe("configFingerprint — the row the form was seeded from", () => {
   it("is the same string for a read that answered with the same row", () => {
     // The ordinary refetch. `lib/query-client.ts` re-asks on window focus and a
@@ -667,7 +724,7 @@ describe("configFingerprint — the row the form was seeded from", () => {
     );
   });
 
-  it("changes when any one of the thirteen figures moves", () => {
+  it("changes when any one of the fourteen figures moves", () => {
     const moved: Partial<SystemConfiguration>[] = [
       { standardVatRateBps: 1200 },
       { reducedVatRateBps: 500 },
@@ -682,6 +739,7 @@ describe("configFingerprint — the row the form was seeded from", () => {
       { tierSilverRevenueVnd: 35_000_000n },
       { tierGoldStays: 9 },
       { tierGoldRevenueVnd: 90_000_000n },
+      { rateVndPerUsd: "24680.5" },
     ];
 
     for (const one of moved) {

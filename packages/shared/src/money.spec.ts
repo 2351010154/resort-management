@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  convertPresentmentToVnd,
+  convertVndToPresentment,
+  formatPresentment,
   formatVnd,
   formatVndThousands,
+  fxRateSchema,
   PROPERTY_CURRENCY,
   roundVndForDisplay,
   splitVnd,
@@ -148,5 +152,78 @@ describe("splitting an amount from its mark", () => {
 
     expect(amount).toContain("-");
     expect(currency).toBe("₫");
+  });
+});
+
+describe("what a foreign gateway charged", () => {
+  const RATE = "26150";
+
+  it("converts đồng to cents, rounding once at the end", () => {
+    // 1,850,000 ₫ ÷ 26,150 = 70.7457… dollars → 7,075 cents.
+    expect(convertVndToPresentment(1_850_000n, "USD", RATE).minorUnits).toBe(
+      7_075n,
+    );
+  });
+
+  it("rounds half up rather than toward zero", () => {
+    // A rate chosen so the quotient lands exactly on a half cent.
+    expect(convertVndToPresentment(3n, "USD", "2").minorUnits).toBe(150n);
+    expect(convertVndToPresentment(1n, "USD", "8").minorUnits).toBe(13n);
+  });
+
+  it("carries a fractional rate exactly", () => {
+    // The digits after the point are the whole point of the text form — a
+    // double would land a cent away on a stay this size.
+    const { minorUnits } = convertVndToPresentment(
+      50_000_000n,
+      "USD",
+      "26150.75",
+    );
+
+    expect(minorUnits).toBe(191_199n);
+  });
+
+  it("freezes the rate it was given", () => {
+    expect(convertVndToPresentment(1_850_000n, "USD", RATE).rate).toBe(RATE);
+  });
+
+  it("refuses an amount nobody can be charged", () => {
+    expect(() => convertVndToPresentment(0n, "USD", RATE)).toThrow(RangeError);
+    expect(() => convertVndToPresentment(-1_000n, "USD", RATE)).toThrow(
+      RangeError,
+    );
+  });
+
+  // A đồng is worth well under a cent, so a small enough charge converts to
+  // nothing at all. Refused rather than sent as a zero-dollar order.
+  it("refuses an amount that converts to nothing", () => {
+    expect(() => convertVndToPresentment(100n, "USD", "1000000")).toThrow(
+      RangeError,
+    );
+  });
+
+  it("converts back at the frozen rate", () => {
+    const presentment = convertVndToPresentment(1_850_000n, "USD", RATE);
+
+    // Not the amount it started from, and deliberately so: a cent is coarser
+    // than a đồng, so the round trip lands within one cent's worth. That gap is
+    // the tolerance reconciliation has to state rather than discover.
+    expect(convertPresentmentToVnd(presentment)).toBe(1_850_113n);
+  });
+
+  it("refuses a rate that converts nothing", () => {
+    expect(fxRateSchema.safeParse("0").success).toBe(false);
+    expect(fxRateSchema.safeParse("-26150").success).toBe(false);
+    expect(fxRateSchema.safeParse("twenty").success).toBe(false);
+  });
+
+  it("accepts a rate with a fraction", () => {
+    expect(fxRateSchema.parse("26150.75")).toBe("26150.75");
+  });
+
+  it("formats what the payer will approve", () => {
+    expect(
+      formatPresentment({ currency: "USD", minorUnits: 7_075n, rate: RATE }),
+    ).toBe("$70.75");
   });
 });

@@ -181,6 +181,42 @@ export const envSchema = z.object({
   // a variable rather than a refund.
   VNPAY_SANDBOX: z.stringbool().default(true),
 
+  // PayPal's half of `FR-PAY-01`'s two implementations — the client credentials
+  // its SDK signs with, and the id of the webhook whose deliveries this property
+  // asks PayPal to verify. `config.ts` says why none of the three is in
+  // `system_config`: a secret in a table an `ADMIN` screen reads has a wider
+  // audience than the process that uses it. The rate those payments are
+  // converted at *is* in that table, and the split is deliberate — a credential
+  // is a secret and a rate is a figure the property owns and edits.
+  //
+  // Optional, and stopped by the same people a mandatory terminal code would
+  // stop: the credentials come out of PayPal merchant onboarding, so requiring
+  // them would mean no developer and no CI runner could start the API to run the
+  // housekeeping suite or the seed. Unset, the API boots and every PayPal call
+  // fails naming all three — `paypal.adapter.ts` builds its client on first use
+  // for exactly that, and `ports/gateway-registry.ts` makes the same trade from
+  // the other end for a method with no adapter bound to it.
+  //
+  // The webhook id sits with the two credentials rather than apart from them
+  // because it is required in the same breath: `FR-PAY-02` forbids a hand-rolled
+  // signature check, so verification is a call to PayPal naming this id, and a
+  // deployment that could open an order but not verify what PayPal then said
+  // about it would take payments it refused to believe in. The refine below is
+  // where that is enforced — all three or none, so a deployment can never open
+  // orders it has no way to confirm.
+  PAYPAL_CLIENT_ID: z.string().min(1).optional(),
+  PAYPAL_CLIENT_SECRET: z.string().min(1).optional(),
+  PAYPAL_WEBHOOK_ID: z.string().min(1).optional(),
+
+  // Which PayPal the adapter talks to, and it decides two things rather than
+  // one: where the orders and payments calls go, and where the webhook is
+  // verified. Sandbox by default, for `VNPAY_SANDBOX`'s reason — the wrong value
+  // is only safe in one direction, and a staging deploy pointing at production
+  // takes real money from whoever is testing it. Required false in production
+  // once a client id is configured, by the refine below — a sandbox client
+  // signs and answers exactly as the live one does.
+  PAYPAL_SANDBOX: z.stringbool().default(true),
+
   // The hour the business date rolls over, in the property's own zone —
   // docs/architecture/property-and-tariff.md §2. 04:00 by default, which is when
   // the night audit runs and closes the date that just ended.
@@ -502,6 +538,54 @@ export const envSchema = z.object({
       path: ["OPS_ALERT_WEBHOOK_URL"],
       message:
         "is required in production once VNPAY_TMN_CODE is set — gateway money moves daily and a discrepancy nobody is paged about is one nobody finds",
+    },
+  )
+  // PayPal's trio, all-or-nothing. Unlike VNPay's pair this is three fields
+  // and not two, but it is still one rule rather than two: the webhook id is
+  // required exactly when the other two are, because `FR-PAY-02` forbids a
+  // hand-rolled signature check, so verification is a call to PayPal naming
+  // this id. A deployment holding the client credentials but not the webhook
+  // id could open an order and never confirm what PayPal then said about it —
+  // accepting every callback it receives, or none, and unable to tell which
+  // from the boot log — so that state is refused here rather than left to be
+  // discovered from a payment that never posted.
+  .refine(
+    (env) => {
+      const set = [
+        env.PAYPAL_CLIENT_ID,
+        env.PAYPAL_CLIENT_SECRET,
+        env.PAYPAL_WEBHOOK_ID,
+      ].filter(Boolean).length;
+
+      return set === 0 || set === 3;
+    },
+    {
+      path: ["PAYPAL_WEBHOOK_ID"],
+      message:
+        "PAYPAL_CLIENT_ID, PAYPAL_CLIENT_SECRET and PAYPAL_WEBHOOK_ID are set together, or none of them is",
+    },
+  )
+  // A PayPal client that cannot take money, in the one environment where the
+  // money is a guest's. The sandbox signs and answers exactly as the live
+  // gateway does, so nothing downstream can tell them apart: the order
+  // captures, the webhook verifies, the folio settles and the booking
+  // confirms — against a transaction PayPal never actually moved money for.
+  // The property learns about it from its own bank statement, days later,
+  // with the room already slept in.
+  //
+  // Conditional on the client id for the same reason the VNPay check is: a
+  // production deploy with no PayPal credentials at all still boots, because
+  // the default above is sandbox and refusing it there would refuse every
+  // deploy that has not onboarded PayPal.
+  .refine(
+    (env) =>
+      env.NODE_ENV !== "production" ||
+      !env.PAYPAL_CLIENT_ID ||
+      env.PAYPAL_SANDBOX === false,
+    {
+      path: ["PAYPAL_SANDBOX"],
+      message:
+        "must be false in production once PAYPAL_CLIENT_ID is set — a sandbox client signs and answers exactly as the live one does, so a room is sold for money that never moved",
     },
   )
   // The money figures, each refused separately so the message names the one

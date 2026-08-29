@@ -1,5 +1,9 @@
 # Runbook — flipping VNPay to production credentials (gate `G2`)
 
+PayPal is the second gateway behind the same gate — see
+[`g2-production-paypal.md`](g2-production-paypal.md) for its own flip; the two
+runbooks do not repeat each other.
+
 The commit that switches VNPay from sandbox to live credentials is gate `G2`.
 Its six items and the reasoning behind them are stated once, in
 [`../architecture/infrastructure.md`](../architecture/infrastructure.md)

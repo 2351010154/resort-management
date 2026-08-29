@@ -91,6 +91,17 @@ const SEEDED_BY_THE_COLUMNS = {
   tierSilverRevenueVnd: 15_000_000n,
   tierGoldStays: 4,
   tierGoldRevenueVnd: 40_000_000n,
+  // Đồng per dollar, for whatever collects money in a currency the property
+  // does not keep its books in. It belongs to this half of the expectation for
+  // the same reason the loyalty figures do: it is not a tax rate §8 forbids the
+  // tree from carrying, it is a figure this repository proposes until the owner
+  // sets their own — and before real money moves through a foreign gateway,
+  // they must.
+  //
+  // Text and not a number, because the column is `numeric` and the rate is the
+  // one fraction in the payment path; `money.ts` argues why a double is not
+  // allowed to hold it.
+  rateVndPerUsd: "26150",
 } as const;
 
 /**

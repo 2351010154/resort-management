@@ -140,7 +140,25 @@ describe("what the table refuses to know", () => {
 
 describe("the two vocabularies", () => {
   it("offers a method for each way money reaches the property", () => {
-    expect(PAYMENT_METHODS).toEqual(["VNPAY", "CASH", "BANK_TRANSFER"]);
+    expect(PAYMENT_METHODS).toEqual([
+      "VNPAY",
+      "PAYPAL",
+      "CASH",
+      "BANK_TRANSFER",
+    ]);
+  });
+
+  // `FR-PAY-01` caps the property at two gateway implementations behind one
+  // port, and both slots are now taken. This is not a style assertion: a third
+  // member added here without reopening that cap is a third adapter, a third
+  // set of credentials and a third report to reconcile, arriving without the
+  // decision that should have preceded it.
+  it("holds exactly the two gateways the port has room for", () => {
+    const gateways = PAYMENT_METHODS.filter(
+      (method) => method !== "CASH" && method !== "BANK_TRANSFER",
+    );
+
+    expect(gateways).toEqual(["VNPAY", "PAYPAL"]);
   });
 
   it("keeps a refused payment rather than deleting it", () => {
