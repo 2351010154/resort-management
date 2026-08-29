@@ -63,7 +63,10 @@ import { VnpayAdapter } from "./vnpay.adapter.js";
 // `LOOK_BACK_DAYS` unreconciled, VNPay's money with it.
 //
 // So the property collects through PayPal from the deploy that sets the three
-// variables — `docs/runbooks/g2-production-paypal.md` step 8 — and not before.
+// variables — the "Set the production app credentials" step of
+// `docs/runbooks/g2-production-paypal.md` — and not before. Named rather than
+// numbered: a step inserted ahead of it renumbers the list and would leave this
+// sentence pointing at somebody else's instruction.
 // `paypal.adapter.ts` exports the predicate rather than this file spelling the
 // three names, so what "configured" means is decided where the client is built.
 //
@@ -216,7 +219,8 @@ import { VnpayAdapter } from "./vnpay.adapter.js";
       // its night from attempts, and an unconfigured terminal has none.
       //
       // So the property collects through PayPal from the deploy that sets the
-      // three variables — `g2-production-paypal.md` step 8 — and not before.
+      // three variables — `g2-production-paypal.md`, "Set the production app
+      // credentials" — and not before.
       useFactory: (env: Env, vnpay: VnpayAdapter, paypal: PaypalAdapter) =>
         new GatewayRegistry({
           VNPAY: vnpay,
