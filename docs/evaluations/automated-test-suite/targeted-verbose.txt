@@ -1,0 +1,87 @@
+
+ RUN  v4.1.10 C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/apps/api
+
+ ✓ test/booking-race.e2e-spec.ts > the last Deluxe of a night, over HTTP > goes to exactly one of fifty simultaneous requests 207ms
+ ✓ test/booking-race.e2e-spec.ts > the last Deluxe of a night, over HTTP > leaves the property's books reading exactly what it owns 3ms
+ ✓ test/booking-race.e2e-spec.ts > the last Deluxe of a night, over HTTP > leaves the night after it alone 1ms
+ ✓ test/inventory-reservation.e2e-spec.ts > the last room of a type > goes to exactly one of fifty simultaneous requests 71ms
+ ✓ test/inventory-reservation.e2e-spec.ts > the last room of a type > leaves the night after it alone 1ms
+ ✓ test/inventory-reservation.e2e-spec.ts > a stay the property cannot sell in full > is refused, and leaves every night of it untouched 11ms
+ ✓ test/inventory-reservation.e2e-spec.ts > a stay across nights the property has not opened > is refused rather than sold across a calendar that does not exist 4ms
+ ✓ test/inventory-reservation.e2e-spec.ts > a stay that is sold > consumes one room on each of its nights 5ms
+ ✓ test/inventory-reservation.e2e-spec.ts > a stay that is sold > gives the nights back when it is released 4ms
+ ✓ test/inventory-reservation.e2e-spec.ts > a stay that is sold > refuses a release of nights nobody sold 3ms
+ ✓ test/inventory-reservation.e2e-spec.ts > simultaneous multi-night stays > sell exactly what the tightest night had left 25ms
+ ✓ test/inventory-reservation.e2e-spec.ts > requests that are not about inventory at all > refuses a stay of no nights 1ms
+ ✓ test/inventory-reservation.e2e-spec.ts > requests that are not about inventory at all > refuses a stay that ends before it begins 1ms
+ ✓ test/payment-reconciliation-api.e2e-spec.ts > the capability the two reconciliation routes declare > refuses HOUSEKEEPING on both 15ms
+ ✓ test/payment-reconciliation-api.e2e-spec.ts > the capability the two reconciliation routes declare > refuses RECEPTIONIST on both 9ms
+ ✓ test/payment-reconciliation-api.e2e-spec.ts > the capability the two reconciliation routes declare > admits ACCOUNTANT on both 22ms
+ ✓ test/payment-reconciliation-api.e2e-spec.ts > the capability the two reconciliation routes declare > admits MANAGER on both 13ms
+ ✓ test/payment-reconciliation-api.e2e-spec.ts > the capability the two reconciliation routes declare > admits ADMIN on both 15ms
+ ✓ test/payment-reconciliation-api.e2e-spec.ts > the capability the two reconciliation routes declare > sits under the section the folio rows sit under 0ms
+ ✓ test/payment-reconciliation-api.e2e-spec.ts > the capability the two reconciliation routes declare > refuses a stranger holding no session 14ms
+ ✓ test/payment-reconciliation-api.e2e-spec.ts > the nights that were looked at > lists every run newest first, counting what each one found 9ms
+ ✓ test/payment-reconciliation-api.e2e-spec.ts > the nights that were looked at > keeps the clean night on the list, saying it was looked at and found nothing 8ms
+ ✓ test/payment-reconciliation-api.e2e-spec.ts > the nights that were looked at > names no night the sweep has not reached 8ms
+ ✓ test/payment-reconciliation-api.e2e-spec.ts > the nights that were looked at > filters on the business date, both ends included 8ms
+ ✓ test/payment-reconciliation-api.e2e-spec.ts > the nights that were looked at > takes either end on its own 16ms
+ ✓ test/payment-reconciliation-api.e2e-spec.ts > the nights that were looked at > answers a range with nothing in it with an empty list rather than a refusal 7ms
+ ✓ test/payment-reconciliation-api.e2e-spec.ts > the nights that were looked at > caps a range wider than the ceiling and says on the answer that it did 29ms
+ ✓ test/payment-reconciliation-api.e2e-spec.ts > the nights that were looked at > refuses a range that ends before it starts 5ms
+ ✓ test/payment-reconciliation-api.e2e-spec.ts > the nights that were looked at > refuses a date that is not one 4ms
+ ✓ test/payment-reconciliation-api.e2e-spec.ts > one night in full > hands over both figures and the payment somebody has to look at 8ms
+ ✓ test/payment-reconciliation-api.e2e-spec.ts > one night in full > hands over money the gateway's report is silent about 8ms
+ ✓ test/payment-reconciliation-api.e2e-spec.ts > one night in full > answers a night that agreed with an empty list and the moment it was checked 9ms
+ ✓ test/payment-reconciliation-api.e2e-spec.ts > one night in full > refuses a night nobody has reconciled, rather than reporting it clean 7ms
+ ✓ test/payment-reconciliation-api.e2e-spec.ts > one night in full > refuses a date that is not one 7ms
+ ✓ test/payment-reconciliation-sweep.e2e-spec.ts > money the gateway took that never reached an account > is written down and pages the on-call endpoint over the wire 56ms
+ ✓ test/payment-reconciliation-sweep.e2e-spec.ts > money the gateway took that never reached an account > pages once, however often the night is reconciled again 36ms
+ ✓ test/payment-reconciliation-sweep.e2e-spec.ts > a night the two reports agree on > is recorded as looked at, and wakes nobody 32ms
+ ✓ test/payment-reconciliation-sweep.e2e-spec.ts > two figures that disagree > names both, and says which side said which 30ms
+ ✓ test/payment-reconciliation-sweep.e2e-spec.ts > the day the property is still having > is not reconciled, and its attempts are not even asked about 28ms
+ ✓ test/payment-reconciliation-sweep.e2e-spec.ts > a gateway that cannot be reached > leaves the night outstanding rather than filing every payment as missing 30ms
+ ✓ test/payment-reconciliation-sweep.e2e-spec.ts > the sweep itself > is registered on the scheduler, under a cron it can be found by 291ms
+ ✓ src/modules/payment/reconciliation.job.spec.ts > the sentence a discrepancy pages with > names the gateway's figure when the money never reached an account 2ms
+ ✓ src/modules/payment/reconciliation.job.spec.ts > the sentence a discrepancy pages with > names the ledger's figure when the gateway does not report the money 0ms
+ ✓ src/modules/payment/reconciliation.job.spec.ts > the sentence a discrepancy pages with > names both figures when the two disagree, and attributes each 0ms
+ ✓ src/modules/payment/reconciliation.job.spec.ts > a rollover hour an ADMIN moves while the sweep is running > does not put the two sides of one night on two day boundaries 3ms
+ ✓ src/modules/payment/reconciliation.job.spec.ts > a rollover hour an ADMIN moves while the sweep is running > holds that same payment against the gateway's figure for that night 1ms
+ ✓ src/modules/payment/reconciliation.job.spec.ts > a night with money from both of the property's gateways > reconciles clean when both gateways agree with the ledger 1ms
+ ✓ src/modules/payment/reconciliation.job.spec.ts > a night with money from both of the property's gateways > pages a PayPal settlement short by one cent, and the alert names the payment 1ms
+ ✓ src/modules/payment/reconciliation.job.spec.ts > a night with money from both of the property's gateways > asks a gateway that implements settledBetween once for the window, never per attempt 0ms
+ ✓ src/modules/payment/reconciliation.job.spec.ts > a night with money from both of the property's gateways > asks a reporting gateway through itself, so an adapter reaching for its own client still has one 1ms
+ ✓ src/modules/payment/reconciliation.job.spec.ts > a night with money from both of the property's gateways > reconstructs a gateway with no settledBetween attempt by attempt, asking only about its own method's attempts 0ms
+ ✓ src/modules/payment/reconciliation.job.spec.ts > a night the sweep cannot finish > reconciles the rest of the tick when one date throws 1ms
+ ✓ src/modules/payment/reconciliation.job.spec.ts > a night the sweep cannot finish > leaves the failed date outstanding, so the next tick tries it again 0ms
+ ✓ src/modules/payment/reconciliation.job.spec.ts > a night the sweep cannot finish > pages about the date it could not finish, and says which one 0ms
+ ✓ src/modules/payment/reconciliation.job.spec.ts > a night the sweep cannot finish > pages once about the failed date, whatever the runner does with the sweep 0ms
+ ✓ src/modules/payment/reconciliation.service.spec.ts > an attempt both reports agree on > is matched, and matched is not a row 3ms
+ ✓ src/modules/payment/reconciliation.service.spec.ts > money the gateway took that never reached an account > is missing locally, and names no payment because there is none 0ms
+ ✓ src/modules/payment/reconciliation.service.spec.ts > a payment the gateway's report does not account for > is missing at the gateway, and names the row somebody has to look at 0ms
+ ✓ src/modules/payment/reconciliation.service.spec.ts > a payment the gateway's report does not account for > is the same answer when the report names the attempt and refuses it 0ms
+ ✓ src/modules/payment/reconciliation.service.spec.ts > a payment the gateway's report does not account for > and a refusal this property never recorded is not a discrepancy at all 0ms
+ ✓ src/modules/payment/reconciliation.service.spec.ts > two reports that disagree about the figure > is an amount mismatch carrying both, to the đồng 0ms
+ ✓ src/modules/payment/reconciliation.service.spec.ts > a report this property cannot reconcile against > naming one attempt twice is refused rather than resolved 1ms
+ ✓ src/modules/payment/reconciliation.service.spec.ts > a report this property cannot reconcile against > naming an amount that is not money is refused at the boundary 0ms
+ ✓ src/modules/payment/reconciliation.service.spec.ts > the day written down > files one row per disagreement and nothing for the agreement 1ms
+ ✓ src/modules/payment/reconciliation.service.spec.ts > the day written down > writes nothing the second time, while still saying what it found 1ms
+ ✓ src/modules/payment/reconciliation.service.spec.ts > which payments belong to the trading day > takes the ones the property's own clock puts in it, not the calendar's 0ms
+ ✓ src/database/schema/reconciliation.spec.ts > the daily key > is unique, so one attempt on one date is one row however often the comparison runs 1ms
+ ✓ src/database/schema/reconciliation.spec.ts > the daily key > is not partial, because there is no row it is allowed to skip 0ms
+ ✓ src/database/schema/reconciliation.spec.ts > the daily key > keys on the property's own name for the attempt 0ms
+ ✓ src/database/schema/reconciliation.spec.ts > the trading day > is a date and not an instant 0ms
+ ✓ src/database/schema/reconciliation.spec.ts > the two figures > are whole đồng handed back as the integers that went in 0ms
+ ✓ src/database/schema/reconciliation.spec.ts > the two figures > are nullable, because a disagreement is one-sided half the time 0ms
+ ✓ src/database/schema/reconciliation.spec.ts > the two figures > carry no zero and no sign 1ms
+ ✓ src/database/schema/reconciliation.spec.ts > the classification > offers one member per way the two reports can disagree 0ms
+ ✓ src/database/schema/reconciliation.spec.ts > the classification > has no member for an agreement, because an agreement is not a row 0ms
+ ✓ src/database/schema/reconciliation.spec.ts > the classification > is held to the columns it describes 0ms
+ ✓ src/database/schema/reconciliation.spec.ts > what the table refuses to know > names no gateway field, so nothing gateway-shaped reaches a reader 0ms
+ ✓ src/database/schema/reconciliation.spec.ts > what the table refuses to know > records no resolution, because nothing resolves one yet 0ms
+
+ Test Files  7 passed (7)
+      Tests  78 passed (78)
+   Start at  13:56:56
+   Duration  20.35s (transform 2.11s, setup 0ms, import 15.00s, tests 3.90s, environment 0ms)
+

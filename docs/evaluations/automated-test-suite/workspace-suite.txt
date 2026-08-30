@@ -1,0 +1,464 @@
+• turbo 2.10.7
+
+   • Packages in scope: @mariva/admin, @mariva/api, @mariva/api-client, @mariva/shared, @mariva/tokens, @mariva/web
+   • Running test in 6 packages
+   • Remote caching disabled, using shared worktree cache
+
+@mariva/shared:test: cache bypass, force executing c529c769c0b45788
+@mariva/shared:build: cache bypass, force executing 5c2e9e9c20eeb93e
+@mariva/shared:test: $ vitest run
+@mariva/shared:build: $ tsc
+@mariva/shared:test: 
+@mariva/shared:test:  RUN  v4.1.10 C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/packages/shared
+@mariva/shared:test: 
+@mariva/shared:test:  ✓ src/money.spec.ts (29 tests) 17ms
+@mariva/shared:test:  ✓ src/stay-date.spec.ts (14 tests) 23ms
+@mariva/shared:test:  ✓ src/contract/audit.spec.ts (15 tests) 8ms
+@mariva/shared:test:  ✓ src/contract/guest.spec.ts (17 tests) 15ms
+@mariva/shared:test:  ✓ src/stay-quote.spec.ts (15 tests) 6ms
+@mariva/shared:test:  ✓ src/extra-bed.spec.ts (4 tests) 4ms
+@mariva/shared:test:  ✓ src/occupancy-pricing.spec.ts (15 tests) 4ms
+@mariva/shared:test:  ✓ src/wire-money.spec.ts (17 tests) 7ms
+@mariva/shared:test:  ✓ src/contract/operations.spec.ts (23 tests) 10ms
+@mariva/shared:test:  ✓ src/contract/availability.spec.ts (6 tests) 7ms
+@mariva/shared:test:  ✓ src/contract/inventory.spec.ts (3 tests) 6ms
+@mariva/shared:test:  ✓ src/contract/payment.spec.ts (2 tests) 6ms
+@mariva/shared:test:  ✓ src/contract/folio.spec.ts (6 tests) 5ms
+@mariva/shared:test:  ✓ src/contract/booking.spec.ts (7 tests) 6ms
+@mariva/shared:test:  ✓ src/contract/reporting.spec.ts (10 tests) 7ms
+@mariva/shared:test: 
+@mariva/shared:test:  Test Files  15 passed (15)
+@mariva/shared:test:       Tests  183 passed (183)
+@mariva/shared:test:    Start at  13:40:46
+@mariva/shared:test:    Duration  666ms (transform 1.07s, setup 0ms, import 4.19s, tests 131ms, environment 1ms)
+@mariva/shared:test: 
+@mariva/api:test: cache bypass, force executing 36d60cf6317fe764
+@mariva/api-client:build: cache bypass, force executing 5adf1292bad8bd80
+@mariva/api:test: $ vitest run
+@mariva/api-client:build: $ tsc
+@mariva/admin:test: cache bypass, force executing f7d62b639043aa8c
+@mariva/web:test: cache bypass, force executing d08cb869a3ddff98
+@mariva/api:test: 
+@mariva/api:test:  RUN  v4.1.10 C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/apps/api
+@mariva/api:test:       Coverage enabled with v8
+@mariva/api:test: 
+@mariva/admin:test: $ vitest run
+@mariva/web:test: $ vitest run
+@mariva/admin:test: 
+@mariva/admin:test:  RUN  v4.1.10 C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/apps/admin
+@mariva/admin:test: 
+@mariva/web:test: 
+@mariva/web:test:  RUN  v4.1.10 C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/apps/web
+@mariva/web:test: 
+@mariva/web:test:  ✓ scripts/route-params.spec.ts (16 tests) 6ms
+@mariva/web:test:  ✓ features/booking/lib/payment-choice.spec.ts (13 tests) 8ms
+@mariva/web:test:  ✓ scripts/banned-animation-markers.spec.ts (11 tests) 5ms
+@mariva/web:test:  ✓ features/account/lib/stay-history.spec.ts (14 tests) 5ms
+@mariva/web:test:  ✓ features/account/lib/profile-edits.spec.ts (11 tests) 5ms
+@mariva/web:test:  ✓ features/booking/components/stay-cancellation/cancellation-price.spec.ts (8 tests) 7ms
+@mariva/web:test:  ✓ features/auth/lib/guest-session.spec.ts (4 tests) 30ms
+@mariva/web:test:  ✓ features/booking/components/details-screen/presentment-rate.spec.ts (4 tests) 21ms
+@mariva/admin:test:  ✓ lib/auth/staff-session-store.spec.ts (13 tests) 17ms
+@mariva/admin:test:  ✓ lib/date-parser.spec.ts (21 tests) 10ms
+@mariva/admin:test:  ✓ features/console-route-coverage.spec.ts (8 tests) 14ms
+@mariva/admin:test:  ✓ lib/keyboard/chord.spec.ts (14 tests) 10ms
+@mariva/admin:test:  ✓ lib/keyboard/roving-geometry.spec.ts (15 tests) 8ms
+@mariva/admin:test:  ✓ lib/auth/staff-session.spec.ts (7 tests) 139ms
+@mariva/admin:test:  ✓ features/command-palette/command.spec.ts (9 tests) 8ms
+@mariva/admin:test:  ✓ lib/keyboard/hotkey-registry.spec.ts (22 tests) 13ms
+@mariva/admin:test:  ✓ features/housekeeping/housekeeping-board.spec.ts (17 tests) 13ms
+@mariva/admin:test:  ✓ features/command-palette/shortcut.spec.ts (8 tests) 4ms
+@mariva/admin:test:  ✓ lib/submission-gate.spec.ts (1 test) 4ms
+@mariva/web:test:  ✓ features/booking/lib/room-absence.spec.ts (5 tests) 4ms
+@mariva/web:test:  ✓ features/booking/lib/room-facts.spec.ts (6 tests) 10ms
+@mariva/web:test:  ✓ features/booking/lib/remembered-stay.spec.ts (14 tests) 8ms
+@mariva/web:test:  ✓ features/booking/lib/availability.spec.ts (8 tests) 12ms
+@mariva/web:test:  ✓ features/booking/lib/stay-quote.spec.ts (10 tests) 8ms
+@mariva/web:test:  ✓ features/booking/lib/booking-search.spec.ts (27 tests) 19ms
+@mariva/web:test:  ✓ features/booking/components/stay-calendar/stay-availability.spec.ts (20 tests) 9ms
+@mariva/web:test:  ✓ features/auth/lib/sign-in.spec.ts (10 tests) 4ms
+@mariva/web:test:  ✓ features/booking/lib/room-images.spec.ts (9 tests) 52ms
+@mariva/web:test:  ✓ features/auth/lib/guest-auth.spec.ts (7 tests) 24ms
+@mariva/web:test:  ✓ features/booking/lib/stay-funnel.spec.ts (27 tests) 35ms
+@mariva/web:test:  ✓ lib/booking-links.spec.ts (33 tests) 111ms
+@mariva/web:test: 
+@mariva/web:test:  Test Files  20 passed (20)
+@mariva/web:test:       Tests  257 passed (257)
+@mariva/web:test:    Start at  13:40:50
+@mariva/web:test:    Duration  1.88s (transform 6.66s, setup 0ms, import 13.39s, tests 385ms, environment 3ms)
+@mariva/web:test: 
+@mariva/admin:test:  ✓ features/folios/folio-actions.spec.ts (4 tests) 6ms
+@mariva/admin:test:  ✓ features/payments/refund-actions.spec.ts (2 tests) 5ms
+@mariva/admin:test:  ✓ features/arrivals/document-transcription.spec.ts (8 tests) 8ms
+@mariva/admin:test:  ✓ features/audit/change-log.spec.ts (26 tests) 13ms
+@mariva/admin:test:  ✓ components/charts/bar-band-scale.spec.ts (9 tests) 7ms
+@mariva/admin:test:  ✓ features/guests/guest-record.spec.ts (17 tests) 13ms
+@mariva/admin:test:  ✓ features/rooms/room-list.spec.ts (28 tests) 15ms
+@mariva/admin:test:  ✓ lib/desk-payment.spec.ts (14 tests) 8ms
+@mariva/admin:test:  ✓ features/arrivals/arrival-queue.spec.ts (34 tests) 10ms
+@mariva/admin:test:  ✓ lib/auth/landing-route.spec.ts (9 tests) 5ms
+@mariva/admin:test:  ✓ features/departures/departure-queue.spec.ts (28 tests) 11ms
+@mariva/admin:test:  ✓ features/bookings/booking-actions.spec.ts (9 tests) 6ms
+@mariva/admin:test:  ✓ features/housekeeping/board-queries.spec.ts (4 tests) 5ms
+@mariva/admin:test:  ✓ lib/api.spec.ts (9 tests) 8ms
+@mariva/admin:test:  ✓ features/shell/nav-inventory.spec.ts (14 tests) 11ms
+@mariva/admin:test:  ✓ lib/query-client.spec.ts (10 tests) 12ms
+@mariva/admin:test:  ✓ features/dashboard/day-counts.spec.ts (29 tests) 13ms
+@mariva/admin:test:  ✓ features/folios/folio-ledger.spec.ts (30 tests) 15ms
+@mariva/admin:test:  ✓ features/finance/cash-book.spec.ts (31 tests) 13ms
+@mariva/admin:test:  ✓ features/shifts/shift-day.spec.ts (45 tests) 14ms
+@mariva/admin:test:  ✓ features/bookings/booking-search.spec.ts (47 tests) 21ms
+@mariva/admin:test:  ✓ features/payments/payment-day.spec.ts (36 tests) 17ms
+@mariva/admin:test:  ✓ lib/excel-export.spec.ts (9 tests) 4ms
+@mariva/admin:test:  ✓ features/settings/settings-form.spec.ts (78 tests) 24ms
+@mariva/admin:test:  ✓ features/rates/rate-grid.spec.ts (94 tests) 27ms
+@mariva/admin:test:  ✓ features/reports/reports.spec.ts (32 tests) 9ms
+@mariva/admin:test: 
+@mariva/admin:test:  Test Files  37 passed (37)
+@mariva/admin:test:       Tests  791 passed (791)
+@mariva/admin:test:    Start at  13:40:50
+@mariva/admin:test:    Duration  2.30s (transform 17.21s, setup 0ms, import 36.83s, tests 539ms, environment 5ms)
+@mariva/admin:test: 
+@mariva/api:test:  ✓ test/payment-service.e2e-spec.ts (39 tests) 904ms
+@mariva/api:test:  ✓ test/folio-api.e2e-spec.ts (77 tests) 2644ms
+@mariva/api:test: stderr | test/guest-booking-token.e2e-spec.ts > no door tells a caller which addresses have accounts > answers a password reset the same either way
+@mariva/api:test: 2026-08-30T06:41:07.552Z WARN [Better Auth]: Reset Password: User not found
+@mariva/api:test: 
+@mariva/api:test:  ✓ test/guest-booking-token.e2e-spec.ts (37 tests) 3075ms
+@mariva/api:test:  ✓ test/folio-storage.e2e-spec.ts (43 tests) 300ms
+@mariva/api:test:  ✓ src/modules/payment/vnpay.adapter.spec.ts (44 tests) 40ms
+@mariva/api:test:  ✓ test/folio-service.e2e-spec.ts (30 tests) 520ms
+@mariva/api:test:  ✓ test/room-charge-sweep.e2e-spec.ts (22 tests) 3745ms
+@mariva/api:test:      ✓ is registered on the scheduler, under a cron it can be found by  372ms
+@mariva/api:test:  ✓ test/booking-api.e2e-spec.ts (123 tests) 2844ms
+@mariva/api:test:  ✓ test/system-config-api.e2e-spec.ts (42 tests) 1349ms
+@mariva/api:test:  ✓ test/payment-list-api.e2e-spec.ts (27 tests) 1283ms
+@mariva/api:test:  ✓ test/operations/cash-book-api.e2e-spec.ts (51 tests) 1086ms
+@mariva/api:test:  ✓ test/payment-api.e2e-spec.ts (26 tests) 1308ms
+@mariva/api:test:  ✓ src/modules/payment/payment.controller.spec.ts (42 tests) 445ms
+@mariva/api:test:  ✓ test/guest-profile.e2e-spec.ts (21 tests) 1985ms
+@mariva/api:test:  ✓ test/operations/shift-api.e2e-spec.ts (60 tests) 1757ms
+@mariva/api:test:      ✓ refuses the cash rather than counting it into a drawer already counted  541ms
+@mariva/api:test:  ✓ test/room-assignment.e2e-spec.ts (32 tests) 2680ms
+@mariva/api:test:  ✓ test/stay-length.e2e-spec.ts (25 tests) 2847ms
+@mariva/api:test: [Nest] 46996  - 08/30/2026, 1:42:08 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test:  ✓ test/folio-integrity.e2e-spec.ts (7 tests) 1200ms
+@mariva/api:test:  ✓ src/modules/payment/paypal.adapter.spec.ts (17 tests) 22ms
+@mariva/api:test:  ✓ src/modules/payment/reconciliation.job.spec.ts (14 tests) 13ms
+@mariva/api:test:  ✓ test/folio-refund-service.e2e-spec.ts (28 tests) 501ms
+@mariva/api:test: [Nest] 640  - 08/30/2026, 1:42:15 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 640  - 08/30/2026, 1:42:15 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 640  - 08/30/2026, 1:42:15 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 640  - 08/30/2026, 1:42:15 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 640  - 08/30/2026, 1:42:15 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 640  - 08/30/2026, 1:42:15 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 640  - 08/30/2026, 1:42:15 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 640  - 08/30/2026, 1:42:16 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 640  - 08/30/2026, 1:42:16 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 640  - 08/30/2026, 1:42:16 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 640  - 08/30/2026, 1:42:16 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 640  - 08/30/2026, 1:42:16 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 640  - 08/30/2026, 1:42:16 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 640  - 08/30/2026, 1:42:16 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test:  ✓ test/loyalty-discount.e2e-spec.ts (16 tests) 2310ms
+@mariva/api:test:  ✓ test/audit/every-change-is-recorded.e2e-spec.ts (16 tests) 1678ms
+@mariva/api:test:  ✓ test/system-config.e2e-spec.ts (31 tests) 534ms
+@mariva/api:test:  ✓ test/no-show.e2e-spec.ts (24 tests) 2633ms
+@mariva/api:test: [Nest] 47008  - 08/30/2026, 1:42:31 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47008  - 08/30/2026, 1:42:31 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47008  - 08/30/2026, 1:42:31 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47008  - 08/30/2026, 1:42:31 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47008  - 08/30/2026, 1:42:31 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47008  - 08/30/2026, 1:42:31 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47008  - 08/30/2026, 1:42:31 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47008  - 08/30/2026, 1:42:31 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47008  - 08/30/2026, 1:42:31 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47008  - 08/30/2026, 1:42:31 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47008  - 08/30/2026, 1:42:31 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47008  - 08/30/2026, 1:42:31 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47008  - 08/30/2026, 1:42:31 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47008  - 08/30/2026, 1:42:31 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47008  - 08/30/2026, 1:42:32 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47008  - 08/30/2026, 1:42:32 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47008  - 08/30/2026, 1:42:32 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47008  - 08/30/2026, 1:42:32 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47008  - 08/30/2026, 1:42:32 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47008  - 08/30/2026, 1:42:32 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47008  - 08/30/2026, 1:42:32 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47008  - 08/30/2026, 1:42:32 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47008  - 08/30/2026, 1:42:32 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47008  - 08/30/2026, 1:42:32 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47008  - 08/30/2026, 1:42:32 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test:  ✓ test/tier-derivation.e2e-spec.ts (19 tests) 1248ms
+@mariva/api:test:  ✓ src/modules/auth/guest/guest-attach.spec.ts (17 tests) 728ms
+@mariva/api:test:  ✓ test/guest-own-booking.e2e-spec.ts (22 tests) 2457ms
+@mariva/api:test:  ✓ test/check-in-out.e2e-spec.ts (28 tests) 2812ms
+@mariva/api:test:  ✓ test/availability.e2e-spec.ts (38 tests) 2548ms
+@mariva/api:test:      ✓ answers a month of the calendar inside 300 ms at p95  376ms
+@mariva/api:test:      ✓ answers a stay search inside 300 ms at p95  375ms
+@mariva/api:test:  ✓ test/hold-expiry.e2e-spec.ts (16 tests) 2338ms
+@mariva/api:test:      ✓ is registered on the scheduler, under a cron it can be found by  361ms
+@mariva/api:test:  ✓ test/tier-recompute-sweep.e2e-spec.ts (15 tests) 5110ms
+@mariva/api:test:      ✓ walks past the end of a page  4451ms
+@mariva/api:test:  ✓ test/operations/shift-service.e2e-spec.ts (22 tests) 1100ms
+@mariva/api:test:      ✓ counts the drawer with the payment in flight inside it  526ms
+@mariva/api:test:  ✓ test/reporting/export-routes.spec.ts (31 tests) 564ms
+@mariva/api:test:  ✓ test/booking-lifecycle.e2e-spec.ts (29 tests) 1029ms
+@mariva/api:test:  ✓ test/folio-list.e2e-spec.ts (35 tests) 2523ms
+@mariva/api:test:  ✓ test/payment-reconciliation-sweep.e2e-spec.ts (7 tests) 630ms
+@mariva/api:test:      ✓ is registered on the scheduler, under a cron it can be found by  315ms
+@mariva/api:test:  ✓ test/guest-api.e2e-spec.ts (35 tests) 1323ms
+@mariva/api:test:  ✓ test/folio-refunds.e2e-spec.ts (25 tests) 2735ms
+@mariva/api:test:  ✓ test/payment-reconciliation-api.e2e-spec.ts (21 tests) 857ms
+@mariva/api:test:  ✓ test/paypal-payments.e2e-spec.ts (11 tests) 539ms
+@mariva/api:test: [Nest] 47208  - 08/30/2026, 1:43:42 PM   ERROR [ExceptionsHandler] ORPCError: PayPal is not configured
+@mariva/api:test:     at C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/apps/api/src/modules/payment/paypal.controller.spec.ts:400:14
+@mariva/api:test:     at file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1889:40
+@mariva/api:test:     at runWithSuite (file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2258:8)
+@mariva/api:test:     at Object.collect (file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1889:10)
+@mariva/api:test:     at Object.collect (file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1893:54)
+@mariva/api:test:     at processTicksAndRejections (node:internal/process/task_queues:103:5)
+@mariva/api:test:     at file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2462:26
+@mariva/api:test:     at collectTests (file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2433:3)
+@mariva/api:test:     at startTests (file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:3278:17)
+@mariva/api:test:     at file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/vitest@4.1.10_@types+node@2_b2dbc2f18822faf4654775824c2af541/node_modules/vitest/dist/chunks/base.B6Opl8PE.js:90:5 {
+@mariva/api:test:   defined: false,
+@mariva/api:test:   code: 'SERVICE_UNAVAILABLE',
+@mariva/api:test:   status: 503,
+@mariva/api:test:   data: undefined
+@mariva/api:test: }
+@mariva/api:test: [Nest] 47208  - 08/30/2026, 1:43:42 PM   ERROR [ExceptionsHandler] ORPCError: PayPal could not be reached to say whether that event is its own
+@mariva/api:test:     at C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/apps/api/src/modules/payment/paypal.controller.spec.ts:407:14
+@mariva/api:test:     at file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1889:40
+@mariva/api:test:     at runWithSuite (file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2258:8)
+@mariva/api:test:     at Object.collect (file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1889:10)
+@mariva/api:test:     at Object.collect (file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1893:54)
+@mariva/api:test:     at processTicksAndRejections (node:internal/process/task_queues:103:5)
+@mariva/api:test:     at file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2462:26
+@mariva/api:test:     at collectTests (file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2433:3)
+@mariva/api:test:     at startTests (file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:3278:17)
+@mariva/api:test:     at file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/vitest@4.1.10_@types+node@2_b2dbc2f18822faf4654775824c2af541/node_modules/vitest/dist/chunks/base.B6Opl8PE.js:90:5 {
+@mariva/api:test:   defined: false,
+@mariva/api:test:   code: 'BAD_GATEWAY',
+@mariva/api:test:   status: 502,
+@mariva/api:test:   data: undefined
+@mariva/api:test: }
+@mariva/api:test: [Nest] 47208  - 08/30/2026, 1:43:42 PM   ERROR [ExceptionsHandler] Error: connection terminated unexpectedly
+@mariva/api:test:     at C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/apps/api/src/modules/payment/paypal.controller.spec.ts:414:14
+@mariva/api:test:     at file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1889:40
+@mariva/api:test:     at runWithSuite (file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2258:8)
+@mariva/api:test:     at Object.collect (file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1889:10)
+@mariva/api:test:     at Object.collect (file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1893:54)
+@mariva/api:test:     at processTicksAndRejections (node:internal/process/task_queues:103:5)
+@mariva/api:test:     at file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2462:26
+@mariva/api:test:     at collectTests (file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2433:3)
+@mariva/api:test:     at startTests (file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:3278:17)
+@mariva/api:test:     at file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/vitest@4.1.10_@types+node@2_b2dbc2f18822faf4654775824c2af541/node_modules/vitest/dist/chunks/base.B6Opl8PE.js:90:5
+@mariva/api:test: [Nest] 47208  - 08/30/2026, 1:43:42 PM   ERROR [ExceptionsHandler] Error: relation "payment" does not exist at character 13
+@mariva/api:test:     at C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/apps/api/src/modules/payment/paypal.controller.spec.ts:437:7
+@mariva/api:test:     at file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+@mariva/api:test:     at file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+@mariva/api:test:     at file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+@mariva/api:test:     at new Promise (<anonymous>)
+@mariva/api:test:     at runWithCancel (file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+@mariva/api:test:     at file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+@mariva/api:test:     at new Promise (<anonymous>)
+@mariva/api:test:     at runWithTimeout (file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)
+@mariva/api:test:     at file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64
+@mariva/api:test: [Nest] 47208  - 08/30/2026, 1:43:42 PM   ERROR [ExceptionsHandler] Error: connection terminated unexpectedly
+@mariva/api:test:     at C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/apps/api/src/modules/payment/paypal.controller.spec.ts:451:33
+@mariva/api:test:     at file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:302:11
+@mariva/api:test:     at file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:1903:26
+@mariva/api:test:     at file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2326:20
+@mariva/api:test:     at new Promise (<anonymous>)
+@mariva/api:test:     at runWithCancel (file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2323:10)
+@mariva/api:test:     at file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2305:20
+@mariva/api:test:     at new Promise (<anonymous>)
+@mariva/api:test:     at runWithTimeout (file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2272:10)
+@mariva/api:test:     at file:///C:/Users/tamla/Downloads/khach-san/.build-workspace/m10-deploy/node_modules/.pnpm/@vitest+runner@4.1.10/node_modules/@vitest/runner/dist/chunk-artifact.js:2955:64
+@mariva/api:test:  ✓ src/modules/payment/paypal.controller.spec.ts (27 tests) 313ms
+@mariva/api:test:  ✓ test/audit/audit-api.e2e-spec.ts (32 tests) 881ms
+@mariva/api:test: [Nest] 47324  - 08/30/2026, 1:43:48 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47324  - 08/30/2026, 1:43:48 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47324  - 08/30/2026, 1:43:48 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47324  - 08/30/2026, 1:43:48 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47324  - 08/30/2026, 1:43:48 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47324  - 08/30/2026, 1:43:48 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47324  - 08/30/2026, 1:43:48 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47324  - 08/30/2026, 1:43:48 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47324  - 08/30/2026, 1:43:48 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47324  - 08/30/2026, 1:43:48 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47324  - 08/30/2026, 1:43:48 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47324  - 08/30/2026, 1:43:48 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47324  - 08/30/2026, 1:43:48 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47324  - 08/30/2026, 1:43:48 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 47324  - 08/30/2026, 1:43:49 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test:  ✓ test/loyalty-accrual.e2e-spec.ts (14 tests) 700ms
+@mariva/api:test:  ✓ src/modules/booking/booking-confirmation.spec.ts (15 tests) 246ms
+@mariva/api:test:  ✓ test/search-api.e2e-spec.ts (33 tests) 1832ms
+@mariva/api:test:  ✓ test/hold-caps.e2e-spec.ts (12 tests) 2599ms
+@mariva/api:test: [Nest] 48396  - 08/30/2026, 1:44:04 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 48396  - 08/30/2026, 1:44:04 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 48396  - 08/30/2026, 1:44:04 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 48396  - 08/30/2026, 1:44:05 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 48396  - 08/30/2026, 1:44:05 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 48396  - 08/30/2026, 1:44:05 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 48396  - 08/30/2026, 1:44:05 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 48396  - 08/30/2026, 1:44:05 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 48396  - 08/30/2026, 1:44:05 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 48396  - 08/30/2026, 1:44:05 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 48396  - 08/30/2026, 1:44:05 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test: [Nest] 48396  - 08/30/2026, 1:44:05 PM    WARN [afterCommit] work was registered for after a commit outside any transaction this file opened, so it ran immediately; if the caller was in fact inside a transaction, it has just escaped that transaction's rollback
+@mariva/api:test:  ✓ test/folio-close.e2e-spec.ts (17 tests) 1112ms
+@mariva/api:test:      ✓ is registered on the scheduler, under a cron it can be found by  303ms
+@mariva/api:test:  ✓ test/night-audit-storage.e2e-spec.ts (11 tests) 111ms
+@mariva/api:test:  ✓ test/pricing.e2e-spec.ts (31 tests) 1743ms
+@mariva/api:test:  ✓ test/nfr-08-no-id-scan-storage.spec.ts (26 tests) 537ms
+@mariva/api:test:  ✓ test/guest-account-attach.e2e-spec.ts (11 tests) 2555ms
+@mariva/api:test:  ✓ test/booking-storage.e2e-spec.ts (28 tests) 238ms
+@mariva/api:test:  ✓ src/modules/notification/mail-queue.service.spec.ts (18 tests) 14ms
+@mariva/api:test:  ✓ test/payment-storage.e2e-spec.ts (16 tests) 125ms
+@mariva/api:test:  ✓ src/modules/booking/account-link-resend.spec.ts (20 tests) 168ms
+@mariva/api:test:  ✓ test/feedback.e2e-spec.ts (10 tests) 2158ms
+@mariva/api:test:  ✓ test/config-storage.e2e-spec.ts (23 tests) 209ms
+@mariva/api:test:  ✓ test/payment-callbacks.e2e-spec.ts (11 tests) 531ms
+@mariva/api:test:  ✓ src/modules/booking/booking.service.spec.ts (14 tests) 142ms
+@mariva/api:test:  ✓ test/report-queries-storage.e2e-spec.ts (11 tests) 111ms
+@mariva/api:test:  ✓ test/housekeeping-api.e2e-spec.ts (27 tests) 1624ms
+@mariva/api:test:  ✓ test/guest-account-link.e2e-spec.ts (15 tests) 1103ms
+@mariva/api:test:  ✓ test/performance-queries-storage.e2e-spec.ts (12 tests) 81ms
+@mariva/api:test: stderr | test/auth.e2e-spec.ts > the guest realm > refuses a session-bearing request from an untrusted origin
+@mariva/api:test: 2026-08-30T06:44:49.807Z ERROR [Better Auth]: Invalid origin: http://evil.example
+@mariva/api:test: 
+@mariva/api:test: stderr | test/auth.e2e-spec.ts > the guest realm > resets a password, and the old one stops working
+@mariva/api:test: 2026-08-30T06:44:50.004Z WARN [Better Auth]: Invalid password
+@mariva/api:test: 
+@mariva/api:test:  ✓ test/auth.e2e-spec.ts (25 tests) 1446ms
+@mariva/api:test:  ✓ test/no-show-sweep.e2e-spec.ts (10 tests) 1911ms
+@mariva/api:test:      ✓ is registered on the scheduler, under a cron it can be found by  350ms
+@mariva/api:test:  ✓ test/booking-cancellation-mail.e2e-spec.ts (10 tests) 1429ms
+@mariva/api:test:  ✓ src/modules/payment/payment-amount-check.spec.ts (6 tests) 6ms
+@mariva/api:test:  ✓ test/job-infrastructure.e2e-spec.ts (16 tests) 603ms
+@mariva/api:test:  ✓ src/common/auth/access.guard.spec.ts (635 tests) 55ms
+@mariva/api:test:  ✓ test/housekeeping-service.e2e-spec.ts (20 tests) 131ms
+@mariva/api:test:  ✓ src/modules/payment/payment-revocation.spec.ts (4 tests) 117ms
+@mariva/api:test:  ✓ src/modules/auth/booking-token/booking-link.spec.ts (20 tests) 207ms
+@mariva/api:test:  ✓ test/service-catalog.e2e-spec.ts (12 tests) 158ms
+@mariva/api:test:  ✓ test/audit-trail.e2e-spec.ts (12 tests) 1385ms
+@mariva/api:test:  ✓ src/modules/payment/reconciliation.service.spec.ts (11 tests) 8ms
+@mariva/api:test:  ✓ test/operations/pending-item-service.e2e-spec.ts (13 tests) 303ms
+@mariva/api:test:  ✓ test/seed.e2e-spec.ts (19 tests) 4187ms
+@mariva/api:test:      ✓ converges rather than accumulates, and produces the same data  1434ms
+@mariva/api:test:      ✓ empties the ledger rather than failing on the key that holds it  1427ms
+@mariva/api:test:  ✓ test/operations/payment-shift-trigger.e2e-spec.ts (6 tests) 642ms
+@mariva/api:test:      ✓ leaves the cash refused rather than counted into a drawer already closed  521ms
+@mariva/api:test:  ✓ test/pre-arrival-reminder-sweep.e2e-spec.ts (10 tests) 2071ms
+@mariva/api:test:      ✓ is registered on the scheduler, under a cron it can be found by  367ms
+@mariva/api:test:  ✓ test/guest-record.e2e-spec.ts (17 tests) 134ms
+@mariva/api:test:  ✓ src/modules/reporting/night-audit.job.spec.ts (8 tests) 8ms
+@mariva/api:test:  ✓ test/service-catalog-storage.e2e-spec.ts (17 tests) 235ms
+@mariva/api:test:  ✓ test/guest-cancellation-quote.e2e-spec.ts (13 tests) 531ms
+@mariva/api:test:  ✓ src/database/transaction-runner.spec.ts (14 tests) 9ms
+@mariva/api:test:  ✓ test/room-closure.e2e-spec.ts (17 tests) 1378ms
+@mariva/api:test:  ✓ test/booking-journey.e2e-spec.ts (6 tests) 1458ms
+@mariva/api:test:  ✓ src/config/env.spec.ts (30 tests) 16ms
+@mariva/api:test:  ✓ test/inventory-reservation.e2e-spec.ts (10 tests) 1009ms
+@mariva/api:test:  ✓ src/database/schema/config.spec.ts (15 tests) 6ms
+@mariva/api:test:  ✓ src/modules/reporting/night-audit.service.spec.ts (11 tests) 6ms
+@mariva/api:test:  ✓ src/modules/reporting/performance-queries.service.spec.ts (14 tests) 7ms
+@mariva/api:test: stderr | test/guest-email-change.e2e-spec.ts
+@mariva/api:test: 2026-08-30T06:45:56.612Z WARN [Better Auth]: User not found
+@mariva/api:test: 
+@mariva/api:test: stderr | test/guest-email-change.e2e-spec.ts
+@mariva/api:test: 2026-08-30T06:45:56.709Z WARN [Better Auth]: User not found
+@mariva/api:test: 
+@mariva/api:test:  ✓ test/guest-email-change.e2e-spec.ts (14 tests) 986ms
+@mariva/api:test:  ✓ test/guest-storage.e2e-spec.ts (12 tests) 160ms
+@mariva/api:test:  ✓ src/database/schema/booking.spec.ts (20 tests) 8ms
+@mariva/api:test:  ✓ src/modules/auth/guest/guest-auth.sign-up-enumeration.spec.ts (7 tests) 511ms
+@mariva/api:test:  ✓ src/modules/folio/tax-decomposition.spec.ts (78 tests) 35ms
+@mariva/api:test:  ✓ test/guest-credential-change.e2e-spec.ts (10 tests) 1285ms
+@mariva/api:test:  ✓ test/reporting/excel-sheet.spec.ts (17 tests) 289ms
+@mariva/api:test:  ✓ test/reporting/export-authority.spec.ts (68 tests) 984ms
+@mariva/api:test:  ✓ src/modules/booking/booking-attach.spec.ts (9 tests) 136ms
+@mariva/api:test:  ✓ test/promotion-storage.e2e-spec.ts (14 tests) 112ms
+@mariva/api:test:  ✓ src/modules/payment/payment.service.spec.ts (4 tests) 3ms
+@mariva/api:test:  ✓ src/modules/reporting/report-queries.service.spec.ts (16 tests) 7ms
+@mariva/api:test:  ✓ test/booking-race.e2e-spec.ts (3 tests) 1354ms
+@mariva/api:test:  ✓ test/inventory-storage.e2e-spec.ts (10 tests) 113ms
+@mariva/api:test:  ✓ test/folio-check-out.e2e-spec.ts (5 tests) 1271ms
+@mariva/api:test:  ✓ test/housekeeping-storage.e2e-spec.ts (7 tests) 115ms
+@mariva/api:test:  ✓ src/modules/auth/guest/guest-auth.factory.spec.ts (10 tests) 28ms
+@mariva/api:test:  ✓ src/modules/reporting/night-audit-watchdog.job.spec.ts (7 tests) 7ms
+@mariva/api:test:  ✓ src/database/schema/inventory.spec.ts (14 tests) 7ms
+@mariva/api:test:  ✓ src/database/schema/shift.spec.ts (16 tests) 7ms
+@mariva/api:test:  ✓ src/database/schema/pricing.spec.ts (16 tests) 7ms
+@mariva/api:test:  ✓ test/business-date-api.e2e-spec.ts (5 tests) 677ms
+@mariva/api:test:  ✓ src/common/auth/access.guard.orpc.spec.ts (5 tests) 210ms
+@mariva/api:test:  ✓ src/database/schema/payment.spec.ts (14 tests) 5ms
+@mariva/api:test:  ✓ test/tier-is-derived.spec.ts (3 tests) 43ms
+@mariva/api:test:  ✓ src/database/schema/guest.spec.ts (12 tests) 6ms
+@mariva/api:test:  ✓ src/common/observability/unknown-error.spec.ts (8 tests) 217ms
+@mariva/api:test:  ✓ src/modules/booking/cancellation-calculator.spec.ts (22 tests) 10ms
+@mariva/api:test:  ✓ src/database/schema/reconciliation.spec.ts (12 tests) 5ms
+@mariva/api:test:  ✓ src/modules/folio/e-invoice.job.spec.ts (6 tests) 5ms
+@mariva/api:test:  ✓ src/modules/notification/queued-confirmation.spec.ts (13 tests) 7ms
+@mariva/api:test:  ✓ src/database/schema/service.spec.ts (11 tests) 5ms
+@mariva/api:test:  ✓ src/modules/booking/hold-rate-limit.guard.spec.ts (12 tests) 5ms
+@mariva/api:test:  ✓ src/modules/payment/ports/payment-gateway.port.spec.ts (7 tests) 5ms
+@mariva/api:test:  ✓ src/modules/notification/ops-alert.service.spec.ts (5 tests) 23ms
+@mariva/api:test:  ✓ src/modules/booking/guards/check-in.guard.spec.ts (18 tests) 5ms
+@mariva/api:test:  ✓ src/modules/booking/business-date.service.spec.ts (11 tests) 9ms
+@mariva/api:test:  ✓ src/modules/auth/guest/guest-attach.internal-api.spec.ts (7 tests) 13ms
+@mariva/api:test:  ✓ src/config/env-paypal-production.spec.ts (12 tests) 11ms
+@mariva/api:test:  ✓ src/modules/notification/templates/booking-cancellation-email.spec.ts (12 tests) 5ms
+@mariva/api:test:  ✓ src/modules/payment/payment.module.spec.ts (3 tests) 44ms
+@mariva/api:test:  ✓ src/modules/notification/booking-confirmation.service.spec.ts (6 tests) 6ms
+@mariva/api:test:  ✓ src/modules/feedback/feedback.service.spec.ts (8 tests) 4ms
+@mariva/api:test:  ✓ src/modules/guest/guest.module.spec.ts (3 tests) 15ms
+@mariva/api:test:  ✓ src/modules/notification/templates/booking-confirmation-email.spec.ts (12 tests) 5ms
+@mariva/api:test:  ✓ src/config/env-vnpay-production.spec.ts (7 tests) 9ms
+@mariva/api:test:  ✓ src/modules/folio/local-e-invoice.service.spec.ts (7 tests) 6ms
+@mariva/api:test:  ✓ src/modules/notification/templates/pre-arrival-reminder-email.spec.ts (12 tests) 5ms
+@mariva/api:test:  ✓ src/modules/booking/reference-generator.spec.ts (21 tests) 10ms
+@mariva/api:test:  ✓ src/modules/auth/booking-token/booking-token.service.spec.ts (8 tests) 6ms
+@mariva/api:test:  ✓ src/database/schema/audit.spec.ts (6 tests) 7ms
+@mariva/api:test:  ✓ src/modules/notification/templates/account-link-email.spec.ts (10 tests) 5ms
+@mariva/api:test:  ✓ src/database/schema/booking-link.spec.ts (7 tests) 5ms
+@mariva/api:test:  ✓ src/modules/payment/ports/gateway-registry.spec.ts (4 tests) 4ms
+@mariva/api:test:  ✓ src/modules/notification/booking-cancellation.service.spec.ts (5 tests) 7ms
+@mariva/api:test:  ✓ src/database/migration-check.spec.ts (6 tests) 21ms
+@mariva/api:test:  ✓ src/database/schema/housekeeping.spec.ts (6 tests) 5ms
+@mariva/api:test:  ✓ src/database/schema/night-audit.spec.ts (6 tests) 4ms
+@mariva/api:test:  ✓ src/modules/identity/rbac/matrix.spec.ts (7 tests) 17ms
+@mariva/api:test:  ✓ src/modules/feedback/feedback.module.spec.ts (1 test) 24ms
+@mariva/api:test:  ✓ src/modules/booking/state-machine.spec.ts (44 tests) 8ms
+@mariva/api:test:  ✓ src/modules/notification/templates/guest-auth-emails.spec.ts (7 tests) 4ms
+@mariva/api:test:  ✓ src/database/schema/loyalty.spec.ts (6 tests) 5ms
+@mariva/api:test:  ✓ src/modules/booking/presence-rate-limit.guard.spec.ts (5 tests) 3ms
+@mariva/api:test:  ✓ src/health/health.controller.spec.ts (2 tests) 201ms
+@mariva/api:test:  ✓ src/modules/housekeeping/housekeeping.service.spec.ts (3 tests) 3ms
+@mariva/api:test:  ✓ src/modules/notification/pre-arrival-reminder.service.spec.ts (4 tests) 7ms
+@mariva/api:test:  ✓ src/modules/housekeeping/housekeeping.module.spec.ts (1 test) 12ms
+@mariva/api:test:  ✓ src/modules/guest/cccd-mask.spec.ts (7 tests) 4ms
+@mariva/api:test:  ✓ src/common/cli/script-args.spec.ts (8 tests) 4ms
+@mariva/api:test:  ✓ src/modules/booking/guards/check-out.guard.spec.ts (5 tests) 4ms
+@mariva/api:test: 
+@mariva/api:test:  Test Files  163 passed (163)
+@mariva/api:test:       Tests  3489 passed (3489)
+@mariva/api:test:    Start at  13:40:49
+@mariva/api:test:    Duration  385.64s (transform 5.47s, setup 0ms, import 228.85s, tests 113.98s, environment 11ms)
+@mariva/api:test: 
+@mariva/api:test:  % Coverage report from v8
+@mariva/api:test: 
+@mariva/api:test: =============================== Coverage summary ===============================
+@mariva/api:test: Statements   : 96.57% ( 2596/2688 )
+@mariva/api:test: Branches     : 90.08% ( 1317/1462 )
+@mariva/api:test: Functions    : 98.43% ( 753/765 )
+@mariva/api:test: Lines        : 96.54% ( 2541/2632 )
+@mariva/api:test: ================================================================================
+
+ Tasks:    6 successful, 6 total
+Cached:    0 cached, 6 total
+  Time:    6m29.681s 
+

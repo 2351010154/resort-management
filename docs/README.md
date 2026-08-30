@@ -64,6 +64,10 @@ number a requirement cites resolves for anyone who clones the repository.
 [`evaluations/nfr-03-availability-latency.md`](evaluations/nfr-03-availability-latency.md)
 is the first: availability calendar response time, measured twice locally and
 not yet against a deployment.
+[`evaluations/automated-test-suite.md`](evaluations/automated-test-suite.md) is
+the second: what the repository's own test commands returned on one commit —
+4 720 Vitest tests passing, and six of the console's seven Playwright tests
+failing, recorded with the output rather than summarised away.
 
 ## How decisions move
 

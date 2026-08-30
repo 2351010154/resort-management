@@ -1,0 +1,214 @@
+$ playwright test
+
+Running 7 tests using 1 worker
+
+  ✘  1 [chromium] › e2e\keyboard-checkout.spec.ts:36:5 › a stay with a balance is checked out without a single mouse event (15.8s)
+  ✘  2 [chromium] › e2e\nfr-04-feedback-timing.spec.ts:55:5 › the dashboard answers a keystroke and a press inside the budget (10.7s)
+  ✘  3 [chromium] › e2e\nfr-04-feedback-timing.spec.ts:105:5 › the arrivals queue answers the keyboard inside the budget (1.5m)
+  ✘  4 [chromium] › e2e\nfr-04-feedback-timing.spec.ts:142:5 › the departures queue answers the keyboard inside the budget (15.7s)
+  ✘  5 [chromium] › e2e\nfr-04-feedback-timing.spec.ts:177:5 › the bookings screen answers typing, a submission and a press inside the budget (11.1s)
+  ✓  6 [chromium] › e2e\nfr-04-feedback-timing.spec.ts:232:5 › no operational screen plays an entrance animation (3.1s)
+  ✘  7 [chromium] › e2e\nfr-11-keyboard-checkin.spec.ts:51:5 › a stay is checked in end to end without a single mouse event (15.7s)
+
+
+  1) [chromium] › e2e\keyboard-checkout.spec.ts:36:5 › a stay with a balance is checked out without a single mouse event 
+
+    Error: The queue on this screen is empty, so there is nothing to work.
+
+    expect(locator).toBeVisible() failed
+
+    Locator: locator('tr[data-roving-item]').first()
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - The queue on this screen is empty, so there is nothing to work. with timeout 15000ms
+      - waiting for locator('tr[data-roving-item]').first()
+
+
+       at support\console-keyboard.ts:124
+
+      122 |     rows.first(),
+      123 |     "The queue on this screen is empty, so there is nothing to work.",
+    > 124 |   ).toBeVisible();
+          |     ^
+      125 |
+      126 |   for (let pressed = 0; pressed < 30; pressed += 1) {
+      127 |     if ((await page.locator(`${QUEUE_ROW}:focus`).count()) > 0) {
+        at tabIntoQueue (C:\Users\tamla\Downloads\khach-san\.build-workspace\m10-deploy\apps\admin\e2e\support\console-keyboard.ts:124:5)
+        at C:\Users\tamla\Downloads\khach-san\.build-workspace\m10-deploy\apps\admin\e2e\keyboard-checkout.spec.ts:45:21
+
+    Error Context: test-results\keyboard-checkout-a-stay-w-f476b-ithout-a-single-mouse-event-chromium\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\keyboard-checkout-a-stay-w-f476b-ithout-a-single-mouse-event-chromium\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results\keyboard-checkout-a-stay-w-f476b-ithout-a-single-mouse-event-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  2) [chromium] › e2e\nfr-04-feedback-timing.spec.ts:55:5 › the dashboard answers a keystroke and a press inside the budget 
+
+    Error: Dashboard · Tab leaves the rail for the account control: the console never showed `nav[aria-label="Console sections"] button` focused — no acknowledgement to measure.
+
+       at support\feedback-probe.ts:189
+
+      187 |
+      188 |   if (result.timedOut) {
+    > 189 |     throw new Error(
+          |           ^
+      190 |       `${what}: the console never showed ${describeWant(until)} — no acknowledgement to measure.`,
+      191 |     );
+      192 |   }
+        at measureFeedback (C:\Users\tamla\Downloads\khach-san\.build-workspace\m10-deploy\apps\admin\e2e\support\feedback-probe.ts:189:11)
+        at C:\Users\tamla\Downloads\khach-san\.build-workspace\m10-deploy\apps\admin\e2e\nfr-04-feedback-timing.spec.ts:69:5
+
+    Error Context: test-results\nfr-04-feedback-timing-the-9228d-d-a-press-inside-the-budget-chromium\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\nfr-04-feedback-timing-the-9228d-d-a-press-inside-the-budget-chromium\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results\nfr-04-feedback-timing-the-9228d-d-a-press-inside-the-budget-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  3) [chromium] › e2e\nfr-04-feedback-timing.spec.ts:105:5 › the arrivals queue answers the keyboard inside the budget 
+
+    Test timeout of 90000ms exceeded.
+
+    Error: locator.getAttribute: Test timeout of 90000ms exceeded.
+    Call log:
+      - waiting for locator('tr[data-roving-item]').nth(1)
+
+
+      305 |  *  that stops being true the moment the screen is used. */
+      306 | async function rowSelector(row: Locator): Promise<string> {
+    > 307 |   const value = await row.getAttribute("data-roving-value");
+          |                           ^
+      308 |
+      309 |   expect(value, "A queue row carries no identity.").not.toBeNull();
+      310 |
+        at rowSelector (C:\Users\tamla\Downloads\khach-san\.build-workspace\m10-deploy\apps\admin\e2e\nfr-04-feedback-timing.spec.ts:307:27)
+        at C:\Users\tamla\Downloads\khach-san\.build-workspace\m10-deploy\apps\admin\e2e\nfr-04-feedback-timing.spec.ts:112:24
+
+    Error Context: test-results\nfr-04-feedback-timing-the-ce593--keyboard-inside-the-budget-chromium\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\nfr-04-feedback-timing-the-ce593--keyboard-inside-the-budget-chromium\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results\nfr-04-feedback-timing-the-ce593--keyboard-inside-the-budget-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  4) [chromium] › e2e\nfr-04-feedback-timing.spec.ts:142:5 › the departures queue answers the keyboard inside the budget 
+
+    Error: The queue on this screen is empty, so there is nothing to work.
+
+    expect(locator).toBeVisible() failed
+
+    Locator: locator('tr[data-roving-item]').first()
+    Expected: visible
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - The queue on this screen is empty, so there is nothing to work. with timeout 15000ms
+      - waiting for locator('tr[data-roving-item]').first()
+
+
+       at support\console-keyboard.ts:124
+
+      122 |     rows.first(),
+      123 |     "The queue on this screen is empty, so there is nothing to work.",
+    > 124 |   ).toBeVisible();
+          |     ^
+      125 |
+      126 |   for (let pressed = 0; pressed < 30; pressed += 1) {
+      127 |     if ((await page.locator(`${QUEUE_ROW}:focus`).count()) > 0) {
+        at tabIntoQueue (C:\Users\tamla\Downloads\khach-san\.build-workspace\m10-deploy\apps\admin\e2e\support\console-keyboard.ts:124:5)
+        at C:\Users\tamla\Downloads\khach-san\.build-workspace\m10-deploy\apps\admin\e2e\nfr-04-feedback-timing.spec.ts:148:34
+
+    Error Context: test-results\nfr-04-feedback-timing-the-44029--keyboard-inside-the-budget-chromium\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\nfr-04-feedback-timing-the-44029--keyboard-inside-the-budget-chromium\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results\nfr-04-feedback-timing-the-44029--keyboard-inside-the-budget-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  5) [chromium] › e2e\nfr-04-feedback-timing.spec.ts:177:5 › the bookings screen answers typing, a submission and a press inside the budget 
+
+    Error: Bookings · the search form acknowledges a submission: the console never showed `main button` visible carrying “Back to today” — no acknowledgement to measure.
+
+       at support\feedback-probe.ts:189
+
+      187 |
+      188 |   if (result.timedOut) {
+    > 189 |     throw new Error(
+          |           ^
+      190 |       `${what}: the console never showed ${describeWant(until)} — no acknowledgement to measure.`,
+      191 |     );
+      192 |   }
+        at measureFeedback (C:\Users\tamla\Downloads\khach-san\.build-workspace\m10-deploy\apps\admin\e2e\support\feedback-probe.ts:189:11)
+        at C:\Users\tamla\Downloads\khach-san\.build-workspace\m10-deploy\apps\admin\e2e\nfr-04-feedback-timing.spec.ts:212:5
+
+    Error Context: test-results\nfr-04-feedback-timing-the-7ac58-d-a-press-inside-the-budget-chromium\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\nfr-04-feedback-timing-the-7ac58-d-a-press-inside-the-budget-chromium\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results\nfr-04-feedback-timing-the-7ac58-d-a-press-inside-the-budget-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6) [chromium] › e2e\nfr-11-keyboard-checkin.spec.ts:51:5 › a stay is checked in end to end without a single mouse event 
+
+    Error: expect(locator).toBeFocused() failed
+
+    Locator: locator('tr[data-roving-item]').nth(1)
+    Expected: focused
+    Timeout: 15000ms
+    Error: element(s) not found
+
+    Call log:
+      - Expect "toBeFocused" with timeout 15000ms
+      - waiting for locator('tr[data-roving-item]').nth(1)
+
+
+      67 |   // exercised and the run lands on a row it can name.
+      68 |   await page.keyboard.press("ArrowDown");
+    > 69 |   await expect(queue.nth(1)).toBeFocused();
+         |                              ^
+      70 |   await page.keyboard.press("ArrowUp");
+      71 |   await expect(queue.first()).toBeFocused();
+      72 |   await page.keyboard.press("ArrowDown");
+        at C:\Users\tamla\Downloads\khach-san\.build-workspace\m10-deploy\apps\admin\e2e\nfr-11-keyboard-checkin.spec.ts:69:30
+
+    Error Context: test-results\nfr-11-keyboard-checkin-a--b4544-ithout-a-single-mouse-event-chromium\error-context.md
+
+    attachment #2: trace (application/zip) ─────────────────────────────────────────────────────────
+    test-results\nfr-11-keyboard-checkin-a--b4544-ithout-a-single-mouse-event-chromium\trace.zip
+    Usage:
+
+        pnpm exec playwright show-trace test-results\nfr-11-keyboard-checkin-a--b4544-ithout-a-single-mouse-event-chromium\trace.zip
+
+    ────────────────────────────────────────────────────────────────────────────────────────────────
+
+  6 failed
+    [chromium] › e2e\keyboard-checkout.spec.ts:36:5 › a stay with a balance is checked out without a single mouse event 
+    [chromium] › e2e\nfr-04-feedback-timing.spec.ts:55:5 › the dashboard answers a keystroke and a press inside the budget 
+    [chromium] › e2e\nfr-04-feedback-timing.spec.ts:105:5 › the arrivals queue answers the keyboard inside the budget 
+    [chromium] › e2e\nfr-04-feedback-timing.spec.ts:142:5 › the departures queue answers the keyboard inside the budget 
+    [chromium] › e2e\nfr-04-feedback-timing.spec.ts:177:5 › the bookings screen answers typing, a submission and a press inside the budget 
+    [chromium] › e2e\nfr-11-keyboard-checkin.spec.ts:51:5 › a stay is checked in end to end without a single mouse event 
+  1 passed (2.8m)
+C:\Users\tamla\Downloads\khach-san\.build-workspace\m10-deploy\apps\admin:
+[ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL] @mariva/admin@0.1.0 test:e2e: `playwright test`
+Exit status 1
