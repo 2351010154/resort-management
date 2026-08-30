@@ -11,6 +11,22 @@
 //
 // Run it with `pnpm --filter @mariva/api perf:availability`. It measures a
 // running API against a real database; it does not start either.
+//
+// ## Pointing it somewhere else
+//
+// `BASE_URL` selects what is measured and defaults to the local API, so an
+// invocation that passes nothing keeps measuring what it always did. Give it a
+// deployed origin — `BASE_URL=https://mariva-api.fly.dev` — and the same
+// profile, the same thresholds and the same window measure that deployment
+// instead. Two things change when it does, and neither is a defect: the number
+// then contains client-to-server network time, which a loopback run has none
+// of, and the window has to be pinned to dates that deployment actually holds
+// inventory for. `FROM` and `TO` exist for that, and the check below counts
+// nights from them rather than assuming a year, so a window of any length is
+// still checked honestly.
+//
+// `docs/evaluations/nfr-03-availability-latency.md` records what has been
+// measured with this file, on what, and what each figure may be claimed for.
 
 import { check } from "k6";
 import http from "k6/http";
@@ -33,12 +49,30 @@ function isoDate(date) {
   return date.toISOString().slice(0, 10);
 }
 
+function midnightUtc(day) {
+  const parsed = Date.parse(`${day}T00:00:00Z`);
+  if (Number.isNaN(parsed)) {
+    throw new Error(`not a YYYY-MM-DD calendar date: ${day}`);
+  }
+  return parsed;
+}
+
 const from = __ENV.FROM ?? isoDate(new Date());
 const to =
   __ENV.TO ??
-  isoDate(
-    new Date(Date.parse(`${from}T00:00:00Z`) + CALENDAR_NIGHTS * 86_400_000),
+  isoDate(new Date(midnightUtc(from) + CALENDAR_NIGHTS * 86_400_000));
+
+// What a correct response has to contain, counted from the window actually
+// requested rather than from the default. A run that pins FROM and TO to a
+// deployment's own calendar — which a deployed run must — then still proves
+// every night came back, instead of failing every iteration for the sole
+// reason that the window is not exactly a year long.
+const requestedNights = (midnightUtc(to) - midnightUtc(from)) / 86_400_000;
+if (!Number.isInteger(requestedNights) || requestedNights < 1) {
+  throw new Error(
+    `FROM must fall at least one night before TO — got ${from} to ${to}`,
   );
+}
 
 const url = `${BASE_URL}/availability/calendar?from=${from}&to=${to}&plan=${PLAN}`;
 
@@ -81,7 +115,7 @@ export default function availabilityCalendar() {
     "answers the whole window": (r) => {
       if (r.status !== 200) return false;
       try {
-        return r.json("nights").length === CALENDAR_NIGHTS;
+        return r.json("nights").length === requestedNights;
       } catch {
         return false;
       }
