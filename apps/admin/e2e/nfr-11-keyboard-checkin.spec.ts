@@ -6,13 +6,15 @@ import {
   signIn,
   tabIntoQueue,
 } from "./support/console-keyboard";
+import { ensureArrivalsWaiting } from "./support/desk-provisioning";
+import { sayTheMoneyArrivedByTransfer } from "./support/money-method";
 import { describe, watchMouse } from "./support/mouse-watch";
 
 /* `NFR-11` — a guest is walked into a room with no pointer at all.
  *
  * `docs/product-requirements.md` §NFR states the target as **0 mouse events end
- * to end**, verified by a Playwright run at M7. This is that run, and it is
- * deliberately one test rather than several: the requirement is about a whole
+ * to end**. This is the run that proves it and CI's `console-e2e` job is what
+ * executes it; it is deliberately one test rather than several: the requirement is about a whole
  * check-in, and a suite that proved each control keyboard-reachable in isolation
  * would still miss the thing that actually strands an operator — a step that
  * drops focus on its way to the next one.
@@ -51,6 +53,13 @@ type Outcome =
 test("a stay is checked in end to end without a single mouse event", async ({
   page,
 }) => {
+  // Two arrivals, because the run arrows between rows before it opens one, and
+  // because a queue of exactly one leaves nothing to move on to when the
+  // property cannot house the first. The property is asked for them through its
+  // own routes — `support/desk-provisioning.ts` — rather than the run hoping the
+  // seed left enough on the day it happens to be executed.
+  await ensureArrivalsWaiting(2);
+
   const mouse = await watchMouse(page);
   const refusals = watchApiRefusals(page);
 
@@ -220,6 +229,16 @@ async function workTheSequence(
         taken,
         "The sequence closed without the review step being answered.",
       ).toContain("Check in");
+
+      // Which steps this check-in actually consisted of, into the run's output.
+      // The sequence's length is decided by its own answers — a folio with
+      // nothing outstanding drops the deposit step — so a run that reported only
+      // "ok" would leave nobody able to tell which of them were demonstrated.
+      const walked = taken.join(" → ");
+
+      console.log(`  Check-in walked by keyboard: ${walked}`);
+      test.info().annotations.push({ type: "sequence", description: walked });
+
       return { done: true };
     }
 
@@ -242,7 +261,11 @@ async function workTheSequence(
         break;
       }
       case "Deposit":
-        await postTheDeposit(page);
+        // The two text fields arrive filled and the method does not, which is
+        // the one thing on this step no default may answer. The departures
+        // sequence's balance step asks it through the same control, so the keys
+        // that answer it are shared rather than written out twice.
+        await sayTheMoneyArrivedByTransfer(page);
         break;
       case "Check in":
         // The review step has no field of its own — what it asks for is the
@@ -280,46 +303,6 @@ async function workTheSequence(
   throw new Error(
     `The sequence did not finish in ${SEQUENCE_LIMIT} steps: ${taken.join(" → ")}`,
   );
-}
-
-/**
- * The deposit step: the two text fields arrive filled, the method does not.
- *
- * How the money arrived is the one thing on this step no default may answer, so
- * the step cannot be finished by a bare Enter and this run proves the operator
- * can still finish it with nothing but keys: Tab past the amount and the line,
- * Space on the method the desk was paid by, Enter to post it. The radio is
- * asserted focused rather than pressed at blindly — a group Tab does not reach
- * is a step a keyboard-only desk cannot answer at all, and a bare Space would
- * report that as a mysterious stall.
- */
-async function postTheDeposit(page: Page): Promise<void> {
-  // The amount arrives filled with what the account is short and focused, and
-  // the line beside it is filled too. Two Tabs is the way past both.
-  await page.keyboard.press("Tab");
-  await page.keyboard.press("Tab");
-
-  const transfer = page.getByRole("radio", { name: "Bank transfer" });
-
-  await expect(
-    transfer,
-    "Tab from the deposit step's fields never reached how the money arrived.",
-  ).toBeFocused();
-  await expect(
-    transfer,
-    "The method arrived already chosen, which is a default wearing a radio button.",
-  ).not.toBeChecked();
-
-  await page.keyboard.press("Space");
-  await expect(
-    transfer,
-    "Space did not choose the focused method.",
-  ).toBeChecked();
-
-  // Enter finishes the step from the method group as it does from every field
-  // of every other step — WAI-ARIA leaves a radio group inert to Enter, and the
-  // sequence puts the press back.
-  await page.keyboard.press("Enter");
 }
 
 /**

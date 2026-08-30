@@ -6,6 +6,8 @@ import {
   signIn,
   tabIntoQueue,
 } from "./support/console-keyboard";
+import { ensureDeparturesOwing } from "./support/desk-provisioning";
+import { sayTheMoneyArrivedByTransfer } from "./support/money-method";
 import { describe, watchMouse } from "./support/mouse-watch";
 
 /* A stay is checked out with no pointer at all.
@@ -19,9 +21,11 @@ import { describe, watchMouse } from "./support/mouse-watch";
  * answered by a press the operator was going to make anyway.
  *
  * So the run works the balance step the way a desk works it — Tab to the
- * methods, arrows between them, Enter to post — and it walks the queue looking
- * for a stay that actually owes something, because a settled account skips that
- * step and would leave the run proving nothing about it.
+ * methods, arrows between them, Enter to post, in `support/money-method.ts`
+ * where the arrivals sequence's identical step reads it too — and it works a
+ * stay that actually owes something, because a settled account skips that step
+ * and would leave the run proving nothing about it. What it owes is provisioned
+ * rather than hoped for; `support/desk-provisioning.ts` says why.
  *
  * Every press goes through `page.keyboard`, and nothing anywhere calls
  * `click()`. Where the run needs to know something it reads the DOM, because
@@ -36,6 +40,18 @@ const QUEUE_ROWS_TO_VISIT = 25;
 test("a stay with a balance is checked out without a single mouse event", async ({
   page,
 }) => {
+  // Two departures with something still to collect, put there through the desk's
+  // own routes before the run opens the screen. Without them the run depended on
+  // the seeded property happening to have somebody leaving today who had not
+  // already paid, which on an ordinary date it does not —
+  // `support/desk-provisioning.ts` carries the argument.
+  //
+  // Two and not one, because the last assertion below is about where focus goes
+  // when a stay leaves the queue. A queue of exactly one has nowhere honest to
+  // put it — `departureAfter` returns null and says so — and asserting against
+  // that would be asserting the console does something it deliberately does not.
+  await ensureDeparturesOwing(2);
+
   const mouse = await watchMouse(page);
 
   await signIn(page);
@@ -100,7 +116,12 @@ test("a stay with a balance is checked out without a single mouse event", async 
       .toBe("Balance");
     mouse.assertSilent("agreeing the charges");
 
-    await settleTheBalance(page);
+    // The amount arrives filled with the whole of what the account is short and
+    // the line beside it is filled too. What is not filled is how the money
+    // arrived, and nothing may fill it: an append-only ledger cannot be told
+    // afterwards which of the two a line was, so the step asks and this run
+    // answers with keys.
+    await sayTheMoneyArrivedByTransfer(page);
     mouse.assertSilent("posting the balance");
 
     try {
@@ -155,57 +176,6 @@ test("a stay with a balance is checked out without a single mouse event", async 
   ).toEqual([]);
   expect(stray).toHaveLength(0);
 });
-
-/**
- * The balance step, answered the way a desk answers it.
- *
- * The amount arrives filled with the whole of what the account is short and the
- * line beside it is filled too, so the two Tabs are the way past both. What is
- * not filled is how the money arrived, and nothing here may fill it: an
- * append-only ledger cannot be told afterwards which of the two a line was, so
- * the step asks and this run answers.
- *
- * One method is offered today. `lib/desk-payment.ts` withholds cash while
- * `folio.postPayment` has no shift to count it into, so the group has a single
- * radio and there is no second option for the arrows to reach. What is still
- * worked is everything that made the group worth a run of its own: Tab arrives
- * on it, nothing is chosen when it does, and a key the operator presses on
- * purpose is what chooses. The arrow walk comes back with cash.
- */
-async function settleTheBalance(page: Page): Promise<void> {
-  await page.keyboard.press("Tab");
-  await page.keyboard.press("Tab");
-
-  const transfer = page.getByRole("radio", { name: "Bank transfer" });
-
-  await expect(
-    transfer,
-    "Tab from the balance step's fields never reached how the money arrived.",
-  ).toBeFocused();
-  await expect(
-    transfer,
-    "The method arrived already chosen, which is a default wearing a radio button.",
-  ).not.toBeChecked();
-
-  // Cash is not on offer while the route cannot count it into a drawer, and a
-  // radio the desk can pick and the API always refuses is worse than one that
-  // is not there.
-  await expect(
-    page.getByRole("radio", { name: "Cash" }),
-    "Cash was offered while the route still refuses it.",
-  ).toHaveCount(0);
-
-  await page.keyboard.press("Space");
-  await expect(
-    transfer,
-    "Space did not choose the focused method.",
-  ).toBeChecked();
-
-  // Enter finishes the step from the method group as it does from every field
-  // of every other step — WAI-ARIA leaves a radio group inert to Enter, and the
-  // sequence puts the press back.
-  await page.keyboard.press("Enter");
-}
 
 /** Which stay the queue has focus on. */
 async function focusedRowValue(page: Page): Promise<string> {

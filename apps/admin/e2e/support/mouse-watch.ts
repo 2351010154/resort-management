@@ -15,15 +15,27 @@ import type { Page } from "@playwright/test";
  * resting somewhere the page happens to scroll under — it is not an operator
  * driving the console with a mouse.
  *
- * `click` is the one that needs a rule. A browser fires a click for keyboard
- * activation too: Space or Enter on a button, and the implicit submission of a
- * form with a submit button in it — which is exactly how every step of the
- * check-in sequence is finished. Those carry `detail === 0` and no pointer
- * type, because no pointer produced them; a click from a mouse carries
- * `detail >= 1` and `pointerType === "mouse"`. Counting the keyboard's own
- * clicks would make the requirement unsatisfiable by the design that satisfies
- * it, so the rule is pointer-origin and the discarded ones are still recorded,
- * for the run that needs to see them.
+ * `click` is the one that needs a rule, and it needs two.
+ *
+ * **A browser fires a click for keyboard activation too**: Space or Enter on a
+ * button, and the implicit submission of a form with a submit button in it —
+ * which is exactly how every step of the check-in sequence is finished. Those
+ * carry `detail === 0` and no pointer type, because no pointer produced them; a
+ * click from a mouse carries `detail >= 1` and `pointerType === "mouse"`.
+ *
+ * **And a script may dispatch one.** Radix's radio group answers an arrow key by
+ * calling `click()` on the hidden input it keeps for the form, which arrives as
+ * a plain `Event` named "click" — no coordinates, no button, no pointer, and
+ * `detail` and `buttons` simply absent. It is not a `MouseEvent` at all, so the
+ * `pointerType` fallback below would read it as a mouse and the requirement
+ * would be unsatisfiable by any keyboard-operable radio group. `isTrusted` is
+ * the browser's own statement about which of the two an event is: false for
+ * anything a script dispatched, true for everything a device produced —
+ * including the synthesised input Playwright drives Chromium with, which is why
+ * a real pointer in a run is still caught.
+ *
+ * So the rule is: produced by a device, and pointer-origin. Everything else is
+ * still recorded, for the run that needs to see it.
  */
 
 export interface MouseEventRecord {
@@ -32,6 +44,8 @@ export interface MouseEventRecord {
   readonly detail: number;
   readonly buttons: number;
   readonly pointerType: string;
+  /** The browser's own answer to "did a device produce this, or a script?". */
+  readonly trusted: boolean;
   /** Whether a pointing device produced it — see the note above. */
   readonly fromPointer: boolean;
 }
@@ -93,8 +107,12 @@ export async function watchMouse(page: Page): Promise<MouseWatch> {
         detail: event.detail,
         buttons: event.buttons,
         pointerType,
+        trusted: event.isTrusted,
         fromPointer:
-          event.type !== "click" || event.detail > 0 || pointerType === "mouse",
+          event.isTrusted &&
+          (event.type !== "click" ||
+            event.detail > 0 ||
+            pointerType === "mouse"),
       });
     };
 
@@ -130,5 +148,5 @@ export async function watchMouse(page: Page): Promise<MouseWatch> {
 
 /** One event as a line a failure message can carry. */
 export function describe(entry: MouseEventRecord): string {
-  return `${entry.type} on ${entry.target} (detail ${entry.detail}, buttons ${entry.buttons}, pointerType "${entry.pointerType}")`;
+  return `${entry.type} on ${entry.target} (detail ${entry.detail}, buttons ${entry.buttons}, pointerType "${entry.pointerType}", trusted ${entry.trusted})`;
 }

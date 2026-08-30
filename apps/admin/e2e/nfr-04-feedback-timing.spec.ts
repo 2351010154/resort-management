@@ -2,6 +2,10 @@ import { expect, type Locator, type Page, test } from "@playwright/test";
 
 import { goByPalette, signIn, tabIntoQueue } from "./support/console-keyboard";
 import {
+  ensureArrivalsWaiting,
+  ensureDeparturesOwing,
+} from "./support/desk-provisioning";
+import {
   describeSighting,
   entranceAnimations,
   installAnimationWatch,
@@ -15,10 +19,12 @@ import {
 /* `NFR-04` — the console answers inside 150 ms and does not make an entrance.
  *
  * `docs/product-requirements.md` §NFR: "**< 150 ms**, no entrance animation on
- * operational screens", verified by E2E timing at M7. Both halves are here,
- * across the four screens the front desk actually works — Dashboard, Arrivals,
- * Departures, Bookings — and across the three ways an operator touches them: a
- * key, a press, and a form.
+ * operational screens". This file is what proves it, and CI's `console-e2e` job
+ * is what executes it — before that job existed nothing ran these specs at all,
+ * and they had been failing against markup the console no longer has. Both
+ * halves are here, across the four screens the front desk works — Dashboard,
+ * Arrivals, Departures, Bookings — and across the three ways an operator touches
+ * them: a key, a press, and a form.
  *
  * ## What is being timed
  *
@@ -48,6 +54,22 @@ import {
 /** `NFR-04`, exactly as the requirement writes it. */
 const BUDGET_MS = 150;
 
+/* Three controls the dashboard run walks between, named by what they are rather
+ * than by where they currently sit. The rail holds links only —
+ * `features/shell/app-nav.tsx` — and the account control is in the top bar
+ * beside the command search, `features/shifts/shift-bar.tsx`, so a selector
+ * written as "the button in the rail" is a selector about a layout rather than
+ * about a control. */
+
+/** An entry of the navigation rail, whichever screen is current. */
+const RAIL_ENTRY = 'nav[aria-label="Console sections"] [data-roving-item]';
+
+/** The top bar's command search, the first stop after the rail. */
+const COMMAND_SEARCH = 'button[aria-label="Open command palette"]';
+
+/** The account control. `user-menu.tsx` names it after whoever is signed in. */
+const ACCOUNT_MENU = 'button[aria-label^="Open account menu"]';
+
 test.beforeEach(async ({ page }) => {
   await installFeedbackProbe(page);
 });
@@ -63,19 +85,22 @@ test("the dashboard answers a keystroke and a press inside the budget", async ({
   // Tabbed to rather than counted to. What sits before the rail is not the
   // console's business — a development build puts its own control there — and a
   // press counted from the top of the document would be measuring the harness.
-  await tabUntilFocused(page, 'nav a[href="/dashboard"]');
+  await tabUntilFocused(page, RAIL_ENTRY);
 
   measurements.push(
     await measureFeedback(
       page,
-      "Dashboard · Tab leaves the rail for the account control",
+      "Dashboard · Tab leaves the rail for the top bar",
       () => page.keyboard.press("Tab"),
-      {
-        selector: 'nav[aria-label="Console sections"] button',
-        state: "focused",
-      },
+      { selector: COMMAND_SEARCH, state: "focused" },
     ),
   );
+
+  // The controls between the top bar's search and the screen belong to the
+  // shell and vary with what the signed-in role may work — a desk that runs no
+  // drawer has one fewer. So the run tabs to the last of them rather than
+  // counting past them, and measures the press that leaves the shell.
+  await tabUntilFocused(page, ACCOUNT_MENU);
 
   measurements.push(
     await measureFeedback(
@@ -90,11 +115,7 @@ test("the dashboard answers a keystroke and a press inside the budget", async ({
     await measureFeedback(
       page,
       "Dashboard · the account menu opens on a press",
-      () =>
-        page
-          .locator('nav[aria-label="Console sections"] button')
-          .first()
-          .click(),
+      () => page.locator(ACCOUNT_MENU).first().click(),
       { selector: '[role="menu"]', state: "visible" },
     ),
   );
@@ -105,6 +126,11 @@ test("the dashboard answers a keystroke and a press inside the budget", async ({
 test("the arrivals queue answers the keyboard inside the budget", async ({
   page,
 }) => {
+  // Two rows, because the measurement is the arrow key moving between them. The
+  // property is asked for them through its own routes before the run opens the
+  // screen — see `support/desk-provisioning.ts` for why a run that took whatever
+  // the seed left on the day was measuring the calendar.
+  await ensureArrivalsWaiting(2);
   await signIn(page);
   await goByPalette(page, "Arrivals", "/arrivals");
 
@@ -142,6 +168,10 @@ test("the arrivals queue answers the keyboard inside the budget", async ({
 test("the departures queue answers the keyboard inside the budget", async ({
   page,
 }) => {
+  // Two rows here too, and each with something still to collect, so the checkout
+  // the second measurement opens is the full sequence rather than the shortened
+  // one a settled account gets.
+  await ensureDeparturesOwing(2);
   await signIn(page);
   await goByPalette(page, "Departures", "/departures");
 
@@ -213,7 +243,12 @@ test("the bookings screen answers typing, a submission and a press inside the bu
       page,
       "Bookings · the search form acknowledges a submission",
       () => page.keyboard.press("Enter"),
-      { selector: "main button", state: "visible", text: "Back to today" },
+      // The way back off a search, which the screen only draws once one has been
+      // run — `bookings-screen.tsx` labels it "Today". It is the first thing on
+      // screen that says the submission was heard, and it is the console's own
+      // answer rather than the arrival of the stays, which the API owns the
+      // timing of.
+      { selector: "main button", state: "visible", text: "Today" },
     ),
   );
 
