@@ -413,3 +413,11 @@ each has its own owner:
 - **The cross-border transfer dossier** for guest personal data held in
   Singapore. It gates opening the property rather than any deploy, and it is the
   lawyer's (`M0-05`).
+
+One thing this file makes possible rather than does: `NFR-03`, the availability
+calendar's response time, has only ever been measured on one machine, and a
+deployment is what a real measurement of it needs.
+[`evaluations/nfr-03-availability-latency.md`](evaluations/nfr-03-availability-latency.md)
+§7 has the procedure — where to point the load profile once step 8 has produced
+an `API_URL`, how to pin the window to the deployed calendar rather than to a
+seeded one, and what the resulting number may be claimed for.

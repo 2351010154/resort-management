@@ -41,6 +41,7 @@ the inconsistency rather than rewriting either source to conceal it.
 | Screen intent and navigation | [`screens.md`](screens.md) |
 | Order of operations for a change made by hand against a live environment | [`runbooks/`](runbooks/) |
 | Order of operations for standing an environment up: accounts, secrets, the migration step, first deploy and rollback | [`deployment.md`](deployment.md) |
+| What a non-functional target has actually been measured at, on what, and what the figure may be claimed for | [`evaluations/`](evaluations/) |
 | Current delivery fields and blockers | [GitHub issues](https://github.com/2351010154/resort-management/issues) |
 
 Architecture documents may describe an accepted target before code enforces it.
@@ -53,6 +54,16 @@ drift between the document that made it and the checklist that carries it out.
 [`runbooks/g2-production-payment.md`](runbooks/g2-production-payment.md) is the
 first: flipping VNPay to production credentials, whose gate lives in
 [`architecture/infrastructure.md`](architecture/infrastructure.md) §Payments.
+
+An evaluation under [`evaluations/`](evaluations/) owns a measurement, not a
+target: the target is the requirement's and stays in
+[`product-requirements.md`](product-requirements.md), while the evaluation
+records what a run returned, on what machine, on what date, and what the figure
+may not be used to claim. It is tracked rather than left in `plans/` so that a
+number a requirement cites resolves for anyone who clones the repository.
+[`evaluations/nfr-03-availability-latency.md`](evaluations/nfr-03-availability-latency.md)
+is the first: availability calendar response time, measured twice locally and
+not yet against a deployment.
 
 ## How decisions move
 
