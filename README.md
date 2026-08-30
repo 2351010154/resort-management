@@ -267,7 +267,8 @@ The API's own commands — migrations, the Nest watch loop, the first-admin scri
 | Typecheck | `tsc` per workspace | CI |
 | Build | `next build`, `tsc` | CI. The Next app's type check happens inside its build |
 | Unit + integration | Vitest 4 | Per workspace |
-| Visual baseline | Playwright | `apps/web/tests/visual-baseline/`, desktop and mobile. Local — the baseline is untracked, so capture it before you can compare against it |
+| Keyboard + feedback timing | Playwright | `apps/admin/e2e/`, Chromium, `pnpm --filter @mariva/admin test:e2e`. **Run by hand — CI does not run it**, and it needs a served console, a staff account and a property with arrivals and departures on the day |
+| Visual baseline | Two Node scripts driving `playwright` | Not a gate and not a suite: `apps/web` has no Playwright config. `scripts/capture-visual-baseline.mjs` writes frames to `apps/web/tests/visual-baseline/` and `scripts/compare-visual-baseline.mjs` diffs two such directories. Local, manual — the output is gitignored, so a clone has neither the directory nor a baseline until it captures one |
 
 CI runs on every pull request and push to `main`: install with a frozen lockfile, then
 lint → typecheck → test → build, with in-flight runs superseded per branch. The test step

@@ -26,7 +26,7 @@ milestone that builds this
 | Concern | Choice | Why |
 |---|---|---|
 | Postgres (deployed) | Neon, `aws-ap-southeast-1`, separate `production` and `staging` branches | PITR included; branching gives per-PR databases |
-| Postgres (development) | Local Docker | Testcontainers already requires Docker; Neon is for deployed environments only |
+| Postgres (development) | Local Docker | The test suite needs a real Postgres to prove the constraints against, and a developer runs one; Neon is for deployed environments only. Testcontainers would also require Docker, but that is an argument this row cannot yet lean on — it is decided and unbuilt (`architecture/tech-stack.md` §Quality and delivery) |
 | API host | Fly.io, region `sin` | pg-boss needs a long-running process — this rules serverless out |
 | Web + admin | Vercel, function region `sin1` | ⚠ Hobby is non-commercial; a booking site is commercial use |
 | Object storage | Cloudflare R2 | $0 egress, and **object lifecycle rules** — the encrypted weekly dump expires by bucket configuration, not by a cron |

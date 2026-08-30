@@ -19,10 +19,15 @@
       // drawing, which is not a thing anyone can act on.
       "!docs",
 
-      // Committed PNG fixtures, and the drizzle-generated migration ledger:
-      // reformatting a snapshot drizzle-kit writes and reads back would
-      // desync the two without anything reporting it.
+      // Generated PNG output, not a committed fixture: .gitignore ignores this
+      // path, so a clone has no such directory at all and it only appears once
+      // apps/web/scripts/capture-visual-baseline.mjs has been run by hand. The
+      // exclusion is here for the machine that has run it.
       "!apps/web/tests/visual-baseline",
+
+      // The drizzle-generated migration ledger: reformatting a snapshot
+      // drizzle-kit writes and reads back would desync the two without
+      // anything reporting it.
       "!apps/api/src/database/migrations",
 
       // Parked design references are not product code. They are deliberately
