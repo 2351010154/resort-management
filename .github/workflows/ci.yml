@@ -108,3 +108,137 @@ jobs:
 
       # next build runs the TypeScript check for the app as part of the build.
       - run: pnpm run build
+
+  # The two requirements a browser is the only witness to — `NFR-04`'s feedback
+  # budget and `NFR-11`'s keyboard-only check-in. A job of its own rather than
+  # more steps on `verify`, because it needs a different arrangement: the API
+  # and the console served as processes, a seeded property behind them, and a
+  # database this job alone writes to. `verify`'s suite truncates and re-seeds
+  # tables as it runs, so sharing one container would have each job deciding
+  # what the other found.
+  #
+  # It gates. These specs are excluded from `apps/admin/vitest.config.ts` on
+  # purpose — they import `@playwright/test`, which throws under any other
+  # runner — so before this job nothing in CI executed them at all, and six of
+  # the seven had been failing against markup the console no longer has and a
+  # queue the seed does not fill.
+  console-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    # The same image, port and database name `verify` uses, for its reasons: the
+    # contrib modules migration 0000 needs, and one connection string that reads
+    # the same here as it does in `apps/api/.env.example`.
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: mariva_test
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d mariva_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # `.env` and not `.env.test`: this job runs the API as a served process,
+      # which reads the file a developer runs from. `NODE_ENV=development`
+      # because the production branch of `src/config/env.ts` requires a Google
+      # client, a trusted client-IP header and a mail sender, none of which a
+      # keyboard run has anything to do with. The two secrets are generated per
+      # run and kept nowhere: nothing signed in one run is verified in another.
+      - name: Point the API at the service container
+        run: |
+          {
+            echo "NODE_ENV=development"
+            echo "DATABASE_URL=postgres://postgres@localhost:5433/mariva_test"
+            echo "BETTER_AUTH_SECRET=$(openssl rand -base64 32)"
+            echo "STAFF_JWT_SECRET=$(openssl rand -base64 32)"
+            echo "LOG_LEVEL=warn"
+            echo "ADMIN_ORIGIN=http://localhost:3002"
+          } > apps/api/.env
+
+      # The console is served from a production build, which is what an operator
+      # meets. `NEXT_PUBLIC_API_URL` is inlined at build time and its default is
+      # the port the API is started on below.
+      - run: pnpm run build
+
+      - name: Apply the migrations and seed the property
+        run: |
+          set -euo pipefail
+          pnpm --filter @mariva/api exec drizzle-kit migrate
+          pnpm --filter @mariva/api db:seed
+
+      # The bootstrap account, created from a shell because creating a staff
+      # account requires a capability only an `ADMIN` holds and a fresh database
+      # has none. The password is generated here, masked out of the log, and
+      # exists only for the length of this job.
+      - name: Create the console account the run signs in as
+        run: |
+          set -euo pipefail
+          PASSWORD="$(openssl rand -base64 24)"
+          echo "::add-mask::$PASSWORD"
+          printf '%s\n' "$PASSWORD" \
+            | pnpm --filter @mariva/api staff:create \
+                --email e2e@mariva.local --name "CI Desk" --role ADMIN
+          {
+            echo "ADMIN_E2E_EMAIL=e2e@mariva.local"
+            echo "ADMIN_E2E_PASSWORD=$PASSWORD"
+          } >> "$GITHUB_ENV"
+
+      - name: Install the browser the run measures in
+        run: pnpm --filter @mariva/admin exec playwright install --with-deps chromium
+
+      # Started here rather than by Playwright: `playwright.config.ts` declares
+      # no `webServer`, because locally these are long-lived processes and a
+      # Playwright-owned one would be a second `next start` fighting the first
+      # for port 3002. Both are waited for by asking them, not by sleeping.
+      - name: Serve the API and the console
+        run: |
+          set -euo pipefail
+
+          pnpm --filter @mariva/api start > "$RUNNER_TEMP/api.log" 2>&1 &
+          pnpm --filter @mariva/admin exec next start --port 3002             > "$RUNNER_TEMP/console.log" 2>&1 &
+
+          # Asked rather than slept for, and the process's own log printed when
+          # it never answers — a server that failed to boot is otherwise a run
+          # of seven identical connection refusals.
+          answered() {
+            for attempt in $(seq 1 60); do
+              if curl -sf -o /dev/null "$1"; then return 0; fi
+              sleep 1
+            done
+
+            echo "$1 never answered. Its log:"
+            cat "$2"
+            return 1
+          }
+
+          answered http://localhost:3001/health "$RUNNER_TEMP/api.log"
+          answered http://localhost:3002/login "$RUNNER_TEMP/console.log"
+
+      - run: pnpm --filter @mariva/admin test:e2e
+
+      # The traces `playwright.config.ts` retains on failure. A timing budget or
+      # a focus order that fails here and nowhere else is not diagnosable from a
+      # log line.
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: console-e2e-traces
+          path: apps/admin/test-results/
+          retention-days: 7
