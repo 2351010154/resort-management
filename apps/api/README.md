@@ -187,9 +187,13 @@ head. §6's priced extra bed is a desk posting for one a guest asked for.
 
 ## Tests
 
-Vitest, and a real Postgres — not testcontainers yet (`P0-CI-02` and a Docker
-daemon the development machine does not have). Copy `.env.example` to
-`.env.test` and point `DATABASE_URL` at a database you are willing to lose: the
+Vitest, and a real Postgres — not testcontainers yet (`P0-CI-02`). The
+dependency has never been added: `@testcontainers/postgresql` is a decision
+recorded in `docs/architecture/tech-stack.md` and is in no manifest, no lockfile
+entry and no source file. Docker is not what is missing — the suite's own
+Postgres is a container, and CI declares one as a service — so what stands
+between here and that decision is the work, not the runtime. Copy `.env.example`
+to `.env.test` and point `DATABASE_URL` at a database you are willing to lose: the
 suite applies the committed migrations and truncates every table it uses. It
 refuses to start if that file is missing rather than falling back to `.env`,
 which is how a test run empties somebody's development database.

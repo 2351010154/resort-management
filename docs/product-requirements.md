@@ -222,14 +222,14 @@ authority named in [`README.md`](README.md) and wins.
 | `NFR-01` | Double-booking | **0** — unrepresentable at the storage layer | 50-parallel-bookings test in CI (`FR-INV-02`) |
 | `NFR-02` | Ledger integrity | Σ postings = Σ payments + outstanding, nightly | Night-audit check (`FR-RPT-01`) |
 | `NFR-03` | Availability p95, 12-month calendar | **< 300 ms** | Local k6 load test, three runs: worst-run p95 **13.95 ms**, median run 13.868 ms — [`evaluations/nfr-03-availability-latency.md`](evaluations/nfr-03-availability-latency.md), which also records a containerized pre-deploy run at 17.078 ms. A local baseline and a lower bound; the deployed measurement is still owed at M10 |
-| `NFR-04` | Admin console interaction feedback | **< 150 ms**, no entrance animation on operational screens | E2E timing at M7 |
+| `NFR-04` | Admin console interaction feedback | **< 150 ms**, no entrance animation on operational screens | Playwright run, gated by CI's `console-e2e` job: eleven measurements across the four operational screens, input event to the frame carrying the answer — worst **14.0 ms** over three runs — and no entrance animation sighted on any of them. [`evaluations/automated-test-suite.md`](evaluations/automated-test-suite.md) §2.6. Not verified at M7: the suite was red and ungated until 2026-08-30, which §2.5 records |
 | `NFR-05` | `/booking` funnel bundle | **0 bytes** of `three`/`gsap`/`lenis` | CI bundle budget |
 | `NFR-06` | Second-gateway webhook ACK — PayPal, since `FR-PAY-06` gave it the slot MoMo held | **< 15 s** p100 | Handler ACKs, work queued |
 | `NFR-07` | Realm separation | Cross-realm request → 403, both directions | Guard suite (`FR-AUTH-01`) |
 | `NFR-08` | Identity-document images at rest | **0** — no bucket, key, path column or view route exists to hold one | Structural, not a measurement: `FR-GST-02` keeps the storage path from ever existing |
 | `NFR-09` | Audit coverage of state-changing endpoints | **100%** | Asserted by test (`FR-AUD-01`) |
 | `NFR-10` | Test coverage on `inventory` + `folio` + `pricing` | **≥ 85%**; UI coverage deliberately untargeted | Coverage report |
-| `NFR-11` | Keyboard-only check-in | **0** mouse events end to end | Playwright E2E at M7 |
+| `NFR-11` | Keyboard-only check-in | **0** mouse events end to end | Playwright run, gated by CI's `console-e2e` job: a guest registered, a document taken, a room assigned, a deposit posted and the stay checked in — **0** pointer-produced events, counted in the browser — with the checkout half beside it. [`evaluations/automated-test-suite.md`](evaluations/automated-test-suite.md) §2.6. Not verified at M7 either, for §2.5's reason |
 | `NFR-12` | Type-level money and dates | Integer-VND `bigint`; `StayDate` ≠ timestamp is a **compile** error | `@ts-expect-error` type tests |
 
 ---
