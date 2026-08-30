@@ -65,7 +65,7 @@ up, monitor and upgrade.
 | Test runner | Vitest 4.1.x | One runner, whole repo |
 | Nest under Vitest | `unplugin-swc` 1.5.x + `@swc/core` 1.15.x | Vitest transforms with Oxc/esbuild, neither of which emits `emitDecoratorMetadata`; without it every Nest injection in a test is `undefined` |
 | Real Postgres in test | `@testcontainers/postgresql` 12.0.x — **decided, not implemented**: in no manifest, no lockfile entry and no source file | The intent is that local and CI share one helper rather than a CI-only service container. Neither side uses it yet: locally the suite takes whatever `apps/api/.env.test` names, which `apps/api/vitest.config.ts` refuses to start without, and CI declares a `postgres:17` service container in `.github/workflows/ci.yml` — the arrangement the decision was meant to replace |
-| Test task cache | No replay of database-backed success until runtime dependencies are hermetic and represented | A stale Turbo result must not mask a missing Postgres runtime; policy lives in `turbo.json` |
+| Test task cache | None — `turbo.json` gives the `test` task `"cache": false`, so it is executed and never replayed | A test run's real input is a Postgres no input hash can see: the same tree against an unmigrated or differently seeded database is a different run under the same key. The row said this was the policy before the task carried it; it does now, and a recorded run no longer needs `--force` to be a run |
 | Property tests | fast-check 4.9.x | "No assignment map ever overlaps" |
 | E2E | Playwright 1.61.x | Keyboard-only check-in; visual baseline of the acts |
 | Seed data | `@faker-js/faker` 10.5.x, `vi` locale | Realistic Vietnamese guest data |

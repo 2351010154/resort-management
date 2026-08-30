@@ -10,7 +10,16 @@
       "dependsOn": ["^build"]
     },
     "test": {
-      "dependsOn": ["^build"]
+      "dependsOn": ["^build"],
+
+      // Never replayed. The API's suite is most of this task and it talks to a
+      // real Postgres that no input hash can see: the same tree against an
+      // unmigrated, unreachable or differently seeded database is a different
+      // run with the same key, so a cache hit would report a success that was
+      // never re-established. Until the database is a hermetic input the honest
+      // answer is to execute, and `docs/architecture/tech-stack.md` states this
+      // as the policy it is.
+      "cache": false
     },
     "dev": {
       "dependsOn": ["^build"],
