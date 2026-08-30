@@ -33,7 +33,12 @@ and a finished phase does not promote one into durable authority.
 **The repository root holds workspace configuration and nothing else**:
 `package.json`, `turbo.json`, `biome.jsonc`, `lefthook.yml`, the tsconfigs,
 `pnpm-workspace.yaml` and `pnpm-lock.yaml`, `README.md`, `.gitignore`,
-`.nvmrc`. Everything else there arrived by accident — a dev server started from
+`.nvmrc`, and the two container files — `compose.yaml` and `.dockerignore` —
+which are there because each describes the whole tree rather than a member of
+it: the images are pnpm workspace builds whose context is the root, and Docker
+reads a context-wide ignore file from the root or nowhere. The Dockerfiles
+themselves are not here, because each one describes a single app and lives with
+it. Everything else there arrived by accident — a dev server started from
 the repo root writes its log beside them, and a font download lands in whatever
 directory the browser was pointed at. `.gitignore` already keeps `*.log` and
 `*.font` out of history, which makes them invisible in review and permanent on

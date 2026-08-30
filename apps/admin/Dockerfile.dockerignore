@@ -1,0 +1,61 @@
+# The build context for `apps/admin/Dockerfile`, and the reason it is not the
+# root `.dockerignore`: that file excludes `apps/admin/*`, which is exactly what
+# this image is made of. BuildKit reads `<dockerfile>.dockerignore` in preference
+# to the context root's when one exists, so the two images filter the same tree
+# differently without either having to know about the other.
+#
+# It replaces the root file rather than adding to it, which is why the common
+# rules are restated below. Their reasoning is written once, in `.dockerignore`
+# at the repository root; only the workspace block at the end is this file's own.
+
+# Version control
+.git/
+
+# Installed and built output. The image produces all of it from source, and a
+# host copy is stale by definition — worse, it is linked against win32.
+node_modules/
+dist/
+.next/
+.turbo/
+out/
+build/
+coverage/
+**/*.tsbuildinfo
+
+# Secrets. Never in an image, in any form.
+.env
+.env.*
+**/.env
+**/.env.*
+
+# The workspaces this image does not contain. apps/admin's dependency graph
+# reaches packages/shared and packages/api-client and stops there — the API and
+# the public site are neither imported nor served here, and apps/web alone is
+# fifty megabytes of room photography and video the console never shows.
+#
+# Their manifests are re-included deliberately. A filtered `pnpm install` still
+# resolves --frozen-lockfile against every workspace member the lockfile names,
+# so a missing package.json fails the install outright; it is the sources that
+# are dead weight, not the three files that describe them.
+apps/api/*
+apps/web/*
+packages/tokens/*
+!apps/api/package.json
+!apps/web/package.json
+!packages/tokens/package.json
+
+# Test, editor and agent artifacts
+test-results/
+playwright-report/
+.vscode/
+.idea/
+
+# Documents and planning. Nothing here is read while the console is compiled or
+# served.
+docs/
+plans/
+**/*.md
+**/*.log
+**/*.log.err
+.DS_Store
+Thumbs.db

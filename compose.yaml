@@ -1,0 +1,146 @@
+# The whole system on one machine: Postgres, the API, the public site and the
+# staff console, from the same three Dockerfiles a deploy would use. It exists so
+# the stack can be exercised end to end before any account is opened anywhere —
+# `docs/deployment.md` calls this the rehearsal, and nothing below reaches a
+# cloud provider.
+#
+# It sits at the repository root because it describes the workspace rather than
+# any member of it, and because each image's build context is the root: the
+# Dockerfiles are pnpm-workspace builds and resolve against the whole tree.
+# `docs/architecture/repository-structure.md` records it beside `.dockerignore`
+# for that reason.
+#
+# ## What this is not
+#
+#   docker compose up
+#
+# is not a deployment. The deployed topology is Fly, Vercel and Neon
+# (`docs/architecture/infrastructure.md` §Hosting), and none of it is reproduced
+# here — no edge, no CDN, no managed backups. What is reproduced is the shape:
+# one API that owns the database, two front ends that only talk to it, and a
+# schema applied by hand before the API is allowed to start.
+#
+# ## Migrations are not run here either
+#
+# Nothing in this file applies a migration, for the reason `apps/api/Dockerfile`
+# gives at length: `assertMigrationsApplied` refuses a database behind the build,
+# and that refusal is worth nothing if a container quietly migrates its way past
+# it. Postgres is published on 5432 so the schema is applied from the host, with
+# the same command a developer already runs — `docs/deployment.md` step 1
+# has the order.
+
+name: mariva
+
+services:
+  db:
+    image: postgres:17
+    environment:
+      # The credentials `apps/api/.env.example` and the README already name for
+      # local development. They are a throwaway account on a container bound to
+      # this machine; a deployed database is Neon and its connection string is a
+      # secret that never appears in a file.
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: mariva_dev
+    ports:
+      # Published, and that is deliberate: migrations and the first-admin script
+      # are run from the host against this port, because both are steps a person
+      # performs rather than work a container improvises.
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      # `pg_isready` against this database rather than the server's default,
+      # because the entrypoint starts Postgres once to create the database and
+      # again to serve it — a check that only asked whether the port answered
+      # would pass during the first of those and let the API race the schema.
+      test: ["CMD-SHELL", "pg_isready -U postgres -d mariva_dev"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    # The developer's own `apps/api/.env`, which the README already has them
+    # create — one file configures the host loop and this stack, rather than two
+    # that drift. Compose fails by name if it is missing, which is a better
+    # error than a boot refusing a secret nobody was told to write.
+    env_file:
+      - apps/api/.env
+    environment:
+      # The four values that must differ from the host loop's, or must not be
+      # left to whatever the file happens to say. `environment` wins over
+      # `env_file`, so these are the stack's and the rest is the developer's.
+      #
+      # `db`, not localhost: inside the network the database is a service name.
+      DATABASE_URL: postgres://postgres:postgres@db:5432/mariva_dev
+      # Development, stated rather than inherited. This is a local rehearsal and
+      # not a deployment, and `env.ts` reads `NODE_ENV=production` as a promise
+      # that Resend, Google and a real terminal are configured — which here they
+      # are not, and pretending otherwise would need credentials that must never
+      # be in this file.
+      NODE_ENV: development
+      # The CORS pair, as the browser sees it: both front ends are reached on
+      # localhost through the published ports below, never at their service
+      # names, so these are host addresses and not container ones.
+      WEB_ORIGIN: http://localhost:3000
+      ADMIN_ORIGIN: http://localhost:3002
+    ports:
+      - "3001:3001"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      # The same route Better Stack and Fly poll, so what passes here is what
+      # passes there. `node -e` rather than curl or wget: neither is in
+      # node:24-slim, and adding a package to an image so a healthcheck can run
+      # is a larger change than one line of the runtime that is already present.
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3001/health').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      # Long enough to cover a first boot that has to open a pool and read the
+      # migration journal before it answers anything.
+      start_period: 20s
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        # Compiled into the client bundle, so it is an argument and not an
+        # environment variable — see the Dockerfile. The browser runs on the
+        # host, which reaches the API through its published port.
+        NEXT_PUBLIC_API_URL: http://localhost:3001
+    ports:
+      - "3000:3000"
+    depends_on:
+      # Started, not healthy. The site renders without the API and its own pages
+      # say so; waiting would only delay the one surface that can report the
+      # outage.
+      - api
+
+  admin:
+    build:
+      context: .
+      dockerfile: apps/admin/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:3001
+    ports:
+      - "3002:3002"
+    depends_on:
+      - api
+
+volumes:
+  # Named, so `compose down` keeps the schema and the seed data and only
+  # `compose down -v` throws them away. Re-migrating and re-creating the first
+  # admin on every restart is how a local stack stops being used.
+  db-data:

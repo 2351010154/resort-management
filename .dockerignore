@@ -1,0 +1,62 @@
+# What never enters a build context. This file is workspace configuration in the
+# same sense .gitignore is — it describes the whole tree, not one app — which is
+# why it sits at the root while the Dockerfile it serves lives in apps/api.
+#
+# Two of the entries below are correctness rather than size. `.env` holds the
+# secrets a deployed environment supplies through its own secret store, and a
+# COPY that swept one into a layer would bake this machine's credentials into an
+# image that gets pushed to a registry. `node_modules` holds binaries linked
+# against this machine's platform; the build installs its own for the image's.
+
+# Version control
+.git/
+
+# Installed and built output. The build produces all of it from source, and a
+# host copy is stale by definition — worse, it is linked against win32.
+node_modules/
+dist/
+.next/
+.turbo/
+out/
+build/
+coverage/
+**/*.tsbuildinfo
+
+# Secrets. Never in an image, in any form.
+.env
+.env.*
+**/.env
+**/.env.*
+
+# The workspaces the API image does not contain. apps/web and apps/admin deploy
+# to Vercel from this same repository, and packages/tokens and packages/
+# api-client are theirs — the API's dependency graph reaches packages/shared and
+# stops there.
+#
+# Their manifests are re-included deliberately. A filtered `pnpm install` still
+# resolves --frozen-lockfile against every workspace member the lockfile names,
+# so a missing package.json fails the install outright; it is the sources that
+# are dead weight, not the four files that describe them.
+apps/web/*
+apps/admin/*
+packages/tokens/*
+packages/api-client/*
+!apps/web/package.json
+!apps/admin/package.json
+!packages/tokens/package.json
+!packages/api-client/package.json
+
+# Test, editor and agent artifacts
+test-results/
+playwright-report/
+.vscode/
+.idea/
+
+# Documents and planning. Nothing here is read at build or runtime.
+docs/
+plans/
+**/*.md
+**/*.log
+**/*.log.err
+.DS_Store
+Thumbs.db
