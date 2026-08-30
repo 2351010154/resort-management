@@ -40,6 +40,7 @@ the inconsistency rather than rewriting either source to conceal it.
 | Hosting, database, storage, backup, payment, e-invoice and outbound-mail decisions | [`architecture/infrastructure.md`](architecture/infrastructure.md) |
 | Screen intent and navigation | [`screens.md`](screens.md) |
 | Order of operations for a change made by hand against a live environment | [`runbooks/`](runbooks/) |
+| Order of operations for standing an environment up: accounts, secrets, the migration step, first deploy and rollback | [`deployment.md`](deployment.md) |
 | Current delivery fields and blockers | [GitHub issues](https://github.com/2351010154/resort-management/issues) |
 
 Architecture documents may describe an accepted target before code enforces it.

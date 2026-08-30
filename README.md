@@ -310,6 +310,7 @@ Written as the system is built, not assembled at the end.
 | [`docs/orientation.md`](docs/orientation.md) | What the system is, the invariant, and where to resume work |
 | [`docs/README.md`](docs/README.md) | The **authority map** — which document owns which fact, and the precedence order when two disagree |
 | [`docs/screens.md`](docs/screens.md) | Intended screen and route map; issues own delivery state |
+| [`docs/deployment.md`](docs/deployment.md) | Running the whole system in containers locally, and the ordered procedure for deploying it |
 
 | Design fact | Owner |
 | --- | --- |
