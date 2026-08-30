@@ -1,0 +1,24 @@
+$ playwright test
+Running 7 tests using 1 worker
+
+  ✓  1 [chromium] › e2e\keyboard-checkout.spec.ts:40:5 › a stay with a balance is checked out without a single mouse event (1.5s)
+  Dashboard · Tab leaves the rail for the top bar — 0.3 ms
+  Dashboard · Tab reaches the first count card — 5.4 ms
+  Dashboard · the account menu opens on a press — 11.3 ms
+  ✓  2 [chromium] › e2e\nfr-04-feedback-timing.spec.ts:77:5 › the dashboard answers a keystroke and a press inside the budget (549ms)
+  Arrivals · the arrow key moves the queue's focus — 0.5 ms
+  Arrivals · Enter opens the check-in sequence — 7.0 ms
+  ✓  3 [chromium] › e2e\nfr-04-feedback-timing.spec.ts:126:5 › the arrivals queue answers the keyboard inside the budget (724ms)
+  Departures · the arrow key moves the queue's focus — 4.5 ms
+  Departures · Enter opens the checkout sequence — 9.2 ms
+  ✓  4 [chromium] › e2e\nfr-04-feedback-timing.spec.ts:168:5 › the departures queue answers the keyboard inside the budget (994ms)
+  Bookings · / puts the caret in the search — 4.5 ms
+  Bookings · the search field echoes a keystroke — 12.7 ms
+  Bookings · the search form acknowledges a submission — 0.0 ms
+  Bookings · the new-booking panel opens on a press — 11.8 ms
+  ✓  5 [chromium] › e2e\nfr-04-feedback-timing.spec.ts:207:5 › the bookings screen answers typing, a submission and a press inside the budget (652ms)
+  ✓  6 [chromium] › e2e\nfr-04-feedback-timing.spec.ts:267:5 › no operational screen plays an entrance animation (2.9s)
+  Check-in walked by keyboard: Guest → Document → Room → Deposit → Check in
+  ✓  7 [chromium] › e2e\nfr-11-keyboard-checkin.spec.ts:53:5 › a stay is checked in end to end without a single mouse event (1.6s)
+
+  7 passed (10.1s)
