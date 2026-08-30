@@ -1,0 +1,112 @@
+# The API on Fly.io. Region `sin` — Singapore is the nearest mature region to
+# Vietnam and no vendor in this system has a Vietnam one
+# (docs/architecture/infrastructure.md §Hosting).
+#
+# Deployed from the repository root, never from this directory:
+#
+#   fly deploy --config apps/api/fly.toml --dockerfile apps/api/Dockerfile
+#
+# Both paths are on the command line rather than in a `[build]` section below,
+# and that is the point of writing them there. The build context is the working
+# directory `fly deploy` is given, and this image is a pnpm workspace build that
+# needs the whole tree — so the context has to be the root while the config and
+# the Dockerfile are two levels down. A `dockerfile` key here would be resolved
+# against one of those two directories depending on the flyctl version, and a
+# path that means different things to different versions is worse than a flag
+# that means one thing. docs/deployment.md carries the full command.
+#
+# Every secret this app reads is set with `fly secrets set` and appears nowhere
+# in this file. What is here is addresses and switches — configuration a reviewer
+# should see in a diff.
+
+app = "mariva-api"
+primary_region = "sin"
+
+[env]
+  # The environment `env.ts` refuses to assume. Every production requirement in
+  # that schema is written as "unless NODE_ENV is production", so an unset value
+  # would switch all of them off at once and boot happily with no mailer, no
+  # OAuth client and no trusted address header.
+  NODE_ENV = "production"
+
+  # What the Dockerfile already advertises and what `http_service.internal_port`
+  # below routes to. Stated in all three places because a mismatch between any
+  # two of them is a deploy that passes and then never answers.
+  PORT = "3001"
+
+  # The header Fly's edge writes the caller's address into, and the only one the
+  # guest realm's rate limiter will believe. A client cannot forge it because the
+  # edge overwrites it; `x-forwarded-for`, which Better Auth would otherwise
+  # read, a client writes themselves and can change on every attempt. Required
+  # in production by `env.ts`.
+  TRUSTED_CLIENT_IP_HEADER = "fly-client-ip"
+
+  # ─── Edit these three before the first deploy ───
+  #
+  # Addresses, not secrets, which is why they are in version control. They are
+  # placeholders on purpose: `.example` is a reserved domain and resolves
+  # nowhere, so a deploy that forgot this block fails visibly instead of
+  # half-working.
+  #
+  # API_URL is where this process answers, and it is what the gateways' callback
+  # URLs and the mailed links are built from. WEB_ORIGIN and ADMIN_ORIGIN are the
+  # two entries on the CORS allow-list `main.ts` builds — the Vercel deployments
+  # of apps/web and apps/admin — and a value that does not match the browser's
+  # origin exactly fails sign-in as a CORS error rather than as a wrong password.
+  API_URL = "https://api.mariva.example"
+  WEB_ORIGIN = "https://mariva.example"
+  ADMIN_ORIGIN = "https://admin.mariva.example"
+
+[http_service]
+  internal_port = 3001
+  force_https = true
+
+  # No scale-to-zero, and this is the whole reason the API is not serverless.
+  # pg-boss polls Postgres continuously for the sweeps, the mail queue and the
+  # reconciliation run; a machine the proxy stopped between requests is a hold
+  # that never expires, a confirmation that never sends and a trading day nobody
+  # reconciles. docs/architecture/infrastructure.md §Hosting is the decision.
+  auto_stop_machines = "off"
+
+  # Left on, and it is not a contradiction. Nothing stops a machine
+  # automatically now, but a machine stopped by a person, a crash or a platform
+  # event should come back on the next request rather than wait for someone to
+  # notice.
+  auto_start_machines = true
+
+  # Only bites if auto-stop is ever turned back on. One line to make sure that
+  # change cannot take the queue to zero as a side effect.
+  min_machines_running = 1
+
+  [[http_service.checks]]
+    # The route that executes `select 1` through the pool — the process is not
+    # what is being asked about. A Node process that has lost Postgres still
+    # answers, and a probe that only proved the event loop turns would keep a
+    # machine in rotation while every request behind it failed.
+    method = "GET"
+    path = "/health"
+    interval = "15s"
+    timeout = "5s"
+    # `assertMigrationsApplied` runs before the port opens, so a boot includes a
+    # round trip to Neon before anything answers. Failing the machine during that
+    # window would restart it into the same wait.
+    grace_period = "15s"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  # A starting point and not a measurement. `shared-cpu-1x` defaults to 256 MB,
+  # which is tight for Nest plus a pg-boss worker pool, so this doubles it —
+  # but the honest number comes from `fly logs` and the memory graph after the
+  # first week, not from here. Confirm it before the deployment is called sized.
+  memory = "512mb"
+
+# There is deliberately no `[deploy] release_command`.
+#
+# A release command would run the migrations on every deploy, which is exactly
+# what `assertMigrationsApplied` exists to make unnecessary — and worse than
+# unnecessary. Two machines deploying at once would race to apply the same DDL,
+# and the guard's whole purpose is to make "schema first, then process" an
+# ordering somebody performs rather than one the platform improvises. The
+# migration is a numbered step in docs/deployment.md, run against Neon before
+# `fly deploy` is typed, and a process pointed at a database behind it refuses to
+# start and names the migration that is missing.
