@@ -50,7 +50,14 @@ COPY . .
 # them, and the runtime is plain node. @node-rs/argon2, the one native module
 # that is a runtime dependency, resolves its platform binary through
 # optionalDependencies rather than through a script, so it is unaffected.
-RUN --mount=type=cache,id=pnpm-store,target=/pnpm/store \
+#
+# `sharing=locked` because three images now share this one store — the API, the
+# public site and the staff console — and `compose build` starts all three at
+# once. BuildKit's default lets them write to it concurrently, which is a pnpm
+# store two processes are indexing at the same time; the install that loses that
+# race fails with no useful message. Locked queues them instead, and the second
+# build finds the packages the first just fetched.
+RUN --mount=type=cache,id=pnpm-store,sharing=locked,target=/pnpm/store \
     pnpm install --frozen-lockfile --ignore-scripts --filter=@mariva/api...
 # turbo, not `tsc` directly: the API's build `dependsOn: ["^build"]`, and
 # packages/shared publishes types and JS out of its own dist. Calling tsc here
