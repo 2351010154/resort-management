@@ -119,5 +119,21 @@
         "noImportantStyles": "off"
       }
     }
-  }
+  },
+
+  "overrides": [
+    {
+      // Standalone node tools a person runs by hand. noUndeclaredEnvVars asks
+      // that every environment variable a file reads be declared in
+      // turbo.json, which is right for app code turbo builds and caches.
+      // These are not turbo tasks, so listing their variables as task inputs
+      // would describe a caching relationship that does not exist.
+      "includes": ["scripts/**"],
+      "linter": {
+        "rules": {
+          "suspicious": { "noUndeclaredEnvVars": "off" }
+        }
+      }
+    }
+  ]
 }

@@ -265,7 +265,7 @@ async function main() {
     await goByPalette(admin, "Audit", "/audit");
     const changes = admin.getByRole("button", { name: "Read the change" });
     await changes.first().waitFor({ state: "visible", timeout: 20_000 });
-    await openPropertyChange(admin, changes);
+    await openPropertyChange(changes);
     await admin.getByText(/columns? moved, of/).waitFor({
       state: "visible",
       timeout: 20_000,
@@ -414,7 +414,7 @@ async function openRoomAssignment(page, arrivals) {
 /** The newest logged change is this run's own sign-in, whose record carries the
  *  staff account address. A property change is opened instead, so the figure
  *  shows the audited domain and no account identity. */
-async function openPropertyChange(page, changes) {
+async function openPropertyChange(changes) {
   const count = Math.min(await changes.count(), 20);
 
   for (let index = 0; index < count; index += 1) {
