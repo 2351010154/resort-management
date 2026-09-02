@@ -526,7 +526,7 @@
 /* ============================ The furniture ============================ */
 
 /* Everything that is read, on one layer above the wheels: the label at the
-   head, the sentence at the centre, the aside in the corner, the foot. */
+   head, the sentence at the centre and the foot. */
 .frame {
   position: absolute;
   inset: 0;
@@ -620,20 +620,6 @@
   border-radius: 50%;
   font-size: 0.7rem;
   letter-spacing: 0;
-}
-
-/* Read on arrival and not again, which is why it is in the corner and set at
-   reading size rather than at the label's. It rides the same beat as the block
-   so the head of the frame is composed before the middle of it moves. */
-.aside {
-  position: absolute;
-  top: clamp(2rem, 7vh, 4.5rem);
-  right: 6vw;
-  max-width: 17rem;
-  font-size: var(--text-sm);
-  line-height: 1.55;
-  color: var(--stone-deep);
-  opacity: calc(0.9 * var(--reveal));
 }
 
 /* The foot changes once, and the change is drawn letter by letter in both
@@ -899,12 +885,6 @@
       var(--ivory-warm) 68%,
       rgb(var(--ivory-warm-rgb) / 0) 100%
     );
-  }
-
-  /* The aside is the one piece of furniture a phone has no room for beside the
-     block: at this width it would sit on the words. */
-  .aside {
-    display: none;
   }
 
   .foot {

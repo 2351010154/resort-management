@@ -64,16 +64,13 @@ const GLYPH_SPAN = Math.max(...WORDS.map((w) => w.length));
 const HEADLINE = "Experience\nbeyond stay.";
 const LEAD =
   "A collection of hours arranged around you — to wake in, to bathe in, to sit down to, and to remember.";
-/** The aside in the top corner, read on arrival and not again. */
-const ASIDE =
-  "Curated moments designed around you, with impeccable service at every step.";
 /**
  * The foot of the frame, which changes once. Two different sentences, so the
  * exchange is drawn as an exchange — the first leaving letter by letter under
  * the second arriving the same way — rather than as one line recoloured.
  */
-const FOOT_FIRST = "✦ One house. Many ways to spend a day.";
-const FOOT_SECOND = "✦ Hospitality. Reimagined for you.";
+const FOOT_FIRST = "One house. Many ways to spend a day.";
+const FOOT_SECOND = "Hospitality. Reimagined for you.";
 
 /**
  * Both the block and the foot are drawn letter by letter, and every letter
@@ -717,9 +714,8 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
         <div ref={shardLayerRef} className={styles.shards} aria-hidden />
 
         {/* The chapter's furniture: the label at the head, the sentence that
-            takes the centre, the aside in the corner and the foot that changes
-            once. All of it above the wheels — the cards pass behind the words,
-            never over them. */}
+            takes the centre and the foot that changes once. All of it above
+            the wheels — the cards pass behind the words, never over them. */}
         <div className={styles.frame}>
           <p className={`caps-label ${styles.label}`}>
             Our experiences
@@ -736,8 +732,6 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
               View all experiences
             </a>
           </div>
-
-          <p className={styles.aside}>{ASIDE}</p>
 
           <div className={styles.foot} aria-hidden>
             {FOOT_LINES.map(({ line, glyphs }) => (

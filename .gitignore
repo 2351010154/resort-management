@@ -71,3 +71,11 @@ apps/web/scripts/measure-room-comp.mjs
 apps/web/scripts/prepare-arrival-images.mjs
 apps/web/scripts/prepare-room-images.mjs
 
+# Thesis render scratch. The report is authored outside this repository, and
+# these are the intermediate stages of building it: the .docx and .pdf a run
+# produces, the contact sheets it rasterises to proofread them, and the throwaway
+# Python that inspects and compares the output. Fifty megabytes of it, none
+# authored here, all regenerable from the chapters that live elsewhere.
+/output/
+/tmp/
+/work/
