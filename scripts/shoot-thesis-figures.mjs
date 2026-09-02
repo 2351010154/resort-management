@@ -20,6 +20,23 @@ import { mkdir } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
 
+// What the console is — the account, the queue row, the shell's landmark, the
+// palette's field, the box a table scrolls in — comes from the console's own
+// e2e support, so a rename there reaches this script instead of quietly leaving
+// it photographing the wrong thing. Only the flows below are this script's own:
+// they click and fill where the specs press keys, because a figure has to be
+// arrived at quickly, not proved reachable by keyboard.
+import {
+  CONSOLE_RAIL,
+  DATA_TABLE_FRAME,
+  MISSING_CREDENTIALS,
+  PALETTE_PLACEHOLDER,
+  QUEUE_ROW,
+  refusalText,
+  STAFF_EMAIL,
+  STAFF_PASSWORD,
+} from "../apps/admin/e2e/support/console-surface.mjs";
+
 const ROOT = path.resolve(import.meta.dirname, "..");
 const requireFromWeb = createRequire(
   path.join(ROOT, "apps", "web", "package.json"),
@@ -39,17 +56,6 @@ const DEFAULTS = {
   webBaseUrl: process.env.WEB_BASE_URL ?? "http://localhost:3000",
   adminBaseUrl: process.env.ADMIN_E2E_BASE_URL ?? "http://localhost:3002",
 };
-
-const STAFF_EMAIL = process.env.ADMIN_E2E_EMAIL ?? "";
-const STAFF_PASSWORD = process.env.ADMIN_E2E_PASSWORD ?? "";
-
-const MISSING_CREDENTIALS = [
-  "No staff account was given to the thesis figure run.",
-  "Load ADMIN_E2E_EMAIL and ADMIN_E2E_PASSWORD from the gitignored",
-  "apps/admin/.env.local file before running this script.",
-  "The script does not guess or hardcode a password because that would put a",
-  "credential in the repository.",
-].join(" ");
 
 const SHOTS = {
   bookingRooms: "hinh-4-2-pheu-dat-phong-buoc-chon-loai-phong.png",
@@ -159,11 +165,15 @@ function addDays(iso, days) {
 }
 
 async function main() {
+  // Options first, so `--help` answers a question anyone can ask. The account
+  // is still demanded before anything opens a browser or touches the console;
+  // reading the arguments does neither.
+  const options = readOptions(process.argv.slice(2));
+
   if (STAFF_EMAIL === "" || STAFF_PASSWORD === "") {
     throw new Error(MISSING_CREDENTIALS);
   }
 
-  const options = readOptions(process.argv.slice(2));
   await mkdir(options.outputDir, { recursive: true });
 
   const browser = await chromium.launch({ headless: true });
@@ -223,7 +233,7 @@ async function main() {
     // while the one console tab preserves the closure-held access token.
     await signIn(admin, options.adminBaseUrl);
     await goByPalette(admin, "Arrivals", "/arrivals");
-    const arrivals = admin.locator("tr[data-roving-item]");
+    const arrivals = admin.locator(QUEUE_ROW);
     await arrivals.first().waitFor({ state: "visible", timeout: 20_000 });
     await waitForSettledUi(admin);
     await capture(
@@ -272,14 +282,15 @@ async function main() {
     });
     // Opening a change narrows the table, and the browser keeps the pressed
     // button in view by scrolling the log sideways. Reading starts at the first
-    // column, so the sideways offset is undone before the figure is taken.
-    await admin.evaluate(() => {
-      for (const node of document.querySelectorAll("*")) {
-        if (node.scrollLeft > 0) {
-          node.scrollLeft = 0;
-        }
-      }
-    });
+    // column, so the sideways offset is undone before the figure is taken — on
+    // the log's own scroll box and nothing else, since anything else that had
+    // been scrolled was scrolled on purpose.
+    await admin
+      .locator(DATA_TABLE_FRAME)
+      .first()
+      .evaluate((frame) => {
+        frame.scrollLeft = 0;
+      });
     await waitForSettledUi(admin);
     await capture(
       admin,
@@ -288,6 +299,17 @@ async function main() {
       completed,
       adminErrors,
     );
+
+    // Every capture inspects what the page had raised up to that point, which
+    // leaves the last shot of each page unexamined: an error thrown while the
+    // final screenshot was being taken would otherwise be reported as a clean
+    // run. This is that missing look, taken once both pages are finished with.
+    const late = [...webErrors, ...adminErrors];
+    if (late.length > 0) {
+      throw new Error(
+        `The page raised an unhandled error during the run: ${late.join(" | ")}`,
+      );
+    }
 
     console.log(`Room search chosen: ${roomSearchUrl}`);
     console.log(`Wrote ${completed.length} figures to ${options.outputDir}`);
@@ -343,24 +365,22 @@ async function signIn(page, origin) {
 
   try {
     await page
-      .getByRole("navigation", { name: "Console sections" })
+      .getByRole("navigation", { name: CONSOLE_RAIL })
       .waitFor({ state: "visible", timeout: 20_000 });
   } catch (error) {
-    const refusal = page.getByRole("alert");
-    const detail =
-      (await refusal.count()) === 0
-        ? "The login screen reported nothing."
-        : `The login screen said: ${await refusal.first().innerText()}`;
-
-    throw new Error(`Sign-in did not reach the console. ${detail}`, {
-      cause: error,
-    });
+    // Read after the wait, not before it. The refusal arrives from a round trip,
+    // so a message composed up front would report the empty screen that was
+    // there before the API answered.
+    throw new Error(
+      `Sign-in did not reach the console. ${await refusalText(page)}`,
+      { cause: error },
+    );
   }
 }
 
 async function goByPalette(page, label, route) {
   await page.keyboard.press("ControlOrMeta+k");
-  const search = page.getByPlaceholder("Type a command…");
+  const search = page.getByPlaceholder(PALETTE_PLACEHOLDER);
 
   await search.waitFor({ state: "visible", timeout: 10_000 });
   await search.fill(label);
@@ -492,13 +512,6 @@ async function capture(page, outputDir, filename, completed, pageErrors) {
   if (pageErrors.length > 0) {
     throw new Error(
       `The page raised an unhandled error before ${filename}: ${pageErrors.join(" | ")}`,
-    );
-  }
-
-  const viewport = page.viewportSize();
-  if (viewport?.width !== 1280 || viewport.height !== 800) {
-    throw new Error(
-      `${filename} would be captured at ${viewport?.width}x${viewport?.height}, not 1280x800.`,
     );
   }
 
