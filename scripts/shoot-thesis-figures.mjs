@@ -171,7 +171,8 @@ async function main() {
 
   try {
     const contextOptions = {
-      viewport: { width: 1440, height: 900 },
+      viewport: { width: 1280, height: 800 },
+      deviceScaleFactor: 2,
       locale: "en-GB",
       timezoneId: "Asia/Bangkok",
     };
@@ -264,10 +265,20 @@ async function main() {
     await goByPalette(admin, "Audit", "/audit");
     const changes = admin.getByRole("button", { name: "Read the change" });
     await changes.first().waitFor({ state: "visible", timeout: 20_000 });
-    await changes.first().click();
+    await openPropertyChange(admin, changes);
     await admin.getByText(/columns? moved, of/).waitFor({
       state: "visible",
       timeout: 20_000,
+    });
+    // Opening a change narrows the table, and the browser keeps the pressed
+    // button in view by scrolling the log sideways. Reading starts at the first
+    // column, so the sideways offset is undone before the figure is taken.
+    await admin.evaluate(() => {
+      for (const node of document.querySelectorAll("*")) {
+        if (node.scrollLeft > 0) {
+          node.scrollLeft = 0;
+        }
+      }
     });
     await waitForSettledUi(admin);
     await capture(
@@ -400,6 +411,29 @@ async function openRoomAssignment(page, arrivals) {
   );
 }
 
+/** The newest logged change is this run's own sign-in, whose record carries the
+ *  staff account address. A property change is opened instead, so the figure
+ *  shows the audited domain and no account identity. */
+async function openPropertyChange(page, changes) {
+  const count = Math.min(await changes.count(), 20);
+
+  for (let index = 0; index < count; index += 1) {
+    const change = changes.nth(index);
+    const record = await change.evaluate(
+      (node) => node.closest("tr")?.innerText ?? "",
+    );
+
+    if (record.includes("staff_user")) {
+      continue;
+    }
+
+    await change.click();
+    return;
+  }
+
+  throw new Error("The audit log listed no change outside the staff account.");
+}
+
 async function waitForReport(page) {
   await page.waitForFunction(() => {
     const button = [...document.querySelectorAll("button")].find(
@@ -462,9 +496,9 @@ async function capture(page, outputDir, filename, completed, pageErrors) {
   }
 
   const viewport = page.viewportSize();
-  if (viewport?.width !== 1440 || viewport.height !== 900) {
+  if (viewport?.width !== 1280 || viewport.height !== 800) {
     throw new Error(
-      `${filename} would be captured at ${viewport?.width}x${viewport?.height}, not 1440x900.`,
+      `${filename} would be captured at ${viewport?.width}x${viewport?.height}, not 1280x800.`,
     );
   }
 
