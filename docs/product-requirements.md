@@ -221,7 +221,7 @@ authority named in [`README.md`](README.md) and wins.
 |---|---|---|---|
 | `NFR-01` | Double-booking | **0** — unrepresentable at the storage layer | 50-parallel-bookings test in CI (`FR-INV-02`) |
 | `NFR-02` | Ledger integrity | Σ postings = Σ payments + outstanding, nightly | Night-audit check (`FR-RPT-01`) |
-| `NFR-03` | Availability p95, 12-month calendar | **< 300 ms** | Local k6 load test, three runs: median-run p95 **13.95 ms** — [`plans/reports/evaluation-260827-1400-nfr03-availability-performance.md`](../plans/reports/evaluation-260827-1400-nfr03-availability-performance.md). A local baseline and a lower bound; the deployed measurement is still owed at M10 |
+| `NFR-03` | Availability p95, 12-month calendar | **< 300 ms** | Local k6 load test, three runs: worst-run p95 **13.95 ms**, median run 13.868 ms — [`plans/reports/evaluation-260827-1400-nfr03-availability-performance.md`](../plans/reports/evaluation-260827-1400-nfr03-availability-performance.md). A local baseline and a lower bound; the deployed measurement is still owed at M10 |
 | `NFR-04` | Admin console interaction feedback | **< 150 ms**, no entrance animation on operational screens | E2E timing at M7 |
 | `NFR-05` | `/booking` funnel bundle | **0 bytes** of `three`/`gsap`/`lenis` | CI bundle budget |
 | `NFR-06` | Second-gateway webhook ACK — PayPal, since `FR-PAY-06` gave it the slot MoMo held | **< 15 s** p100 | Handler ACKs, work queued |
