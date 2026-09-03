@@ -36,10 +36,12 @@ and `D7`.
 | Address | 12 Trần Phú, Lộc Thọ, Nha Trang, Khánh Hòa |
 | Timezone | `Asia/Ho_Chi_Minh`, UTC+7, no DST — a `StayDate` is never a timestamp |
 
-**The address is read by the pre-arrival reminder and by nothing else.** It is
-`PROPERTY_ADDRESS` in `apps/api/src/modules/notification/templates/guest-auth-emails.ts`,
-beside the property's name, because a guest travelling tomorrow needs to know
-where they are going. Like every value in §1 it is ⚑ — there is no building — and
+**The address is printed in two places and read by nothing.** The pre-arrival
+reminder carries it because a guest travelling tomorrow needs to know where they
+are going, and the arrival's footer carries it because a reader who scrolled to
+the end of the page came there to find the house. Both read `PROPERTY_ADDRESS`
+from [`packages/shared/src/property-address.ts`](../../packages/shared/src/property-address.ts),
+beside the operating clock, so the mail and the site cannot disagree. Like every value in §1 it is ⚑ — there is no building — and
 it is a constant rather than configuration for that reason: nothing decides
 anything by it, so the day the property is real this is one line to change and not
 a migration. An invoice or a statutory record that needs a registered address is a
