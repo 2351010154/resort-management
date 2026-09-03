@@ -160,7 +160,12 @@ export function Act1Gathering() {
 
   const copy = (
     <div className={styles.copy}>
-      <p className={`font-display ${styles.statement}`}></p>
+      {/* The one sentence the opening says. The mark names the house and the
+          photographs show its rooms; neither says how big it is or where — and
+          a first screen that names neither is a mood, not an arrival. */}
+      <p className={`font-display ${styles.statement}`}>
+        Forty rooms on the Nha&nbsp;Trang shore.
+      </p>
       {animate ? (
         <span className={`caps-label ${styles.cue}`}>Scroll</span>
       ) : null}

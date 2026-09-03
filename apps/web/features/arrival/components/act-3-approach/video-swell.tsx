@@ -182,7 +182,7 @@ export function VideoSwell() {
         </div>
         <div className={styles.tailFade} aria-hidden />
         <div ref={captionRef} className={styles.caption}>
-          <span className="caps-label">The journey elsewhere</span>
+          <span className="caps-label">The approach, at dusk</span>
         </div>
       </div>
     </section>

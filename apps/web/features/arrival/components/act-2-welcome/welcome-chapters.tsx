@@ -151,7 +151,8 @@ const CHAPTERS: Chapter[] = [
       ["came for.", 2.4],
     ],
     body:
-      "Ten suites and villas, each turned toward its own piece of the garden. " +
+      "Forty rooms in five kinds, from a Superior on the courtyard to the " +
+      "Panorama Suites facing the sea. " +
       "Cedar, linen, and lamplight kept low enough to hear the room. Nothing " +
       "here asks anything of you.",
     caption: "Suites & Villas",
