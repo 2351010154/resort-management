@@ -19,7 +19,7 @@
 
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BorderGlowPill } from "@/features/arrival/components/act-5-invitation/border-glow-pill";
 import { arrivalImages } from "@/features/arrival/lib/image-manifest";
 import { tierSrc, tierSrcSet } from "@/features/arrival/lib/image-srcset";
@@ -53,6 +53,16 @@ const PLATE_SCALE = [1.14, 1.02, 1.1] as const;
 
 export function InvitationScreen() {
   const sectionRef = useRef<HTMLElement>(null);
+  const plateRef = useRef<HTMLImageElement>(null);
+  const [plateReady, setPlateReady] = useState(false);
+
+  // An eager image can finish between the server paint and hydration, before
+  // React has attached onLoad. Read the element once on mount as well as
+  // listening below, so a cached frame cannot remain on its fallback forever.
+  useEffect(() => {
+    const image = plateRef.current;
+    setPlateReady(Boolean(image?.complete && image.naturalWidth > 0));
+  }, []);
 
   useEffect(() => {
     const section = sectionRef.current;
@@ -67,9 +77,8 @@ export function InvitationScreen() {
       // several screens below the fold, so there is nothing to flash.
       gsap.set(lines, { yPercent: 115 });
 
-      // The address, once the veil is off it (Act 4's deck holds its pin to this
-      // act's top and its tail fade then wipes up over the first screen — see
-      // room-deck). Anything revealed before that plays behind the wipe.
+      // Let the photograph enter and settle for one screen before the address
+      // arrives. The frame itself is already fully visible during that entry.
       gsap
         .timeline({
           scrollTrigger: { trigger: section, start: "top -100%", once: true },
@@ -93,8 +102,8 @@ export function InvitationScreen() {
           0.35,
         );
 
-      // The breath, across the held screen — relaxing out of the wipe, settled
-      // while the reading is on it, swelling again as the footer takes over.
+      // The breath across the held screen: settling while the reading is on it,
+      // then swelling again as the footer takes over.
       gsap
         .timeline({
           defaults: { ease: "none" },
@@ -115,16 +124,6 @@ export function InvitationScreen() {
           `.${styles.plateImage}`,
           { scale: PLATE_SCALE[2], duration: 0.38 },
           0.62,
-        )
-        // The frame comes up with the veil, not after it: the wipe's edge would
-        // otherwise cut a lit photograph in half for a whole screen of scroll.
-        // Half the range is exactly the veil's travel (one viewport of the
-        // three this act is long).
-        .fromTo(
-          `.${styles.plate}`,
-          { opacity: 0.18 },
-          { opacity: 1, duration: 0.5, ease: "power2.in" },
-          0,
         );
     }, section);
     return () => ctx.revert();
@@ -132,9 +131,10 @@ export function InvitationScreen() {
 
   return (
     <section ref={sectionRef} data-act={5} className={styles.section}>
-      <div className={styles.stage}>
+      <div className={styles.stage} data-plate-ready={plateReady}>
         <div className={styles.plate}>
           <img
+            ref={plateRef}
             className={styles.plateImage}
             src={tierSrc(PLATE.src, 1920)}
             srcSet={tierSrcSet(PLATE)}
@@ -142,8 +142,11 @@ export function InvitationScreen() {
             width={PLATE.width}
             height={PLATE.height}
             alt={PLATE.alt}
-            loading="lazy"
+            loading="eager"
+            fetchPriority="high"
             decoding="async"
+            onLoad={() => setPlateReady(true)}
+            onError={() => setPlateReady(false)}
           />
         </div>
         <div className={styles.scrim} aria-hidden />

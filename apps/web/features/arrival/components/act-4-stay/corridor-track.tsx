@@ -83,7 +83,7 @@ const PANELS: Panel[] = [
     kind: "tone",
     w: 26,
     mw: 68,
-    line: "Twenty-four rooms.\nNo two of them alike.",
+    line: "Forty rooms.\nFive kinds of morning.",
   },
   {
     kind: "photo",
@@ -129,7 +129,7 @@ const PANELS: Panel[] = [
     w: 56,
     mw: 84,
     headline: "Your door",
-    caption: "Suite 704.",
+    caption: "Suite 508.",
   },
   {
     kind: "statement",

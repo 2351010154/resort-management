@@ -26,9 +26,8 @@
 //      right coming down from above, each card tilted with the rim it rides and
 //      level at the height it is read at.
 //
-// The act ends the way trionn.com's does: five bands of Act 5's own dark climb
-// the frame from the foot, the lowest first, and the Invitation is behind them
-// when the last one closes. Nothing fades; the screen is taken.
+// The act hands directly to the Invitation frame. The next photograph rises
+// over this pinned ivory stage, so there is no intermediate night-only screen.
 //
 // The movement opens on somebody else's frame. The corridor's statement is
 // still standing when this stage pins over it, and the two sentences are meant
@@ -44,7 +43,6 @@
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useEffect, useRef } from "react";
-import { useArrivalActStore } from "@/features/arrival/lib/act-store";
 import { tierSrc, tierSrcSet } from "@/features/arrival/lib/image-srcset";
 import styles from "./act-4-stay.module.css";
 import { EXPERIENCES, experiencePlate } from "./experiences";
@@ -61,7 +59,7 @@ const WORDS = ["STAY", "REST", "BATHE", "DINE"];
 const GLYPH_SPAN = Math.max(...WORDS.map((w) => w.length));
 
 /** The sentence that stands where the block stood. */
-const HEADLINE = "Experience\nbeyond stay.";
+const HEADLINE = "Beyond\nthe room.";
 const LEAD =
   "A collection of hours arranged around you — to wake in, to bathe in, to sit down to, and to remember.";
 /**
@@ -70,7 +68,7 @@ const LEAD =
  * the second arriving the same way — rather than as one line recoloured.
  */
 const FOOT_FIRST = "One house. Many ways to spend a day.";
-const FOOT_SECOND = "Hospitality. Reimagined for you.";
+const FOOT_SECOND = "Forty rooms, one kitchen, a bath house open at six.";
 
 /**
  * Both the block and the foot are drawn letter by letter, and every letter
@@ -295,7 +293,6 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
   const wordsRef = useRef<HTMLDivElement>(null);
   const shardLayerRef = useRef<HTMLDivElement>(null);
   const fieldRef = useRef<HTMLDivElement>(null);
-  const setNavDark = useArrivalActStore((s) => s.setNavDark);
 
   useEffect(() => {
     const section = sectionRef.current;
@@ -586,44 +583,13 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
         onToggle: (self) => layout(self.progress),
         onUpdate: (self) => layout(self.progress),
       });
-
-      // The hand-over into Act 5. Five bands of the Invitation's own dark, each
-      // growing up out of its own foot, the lowest first — so what crosses the
-      // frame is a rising edge rather than a curtain, and the act ends on a
-      // taken screen rather than a faded one.
-      const next = document.querySelector<HTMLElement>('[data-act="5"]');
-      const stripes = gsap.utils.toArray<HTMLElement>("[data-stripe]", stage);
-      if (next && stripes.length) {
-        const wipe = gsap.timeline({ paused: true });
-        stripes.forEach((stripe, i) => {
-          const at = (0.3 * (stripes.length - 1 - i)) / (stripes.length - 1);
-          wipe.to(stripe, { scaleY: 1, duration: 0.3, ease: "none" }, at);
-        });
-        // A held tail, so the last band has closed before the pin releases and
-        // the Invitation is never met through a gap.
-        wipe.to({}, { duration: 0.1 });
-
-        ScrollTrigger.create({
-          trigger: next,
-          start: "top bottom",
-          end: "top top",
-          onUpdate: (self) => {
-            wipe.progress(self.progress);
-            // The bar is over this act's ivory until the bands have most of the
-            // frame, and over Act 5's dark after.
-            setNavDark(4, self.progress >= 0.55);
-          },
-          onLeaveBack: () => setNavDark(4, false),
-        });
-      }
     }, section);
 
     return () => {
       ctx.revert();
       fieldLive = false;
-      setNavDark(4, false);
     };
-  }, [mobile, setNavDark]);
+  }, [mobile]);
 
   return (
     <section
@@ -725,11 +691,13 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
           <div className={styles.centre}>
             <h2 className={`font-display ${styles.headline}`}>{HEADLINE}</h2>
             <p className={styles.lead}>{LEAD}</p>
-            <a className={`caps-label ${styles.centreLink}`} href="/rooms">
+            {/* The one way into the funnel on this screen, and the only one
+                between the welcome line and the invitation four screens on. */}
+            <a className={`caps-label ${styles.centreLink}`} href="/booking">
               <span className={styles.centreLinkMark} aria-hidden>
                 →
               </span>
-              View all experiences
+              See rooms and rates
             </a>
           </div>
 
@@ -766,12 +734,6 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
             </li>
           ))}
         </ul>
-
-        <div className={styles.wipe} aria-hidden>
-          {[0, 1, 2, 3, 4].map((i) => (
-            <span key={i} data-stripe className={styles.stripe} />
-          ))}
-        </div>
       </div>
     </section>
   );
