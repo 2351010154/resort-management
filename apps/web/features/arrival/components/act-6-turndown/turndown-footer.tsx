@@ -6,6 +6,11 @@
 // it; the panel then rides up off the house name, which was behind it the whole
 // time — see wordmark-reveal.
 
+import {
+  CHECK_IN_TIME,
+  CHECK_OUT_TIME,
+  PROPERTY_ADDRESS_LINES,
+} from "@mariva/shared";
 import { useRef } from "react";
 import {
   useLenis,
@@ -21,9 +26,16 @@ import { WordmarkReveal } from "./wordmark-reveal";
 import styles from "./act-6-turndown.module.css";
 
 // Entries with an `act` or an `experience` ride the same lenis scroll as the
-// nav; the rest are decorative (concept piece, no destinations) and render as
-// plain text — no dead href, no focus stop. Dine and Restore are experiences
-// inside Act 4, not acts of their own; Stay is that act itself.
+// nav; the rest are the house's own facts — where it stands and when its doors
+// open — and render as plain text: no dead href, no focus stop. Dine and
+// Restore are experiences inside Act 4, not acts of their own; Stay is that act
+// itself.
+//
+// The facts are read from `@mariva/shared` rather than typed here, so the
+// footer, the review screen and the pre-arrival mail cannot disagree about the
+// address or the clock. They are what the end of the page is for: the last
+// beat above is a mood, and a reader who scrolled all the way down came here
+// for where the house is and when it opens its doors.
 //
 // The destinations are buttons, not links. There is no `#act-5` on the page to
 // link to — the acts are found by `[data-act]` and scrolled to by lenis — so an
@@ -40,12 +52,12 @@ const COLUMNS = [
     ],
   },
   {
-    title: "The house",
+    title: "Find us",
     links: [
-      { label: "Contact" },
-      { label: "Press" },
-      { label: "Careers" },
-      { label: "Journal" },
+      { label: PROPERTY_ADDRESS_LINES[0] },
+      { label: PROPERTY_ADDRESS_LINES[1] },
+      { label: `Check-in from ${CHECK_IN_TIME}` },
+      { label: `Check-out by ${CHECK_OUT_TIME}` },
     ],
   },
 ] as const;

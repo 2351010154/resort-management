@@ -14,13 +14,13 @@ export const PROPERTY = "Mariva";
  * Where the property is, as a guest would write it on an envelope or read it to
  * a taxi driver.
  *
- * Here beside the name rather than in the one template that prints it, because
- * it is the same kind of fact and the two would otherwise be edited in different
- * files on the day the property moves. `property-and-tariff.md` §1 is the
- * authority — the whole of that section is the developer's call until there is a
- * building, and this line is no more settled than the rest of it.
+ * Re-exported rather than declared, like the check-in time below and for the
+ * same reason: the arrival's footer prints the address too, so it went to
+ * `@mariva/shared` where both realms read one line. `property-and-tariff.md`
+ * §1 is the authority — the whole of that section is the developer's call until
+ * there is a building, and this line is no more settled than the rest of it.
  */
-export const PROPERTY_ADDRESS = "12 Trần Phú, Lộc Thọ, Nha Trang, Khánh Hòa";
+export { PROPERTY_ADDRESS } from "@mariva/shared";
 
 /**
  * When the property opens a room to an arriving guest —
