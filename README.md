@@ -12,19 +12,23 @@
 </div>
 
 Mariva has two audiences that never meet. A **guest** finds a free room on the public
-site, books it and pays online. **Staff** — five roles, from housekeeping to admin — run
-the property: check people in, post charges, take payment, issue the legal invoice, hand
-over the shift, read the numbers. `GUEST` is a separate actor and authentication realm,
-not a sixth staff role.
+site, holds it, pays online through VNPay or PayPal, and later manages the stay from an
+account or a booking link. **Staff** — five roles, from housekeeping to admin — run the
+property from a keyboard-first console: check people in, post charges, take payment,
+hand over the shift, close the day, read the numbers. `GUEST` is a separate actor and
+authentication realm, not a sixth staff role.
 
 One database, one set of business rules, two front doors.
 
 > [!NOTE]
-> **This is a system under construction, not a finished product.** The
-> [GitHub issues](https://github.com/2351010154/resort-management/issues)
-> own current delivery status, assignment, labels, milestones and blockers.
-> Repository documentation records durable requirements, decisions and rationale;
-> a documented target is not evidence that it has shipped.
+> **Built for one property, as coursework, and not yet deployed.** The application
+> layer is complete through shift handover, reporting and a second payment gateway; what
+> remains is the hosting work in
+> [`infrastructure.md`](docs/architecture/infrastructure.md). The
+> [GitHub issues](https://github.com/2351010154/resort-management/issues) own open
+> questions and blockers. Repository documentation records durable requirements,
+> decisions and rationale; a documented target is not evidence that it has shipped —
+> follow the evidence links to the migrations and tests.
 
 ## Contents
 
@@ -34,9 +38,8 @@ One database, one set of business rules, two front doors.
 - [Getting started](#getting-started)
 - [Commands](#commands)
 - [Quality gates](#quality-gates)
-- [Asset and capture pipelines](#asset-and-capture-pipelines)
+- [Scripts beyond the build](#scripts-beyond-the-build)
 - [Documentation](#documentation)
-- [Delivery planning](#delivery-planning)
 
 ## The invariant
 
@@ -63,41 +66,55 @@ a crisis.
 > Invariants live in the database, never in a service-layer check. Application code may
 > not be the last line of defence for money or inventory. Migrations are plain `.sql`
 > under `apps/api/src/database/migrations/` precisely so `btree_gist`, `EXCLUDE` and
-> `daterange` stay in version control.
+> `daterange` stay in version control. The same rule carries the rest of the ledger:
+> the folio is append-only, every write to a protected row names who made it, and a
+> closed trading day is frozen once — all as constraints and triggers, not conventions.
+
+The race itself is a test. `apps/api/test/booking-race.e2e-spec.ts` fires concurrent
+bookings at one last room against a real Postgres and asserts exactly one wins, and CI
+runs it on every push.
 
 ## Architecture
 
 ```mermaid
 flowchart TD
     subgraph guests[Guests]
-        web["apps/web — Next.js<br/>marketing arrival + /booking"]
+        web["apps/web — Next.js<br/>marketing arrival, /booking funnel,<br/>guest identity and account"]
     end
     subgraph staff[Staff]
-        admin["apps/admin — Next.js<br/>front desk + management<br/>scaffolded, not built"]
+        admin["apps/admin — Next.js<br/>front desk and management console"]
     end
-    contract["packages/shared<br/>zod contracts — the types both sides infer"]
+    client["packages/api-client<br/>typed oRPC client over the contract"]
+    contract["packages/shared<br/>zod + oRPC contract — the types both sides infer"]
     api["apps/api — NestJS + Drizzle<br/>every business rule, and the only writer"]
-    db[("Postgres<br/>constraints hold the invariant")]
+    db[("Postgres<br/>constraints hold the invariant;<br/>pg-boss runs the jobs")]
+    rails["VNPay · PayPal · Resend"]
 
-    web --> api
-    admin --> api
-    web -.-> contract
-    admin -.-> contract
+    web --> client
+    admin --> client
+    client --> api
+    client -.-> contract
     api -.-> contract
     api --> db
+    api --> rails
 ```
 
 Three rules follow from the picture, and they are the ones worth defending:
 
 - **One brain.** Front-ends never re-implement a rule. No business logic in a Next.js
-  server action or route handler, and no front-end talks to the database.
-- **The contract is a package.** `packages/shared` holds the zod schemas; the API
-  validates against them and both front-ends infer their types from them. Break the
+  server action or route handler, and no front-end talks to the database. The one
+  exception is a pricing band both sides apply — the API quotes against it and the
+  funnel shows a total before the round trip — and it lives in `packages/shared` so
+  there is still only one copy.
+- **The contract is a package.** `packages/shared` holds the zod schemas and the
+  `@orpc/contract` routes built from them; the API implements them through
+  `@orpc/nest`, and both front-ends call them through `packages/api-client`. Break the
   contract and the build fails, not production.
 - **`/booking` shares an origin with the marketing site but not its bundle.** The
-  scrollytelling acts load `three`, `gsap` and `lenis`. The booking funnel does not, so a
-  guest on the way to paying never downloads them. Route groups are what keep it that way;
-  nothing in CI measures the bundle, so it holds by convention.
+  scrollytelling acts load `three`, `gsap` and `lenis`. The booking funnel does not, so
+  a guest on the way to paying never downloads them. Route groups keep it that way, and
+  `apps/web/scripts/check-bundle-budget.ts` runs after every `next build` and fails
+  the build if any `(booking)` chunk carries them.
 
 Dependencies point one way and never back up the chain:
 
@@ -115,12 +132,12 @@ A pnpm workspace driven by Turborepo.
 
 | Workspace | Boundary |
 | --- | --- |
-| [`apps/api`](apps/api/README.md) | NestJS API and the only database writer |
-| `apps/web` | Public marketing, guest identity and booking |
-| [`apps/admin`](apps/admin/README.md) | Staff operations |
-| `packages/shared` | Shared contracts |
-| `packages/tokens` | Brand tokens |
-| `packages/api-client` | Browser-to-API client boundary |
+| [`apps/api`](apps/api/README.md) | NestJS 11 on Express 5, ESM. Every business rule, the only database writer, and the host of the pg-boss workers |
+| `apps/web` | Public marketing arrival, the guest booking funnel, guest identity and account. Port 3000 |
+| [`apps/admin`](apps/admin/README.md) | The staff console: front desk, housekeeping, folios, payments, shifts, rates, reports, settings, audit. Port 3002 |
+| `packages/shared` | The contract: zod schemas, oRPC route definitions, money and stay-date types, and the pricing bands both sides apply |
+| `packages/api-client` | The browser-to-API boundary — an oRPC client typed from the contract |
+| `packages/tokens` | `tokens.css`, the palette and type scale all three surfaces share |
 
 [`docs/architecture/repository-structure.md`](docs/architecture/repository-structure.md)
 is the authority on what goes where and why, including the rule that the repository root
@@ -132,26 +149,46 @@ module misrepresents the dependency graph.
 otherwise the most common bug class in this domain:
 
 - **Money is `bigint` VND.** No minor unit, no decimal library, `Intl.NumberFormat('vi-VN')`
-  to display.
+  to display. PayPal cannot charge đồng, so a PayPal attempt records what was charged
+  in USD and the rate it was converted at, and the ledger stays VND regardless.
 - **A stay date is not an instant.** `CalendarDate` for the nights you sell,
   `ZonedDateTime` for the moments things happen. Mixing them is the off-by-one-night bug.
 
-### Route groups in `apps/web`
+### The API
+
+Fifteen domain modules under `apps/api/src/modules/`: identity and the two auth realms,
+inventory, pricing, booking, guest, folio, payment, housekeeping, operations (shifts,
+cash book, service catalog), reporting, notification, feedback, audit and system
+configuration. Forty-seven committed migrations build the schema, and pg-boss runs the
+timers from inside the same Postgres: hold expiry, the no-show sweep, the nightly room
+charge posting, pre-arrival reminders, payment reconciliation and loyalty tier
+recomputation. Outbound mail leaves through Resend, handed to the same queue, and a
+process with no queue delivers it in-line rather than staying quiet.
+
+### The guest surface — route groups in `apps/web`
 
 The root layout carries only the document shell, the type families and the design tokens.
 Anything reaching `three` / `gsap` / `lenis` lives under `app/(marketing)/`, so
 `app/(booking)/` renders on the same origin without the WebGL bundle in its tree. Route
 groups do not appear in URLs — `app/(marketing)/page.tsx` is still `/`.
 
-The `(booking)` group holds the five auth screens as well as the funnel. The name means
-*plain bundle*; a screen belongs there because it must not load `three`, not because it
-sells a room.
+The `(booking)` group is the *plain bundle*, and a screen belongs there because it must
+not load `three`, not because it sells a room. It holds the funnel (`/booking`, then
+details, payment and confirming for one hold), the five identity screens (sign-in,
+sign-up, verify email, forgot and reset password), the signed-in account and stays, and
+`/bookings/[reference]` — the link a guest who never signed up manages a stay from.
 
-The intended funnel boundary and route rationale live in
-[`repository-structure.md`](docs/architecture/repository-structure.md). Inspect
-[`apps/web/app`](apps/web/app) for the routes that exist and the
-[GitHub issues](https://github.com/2351010154/resort-management/issues)
-for delivery state.
+Google is the one social sign-in, and it is optional in development: the button is
+offered either way, so production refuses to boot without the credentials.
+
+### The staff console
+
+`apps/admin` is a separate origin, keyboard-first, with no WebGL and no entrance
+animation. One shell with role-filtered navigation and a command palette wraps the
+desk's screens: dashboard, arrivals, departures, bookings, guests, rooms, housekeeping,
+folios, payments, shifts, rates, finance, reports (revenue, performance, room status),
+settings and the audit trail. Check-in and check-out are driven entirely from the
+keyboard, and a Playwright suite proves it without ever calling `click()`.
 
 ## Getting started
 
@@ -167,6 +204,10 @@ for delivery state.
 corepack enable
 pnpm install
 ```
+
+`pnpm install` also installs the lefthook commit hook and fetches Playwright's browser
+binaries; `pnpm-workspace.yaml` names every dependency allowed to run an install script,
+and says why beside each one.
 
 ### Configure
 
@@ -193,13 +234,16 @@ openssl rand -base64 32   # STAFF_JWT_SECRET
 >
 > `NEXT_PUBLIC_API_URL` and the API's `WEB_ORIGIN` are two halves of one CORS pair. A
 > mismatch fails sign-in as a CORS error rather than as a wrong password. The allowlist
-> holds two origins and not one — `ADMIN_ORIGIN` is the console's half, required in
-> production, and a deploy that leaves it unset has every staff request rejected at the
-> preflight.
+> holds two origins and not one — `ADMIN_ORIGIN` is the console's half, defaulting to
+> the console's local port in development and required in production, where a deploy
+> that leaves it unset has every staff request rejected at the preflight.
 
 Every variable the API reads is declared in `apps/api/src/config/env.ts` and parsed by zod
 before the container is built. A missing or malformed one prints its name and exits 1 — it
-never boots on a default nobody chose.
+never boots on a default nobody chose. Payment gateways, Google sign-in and Resend are
+all optional locally and configured there when you need them; the VNPay and PayPal
+sandboxes are the default, and flipping either to live credentials is a gated runbook
+under [`docs/runbooks/`](docs/runbooks/).
 
 ### Database
 
@@ -222,8 +266,17 @@ pnpm --filter @mariva/api staff:create \
   --email owner@mariva.vn --name "Trần Minh" --role ADMIN
 ```
 
-It compiles the API before it runs, so the sequence above works on a clone that has
-never been built — the script executes from `dist/`, and a fresh checkout has none.
+Then give the property something to sell. The seed builds the resort
+[`property-and-tariff.md`](docs/architecture/property-and-tariff.md) describes — five
+room types, forty rooms, twelve months of rates and five hundred synthetic stays — and it
+converges rather than accumulates, so it can be run again:
+
+```bash
+pnpm --filter @mariva/api db:seed
+```
+
+Both scripts compile the API before they run, so the sequence above works on a clone
+that has never been built.
 
 ### Run
 
@@ -232,7 +285,8 @@ pnpm dev
 ```
 
 Turborepo fans the task out across every workspace that defines one: the web app on
-<http://localhost:3000>, the API on <http://localhost:3001>. To drive a single one:
+<http://localhost:3000>, the API on <http://localhost:3001>, the console on
+<http://localhost:3002>. To drive a single one:
 
 ```bash
 pnpm --filter @mariva/web dev
@@ -248,15 +302,17 @@ Run from the repo root.
 | Command | What it does |
 | --- | --- |
 | `pnpm dev` | Every app that defines a dev task |
-| `pnpm build` | Turborepo build, respecting workspace dependencies |
+| `pnpm build` | Turborepo build, respecting workspace dependencies. The web build ends with the bundle budget check |
 | `pnpm lint` | Biome across the repo, then stylelint on the web app's CSS |
 | `pnpm format` | Biome, writing in place |
 | `pnpm typecheck` | Every workspace that owns a `tsc` pass |
 | `pnpm test` | Vitest across the workspaces |
-| `pnpm backlog:view` | Generates `plans/backlog.html` from the Markdown planning record |
+| `pnpm backlog:view` | Renders a local `plans/backlog.md` to HTML when one exists. `plans/` is untracked scratch, so a clone has neither |
 
-The API's own commands — migrations, the Nest watch loop, the first-admin script — are in
-[`apps/api/README.md`](apps/api/README.md#commands).
+The API's own commands — migrations, the seed, the Nest watch loop, the first-admin
+script, the k6 latency profile — are in
+[`apps/api/README.md`](apps/api/README.md#commands). The console's, including its
+Playwright suite, are in [`apps/admin/README.md`](apps/admin/README.md).
 
 ## Quality gates
 
@@ -265,9 +321,10 @@ The API's own commands — migrations, the Nest watch loop, the first-admin scri
 | Format + typecheck | Biome, `tsc` | **Commit**, via lefthook. Formatting is applied and re-staged, not reported |
 | Lint | Biome + stylelint | **CI** — a lint failure at commit time leaves the author nothing staged to fix |
 | Typecheck | `tsc` per workspace | CI |
-| Build | `next build`, `tsc` | CI. The Next app's type check happens inside its build |
-| Unit + integration | Vitest 4 | Per workspace |
-| Visual baseline | Playwright | `apps/web/tests/visual-baseline/`, desktop and mobile. Local — the baseline is untracked, so capture it before you can compare against it |
+| Build | `next build`, `tsc` | CI. The Next apps' type check happens inside their build; the web build also enforces the bundle budget |
+| Unit + integration | Vitest 4 | Every workspace. The API's suite runs against a real Postgres |
+| Console keyboard and timing | Playwright | `apps/admin/e2e/`, against a running console, API and seeded database. Local; its config starts none of them |
+| Visual baseline | Playwright scripts | `apps/web/scripts/capture-visual-baseline.mjs` and `compare-visual-baseline.mjs`, desktop and mobile, against a production build. Local — the baseline is untracked, so capture it before you can compare against it |
 
 CI runs on every pull request and push to `main`: install with a frozen lockfile, then
 lint → typecheck → test → build, with in-flight runs superseded per branch. The test step
@@ -278,7 +335,8 @@ are proved where a regression can fail the build.
 > The API's tests need a **second** database and their own `apps/api/.env.test`. They
 > apply the committed migrations and truncate every table they use, so they refuse to
 > start when that file is missing rather than falling back to `.env` — which is how a test
-> run empties somebody's development database.
+> run empties somebody's development database. Locally that database listens on 5433,
+> the port CI publishes its service container on, so one connection string serves both.
 
 Two notes that will otherwise cost you an afternoon:
 
@@ -289,17 +347,24 @@ Two notes that will otherwise cost you an afternoon:
   parameter types from `emitDecoratorMetadata`, which esbuild does not emit. Without the
   SWC plugin, every injected dependency arrives as `undefined`.
 
-## Asset and capture pipelines
+## Scripts beyond the build
 
-`apps/web/scripts/` holds the pipelines that produce the arrival's images and video, and
-the Playwright scripts that photograph acts against a running dev server. Run them from
-the repo root:
+A script serving one workspace stays in that workspace; `scripts/` at the root holds
+only the repo-wide ones.
 
-```bash
-node apps/web/scripts/capture-finale.mjs
-```
-
-Captures are written to `plans/reports/screenshots/`, which is untracked.
+- **`apps/web/scripts/`** — the pipelines that produced the arrival's images and video,
+  and the Playwright scripts that photograph acts against a running server. The asset
+  pipelines read a source library outside the repo and are gitignored; the curation maps
+  beside them, which say which frame became which slug, stay tracked. Captures land in
+  `plans/reports/screenshots/`, untracked.
+- **`apps/api/scripts/`** — `seed-demo-day.mjs` stages one convincing day of arrivals,
+  departures and balances through the public contract, so the console has something to
+  show; `replay-vnpay-ipn.mjs` delivers a correctly signed VNPay callback to a local
+  API, the half of the payment flow a laptop cannot otherwise receive.
+- **`apps/api/perf/`** — a k6 profile for the twelve-month availability calendar, the
+  read the funnel opens on, against its p95 budget.
+- **`scripts/shoot-thesis-figures.mjs`** — re-shoots the live console and funnel
+  figures the coursework report embeds, with credentials taken from the environment.
 
 ## Documentation
 
@@ -309,29 +374,26 @@ Written as the system is built, not assembled at the end.
 | --- | --- |
 | [`docs/orientation.md`](docs/orientation.md) | What the system is, the invariant, and where to resume work |
 | [`docs/README.md`](docs/README.md) | The **authority map** — which document owns which fact, and the precedence order when two disagree |
-| [`docs/screens.md`](docs/screens.md) | Intended screen and route map; issues own delivery state |
+| [`docs/product-requirements.md`](docs/product-requirements.md) | Durable scope, business rules and acceptance criteria |
+| [`docs/screens.md`](docs/screens.md) | Screen intent and navigation rationale, not delivery status |
 
 | Design fact | Owner |
 | --- | --- |
 | Repository structure, dependency rules, module map | [`repository-structure.md`](docs/architecture/repository-structure.md) |
-| Technology stack, versions, rejected options | [`tech-stack.md`](docs/architecture/tech-stack.md) |
+| Technology stack, versions, rejected options, spike evidence | [`tech-stack.md`](docs/architecture/tech-stack.md) |
 | Roles and permissions | [`rbac-matrix.md`](docs/architecture/rbac-matrix.md) |
 | Booking states and transitions | [`booking-state-machine.md`](docs/architecture/booking-state-machine.md) |
-| Property facts, rates, cancellation grid, charge model | [`property-and-tariff.md`](docs/architecture/property-and-tariff.md) |
-| Hosting, database, storage, backups, payments, e-invoice | [`infrastructure.md`](docs/architecture/infrastructure.md) |
+| Property facts, rates, cancellation grid, charge model, loyalty | [`property-and-tariff.md`](docs/architecture/property-and-tariff.md) |
+| Hosting, database, storage, backups, payments, e-invoice, mail | [`infrastructure.md`](docs/architecture/infrastructure.md) |
+| Order of operations for a change made by hand against a live environment | [`runbooks/`](docs/runbooks/) |
 
 The architecture documents are authored **ahead** of the code that enforces them: change
-the document first, then the implementation.
+the document first, then the implementation. Source, tests, schemas and workflows own
+current behaviour; the documents point at them.
 
-The Vietnamese coursework report is assembled from the documents above when it
-is needed and is not kept here. It is a consumer of truth, never a source, and a
-stored copy earns nothing but the chance to disagree with them.
-
-> [!TIP]
-> Markdown under `plans/` is versionable stateful evidence, not the live tracker.
-> `pnpm backlog:view` generates an ignored HTML view. Use
-> [GitHub issues](https://github.com/2351010154/resort-management/issues)
-> for current execution state.
+The Vietnamese coursework report is assembled from the documents above when it is
+needed and is not kept here. It is a consumer of truth, never a source, and a stored copy
+earns nothing but the chance to disagree with them.
 
 ### Vocabulary
 
@@ -343,6 +405,7 @@ The docs are written in hotel vocabulary. The short version:
 | **Folio** | The bill attached to one stay. **Append-only** — "editing an invoice" means adding a reversing line, never an `UPDATE` |
 | **Night audit** | A nightly job: posts room charges, rolls the business date forward, freezes a snapshot. Reports read snapshots, so last month's numbers never change |
 | **Business date** | The hotel's day, which is not midnight-to-midnight |
+| **Shift** | The drawer a payment is counted into. Cash is handed over between shifts, and the property keeps a cash book of its own |
 | **Housekeeping status** | `CLEAN / DIRTY / INSPECTED / OUT_OF_ORDER`, completely separate from occupancy. A checked-out room is not sellable until inspected |
 | **Occupancy / ADR / RevPAR** | The three numbers a hotel is actually judged on. Gross revenue alone says nothing |
 
@@ -356,10 +419,3 @@ Two enumerations worth knowing before reading any module:
   `RECEPTIONIST`, `HOUSEKEEPING`, `ACCOUNTANT`, `MANAGER`, `ADMIN` on Passport-JWT. A
   route with no `@RequiresCapability()` declaration is unreachable by everyone — the guard
   is fail-closed, and the one escape hatch takes a written reason.
-
-## Delivery planning
-
-[GitHub issues](https://github.com/2351010154/resort-management/issues)
-own the current plan and its execution fields. Durable scope and acceptance criteria
-live in [`docs/product-requirements.md`](docs/product-requirements.md);
-documents under `plans/` are historical or working planning evidence and may age.
