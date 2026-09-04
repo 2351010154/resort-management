@@ -16,21 +16,16 @@ import {
   EASE_UI_EXIT,
   STAGGER_CASCADE,
 } from "@/lib/motion-tokens";
-import {
-  NavHoverLink,
-  scrollToAct,
-  scrollToExperience,
-} from "./nav-hover-link";
+import { NavHoverLink, scrollToAct } from "./nav-hover-link";
 import styles from "./dynamic-island-menu.module.css";
 
-// All three destinations live inside Act 4. Dine and Restore are aimed at the
-// experience each one is actually about — In-Room Dining and the Wellness Spa —
-// and land on the frame that card is settled on. Stay is the chapter itself, so
-// it carries no index: it lands on the four words the act opens with.
+// One card per chapter it opens: the room deck, the table, the rituals. Each is a
+// chapter of its own in the new order, so a card is an ordinary scroll to a
+// `[data-act]` section and nothing here needs to know what is inside one.
 const CARDS = [
-  { slug: "island-stay", label: "Stay" },
-  { slug: "island-dine", label: "Dine", experience: 7 },
-  { slug: "island-restore", label: "Restore", experience: 6 },
+  { slug: "island-stay", label: "Stay", act: 2 },
+  { slug: "island-dine", label: "Dine", act: 3 },
+  { slug: "island-restore", label: "Restore", act: 5 },
 ].map((card) => ({
   ...card,
   image: arrivalImages["nav-island"].find((img) =>
@@ -38,11 +33,13 @@ const CARDS = [
   )!,
 }));
 
+// The four chapters a reader navigates to. Booking is not among them — it is the
+// bar's own persistent action, on the right, and a fifth link would bury it.
 export const NAV_LINKS = [
-  { act: 2, label: "Welcome" },
-  { act: 3, label: "The Approach" },
-  { act: 4, label: "Stay" },
-  { act: 5, label: "Begin" },
+  { act: 2, label: "Stay" },
+  { act: 3, label: "Table" },
+  { act: 5, label: "Rituals" },
+  { act: 6, label: "Place" },
 ];
 
 export function DynamicIslandMenu() {
@@ -158,15 +155,16 @@ export function DynamicIslandMenu() {
       <div className={styles.inner}>
         <div className={styles.intro} data-cascade>
           <p className="caps-label">The concierge</p>
-          <p>
-            Every arrival is prepared before you ask. Choose where to begin.
-          </p>
+          {/* A label on the cards under it. The sentence that opened this
+              panel — "every arrival is prepared before you ask" — was a service
+              promise no part of this repo makes. */}
+          <p>Choose where to begin.</p>
           <button
             type="button"
             className={`${styles.viewLink} caps-label`}
-            onClick={() => scrollToAct(lenis, 5, close)}
+            onClick={() => scrollToAct(lenis, 7, close)}
           >
-            View →
+            Choose dates →
           </button>
           <div className={styles.mobileLinks}>
             {NAV_LINKS.map((link) => (
@@ -175,17 +173,13 @@ export function DynamicIslandMenu() {
           </div>
         </div>
         <div className={styles.cards}>
-          {CARDS.map(({ slug, label, experience, image }) => (
+          {CARDS.map(({ slug, label, act, image }) => (
             <button
               key={slug}
               type="button"
               className={styles.card}
               data-cascade
-              onClick={() =>
-                experience == null
-                  ? scrollToAct(lenis, 4, close)
-                  : scrollToExperience(lenis, experience, close)
-              }
+              onClick={() => scrollToAct(lenis, act, close)}
             >
               <img
                 src={tierSrc(image.src, 640)}

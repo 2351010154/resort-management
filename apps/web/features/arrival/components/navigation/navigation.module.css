@@ -67,12 +67,24 @@
   -webkit-backdrop-filter: blur(18px);
 }
 
-/* brand: wordmark <-> monogram crossfade via CSS masks (currentColor theming) */
+/* brand: wordmark <-> monogram crossfade via CSS masks (currentColor theming)
+
+   The box is given the width of whichever mark is showing. Both marks inside it
+   are absolutely positioned, so without this the brand is a zero-width item and
+   the wordmark simply overhangs whatever the bar lays out next to it — which is
+   how the chapter links ended up printed across the house's own name. */
 .brand {
   position: relative;
   display: block;
   height: 28px;
+  width: 165px;
   flex: 0 0 auto;
+  transition: width 0.5s var(--ease-ui);
+}
+
+.bar[data-phase="scrolled"] .brand,
+.bar[data-phase="island"] .brand {
+  width: 37px;
 }
 
 .wordmark,
@@ -168,9 +180,37 @@
   border-color: currentColor;
 }
 
-/* mobile: links collapse behind the menu button */
+/* The persistent booking action. Outlined rather than filled: the bar puts no
+   ground on the page, and a filled pill up here would be the only solid object
+   floating over every chapter. The filled one is on the first screen, where it
+   has a wall behind it. */
+.book {
+  composes: link;
+  border-color: currentColor;
+}
+
+/* mobile: the chapter links collapse behind the menu button, and the brand goes
+   to its monogram at every phase — the wordmark, the booking action and the menu
+   together do not fit a 360px bar, and Book is the one of the three that cannot
+   move into the sheet. */
 @media (max-width: 767px) {
   .links {
     display: none;
+  }
+
+  .brand {
+    width: 37px;
+  }
+
+  .wordmark {
+    opacity: 0;
+  }
+
+  .monogram {
+    opacity: 1;
+  }
+
+  .book {
+    padding: 0.45em 0.7em;
   }
 }

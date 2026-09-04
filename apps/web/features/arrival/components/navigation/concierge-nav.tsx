@@ -8,38 +8,26 @@
 
 import { useEffect } from "react";
 import { useArrivalActStore } from "@/features/arrival/lib/act-store";
+import {
+  draftHref,
+  useArrivalDraft,
+} from "@/features/arrival/lib/arrival-booking-draft";
+// The bar and the rail below it have to name the same hour, so the rule they
+// both read lives in one module. Under reduced motion, where no scroll trigger
+// runs, this is still what gets the chrome right.
+import { chapterIsDark } from "@/features/arrival/lib/chapter-tone";
+import { DatesRail } from "./dates-rail";
 import { NavHoverLink } from "./nav-hover-link";
 import { DynamicIslandMenu, NAV_LINKS } from "./dynamic-island-menu";
 import styles from "./navigation.module.css";
-
-// Acts whose ground is dark for the whole of their scroll, which is also what
-// gets the bar right under reduced motion, where no scroll trigger runs.
-//
-// Act 4 is not one of them and cannot be: it starts on the corridor's dark, is
-// covered by a bright statement panel, holds that brightness through the first
-// half of the rooms and only then goes to night. Listed here it would be dark
-// unconditionally — the membership is an `||` over the claim, so no amount of
-// `setNavDark(4, false)` could reach the bar. It drives the bar from its own
-// scroll position instead, and its reduced-motion variant claims dark on mount
-// for the same reason this set exists.
-const DARK_ACTS = new Set([5, 6]);
-
-// A claim only speaks for its own act. Reading "any act claims dark" made the
-// bar inherit claims from acts that are nowhere near the viewport: Act 4 takes
-// the dark bar on enter and holds it for as long as it is mounted, which left
-// the bar ink over ivory on every scroll back up through Acts 2 and 3.
-const navIsDark = (state: {
-  activeAct: number;
-  navDarkActs: readonly number[];
-}) =>
-  DARK_ACTS.has(state.activeAct) || state.navDarkActs.includes(state.activeAct);
 
 export function ConciergeNav() {
   const navPhase = useArrivalActStore((s) => s.navPhase);
   const setNavPhase = useArrivalActStore((s) => s.setNavPhase);
   const menuOpen = useArrivalActStore((s) => s.menuOpen);
   const setMenuOpen = useArrivalActStore((s) => s.setMenuOpen);
-  const navDark = useArrivalActStore(navIsDark);
+  const navDark = useArrivalActStore(chapterIsDark);
+  const draft = useArrivalDraft();
 
   // Scroll phase with hysteresis (enter 80vh / exit 60vh) so the
   // wordmark<->monogram crossfade never flickers at the boundary.
@@ -93,11 +81,27 @@ export function ConciergeNav() {
           <span className={styles.wordmark} />
           <span className={styles.monogram} />
         </a>
-        <nav className={styles.links} aria-label="Acts">
+        <nav className={styles.links} aria-label="Chapters">
           {NAV_LINKS.map((link) => (
             <NavHoverLink key={link.act} {...link} />
           ))}
         </nav>
+        {/* The one thing in the bar that leaves the page, and the reason it is a
+            link and not a button: `/booking` is a real address. Present in every
+            chapter, including the first screen, so a reader who has already
+            decided never has to look for it.
+
+            Its address is the draft, not a bare `/booking`: a reader who has
+            already typed a range into the rail or the card would otherwise have
+            the bar throw it away and open the calendar on nothing. With an empty
+            draft `writeBookingSearch` writes nothing and this is `/booking`. */}
+        <a className={`caps-label ${styles.book}`} href={draftHref(draft)}>
+          <span className={styles.linkClip}>
+            <span className={styles.linkInner} data-label="Book your stay">
+              Book your stay
+            </span>
+          </span>
+        </a>
         <button
           id="nav-menu-button"
           type="button"
@@ -116,6 +120,7 @@ export function ConciergeNav() {
           </span>
         </button>
       </header>
+      <DatesRail />
       <DynamicIslandMenu />
     </>
   );

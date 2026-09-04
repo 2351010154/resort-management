@@ -3,7 +3,6 @@
 // Podium-style hover link: stacked label copies glide inside a clipped pill;
 // the active act's link keeps a pill outline (wolverine cue).
 
-import { experienceScrollTarget } from "@/features/arrival/components/act-4-stay/experience-field";
 import { useArrivalActStore } from "@/features/arrival/lib/act-store";
 import { useLenis } from "@/features/arrival/lib/lenis-scroll-provider";
 import { DUR_SCENE } from "@/lib/motion-tokens";
@@ -24,30 +23,6 @@ export function scrollToAct(
   } else {
     // Reduced motion / no smoother: jump.
     target.scrollIntoView();
-  }
-  onDone?.();
-}
-
-/**
- * Land on one experience in Act 4's field. Dine and Restore live inside Act 4
- * rather than in acts of their own, so they need distinct offsets within it
- * rather than one shared anchor. The reduced-motion variant has no field to aim
- * at; that falls back to the act.
- */
-export function scrollToExperience(
-  lenis: ReturnType<typeof useLenis>,
-  index: number,
-  onDone?: () => void,
-) {
-  const y = experienceScrollTarget(index);
-  if (y == null) {
-    scrollToAct(lenis, 4, onDone);
-    return;
-  }
-  if (lenis) {
-    lenis.scrollTo(y, { duration: DUR_SCENE, easing: easeOutExpo });
-  } else {
-    window.scrollTo(0, y);
   }
   onDone?.();
 }
