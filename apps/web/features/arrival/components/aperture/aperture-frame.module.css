@@ -1,0 +1,50 @@
+/* The aperture: an arch struck on the top edge, square at the foot, with a
+   hairline standing a little off the opening.
+
+   The top radii are elliptical — half the width across, a third of the height
+   down — so the arch keeps its proportion at every aspect the chapters ask for
+   rather than collapsing to a half-round on a wide crop. */
+
+/* A one-cell grid rather than absolute layers: with an aspect ratio the opening
+   stretches to fill the frame, and without one the opening's own content sets the
+   height — which is what lets chapter 7 put a form behind the same arch. */
+.frame {
+  position: relative;
+  display: grid;
+  aspect-ratio: var(--aperture-ratio, auto);
+}
+
+.opening {
+  grid-area: 1 / 1;
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 50% 50% 0 0 / 32% 32% 0 0;
+  background: rgb(var(--umber-rgb) / 0.08);
+}
+
+.opening > img,
+.opening > video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Stood off the opening rather than drawn on it: the line is the frame the house
+   is seen through, and a border on the image itself reads as a stroke on a
+   photograph. Its radii are the opening's — the offset is small enough that the
+   two arcs stay concentric to the eye. */
+.keyline {
+  position: absolute;
+  inset: calc(var(--space-1) * -0.75);
+  border: 1px solid rgb(var(--ink-rgb) / 0.24);
+  border-radius: 50% 50% 0 0 / 32% 32% 0 0;
+  pointer-events: none;
+}
+
+.frame[data-tone="ink"] .keyline {
+  border-color: rgb(var(--ivory-rgb) / 0.3);
+}
+
+.frame[data-tone="ink"] .opening {
+  background: rgb(var(--ivory-rgb) / 0.06);
+}
