@@ -4,11 +4,19 @@
 // bar (wolverine dynamic island). Cards cascade in with the measured stagger.
 
 import gsap from "gsap";
-import { useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { arrivalImages } from "@/features/arrival/lib/image-manifest";
 import { tierSrc, tierSrcSet } from "@/features/arrival/lib/image-srcset";
 import { useArrivalActStore } from "@/features/arrival/lib/act-store";
+import {
+  useArrivalBookingDraftStore,
+  useArrivalDraft,
+  useEarliestArrival,
+  validateDraft,
+} from "@/features/arrival/lib/arrival-booking-draft";
 import { useLenis } from "@/features/arrival/lib/lenis-scroll-provider";
+import { writeBookingSearch } from "@/features/booking/lib/booking-search";
 import { prefersReducedMotion } from "@/features/arrival/lib/webgl-support";
 import {
   DUR_UI,
@@ -48,9 +56,15 @@ export const NAV_LINKS = [
 export function DynamicIslandMenu() {
   const panelRef = useRef<HTMLDivElement>(null);
   const opened = useRef(false);
+  const router = useRouter();
   const lenis = useLenis();
   const menuOpen = useArrivalActStore((s) => s.menuOpen);
   const setMenuOpen = useArrivalActStore((s) => s.setMenuOpen);
+  const draft = useArrivalDraft();
+  const earliest = useEarliestArrival();
+  const setFrom = useArrivalBookingDraftStore((s) => s.setFrom);
+  const setTo = useArrivalBookingDraftStore((s) => s.setTo);
+  const [error, setError] = useState<string | null>(null);
 
   // Unfold / fold.
   useEffect(() => {
@@ -109,6 +123,12 @@ export function DynamicIslandMenu() {
     };
   }, [menuOpen]);
 
+  // A closed sheet forgets its complaint: reopening must not announce an error
+  // for a submit the guest has not repeated.
+  useEffect(() => {
+    if (!menuOpen) setError(null);
+  }, [menuOpen]);
+
   // Escape closes; focus is trapped inside the panel while open.
   useEffect(() => {
     if (!menuOpen) return;
@@ -117,7 +137,15 @@ export function DynamicIslandMenu() {
 
     const focusables = () =>
       Array.from(
-        panel.querySelectorAll<HTMLElement>("a[href], button:not([disabled])"),
+        // The sheet holds a form now, so the trap has to know about controls as
+        // well as links: with only anchors and buttons listed, Tab out of the
+        // last date input escaped to the page behind the dialog.
+        panel.querySelectorAll<HTMLElement>(
+          // The `step` carrier is excluded because a hidden input cannot take
+          // focus, and one in the list would make Tab appear to do nothing at
+          // the wrap point.
+          'a[href], button:not([disabled]), input:not([type="hidden"]), select',
+        ),
       );
     focusables()[0]?.focus();
 
@@ -146,6 +174,24 @@ export function DynamicIslandMenu() {
 
   const close = () => setMenuOpen(false);
 
+  // The sheet is the one place on the page that asks the question rather than
+  // linking to it, so it is the one place that can refuse: an unordered or
+  // half-filled range is answered here instead of being dropped by the funnel.
+  const submit = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const result = validateDraft(draft);
+    if (!result.ok) {
+      // One line in a column this narrow: the first rule the draft breaks.
+      setError(Object.values(result.errors)[0] ?? null);
+      return;
+    }
+    setError(null);
+    // Folded before the navigation, so the back button returns to a page whose
+    // sheet is shut rather than to an open dialog nobody opened.
+    close();
+    router.push(`/booking${writeBookingSearch(result.search)}`);
+  };
+
   return (
     <div
       ref={panelRef}
@@ -161,13 +207,56 @@ export function DynamicIslandMenu() {
           <p>
             Every arrival is prepared before you ask. Choose where to begin.
           </p>
-          <button
-            type="button"
-            className={`${styles.viewLink} caps-label`}
-            onClick={() => scrollToAct(lenis, 5, close)}
+          {/* The stay itself, asked where the reader already is. `adults` is
+              not offered: the draft's default party is the funnel's own, and a
+              third control in this column would cost the sheet a row for an
+              answer almost nobody changes here. The funnel's first screen still
+              has it. */}
+          <form
+            className={styles.form}
+            action="/booking"
+            method="get"
+            onSubmit={submit}
+            noValidate
           >
-            View →
-          </button>
+            <input type="hidden" name="step" value="rooms" />
+
+            <div className={styles.dates}>
+              <label className={styles.field} htmlFor="menu-from">
+                <span className="caps-label">From</span>
+                <input
+                  id="menu-from"
+                  className={styles.control}
+                  type="date"
+                  name="from"
+                  min={earliest}
+                  value={draft.from}
+                  onChange={(e) => setFrom(e.target.value)}
+                />
+              </label>
+
+              <label className={styles.field} htmlFor="menu-to">
+                <span className="caps-label">To</span>
+                <input
+                  id="menu-to"
+                  className={styles.control}
+                  type="date"
+                  name="to"
+                  min={draft.from || earliest}
+                  value={draft.to}
+                  onChange={(e) => setTo(e.target.value)}
+                />
+              </label>
+            </div>
+
+            <button type="submit" className={`caps-label ${styles.submit}`}>
+              Check availability
+            </button>
+
+            <p className={styles.error} role="alert">
+              {error ?? ""}
+            </p>
+          </form>
           <div className={styles.mobileLinks}>
             {NAV_LINKS.map((link) => (
               <NavHoverLink key={link.act} {...link} onNavigate={close} />

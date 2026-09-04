@@ -141,7 +141,7 @@
 }
 
 /* ── Chapters ────────────────────────────────────────────────────────────────
-   Three ruled panels hanging off the welcome line, izanami "Philosophy"
+   Four ruled panels hanging off the welcome line, izanami "Philosophy"
    composition: a vertical rail label, a ragged display line, and overlapping
    photographs on the far side. Alternate panels mirror the whole arrangement,
    and each one takes a different archetype for the photographs — see the
@@ -169,8 +169,8 @@
    straight edge, arrived at the other way round. */
 .chapters {
   position: relative;
-  /* Shared with the outward-hanging tile below, which bleeds exactly this far
-     so its outer edge lands flush with the page edge instead of near it. */
+  /* The measure's own margin, and the figure any layer that wants to reach the
+     page edge from inside it bleeds by. */
   --gutter: clamp(1.25rem, 4vw, 4.5rem);
   /* Scroll a panel holds still for after it lands and before the next one
      covers it. The reveal finishes here, and the tile flips are fired by the
@@ -198,11 +198,11 @@
   display: contents;
 }
 
-/* Every panel turns its photographs over, so each holds for as long as its own
-   run asks and no longer. 02 has two seams and is done inside a second and a
-   half; 03 climbs to its largest change last and takes nearly a second more,
-   and is the longest hold in the act because it earns it — not because the
-   three were sorted into buckets by tile count. */
+/* Each panel holds for as long as its own run asks and no longer. 04 climbs to
+   its largest change last and is the longest hold in the act because it earns
+   it — not because the four were sorted into buckets by tile count. 02 and 03
+   turn nothing over and spend their hold being read; `--run` carries either,
+   so the exchange rate below is written once. */
 .chapter[data-flips] {
   --dwell: calc(var(--run) * var(--dwell-pace));
 }
@@ -606,32 +606,493 @@
   backdrop-filter: blur(24px) saturate(1.08);
 }
 
-/* B — shingled pair (02). Two photographs of comparable area but opposite
-   orientation, crossing in a shallow band at the portrait's foot. Nothing
-   breaks a corner, nothing is round, and there is no third tile — that absence
-   is what keeps it from reading as A mirrored. */
-.chapter[data-arch="shingle"] {
-  --stack-ar: 4 / 5.2;
-  --stack-w: min(36rem, 62vh);
+/* B — the table (02). The one panel with no stack in it. Instead of tiles hung
+   on the wall it takes the arrival's own aperture — the arch-topped opening Act
+   1 cuts with the monogram lens — at two crops of one room: a wide one across
+   the top of the panel, stopping short of the right margin, and a tall one at
+   the right riding up into the room the wide one left. The reading sits under
+   the wide opening's left half rather than in a column beside a picture, which
+   is the whole of what keeps the middle panel from reading as A mirrored.
+
+   Laid out by the panel's own grid rather than by a positioned stack, and drawn
+   entirely in the type layer. The plate and the type are two separate grids
+   that agree only because the stack's width is one figure both of them read
+   (see `.panelInner`); a composition whose opening and reading share rows would
+   need the row heights to agree as well, and a row sized by a photograph in one
+   layer is a row sized by nothing in the other. The plate stays behind this as
+   the wall that covers the panel below.
+
+   What it costs: the gobo multiplies between the two layers, so the leaf shadow
+   does not fall across these two openings the way it falls across the tiles.
+   That is the right side of the trade here — an aperture is a hole cut in the
+   house, not a photograph hanging on the wall the light is raking. */
+.chapter[data-arch="table"] {
+  /* The donor block this composition comes from is a whole section, free to be
+     as tall as its picture. A pinned panel is exactly one viewport, and a 16:9
+     opening spanning the measure on a 1440 wall is over half of it — so the
+     wide opening takes its height from the panel and crops to it rather than
+     pushing the reading off the foot of the screen. The rem term is the ceiling
+     on a tall window, where the vh figure would outrun the picture. */
+  --table-wide-h: min(44vh, 28rem);
 }
 
-.slotPairFar {
-  top: 0;
-  inset-inline-start: 0;
-  width: 66%;
-  aspect-ratio: 3 / 4;
-  z-index: 1;
+.chapter[data-arch="table"] .panelInner {
+  /* The donor's proportions: the reading a little wider than the column the
+     tall opening stands in. The rail keeps the third track, on the outer edge
+     like every other panel's. */
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr) 3rem;
+  grid-template-rows: auto auto;
+  column-gap: var(--space-4);
+  /* In vh with the opening above it: everything in this panel that can be paid
+     for out of the panel's own height is, so a shorter window takes the gap and
+     the crop down together instead of running the reading off the foot. */
+  row-gap: clamp(1.25rem, 3.5vh, 2rem);
+  /* Rows sized by their contents and the pair of them centred in the panel, so
+     the composition sits in the middle of the screen however much of the note
+     wraps at a given width. */
+  align-items: start;
+  align-content: center;
 }
 
-.slotPairNear {
-  bottom: 2%;
-  inset-inline-end: calc(-1 * var(--gutter));
-  width: 82%;
-  aspect-ratio: 8 / 5;
-  z-index: 2;
+.chapter[data-arch="table"] .tableWide {
+  grid-row: 1;
+  grid-column: 1 / 3;
+  /* Stops short of the right margin, which is the space the tall opening rides
+     up into. The two frames overlap in the eye without ever overlapping on the
+     grid. */
+  margin-right: var(--space-5);
+  /* The height is set and the aspect given up, rather than the crop being
+     capped with a `max-height`. A frame that keeps its ratio and has its height
+     clamped does not stay the width of the column it was stretched into — it
+     gives the width back to the ratio and leaves half the panel empty. The
+     opening is a hole of the panel's own proportion here; the photograph behind
+     it covers, which is what the aspect was ever for. */
+  aspect-ratio: auto;
+  height: var(--table-wide-h);
 }
 
-/* C — bled (03). One photograph filling the panel, dissolved back into the wall
+.chapter[data-arch="table"] .tableCopy {
+  grid-row: 2;
+  grid-column: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  max-width: 46ch;
+}
+
+/* The reading column sets its own rhythm with a flex gap, so the index does not
+   also carry the margin it holds open beside a display line. */
+.chapter[data-arch="table"] .chapterIndex {
+  margin-bottom: 0;
+}
+
+/* Pulled up into the margin the wide opening left, and held to the width of its
+   own column so the two arches stand in the same column of air. */
+.chapter[data-arch="table"] .tableTall {
+  grid-row: 2;
+  grid-column: 2;
+  width: min(100%, 22rem);
+  margin: calc(var(--space-5) * -1) 0 0 auto;
+}
+
+/* On the index's own caps line, after the number and before its rule. */
+.tableEyebrow {
+  color: rgb(var(--ink-rgb) / 0.62);
+}
+
+.tableHeadline {
+  font-size: var(--text-display-sm);
+  line-height: 1.1;
+  color: var(--ink);
+  letter-spacing: 0;
+}
+
+.tableNote {
+  font-size: var(--text-sm);
+  line-height: 1.8;
+  color: rgb(var(--ink-rgb) / 0.8);
+}
+
+.tableTimes {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-1) * 0.75);
+  width: 100%;
+  margin-top: var(--space-1);
+  border-top: 1px solid rgb(var(--ink-rgb) / 0.16);
+  padding-top: var(--space-2);
+}
+
+.tableTimeRow {
+  display: grid;
+  grid-template-columns: 8rem minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: baseline;
+}
+
+.tableTimeRow dt {
+  color: rgb(var(--ink-rgb) / 0.5);
+}
+
+.tableHours {
+  font-size: var(--text-sm);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+/* The hours are not on the page, so the row that would have carried them ends
+   in the address where they are. An underlined text link, not a pill: the
+   arrival's pills are its booking controls. */
+.tableAction {
+  align-self: flex-start;
+  margin-top: var(--space-1);
+  color: var(--ink);
+  border-bottom: 1px solid rgb(var(--ink-rgb) / 0.4);
+  padding-bottom: 0.25em;
+  transition: border-color 0.4s var(--ease-ui);
+}
+
+.tableAction:hover,
+.tableAction:focus-visible {
+  border-color: var(--ink);
+}
+
+/* D — the window (03). One opening cut in the shape of the house's monogram,
+   carved into a wall thick enough to have a reveal, with the reading and three
+   marked facts on the far side of it.
+
+   The counter-beat between the widest composition in the act and the one that
+   fills the screen. Two earlier drafts made it the counter-beat by being small,
+   and a small rectangle between two large ones reads as a panel that is missing
+   something rather than as a pause. This one is the counter-beat by being a
+   different kind of hole: the arch is the arrival's permanent grammar and every
+   other opening in the act is a crop of it, and this is the one place the house
+   cuts its own mark instead. The picture stays well inside its wall on all four
+   sides, so what the panel is carried by is the shape of the cut.
+
+   Built the way the table is — opening and reading as children of the panel's
+   own grid, drawn entirely in the type layer, the plate behind it as the wall
+   that covers the panel below — and for the same reason (see B). The reading
+   takes the right of the wall, mirroring the reference, because 02 reads at the
+   left and two panels reading down the same column is the same panel twice; the
+   rail follows the reading to the outer edge on that side.
+
+   Sized off the panel's height like the table's opening, and capped by the
+   column's width, so the composition fits both a short window and a narrow one
+   without either dimension being the only one that counts. The rem term is the
+   ceiling on a tall window. */
+.chapter[data-arch="window"] {
+  --window-h: min(60vh, 32rem);
+  /* The plaster seen edge-on down the inside of the cut. Two steps towards the
+     stone off the wall's own tone rather than one: at one step the band sat too
+     close to the wall to be a different surface and read as a stroke drawn
+     round the opening, which is the exact failure this layer exists to avoid. */
+  --window-reveal-tone: color-mix(
+    in srgb,
+    var(--ivory-warm) 48%,
+    var(--stone-deep)
+  );
+  /* The other face of the same jamb, turned into the light. Warmed with the
+     token the system already calls a light source rather than lightened towards
+     white: plaster catching a low sun is warmer than the wall in front of it,
+     and six points of grey between two ivories is not a bevel a reader sees. */
+  --window-sill-tone: color-mix(in srgb, var(--ivory) 88%, var(--dusk-amber));
+  /* How thick the wall is, in the units the shadows are written in. Scales with
+     the wall so a phone does not get a desktop's bevel on a third of the
+     picture; `drop-shadow` takes no percentages, which is the whole reason this
+     is a figure and not a share of the box. */
+  --window-depth: clamp(7px, 1.05vw, 15px);
+}
+
+.chapter[data-arch="window"] .panelInner {
+  /* The reference's proportions: the opening across roughly the leading
+     two-thirds, the reading in the last third, and the rail in its own track
+     beyond it. */
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr) 3rem;
+  column-gap: clamp(1.5rem, 3.2vw, 3.5rem);
+  align-items: center;
+  align-content: center;
+}
+
+/* The opening. Everything inside it is absolute against this box, and the box
+   clips: the wall carries a `drop-shadow`, which falls outward from its own
+   rectangle as well as inward from the cut, and the outward half has no business
+   on the panel. What is left inside the box is plaster in the panel's own tone,
+   so the edge of this element is invisible and the wall reads as the wall. */
+.chapter[data-arch="window"] .windowOpening {
+  grid-column: 1;
+  justify-self: end;
+  position: relative;
+  width: 100%;
+  /* The viewBox's own aspect, so the mark is never stretched — the two SVG
+     layers are drawn with `preserveAspectRatio="none"` and depend on it. */
+  aspect-ratio: 1000 / 660;
+  max-width: calc(var(--window-h) * 1000 / 660);
+  overflow: hidden;
+}
+
+/* Layer 1: the plate, filling the box. It needs no shape of its own — the wall
+   above it is what decides how much of it is ever seen. */
+.windowPicture {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.windowPicture img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  /* Held so the horizon sits under the mark's notch rather than in it: the V
+     drives nearly halfway down the opening, and a horizon it crosses reads as a
+     torn photograph rather than as a wall in front of one. */
+  object-position: 50% 58%;
+  will-change: transform;
+}
+
+/* Layer 2: the picture set back. A photograph behind a wall is further away than
+   the wall, and one that is evenly lit to its own corners is a photograph lying
+   on top of one. Warm rather than neutral, and thrown from the same corner the
+   act's gobo is: bright at the top left, closing towards the opposite corner. */
+.windowVeil {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      112% 94% at 32% 12%,
+      rgb(var(--umber-rgb) / 0) 30%,
+      rgb(var(--umber-rgb) / 0.2) 66%,
+      rgb(var(--umber-rgb) / 0.52) 100%
+    ),
+    linear-gradient(
+      158deg,
+      rgb(var(--umber-rgb) / 0.34) 0%,
+      rgb(var(--umber-rgb) / 0) 30%
+    );
+}
+
+.windowSill,
+.windowReveal,
+.windowWall {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Layer 3: the sill — the wall shape again, in the warm cream, offset up and
+   left inside its own viewBox so a band of it stands proud of the cut along the
+   bottom and right insides. Those are the faces of the jamb that turn into the
+   light, and they are lighter than the wall in front of them, which is the half
+   of the bevel the first draft of this panel did not have. */
+.windowSill {
+  fill: var(--window-sill-tone);
+}
+
+/* Layer 4: the reveal — the wall shape a third time, in the darker plaster,
+   offset the other way so its band stands along the top and left insides: the
+   faces turned away from the light.
+
+   It casts a shadow of its own, and that is what turns the band into a surface.
+   Without it the band is one flat tone with a hard edge against the photograph,
+   and a flat tone with a hard edge is a border however dark it is. With it there
+   are three steps across the cut — wall, jamb, contact shadow — and the eye
+   reads three steps as a thickness. Tighter and darker than the wall's own
+   shadow, because it is thrown from the inside face of the jamb onto a picture
+   just behind it rather than across the whole opening. */
+.windowReveal {
+  fill: var(--window-reveal-tone);
+  filter: drop-shadow(
+    calc(var(--window-depth) * 0.2) calc(var(--window-depth) * 0.3)
+      calc(var(--window-depth) * 0.26) rgb(var(--umber-rgb) / 0.7)
+  );
+  will-change: transform, opacity;
+}
+
+/* Layer 5: the light falling off down the cut. Painted over the jamb and the
+   picture together rather than on either of them, which is the point — a shadow
+   that stops at the edge of the reveal is a tone applied to a band, and a shadow
+   that carries across the reveal onto the photograph behind it is a shadow in a
+   room. It reads only inside the opening: the wall above it covers everything
+   else.
+
+   Strongest at the top and falling off by the height of the notch, with a
+   weaker one down the left, because that is where a wall lit from above and to
+   the left is darkest inside. */
+.windowShade {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      180deg,
+      rgb(var(--umber-rgb) / 0.36) 0%,
+      rgb(var(--umber-rgb) / 0) 42%
+    ),
+    linear-gradient(
+      90deg,
+      rgb(var(--umber-rgb) / 0.24) 0%,
+      rgb(var(--umber-rgb) / 0) 24%
+    );
+}
+
+/* Layer 6: the wall, in the panel's own plaster so its own edges disappear into
+   the panel, carrying the shadow the whole cut throws into the room behind it.
+
+   `drop-shadow` and not `box-shadow: inset`: the wall is one filled shape with a
+   hole in it, and a drop shadow follows the silhouette it actually has — hole
+   included — so the shadow is thrown from the inside edge of the cut onto
+   everything behind it. An inset shadow follows the border box and would draw a
+   rectangle across the middle of the picture.
+
+   Wide and weak, and it does the opposite job to the reveal's. That one is the
+   contact shadow at the jamb's inner face and is nearly hard; this one is the
+   whole opening's ambient falloff, thrown down and right with the light, and it
+   has to stay light enough that the sill on the far side is still the brightest
+   thing inside the cut. */
+.windowWall {
+  fill: var(--ivory-warm);
+  filter: drop-shadow(
+    calc(var(--window-depth) * 0.3) calc(var(--window-depth) * 0.44)
+      calc(var(--window-depth) * 1.7) rgb(var(--umber-rgb) / 0.32)
+  );
+}
+
+/* The reading. Flush left inside its own column, with the panel's rhythm in a
+   flex gap so the index does not also carry the margin it holds open beside a
+   display line. */
+.chapter[data-arch="window"] .windowReading {
+  grid-column: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.chapter[data-arch="window"] .chapterIndex {
+  margin-bottom: 0;
+}
+
+/* On the index's own caps line, after the number and before its rule — the
+   table's eyebrow, declared again rather than shared so the table's rule stays
+   the table's. */
+.windowEyebrow {
+  color: rgb(var(--ink-rgb) / 0.62);
+  white-space: nowrap;
+}
+
+/* Three short lines, ragged, at the size the reference sets them: large enough
+   to be the first thing read on this side of the wall, small enough that three
+   of them hold in a third of the measure. The weight comes up from the act's
+   300 because Cormorant's hairlines close at this size on a warm wall. */
+.windowHeadline {
+  font-size: clamp(2rem, 3.3vw, 3.25rem);
+  line-height: 1.14;
+  /* Headroom over the clip the lines rise through — see .lineClip. */
+  padding-bottom: 0.06em;
+  color: var(--ink);
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+/* One word, and the only italic in the act. It is the word that turns the line
+   towards the reader, which is where the register turns anyway. */
+.windowLineItalic {
+  font-style: italic;
+}
+
+/* Two sentences, one to a line, at reading size. Blocks rather than a wrap:
+   each is a fact from its own row of the property file, and a break that lands
+   wherever the column runs out puts half of one on a line with half of the
+   other. */
+.windowNote {
+  font-size: var(--text-sm);
+  line-height: 1.85;
+  color: rgb(var(--ink-rgb) / 0.78);
+  max-width: 34ch;
+}
+
+.windowNoteLine {
+  display: block;
+}
+
+/* The marked facts: three columns under the reading, each a ring, a number and
+   a two-line caption. The row is the panel's small type doing the work the
+   tiled panels give to a caption, and the three glyphs are what stops it being
+   a list. */
+.windowMarks {
+  list-style: none;
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  /* Tight, because the three captions are what the column width is spent on:
+     the address is twenty characters and a gap that takes two of them off each
+     track breaks it across four lines. */
+  gap: var(--space-1);
+}
+
+.windowMark {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  /* Each is uncovered from its glyph outwards on the landing. */
+  will-change: clip-path;
+}
+
+.windowGlyph {
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid rgb(var(--ink-rgb) / 0.26);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--stone-deep);
+}
+
+.windowGlyphDraw {
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+/* The brand file itself, carried as a mask so it takes the ring's colour. The
+   mark is wider than it is tall, so the box is too — sized off the height
+   alone it would sit small in the ring. */
+.windowGlyphMark {
+  display: block;
+  width: 1.25rem;
+  height: 0.95rem;
+  background-color: currentColor;
+  -webkit-mask-image: url("/brand/mariva-monogram.svg");
+  mask-image: url("/brand/mariva-monogram.svg");
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+}
+
+.windowMarkIndex {
+  color: var(--stone);
+  font-size: 0.625rem;
+  letter-spacing: 0.22em;
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+.windowMarkCaption {
+  font-size: var(--text-xs);
+  line-height: 1.6;
+  color: var(--stone-deep);
+  text-wrap: pretty;
+}
+
+/* C — bled (04). One photograph filling the panel, dissolved back into the wall
    down its left edge and along its foot, with the reading standing on the
    dissolve. The closing chapter, and the only one the reader is inside rather
    than looking at.
@@ -762,8 +1223,7 @@
      and the vh terms go with them, since nothing is one viewport tall here.
      A percentage is safe again: the grid is one column wide, so this is only a
      width now. */
-  .chapter[data-arch="portal"],
-  .chapter[data-arch="shingle"] {
+  .chapter[data-arch="portal"] {
     --stack-w: min(84%, 20rem);
   }
 
@@ -778,12 +1238,65 @@
     width: 40%;
   }
 
-  .slotPairFar {
-    width: 70%;
+  /* The table comes apart into one column in the order it reads: the wide
+     opening, the reading, then the detail. Nothing pins here, so there is no
+     panel height to fit and no gap for the tall opening to ride up into — it is
+     inset from the right instead, which keeps the sequence composed rather than
+     merely stacked. */
+  .chapter[data-arch="table"] .panelInner {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto;
+    column-gap: 0;
+    row-gap: clamp(2rem, 6vh, 3rem);
+    align-content: start;
   }
 
-  .slotPairNear {
-    width: 86%;
+  .chapter[data-arch="table"] .tableWide,
+  .chapter[data-arch="table"] .tableCopy,
+  .chapter[data-arch="table"] .tableTall {
+    grid-row: auto;
+    grid-column: 1;
+  }
+
+  /* Nothing pins here, so the opening goes back to being the crop it was cut
+     as: the 16:9 the component was given, at the column's full width. */
+  .chapter[data-arch="table"] .tableWide {
+    margin-right: 0;
+    aspect-ratio: var(--aperture-ratio);
+    height: auto;
+  }
+
+  .chapter[data-arch="table"] .tableTall {
+    width: 62%;
+    margin: 0 0 0 auto;
+  }
+
+  /* Narrow enough for the sentence beside it to hold one line on a phone. */
+  .tableTimeRow {
+    grid-template-columns: 6rem minmax(0, 1fr);
+  }
+
+  /* The window comes apart into the column in the order it is built: the
+     opening, then the reading under it. Nothing pins here, so there is no panel
+     height to size the cut off — it takes the column's full width instead and
+     keeps its viewBox aspect, which is the one thing that must not give, since
+     both SVG layers are drawn without a preserved ratio of their own. Written
+     at the archetype selectors' specificity, or the vh cap would stay. */
+  .chapter[data-arch="window"] .panelInner {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: clamp(1.75rem, 5vh, 2.75rem);
+    align-content: start;
+  }
+
+  .chapter[data-arch="window"] .windowOpening,
+  .chapter[data-arch="window"] .windowReading {
+    grid-row: auto;
+    grid-column: 1;
+  }
+
+  .chapter[data-arch="window"] .windowOpening {
+    justify-self: stretch;
+    max-width: none;
   }
 
   .glassSheet,
@@ -844,8 +1357,7 @@
    frame, and the frosted band is wider than the blur it is meant to show. Both
    go; the circle stays, because it is what the panel is. */
 @media (max-width: 520px) {
-  .chapter[data-arch="portal"],
-  .chapter[data-arch="shingle"] {
+  .chapter[data-arch="portal"] {
     --stack-w: min(86%, 18rem);
   }
 
@@ -856,6 +1368,24 @@
   .slotPortal {
     inset-inline-end: 2%;
     width: 44%;
+  }
+
+  /* Three two-line captions across a phone leaves about eight characters to a
+     line, and an address broken there is not an address. The row becomes a list
+     instead: the mark, its number and its caption on one line each. */
+  .windowMarks {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2);
+  }
+
+  .windowMark {
+    flex-direction: row;
+    align-items: center;
+    gap: 0.875rem;
+  }
+
+  .windowGlyph {
+    flex: none;
   }
 }
 
