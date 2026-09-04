@@ -1,18 +1,30 @@
-// The eight experiences the field carries, and the order the two columns take
-// them in: the left column runs the even indices, the right column the odd, so
-// a pair is (2q, 2q+1) and no experience is ever on screen twice.
+// The three rituals chapter 5 reads down the page, and the only content source
+// for them. Cut from the eight the dropped experience field carried: eight cards
+// spun past a reader who could not have said afterwards what any of them was,
+// and six of the eight only existed to fill a wheel.
 //
-// The order is load-bearing beyond the composition. `experienceScrollTarget`
-// aims the island menu and the turndown footer at an index, and those two call
-// sites name 6 (Restore) and 7 (Dine) directly — an experience moved out of
-// those slots takes a navigation destination with it.
+// The order is the order of the evening, and the order chapter 5 renders: the
+// spa, one thing to go out and do, and the kitchen coming to the door. It is no
+// longer load-bearing for navigation — the island menu and the turndown footer
+// aim at chapters now, by `[data-act]`, and nothing addresses an experience by
+// index any more.
 //
-// `plate` names the photograph a card stands on today. The house has no
+// ⚑ **The house publishes none of this.** `docs/architecture/property-and-tariff.md`
+// describes the building, the clock and the tariff. It names no spa, no
+// excursion and no room-service window, so there is no authority in the repo for
+// an hour or a length here, and `design-foundations.md` §6 forbids a component
+// inventing one. Every optional field below is therefore absent rather than
+// guessed, the notes state nothing that is not either the name restated or a row
+// of §1, and chapter 5 prints one honest line and a link where an hour would go.
+// Filling `time` and `duration` when the property publishes them is the whole of
+// the work.
+//
+// `plate` names the photograph an entry stands on today. The house has no
 // experience library cut yet; these are the nearest frames already prepared for
-// the arrival, held here until the real ones are shot. The image manifest is
-// generated from a source library outside the repo, so replacing a photograph
-// is a change to this one field and to nothing else.
+// the arrival. The image manifest is generated from a source library outside the
+// repo, so replacing a photograph is a change to this one field.
 
+import { GUEST_FLOORS } from "@/features/arrival/content/house-facts";
 import { arrivalImages } from "@/features/arrival/lib/image-manifest";
 
 type PlateGroup = "act-4-rooms" | "nav-island";
@@ -20,57 +32,39 @@ type PlateGroup = "act-4-rooms" | "nav-island";
 export interface Experience {
   slug: string;
   name: string;
-  note: string;
+  /** One line, and only where one can be written that claims nothing the
+   *  property has not stated. Absent otherwise: a name with no line under it
+   *  says less than an invented line, and everything it says is true. */
+  note?: string;
+  /** Where it happens — `property-and-tariff.md` §1, or absent. */
+  place?: string;
+  /** Its window, 24-hour. No authority exists for one today. */
+  time?: string;
+  /** How long it runs. No authority exists for one today. */
+  duration?: string;
   plate: { group: PlateGroup; match: string };
 }
 
 export const EXPERIENCES: Experience[] = [
   {
-    slug: "signature-breakfast",
-    name: "Signature Breakfast",
-    note: "Served until eleven, wherever you are.",
-    plate: { group: "act-4-rooms", match: "room-mori" },
-  },
-  {
-    slug: "infinity-pool",
-    name: "Infinity Pool",
-    note: "Still water facing the bay, warm until late.",
-    plate: { group: "act-4-rooms", match: "room-bath" },
-  },
-  {
-    slug: "lobby-lounge",
-    name: "The Lobby Lounge",
-    note: "Tea at four. The last table stays lit.",
-    plate: { group: "act-4-rooms", match: "room-autumn" },
-  },
-  {
-    slug: "fitness-studio",
-    name: "Fitness Studio",
-    note: "Open through the night, for the early hour.",
-    plate: { group: "act-4-rooms", match: "room-sky-lounge" },
+    slug: "wellness-spa",
+    name: "Wellness Spa",
+    plate: { group: "nav-island", match: "island-restore" },
   },
   {
     slug: "cultural-excursions",
     name: "Cultural Excursions",
-    note: "A boat, a market, a temple. Back by dusk.",
-    plate: { group: "act-4-rooms", match: "room-washigamine" },
-  },
-  {
-    slug: "signature-massage",
-    name: "Signature Massage",
-    note: "Ninety minutes, oils pressed on the ridge.",
-    plate: { group: "act-4-rooms", match: "room-onsen" },
-  },
-  {
-    slug: "wellness-spa",
-    name: "Wellness Spa",
-    note: "Thermal stone, open at six, warm until ten.",
-    plate: { group: "nav-island", match: "island-restore" },
+    plate: { group: "act-4-rooms", match: "room-table" },
   },
   {
     slug: "in-room-dining",
     name: "In-Room Dining",
-    note: "The kitchen comes to your door until midnight.",
+    // The name, restated: it says what the service is and claims nothing about
+    // when it runs.
+    note: "The kitchen comes to your door.",
+    // §1: the kitchen is on the ground floor and the guest floors are 2–5, so
+    // where this one happens is a fact the property file already holds.
+    place: `Your room, on floors ${GUEST_FLOORS}`,
     plate: { group: "act-4-rooms", match: "room-lantern" },
   },
 ];

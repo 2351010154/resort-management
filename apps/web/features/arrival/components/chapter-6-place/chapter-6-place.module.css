@@ -1,0 +1,137 @@
+/* Chapter 6 — place. Ink, and the aperture is a window with a drawing in it
+   rather than a photograph: the only chapter where what the frame holds is a
+   diagram, which is what stops the sixth arch from reading as the fifth. */
+
+.section {
+  background: var(--night);
+  color: var(--ivory);
+  padding: var(--space-5) var(--space-3);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1fr);
+  gap: var(--space-5);
+  align-items: center;
+  max-width: 72rem;
+  margin: 0 auto;
+}
+
+.figure {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.window {
+  width: 100%;
+}
+
+/* The drawing's caption, and the second of the two things the plan has this
+   chapter say. A name for the journey and nothing more: no distance and no
+   duration exist in this repo to put under it. */
+.windowLabel {
+  color: rgb(var(--ivory-rgb) / 0.62);
+}
+
+.route {
+  width: 100%;
+  height: 100%;
+}
+
+/* The water: heavier and flatter than the road, so the two strokes are not read
+   as two roads. */
+.shore {
+  stroke: rgb(var(--ocean-rgb) / 0.5);
+  stroke-width: 10;
+  stroke-linecap: round;
+}
+
+.line {
+  stroke: rgb(var(--ivory-rgb) / 0.75);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 3 7;
+}
+
+.pin {
+  fill: rgb(var(--ivory-rgb) / 0.7);
+}
+
+.pin[data-here] {
+  fill: var(--dusk-amber);
+}
+
+.pinLabel {
+  fill: rgb(var(--ivory-rgb) / 0.72);
+  font-family: var(--font-ui), ui-monospace, monospace;
+  font-size: 15px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+
+.pinLabel[data-here] {
+  fill: var(--ivory);
+}
+
+.copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  max-width: 44ch;
+}
+
+.eyebrow {
+  color: rgb(var(--ivory-rgb) / 0.55);
+}
+
+.headline {
+  font-size: var(--text-display-sm);
+  line-height: 1.1;
+}
+
+.facts {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-1) * 0.75);
+  width: 100%;
+  margin-top: var(--space-1);
+  border-top: 1px solid rgb(var(--ivory-rgb) / 0.18);
+  padding-top: var(--space-2);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 8rem minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: baseline;
+}
+
+.row dt {
+  color: rgb(var(--ivory-rgb) / 0.5);
+}
+
+.value {
+  font-size: var(--text-sm);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+@media (max-width: 767px) {
+  .section {
+    padding: var(--space-4) var(--space-2);
+  }
+
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-3);
+  }
+
+  .window {
+    width: min(100%, 20rem);
+  }
+
+  .row {
+    grid-template-columns: 6.5rem minmax(0, 1fr);
+  }
+}

@@ -1,0 +1,143 @@
+/* Chapter 5 — the triptych, on ink. Three rows, the frame alternating sides, so
+   the eye crosses the page three times instead of running down one gutter. */
+
+.section {
+  background: var(--night);
+  color: var(--ivory);
+  padding: var(--space-5) var(--space-3);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: 34ch;
+  margin: 0 auto var(--space-5);
+}
+
+.eyebrow {
+  color: rgb(var(--ivory-rgb) / 0.55);
+}
+
+.headline {
+  font-size: var(--text-display-sm);
+  line-height: 1.1;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 76rem;
+  margin: 0 auto;
+  list-style: none;
+}
+
+.item {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  align-items: center;
+}
+
+/* Capped, and held against the gutter it sits on. A frame that takes half the
+   page beside four lines of type is a picture with a caption; the point of the
+   triptych is three entries a reader can compare. */
+.plate {
+  width: min(100%, 24rem);
+}
+
+/* Even rows put the frame on the right, hard against the outer margin, so the
+   eye crosses the page rather than running down one gutter. */
+.item:nth-child(even) .plate {
+  order: 2;
+  margin-left: auto;
+}
+
+.copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  max-width: 42ch;
+}
+
+.index {
+  color: rgb(var(--ivory-rgb) / 0.45);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Set at the display step rather than the card step: a triptych of three is three
+   subjects, and a name at label size beside a half-page photograph is a caption on
+   the picture instead. */
+.name {
+  font-size: var(--text-display-sm);
+  line-height: 1.05;
+}
+
+.note {
+  font-size: var(--text-base);
+  line-height: 1.8;
+  color: rgb(var(--ivory-rgb) / 0.78);
+}
+
+/* The place, the hour and the length — whichever the property has published,
+   and the line that stands in for the hour it has not. Kept as a rule-topped row
+   so they read as a caption on the frame beside them rather than as more
+   sentence. */
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  width: 100%;
+  border-top: 1px solid rgb(var(--ivory-rgb) / 0.18);
+  padding-top: var(--space-2);
+  list-style: none;
+}
+
+.fact {
+  color: rgb(var(--ivory-rgb) / 0.62);
+}
+
+/* The one thing a reader can do about a ritual today. An underlined text link
+   rather than a second pill: chapter 2's two pills are the page's booking
+   controls, and three more of them down the triptych would outrank them. */
+.action {
+  align-self: flex-start;
+  margin-top: var(--space-1);
+  color: var(--ivory);
+  border-bottom: 1px solid rgb(var(--ivory-rgb) / 0.4);
+  padding-bottom: 0.25em;
+  transition: border-color 0.4s var(--ease-ui);
+}
+
+.action:hover,
+.action:focus-visible {
+  border-color: var(--ivory);
+}
+
+@media (max-width: 767px) {
+  .section {
+    padding: var(--space-4) var(--space-2);
+  }
+
+  .head {
+    margin-bottom: var(--space-4);
+  }
+
+  .list {
+    gap: var(--space-4);
+  }
+
+  .item {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-2);
+  }
+
+  /* One column, so the alternation has nothing to alternate: every row opens on
+     its frame, on the same margin as its copy. */
+  .item:nth-child(even) .plate {
+    order: 0;
+    margin-left: 0;
+  }
+}

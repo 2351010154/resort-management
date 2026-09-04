@@ -1,0 +1,50 @@
+/* Chapter 4 — the hinge. The ground does the work: ivory at the top edge, night
+   by two fifths down, and night for the rest of the page after it.
+
+   The turn is high in the section rather than centred, so by the time the frame
+   is on screen the reader is already in the evening — and so the concierge bar,
+   which reads this chapter as dark, is over ink the whole time the chapter owns
+   the viewport. */
+
+.section {
+  background: linear-gradient(
+    to bottom,
+    var(--ivory) 0%,
+    var(--umber) 26%,
+    var(--night) 42%,
+    var(--night) 100%
+  );
+  color: var(--ivory);
+  padding: var(--space-5) var(--space-3);
+}
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: center;
+  max-width: 76rem;
+  margin: 0 auto;
+}
+
+.frame {
+  width: 100%;
+}
+
+.caption {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  text-align: center;
+}
+
+.label {
+  color: rgb(var(--ivory-rgb) / 0.6);
+}
+
+@media (max-width: 767px) {
+  .section {
+    padding: var(--space-4) var(--space-2);
+  }
+}
