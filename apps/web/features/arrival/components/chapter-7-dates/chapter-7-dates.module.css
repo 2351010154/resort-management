@@ -1,0 +1,151 @@
+/* Chapter 7 — the dates card. Ink section, ivory card, the aperture as its frame.
+
+   The card carries the arch on its own top edge, so the fields need room to clear
+   the curve: the head sits in that room and the fields begin below the springing
+   line, which is why the top padding is so much heavier than the rest. */
+
+.section {
+  background: var(--night);
+  padding: var(--space-5) var(--space-3);
+}
+
+.frame {
+  width: min(56rem, 100%);
+  margin: 0 auto;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  background: var(--ivory);
+  color: var(--ink);
+  padding: var(--space-5) var(--space-4) var(--space-4);
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  text-align: center;
+}
+
+.eyebrow {
+  color: rgb(var(--ink-rgb) / 0.55);
+}
+
+.headline {
+  font-size: var(--text-display-sm);
+  line-height: 1.1;
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-1) * 0.75);
+  color: rgb(var(--ink-rgb) / 0.55);
+}
+
+/* One rule under each control instead of a box around it: the card is already a
+   frame, and a second border on every field turns it into a form on a form. */
+.control {
+  appearance: none;
+  width: 100%;
+  padding: 0.6em 0;
+  border: none;
+  border-bottom: 1px solid rgb(var(--ink-rgb) / 0.28);
+  border-radius: 0;
+  background: none;
+  color: var(--ink);
+  font-family: var(--font-ui), ui-monospace, monospace;
+  font-size: var(--text-sm);
+  font-variant-numeric: lining-nums tabular-nums;
+  transition: border-color 0.4s var(--ease-ui);
+}
+
+.control:hover,
+.control:focus-visible {
+  border-bottom-color: var(--ink);
+}
+
+.foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  border-top: 1px solid rgb(var(--ink-rgb) / 0.16);
+  padding-top: var(--space-3);
+}
+
+.submit {
+  padding: 0.9em 2em;
+  border: 1px solid var(--ink);
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--ivory);
+  transition: background-color 0.4s var(--ease-ui);
+}
+
+.submit:hover,
+.submit:focus-visible {
+  background: var(--umber);
+}
+
+/* The reason a press did nothing, under the field it belongs to. Set in the
+   control's own monospace at the smallest size on the card, in umber rather than
+   a warning colour — the card has one accent and an error is not a new one. */
+.error {
+  color: var(--umber);
+  font-family: var(--font-ui), ui-monospace, monospace;
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+
+/* Announced, never drawn: the same sentences are already under the fields, and
+   printing them twice would put a second copy of the whole list on the card. */
+.assertive {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.clock {
+  color: rgb(var(--ink-rgb) / 0.55);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+@media (max-width: 767px) {
+  .section {
+    padding: var(--space-4) var(--space-2);
+  }
+
+  .form {
+    padding: var(--space-4) var(--space-2) var(--space-3);
+    gap: var(--space-2);
+  }
+
+  /* Two up: the three child slots still pair off, and a date field at a third of
+     a phone's width cannot show its own placeholder. */
+  .fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .foot {
+    flex-direction: column;
+    align-items: stretch;
+    text-align: center;
+  }
+}

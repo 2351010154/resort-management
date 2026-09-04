@@ -1,7 +1,7 @@
-/* Act 7 — the turndown: dark stone panel, embossed monogram with scroll tilt,
-   quiet columns, giant clipped wordmark band. Top edge starts at Act 6's dark
-   (--night) so the seam out of the invitation is invisible, then warms one
-   step into stone. */
+/* Chapter 8 — the turndown: dark stone panel, embossed monogram with scroll tilt,
+   the aperture closed to a small lit window, quiet columns, and the wordmark band
+   held low. Top edge starts at the dates chapter's --night so the seam out of it
+   is invisible, then warms one step into stone. */
 
 .section {
   position: relative;
@@ -30,6 +30,14 @@
   gap: var(--space-4);
   width: min(1200px, 100%);
   margin: 0 auto;
+}
+
+/* The aperture's last role: a lit window, at the size the mark itself is set at,
+   standing between the emboss and the columns. Small on purpose — the page ends on
+   its facts, and the device closing is a note under them rather than a finale. */
+.window {
+  width: 12rem;
+  max-width: 40vw;
 }
 
 /* embossed monogram: masked spans stacked — highlight + shadow offsets.
@@ -307,10 +315,14 @@
   justify-content: center;
 }
 
+/* Low contrast, and that is the decision: the name uncovering at full ivory made
+   the last band the loudest thing on the page, which put the page's climax after
+   its booking action instead of on it. Held just clear of the photograph behind
+   it — legible, unmistakably the house, and plainly not the point. */
 .revealWordmark {
   width: min(88vw, 1400px);
   aspect-ratio: 800 / 136;
-  background: var(--ivory);
+  background: rgb(var(--ivory-rgb) / 0.42);
   mask-image: url("/brand/mariva-wordmark.svg");
   mask-repeat: no-repeat;
   mask-size: contain;

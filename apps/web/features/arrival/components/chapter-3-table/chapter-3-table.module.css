@@ -1,0 +1,124 @@
+/* Chapter 3 — the table. Still daylight, still ivory: the hour does not turn
+   until chapter 4.
+
+   Asymmetric on purpose. The wide crop takes the top and stops short of the right
+   margin; the copy sits under its left half; the tall crop rides up into the
+   space the wide one left, so the two frames overlap in the eye without ever
+   overlapping on the grid. Nothing here is pinned or scrubbed — the composition is
+   the whole effect. */
+
+.section {
+  background: var(--ivory);
+  color: var(--ink);
+  padding: var(--space-5) var(--space-3);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  column-gap: var(--space-4);
+  row-gap: var(--space-4);
+  align-items: start;
+  max-width: 84rem;
+  margin: 0 auto;
+}
+
+.wide {
+  grid-column: 1 / -1;
+  margin-right: var(--space-5);
+}
+
+.copy {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  max-width: 46ch;
+}
+
+.eyebrow {
+  color: rgb(var(--ink-rgb) / 0.62);
+}
+
+.headline {
+  font-size: var(--text-display-sm);
+  line-height: 1.1;
+}
+
+.note {
+  font-size: var(--text-sm);
+  line-height: 1.8;
+  color: rgb(var(--ink-rgb) / 0.8);
+}
+
+.times {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-1) * 0.75);
+  width: 100%;
+  margin-top: var(--space-1);
+  border-top: 1px solid rgb(var(--ink-rgb) / 0.16);
+  padding-top: var(--space-2);
+}
+
+.timeRow {
+  display: grid;
+  grid-template-columns: 8rem minmax(0, 1fr);
+  gap: var(--space-2);
+  align-items: baseline;
+}
+
+.timeRow dt {
+  color: rgb(var(--ink-rgb) / 0.5);
+}
+
+.hours {
+  font-size: var(--text-sm);
+  font-variant-numeric: lining-nums tabular-nums;
+}
+
+/* The hours are not on the page, so the row that would have carried them ends in
+   the address where they are. An underlined text link, not a pill: chapter 2's
+   two pills are the page's booking controls. */
+.action {
+  align-self: flex-start;
+  margin-top: var(--space-1);
+  color: var(--ink);
+  border-bottom: 1px solid rgb(var(--ink-rgb) / 0.4);
+  padding-bottom: 0.25em;
+  transition: border-color 0.4s var(--ease-ui);
+}
+
+.action:hover,
+.action:focus-visible {
+  border-color: var(--ink);
+}
+
+/* Pulled up into the margin the wide crop left, and held back off the right edge
+   so the two arches stand in the same column of air. */
+.tall {
+  width: min(100%, 22rem);
+  margin: calc(var(--space-5) * -1) 0 0 auto;
+}
+
+@media (max-width: 767px) {
+  .section {
+    padding: var(--space-4) var(--space-2);
+  }
+
+  .grid {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: var(--space-3);
+  }
+
+  .wide {
+    margin-right: 0;
+  }
+
+  /* No overlap on a phone: one column of frames, the detail last and inset from
+     the right so the sequence still reads as composed rather than stacked. */
+  .tall {
+    width: 62%;
+    margin: 0 0 0 auto;
+  }
+}

@@ -1,0 +1,166 @@
+/* Chapter 1 — the threshold. One screen: the exterior at the back, the plaster
+   wall with the mark cut out of it over that, and the copy above both.
+
+   The copy is laid out around the opening rather than over it: the mark stands in
+   the middle of the frame at 44% of the viewport's short side, so the head sits
+   above it and the foot below, and neither ever has to be read against the
+   photograph coming through the hole. */
+
+.section {
+  background: var(--ivory);
+}
+
+/* z-index, not just position. The lens climbs to 1200 inside this stage, and
+   without a stacking context of its own it would climb in the root — over a
+   concierge bar that sits at 100. */
+.stage {
+  position: relative;
+  z-index: 0;
+  min-height: 100svh;
+  overflow: hidden;
+  background: var(--ivory);
+}
+
+.plate {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  z-index: 0;
+}
+
+/* Plaster before the plaster. Sits between the photograph and the copy, and goes
+   the moment a real wall is drawn over it — under `prefers-reduced-motion` the
+   global kill-switch collapses the fade, so it simply is not there. */
+.veil {
+  position: absolute;
+  inset: 0;
+  z-index: 1100;
+  background: rgb(var(--ivory-rgb) / 0.92);
+  transition: opacity 0.4s var(--ease-ui);
+  pointer-events: none;
+}
+
+.veil[data-lifted="true"] {
+  opacity: 0;
+}
+
+.aperture {
+  position: absolute;
+  inset: 0;
+  z-index: 1200;
+}
+
+/* Ink throughout: everything the copy sits on is the plaster wall, which is the
+   page's own ivory. Nothing here is ever read against the photograph. */
+.copy {
+  position: relative;
+  z-index: 1300;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-height: 100svh;
+  padding: calc(var(--space-5) * 0.75) var(--space-3) var(--space-3);
+  color: var(--ink);
+  pointer-events: none;
+}
+
+/* The links are the exception: the block is transparent to the pointer so the
+   wall behind it stays whole, and anything clickable takes it back. */
+.copy a {
+  pointer-events: auto;
+}
+
+.head {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.place {
+  color: rgb(var(--ink-rgb) / 0.62);
+}
+
+.name {
+  font-size: var(--text-display-sm);
+  line-height: 1;
+}
+
+.foot {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.promise {
+  font-size: var(--text-display-sm);
+  line-height: 1.16;
+  max-width: 18ch;
+}
+
+.facts {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+
+.factList {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--space-1) * 0.75);
+  list-style: none;
+}
+
+.fact {
+  color: rgb(var(--ink-rgb) / 0.72);
+}
+
+/* The one filled control on the page, and it is on the first screen on purpose:
+   a reader who has decided at the threshold should not have to scroll to act. */
+.book {
+  display: inline-block;
+  padding: 0.85em 1.6em;
+  border: 1px solid var(--ink);
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--ivory);
+  transition: background-color 0.4s var(--ease-ui);
+}
+
+.book:hover,
+.book:focus-visible {
+  background: var(--umber);
+}
+
+@media (max-width: 767px) {
+  .copy {
+    padding: calc(var(--space-4) * 1.25) var(--space-2) var(--space-3);
+    gap: var(--space-3);
+  }
+
+  /* The mark is wider than the phone's short side, so the two blocks close in on
+     it rather than sitting either side of a gap. */
+  .foot {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-2);
+  }
+
+  .promise {
+    max-width: 22ch;
+  }
+
+  .facts {
+    width: 100%;
+  }
+
+  .factList {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-2);
+  }
+}
