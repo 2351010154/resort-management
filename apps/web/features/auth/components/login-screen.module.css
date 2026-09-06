@@ -7,11 +7,14 @@
  *     |<------ frame : 100 ------>|                     reading the email
  *                     |<------ frame : 100 ------>|     reading the password
  *
- * Nothing crossfades and nothing is rebuilt. Focus moves to the password and
+ * Nothing crossfades and nothing is rebuilt. Focus reaches the password and
  * the strip pans by exactly one plate, which carries the pane from the right
  * of the frame to the left and brings the second plate in behind it. It is one
  * transform on one element, which is the whole reason it can be built inside
  * the funnel's CSS-only motion budget — see design-foundations.md §5.
+ *
+ * It happens once. Returning to the email field does not pan back, so
+ * editing either field is never a moving frame.
  */
 
 .screen {
@@ -34,7 +37,7 @@
   transition: transform 0.5s var(--ease-ui);
 }
 
-.track[data-pane="password"] {
+.track[data-panned] {
   transform: translate3d(-37.5%, 0, 0);
 }
 
@@ -46,7 +49,7 @@
    a reduced-motion state". */
 @media (prefers-reduced-motion: reduce) {
   .track,
-  .track[data-pane="password"] {
+  .track[data-panned] {
     transform: none;
   }
 }
@@ -137,20 +140,7 @@
   -webkit-mask-size: contain;
 }
 
-.statement {
-  /* Measured against the reference composition: the statement holds two lines
-     at every width the plate takes, and the scale's --text-display-sm tops out
-     a step below what that needs here. */
-  font-size: clamp(1.75rem, 3vw, 2.6rem);
-  line-height: 1.14;
-  /* Measured against the reference: the statement reads as two lines breaking
-     after "experience". 14ch pushed "to." onto a third, which turns a sentence
-     into a stack. */
-  max-width: 19ch;
-}
-
 .statementNote {
-  margin-top: var(--space-2);
   font-size: var(--text-sm);
   /* --stone-deep, not --sand: §2 is explicit that --sand is a dark-ground
      token and is illegible on a light one. This plate is light. */
@@ -422,7 +412,7 @@
   }
 
   .track,
-  .track[data-pane="password"] {
+  .track[data-panned] {
     display: block;
     width: 100%;
     transform: none;
