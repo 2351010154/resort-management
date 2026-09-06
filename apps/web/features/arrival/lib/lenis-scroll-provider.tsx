@@ -1,8 +1,17 @@
 "use client";
 
 // Single scroll smoother for the whole experience. Lenis drives GSAP
-// ScrollTrigger; ScrollTrigger scrubs must use `scrub: true` (no scrub-lag) —
-// Lenis is the only smoothing layer, doubling it turns motion mushy.
+// ScrollTrigger.
+//
+// Two scrubs, and which one a tween takes is a rule, not a taste. Anything that
+// shares an edge with something else — a pin, a panel covering another, a
+// track being translated — is `scrub: true`: Lenis has already smoothed the
+// page, and a cover edge that lags the panel it is cutting is a gap. Anything
+// that moves *relative* to the page — a parallax, a drift, a plate's breath, a
+// block scaling in — is `scrub: SCRUB_DRIFT` (motion-tokens): smoothed a second
+// time, so it trails the hand and goes on settling after the page has stopped.
+// That second smoothing, on those layers only, is what a single-layer page
+// cannot imitate by any setting of the smoother.
 //
 // The smoother's weight is not one setting for the ride. Sections claim a
 // `ScrollWeight` for the stretch they own (see `useScrollWeight`), and the

@@ -25,10 +25,32 @@ export const EASE_UI_CSS = "cubic-bezier(0.23, 1, 0.32, 1)";
  */
 export const EASE_UI_EXIT = "power2.in";
 
+/**
+ * The arrival's three curves, read off its reference choreography
+ * (`CustomEase.create("Out" | "In" | "InOut", …)`). They are GSAP CustomEase
+ * names rather than built-ins, so a component has to call
+ * `registerArrivalEases()` (features/arrival/lib/motion-eases.ts) before the
+ * first tween that names one — the same place it registers ScrollTrigger.
+ *
+ * `enter` is gentler than expo.out at the start and finished sooner at the
+ * end, which is what keeps a cascade of forty elements from reading as forty
+ * snaps. `exit` accelerates away: a thing leaving should commit. `wipe` is the
+ * symmetric curve the diagonal image wipe runs on, both ways.
+ */
+export const EASE_ENTER = "arrival-enter";
+export const EASE_ENTER_BEZIER = "0.25, 1, 0.5, 1";
+export const EASE_EXIT = "arrival-exit";
+export const EASE_EXIT_BEZIER = "0.5, 0, 0.75, 0";
+export const EASE_WIPE = "arrival-wipe";
+export const EASE_WIPE_BEZIER = "0.75, 0, 0.25, 1";
+
 /** The custom properties stylesheets read, and the GSAP string each mirrors. */
 export const EASE_CUSTOM_PROPERTIES = {
   "--ease-scene": EASE_SCENE_CSS,
   "--ease-ui": EASE_UI_CSS,
+  "--ease-enter": `cubic-bezier(${EASE_ENTER_BEZIER})`,
+  "--ease-exit": `cubic-bezier(${EASE_EXIT_BEZIER})`,
+  "--ease-wipe": `cubic-bezier(${EASE_WIPE_BEZIER})`,
 } as const;
 
 /**
@@ -54,6 +76,47 @@ export const DUR_SCENE_SLOW = 2.4;
 export const DUR_UI = 0.5;
 /** Menu/card cascade stagger, seconds. */
 export const STAGGER_CASCADE = 0.1;
+
+/**
+ * The reveal's entrance and exit lengths. An entrance takes three times as long
+ * as its exit, and an exit staggers at half the entrance stagger — a block that
+ * leaves is leaving because the reader has already moved on, and it should be
+ * gone before they notice it going.
+ */
+export const DUR_ENTER = 1.2;
+export const DUR_EXIT = 0.4;
+/** Per-character stagger for split display type: half the cascade. */
+export const STAGGER_CHARS = STAGGER_CASCADE / 2;
+
+/**
+ * The lag a drifting layer keeps behind the page, in seconds of catch-up.
+ *
+ * Lenis smooths the page; this smooths the layers *on* the page a second time,
+ * so the picture in a frame is still settling half a second after the frame has
+ * stopped. It is deliberately not a page-wide rule: a pin, a cover edge, a
+ * track translation shares an edge with something else and has to sit exactly
+ * where the scroll says, so those stay `scrub: true`. Anything that moves
+ * *relative* to the page takes this.
+ */
+export const SCRUB_DRIFT = 0.5;
+
+/**
+ * Drift amplitudes, as a share of the moving element's own size (block) or of
+ * the frame it moves inside (image).
+ */
+export const DRIFT_BLOCK = 10;
+export const DRIFT_IMAGE = 15;
+export const DRIFT_IMAGE_EDGE = 20;
+
+/** The block scale-in: a footer or a facts panel grows from this. */
+export const BLOCK_ARRIVAL_SCALE = 0.75;
+
+/**
+ * How far a `rise` reveal climbs, as a length rather than a share of the
+ * element: the same device lifts a caption and a card the same distance, which
+ * is what makes a cascade of unlike blocks read as one gesture.
+ */
+export const RISE_DISTANCE = "3.333rem";
 
 /**
  * Lenis turns `lerp` into `damp(from, to, lerp * 60, dt)`, so the figure is a
