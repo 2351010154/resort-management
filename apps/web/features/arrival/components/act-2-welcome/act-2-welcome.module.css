@@ -176,19 +176,19 @@
      covers it. The reveal finishes here, and the tile flips are fired by the
      landing and play out inside it.
 
-     Scroll bought per second of that run. The dwell is not space for the seams
-     to cross in but time, and the two are only related by how fast the reader
-     is moving — so it is written as the exchange rate rather than as a
-     distance, once for the act, and every panel derives its own from the run
-     it actually has (`--run`, set in welcome-chapters.tsx).
+     Scroll bought per second of that run. The seams are written on a clock
+     (`at` and `dur` in welcome-chapters.tsx) and the act converts that clock
+     into distance once, here, so every panel derives its own hold from the run
+     it actually has (`--run`, set in the same file) and a second of run means
+     the same wheel on all of them.
 
-     Deliberately under what a panel costs to hold for its whole run: an
-     outgoing panel is not gone when the dwell ends, it is covered from the
-     bottom edge over the whole viewport of the next panel's rise, and its
-     tiles sit high enough to stay in frame through most of that. The run gets
-     the dwell plus that headroom. Paying for the entire run in dwell alone
-     made three motionless panels cost five viewports of wheel. */
-  --dwell-pace: 24vh;
+     24vh a second was the rate while a pinned panel was motionless under its
+     seam, and the figure was held down by that: scroll spent on a still is
+     scroll a reader is only getting through. It is not a still now — every
+     panel dollies across its own hold — so the hold is worth more, and it is
+     bought at the rate the seams themselves want, which is the one that lets an
+     edge cross a whole screen slowly enough to be watched crossing. */
+  --dwell-pace: 40vh;
 }
 
 /* No box of its own: the layers take their sticky containing block from
@@ -421,6 +421,16 @@
   overflow: hidden;
   box-shadow: 0 18px 46px rgb(var(--ink-rgb) / 0.16);
   will-change: transform;
+}
+
+/* What the dwell's push-in scales, one per photograph. Fills the tile exactly,
+   so it is transparent to everything else in here: the seam layers inside it
+   keep measuring their overscan against the same box they always did, and the
+   tile's own clip is what stops the push growing past the frame. */
+.tilePush {
+  position: absolute;
+  inset: 0;
+  display: block;
 }
 
 .tile img {

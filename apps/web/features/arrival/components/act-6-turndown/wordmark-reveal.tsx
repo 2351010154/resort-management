@@ -17,6 +17,7 @@ import { useEffect, useRef } from "react";
 import { arrivalImages } from "@/features/arrival/lib/image-manifest";
 import { tierSrc, tierSrcSet } from "@/features/arrival/lib/image-srcset";
 import { prefersReducedMotion } from "@/features/arrival/lib/webgl-support";
+import { SCRUB_DRIFT } from "@/lib/motion-tokens";
 import styles from "./act-6-turndown.module.css";
 
 // A guest walking out along the walkway at golden hour — the only frame in the
@@ -39,11 +40,18 @@ export function WordmarkReveal() {
     const ctx = gsap.context(() => {
       // From the band's top edge touching the bottom of the screen to the page
       // running out of scroll — the exact window of the uncovering.
+      //
+      // The drift lag, not the hard scrub, and it is safe here for the reason
+      // the note above gives: the uncovering is the page ceasing to cover the
+      // window, not a tween — so nothing these two move shares an edge with it.
+      // Both may trail the hand, and the last screen of the ride settles a beat
+      // after the reader has run out of page, which is the finish the
+      // invitation's breath was given too.
       const scrollTrigger = {
         trigger: band,
         start: "top bottom",
         end: "bottom bottom",
-        scrub: true,
+        scrub: SCRUB_DRIFT,
       } as const;
 
       gsap.fromTo(

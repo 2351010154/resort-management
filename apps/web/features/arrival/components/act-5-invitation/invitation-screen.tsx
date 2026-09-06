@@ -23,11 +23,13 @@ import { useEffect, useRef, useState } from "react";
 import { BorderGlowPill } from "@/features/arrival/components/act-5-invitation/border-glow-pill";
 import { arrivalImages } from "@/features/arrival/lib/image-manifest";
 import { tierSrc, tierSrcSet } from "@/features/arrival/lib/image-srcset";
+import { registerArrivalEases } from "@/features/arrival/lib/motion-eases";
 import { prefersReducedMotion } from "@/features/arrival/lib/webgl-support";
 import {
-  DUR_SCENE,
-  EASE_SCENE,
-  EASE_UI,
+  DUR_ENTER,
+  DUR_EXIT,
+  EASE_ENTER,
+  SCRUB_DRIFT,
   STAGGER_CASCADE,
 } from "@/lib/motion-tokens";
 import styles from "./act-5-invitation.module.css";
@@ -68,6 +70,7 @@ export function InvitationScreen() {
     const section = sectionRef.current;
     if (!section || prefersReducedMotion()) return;
     gsap.registerPlugin(ScrollTrigger);
+    registerArrivalEases();
 
     const ctx = gsap.context(() => {
       const lines = section.querySelectorAll("[data-invite-line]");
@@ -79,14 +82,17 @@ export function InvitationScreen() {
 
       // Let the photograph enter and settle for one screen before the address
       // arrives. The frame itself is already fully visible during that entry.
-      gsap
-        .timeline({
-          scrollTrigger: { trigger: section, start: "top -100%", once: true },
-        })
+      //
+      // Paused and played rather than fired by the trigger, so the address can
+      // also leave: scrolling back up over the mark empties the corner and
+      // coming down writes it again, at three times the speed going out. The
+      // one-screen wait is the composition's, not the vocabulary's, which is
+      // why this keeps its own mark instead of joining the reveal batch.
+      const address = gsap
+        .timeline({ paused: true, defaults: { ease: EASE_ENTER } })
         .to(lines, {
           yPercent: 0,
-          duration: DUR_SCENE,
-          ease: EASE_SCENE,
+          duration: DUR_ENTER,
           stagger: STAGGER_CASCADE,
         })
         .fromTo(
@@ -95,15 +101,28 @@ export function InvitationScreen() {
           {
             autoAlpha: 1,
             y: 0,
-            duration: 0.9,
-            ease: EASE_UI,
+            duration: DUR_ENTER * 0.75,
             stagger: STAGGER_CASCADE,
           },
           0.35,
         );
 
+      ScrollTrigger.create({
+        trigger: section,
+        start: "top -100%",
+        onEnter: () => address.timeScale(1).play(),
+        onEnterBack: () => address.timeScale(1).play(),
+        onLeaveBack: () => address.timeScale(DUR_ENTER / DUR_EXIT).reverse(),
+      });
+
       // The breath across the held screen: settling while the reading is on it,
       // then swelling again as the footer takes over.
+      //
+      // The drift scrub, not the hard one. The plate shares no edge with
+      // anything — it is a photograph changing size inside its own frame — so
+      // it takes the second smoothing and goes on breathing for half a second
+      // after the reader's hand has stopped, which is the difference between a
+      // frame answering the reader and a frame tracking the scrollbar.
       gsap
         .timeline({
           defaults: { ease: "none" },
@@ -111,7 +130,7 @@ export function InvitationScreen() {
             trigger: section,
             start: "top top",
             end: "bottom bottom",
-            scrub: true,
+            scrub: SCRUB_DRIFT,
           },
         })
         .fromTo(

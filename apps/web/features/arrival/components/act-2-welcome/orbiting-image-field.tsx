@@ -9,6 +9,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useEffect, useRef, type RefObject } from "react";
 import { arrivalImages } from "@/features/arrival/lib/image-manifest";
 import { prefersReducedMotion } from "@/features/arrival/lib/webgl-support";
+import { SCRUB_DRIFT } from "@/lib/motion-tokens";
 import styles from "./act-2-welcome.module.css";
 
 // Off since the act took the slide-2 comp: the comp's wall carries the foliage
@@ -69,7 +70,11 @@ export function OrbitingImageField({
             trigger: section,
             start: "top bottom",
             end: "bottom top",
-            scrub: true,
+            // Parallax against the page and nothing else, so it takes the
+            // second smoothing: the field goes on drifting outward for half a
+            // second after the reader stops, which is what keeps it reading as
+            // depth rather than as a layer bolted to the scrollbar.
+            scrub: SCRUB_DRIFT,
           },
         });
       });

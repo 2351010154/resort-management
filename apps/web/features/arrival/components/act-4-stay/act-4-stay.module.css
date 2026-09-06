@@ -354,20 +354,70 @@
   display: block;
 }
 
-/* One letter of the block. It arrives out of a blur rather than out of the
-   ground: this is type resolving, and a letter that slid in would be a letter
-   that came from somewhere, which is a claim the composition does not make.
+/* The letter's own share of the beat, eased.
+ *
+ * `--c` is where the letter stands in the run and `--glyph-window` how much of
+ * `--reveal` one letter spends resolving; the component writes both, and cuts
+ * the run so the last letter's window closes exactly as `--reveal` reaches 1.
+ * Nothing here holds a second opinion about either number — a stylesheet that
+ * did is what left the bottom line of the block permanently soft.
+ *
+ * Registered so the smoothstep below is evaluated once per letter per frame
+ * rather than three times over in every place it is read. The curve is the
+ * same `t·t·(3−2t)` the scrub uses on the beats themselves: linear in, and the
+ * letter spends the same number of frames in every state between absent and
+ * present — including the grey one in the middle, which is the one state it
+ * should be passing through rather than sitting in. */
+@property --glyph-ease {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
 
-   `--c` is the letter's beat. The window is 0.45 wide and the beats fill the
-   first 0.55, so the last letter starts as the first is finishing — the block
-   sets itself in one continuous pass instead of in four visible lines. */
+/* One letter of the block, as the box it occupies in the line. It holds the
+   beat and nothing else: the shatter measures these to decide where every
+   piece of debris starts, and it measures them at whatever point in the reveal
+   the layout was last taken — so this box has to stand exactly where the type
+   is set, at every value of `--reveal`. */
 .glyph {
   display: inline-block;
-  opacity: clamp(0, calc((var(--reveal) - var(--c)) / 0.45), 1);
-  filter: blur(
-    calc(14px * (1 - clamp(0, calc((var(--reveal) - var(--c)) / 0.45), 1)))
+  --glyph-in: clamp(
+    0,
+    calc((var(--reveal) - var(--c)) / var(--glyph-window, 0.45)),
+    1
   );
-  will-change: opacity, filter;
+  --glyph-ease: calc(
+    var(--glyph-in) *
+    var(--glyph-in) *
+    (3 - 2 * var(--glyph-in))
+  );
+}
+
+/* The letter itself. It arrives out of a blur rather than out of the ground:
+   this is type resolving, and a letter that slid in would be a letter that came
+   from somewhere, which is a claim the composition does not make. The one thing
+   that moves is its size, and that is not travel — a letter still out of focus
+   is a letter off the plane the block is set on, and it is drawn slightly
+   larger for the same reason it is drawn soft.
+
+   Ink and sharpness run on different lengths of the letter's window. They used
+   to share one, which put every letter through a long middle where it was both
+   half-transparent and half-dissolved — ink spread over a wider area at a lower
+   alpha is grey twice over, and grey is what the block was caught in. The ink
+   now commits over the first two fifths and the focus resolves over the whole,
+   so what the reader watches is black type coming into focus rather than a grey
+   ghost fading up.
+
+   The radius is proportional to the type rather than a fixed length:
+   `--text-display-lg` runs from 3.5rem to 7.5rem, and the 14px that was a soft
+   edge on the widest frame was a quarter of an em — an unreadable smear — on a
+   phone. */
+.glyphInk {
+  display: inline-block;
+  opacity: clamp(0, calc(var(--glyph-ease) / 0.42), 1);
+  filter: blur(calc(0.105em * (1 - var(--glyph-ease))));
+  transform: scale(calc(1 + (1 - var(--glyph-ease)) * 0.06));
+  will-change: opacity, filter, transform;
 }
 
 /* The debris. One layer, the size of the frame, holding one absolutely placed

@@ -56,13 +56,20 @@
 // page edge. Each archetype now sizes off the height it is given rather than a
 // figure in rem, and the last one gives up the measure entirely.
 //
-// The tiled panels turn their photographs over. The run is triggered by the
-// landing and then plays at its own speed — scrubbing it against scroll tied
-// the seam to the wheel, so the same gesture crossed in two frames for anyone
-// moving quickly, and on a panel that is otherwise motionless that is the whole
-// of what there is to see. What separates the runs is their shape: 01 descends
-// from the frame to the circle, and 04 spends its whole dwell on one seam
-// climbing the panel — the last chapter, and the one that hands over to Act 3.
+// The tiled panels turn their photographs over, and the run is scrubbed
+// against the dwell: the seam is drawn by the reader's travel and uncrosses on
+// the way back up. The dwell is what buys it — a panel's hold is sized on the
+// run it has to fit — so the far edge of the hold is where the replacement is
+// fully in. What separates the runs is their shape: 01 descends from the frame
+// to the circle, and 04 spends its whole dwell on one seam climbing the panel —
+// the last chapter, and the one that hands over to Act 3.
+//
+// A pinned panel is not a still. Every archetype pushes in across its own
+// dwell — inside the frame, never on it, so the composition holds its drawn
+// position while the photograph inside it closes — and the seam is scrubbed
+// through a lag rather than pinned to the wheel, so it glides and comes to
+// rest instead of stepping with each notch. The three are one camera: a
+// locked-off frame, slowly dollying, with an edge crossing it.
 //
 // 02 and 03 have no seam to run. The table holds two openings still and spends
 // its dwell being read; it still holds for exactly as long as it used to, so
@@ -90,13 +97,15 @@ import {
 import { arrivalImages } from "@/features/arrival/lib/image-manifest";
 import { tierSrc, tierSrcSet } from "@/features/arrival/lib/image-srcset";
 import { useScrollWeight } from "@/features/arrival/lib/lenis-scroll-provider";
+import { registerArrivalEases } from "@/features/arrival/lib/motion-eases";
 import { prefersReducedMotion } from "@/features/arrival/lib/webgl-support";
 import { ROOM_TYPES } from "@/features/booking/lib/room-types";
 import {
-  DUR_SCENE,
+  DUR_ENTER,
+  DUR_EXIT,
   DUR_SCENE_SLOW,
-  EASE_SCENE,
-  EASE_UI,
+  EASE_ENTER,
+  SCRUB_DRIFT,
   STAGGER_CASCADE,
 } from "@/lib/motion-tokens";
 import styles from "./act-2-welcome.module.css";
@@ -137,17 +146,24 @@ type Seam = "down" | "up" | "rightward" | "leftward";
 
 /**
  * The second photograph a tile turns over to during the panel's dwell — the
- * stretch where the panel itself is motionless, so the seam is the only thing
- * travelling. Carried by the tile rather than the chapter, which is what lets a
+ * stretch where the panel has stopped travelling and only the camera inside it
+ * is moving, so the seam is the one edge crossing anything. Carried by the tile
+ * rather than the chapter, which is what lets a
  * panel run one flip or a sequence of them without a second shape of data.
  */
 interface Flip {
   image: ManifestImage;
   seam: Seam;
-  /** Seconds into the panel's flip run when this seam starts, and how long it
-   *  takes to cross. Real seconds, not shares of scroll: the run is played, not
-   *  scrubbed, so a panel that flips more than once spaces its tiles along its
-   *  own clock. */
+  /** Where this seam starts along the panel's flip run, and how long it takes
+   *  to cross. Written on a clock rather than in shares of the dwell: the act
+   *  buys scroll per second of run at one rate (`--dwell-pace`), so a second
+   *  here is the same distance of wheel on every panel, and a panel that flips
+   *  more than once spaces its tiles along one scale.
+   *
+   *  Which makes `dur` the one figure that decides how fast a swap reads, and
+   *  it decides it outright: the scroll a seam crosses in is `dur` times the
+   *  pace, whatever else the panel is doing and however long the rest of the
+   *  run is. A seam that reads as too quick is short here, and nowhere else. */
   at: number;
   dur: number;
 }
@@ -611,6 +627,53 @@ const FLIP_ENTER = 90;
 const FLIP_EXIT = 10;
 
 /**
+ * The lag the dwell's tweens follow the scroll through, in seconds.
+ *
+ * The act's chapters run under the light scroll weight — a wheel notch buys its
+ * full travel and Lenis settles inside a couple of frames, because these are
+ * screens to read rather than watch. That is right for the words and wrong for
+ * the one thing on the panel that is a camera move: pinned to the wheel exactly,
+ * a seam steps once per notch and stops dead between them.
+ *
+ * So the glide is put back here rather than in the page's weight, where it would
+ * cost the reader every line of type as well. The seam follows the scroll
+ * instead of tracking it, and eases to rest a beat after the reader does.
+ */
+const DWELL_SCRUB = 0.8;
+
+/**
+ * How far the frame closes per second of a panel's run, as a share of its own
+ * size.
+ *
+ * A rate rather than a distance, and the same rate for all four panels, for the
+ * reason `--dwell-pace` is one figure: a panel that holds longer has bought more
+ * scroll, and a fixed push spread over more scroll is a slower camera. Written
+ * per second, every panel dollies at one speed and the act reads as one lens.
+ *
+ * Small on purpose. This is the move the reader should feel rather than watch —
+ * at 04's run it reaches about five per cent over a hold of half a screen.
+ */
+const PUSH_PER_SECOND = 0.022;
+
+/**
+ * The seam's curve, and the reason it is this one rather than the obvious one.
+ *
+ * A seam should leave and arrive rather than switch on and off, so it wants an
+ * `inOut`. But an `inOut` does not slow an edge down — it redistributes it, and
+ * what it takes off the two ends it puts in the middle, which is the only part
+ * of the sweep anyone is looking at. `power1.inOut` is quadratic, so its
+ * velocity peaks at twice the average: it makes a seam read *faster* than the
+ * linear one it replaced over the same distance, and the ends it bought that
+ * with are the frames where nothing is visibly happening anyway.
+ *
+ * `sine.inOut` peaks at pi/2 — about 1.57 — which is the mildest in-out there
+ * is, and the difference is the whole of what separates a seam that crosses
+ * from one that snaps. What actually buys a slow seam is distance, and that is
+ * `dur` above.
+ */
+const SEAM_EASE = "sine.inOut";
+
+/**
  * Per seam: the clip the incoming layer starts fully hidden behind, the axis the
  * photographs travel on, and the sign of that travel. The sign is negative when
  * the seam sweeps along the positive axis and positive when it sweeps back, so
@@ -628,18 +691,30 @@ const SEAM: Record<
   leftward: { from: "inset(0% 0% 0% 100%)", axis: "xPercent", sign: 1 },
 };
 
+/**
+ * A tile's photograph, in the layer the dwell's push-in drives.
+ *
+ * The scale is taken by this box rather than by the `img` inside it because the
+ * landing already animates that `img` — it settles out of an over-scale as the
+ * panel arrives — and two tweens writing one property is a fight decided by
+ * whichever ran last. A box of its own is also what makes the push safe: `.tile`
+ * clips it, so a photograph closing in cannot grow past the frame it is in,
+ * uncover the panel behind it, or widen the page.
+ */
 function TileImage({ image, slot }: { image: ManifestImage; slot: Slot }) {
   return (
-    <img
-      src={tierSrc(image.src, 640)}
-      srcSet={tierSrcSet(image)}
-      sizes={SLOT_SIZES[slot]}
-      width={image.width}
-      height={image.height}
-      alt={image.alt}
-      loading="lazy"
-      decoding="async"
-    />
+    <span className={styles.tilePush} data-chapter-push>
+      <img
+        src={tierSrc(image.src, 640)}
+        srcSet={tierSrcSet(image)}
+        sizes={SLOT_SIZES[slot]}
+        width={image.width}
+        height={image.height}
+        alt={image.alt}
+        loading="lazy"
+        decoding="async"
+      />
+    </span>
   );
 }
 
@@ -673,6 +748,7 @@ function TableComposition({ index }: { index: string }) {
           loading="lazy"
           decoding="async"
           data-chapter-fade
+          data-chapter-push
         />
       </ApertureFrame>
 
@@ -720,6 +796,7 @@ function TableComposition({ index }: { index: string }) {
           loading="lazy"
           decoding="async"
           data-chapter-fade
+          data-chapter-push
         />
       </ApertureFrame>
     </>
@@ -817,14 +894,19 @@ function HouseGlyphMark({ glyph }: { glyph: HouseGlyph }) {
  * timeline rather than queried into the shared tweens so a panel without one
  * carries no empty tween: the plate settling back behind the cut
  * (`data-chapter-settle`), the reveal deepening (`data-chapter-detail`), and the
- * marked facts wiping in one after another (`data-chapter-leader`). Under
- * reduced motion none of it runs and the frame is complete as drawn.
+ * marked facts wiping in one after another (`data-chapter-leader`). The plate's
+ * box then takes the dwell's push-in (`data-chapter-push`), which is the only
+ * one of the four that is still going once the panel has stopped. Under reduced
+ * motion none of it runs and the frame is complete as drawn.
  */
 function WindowComposition({ index }: { index: string }) {
   return (
     <>
       <div className={styles.windowOpening}>
-        <div className={styles.windowPicture}>
+        {/* The push is on the plate's box, not on the plate: the `img` is
+            already settling back behind the cut as the panel lands, and the
+            cut itself must not move — it is a hole in a wall. */}
+        <div className={styles.windowPicture} data-chapter-push>
           <img
             src={tierSrc(WINDOW_PLATE.src, 1280)}
             srcSet={tierSrcSet(WINDOW_PLATE)}
@@ -952,6 +1034,7 @@ export function WelcomeChapters() {
     const root = rootRef.current;
     if (!root || prefersReducedMotion()) return;
     gsap.registerPlugin(ScrollTrigger);
+    registerArrivalEases();
 
     const ctx = gsap.context(() => {
       const panels = gsap.utils.toArray<HTMLElement>(
@@ -972,34 +1055,50 @@ export function WelcomeChapters() {
 
         // The panel's rise: from its top edge touching the bottom of the
         // screen to the moment it lands and pins.
-        const rise = () =>
+        //
+        // Two scrubs come off it, and which one a tween takes is the rule in
+        // lenis-scroll-provider rather than a preference. The cover edge below
+        // shares a line with the panel it is cutting, so it has to sit exactly
+        // where the scroll says; a tile drifting inside the panel moves
+        // relative to the page and takes the second smoothing, so it trails
+        // the hand and is still settling after the panel has landed.
+        const rise = (scrub: number | true = true) =>
           ({
             trigger: mark,
             start: "top bottom",
             end: "top top",
-            scrub: true,
+            scrub,
           }) as const;
         // Its dwell: from landing to the next panel's edge appearing, or, for
-        // the last one, to the act letting go.
+        // the last one, to the act letting go. Both stretches of a panel's
+        // scroll are the reader's to drive, but they are driven differently:
+        // the rise is scrubbed hard because the covering edge is a physical
+        // relationship between two panels and cannot lag behind the panel it
+        // is cutting, while everything the dwell drives is a camera and glides.
         const dwell = () =>
           ({
             trigger: mark,
             start: "top top",
             endTrigger: next ?? root,
             end: next ? "top bottom" : "bottom bottom",
+            scrub: DWELL_SCRUB,
           }) as const;
 
+        // The panel's arrival. Paused and played rather than fired by its own
+        // trigger, so leaving back over the landing edge can run the whole
+        // thing backwards: a chapter scrolled up past empties itself and fills
+        // again on the way down, which is the same grammar the flip run below
+        // has always used and the rest of the ride now keeps too. The reverse
+        // is three times the speed of the entrance — a block that leaves is
+        // leaving because the reader has already moved on.
         const landing = gsap
-          .timeline({
-            scrollTrigger: { trigger: mark, start: "top 70%", once: true },
-          })
+          .timeline({ paused: true, defaults: { ease: EASE_ENTER } })
           .fromTo(
             panel.querySelectorAll("[data-chapter-line]"),
             { yPercent: 115 },
             {
               yPercent: 0,
-              duration: 1.2,
-              ease: EASE_SCENE,
+              duration: DUR_ENTER,
               stagger: STAGGER_CASCADE,
             },
           )
@@ -1010,8 +1109,7 @@ export function WelcomeChapters() {
             { scale: 1.09 },
             {
               scale: 1,
-              duration: DUR_SCENE,
-              ease: EASE_SCENE,
+              duration: DUR_ENTER,
               stagger: STAGGER_CASCADE,
             },
             0,
@@ -1022,8 +1120,7 @@ export function WelcomeChapters() {
             {
               autoAlpha: 1,
               y: 0,
-              duration: 0.9,
-              ease: EASE_UI,
+              duration: DUR_ENTER * 0.75,
               stagger: STAGGER_CASCADE,
             },
             0.3,
@@ -1045,7 +1142,7 @@ export function WelcomeChapters() {
           landing.fromTo(
             settling,
             { scale: 1.06 },
-            { scale: 1, duration: DUR_SCENE_SLOW, ease: EASE_SCENE },
+            { scale: 1, duration: DUR_SCENE_SLOW },
             0,
           );
         }
@@ -1063,7 +1160,7 @@ export function WelcomeChapters() {
           landing.fromTo(
             detail,
             { autoAlpha: 0, y: -16 },
-            { autoAlpha: 1, y: 0, duration: DUR_SCENE, ease: EASE_SCENE },
+            { autoAlpha: 1, y: 0, duration: DUR_ENTER },
             1.1,
           );
         }
@@ -1079,13 +1176,22 @@ export function WelcomeChapters() {
             { clipPath: "inset(0% 100% 0% 0%)" },
             {
               clipPath: "inset(0% 0% 0% 0%)",
-              duration: 0.9,
-              ease: EASE_SCENE,
+              duration: DUR_ENTER * 0.75,
               stagger: 0.14,
             },
             1.5,
           );
         }
+
+        // Built once the whole landing exists, so a panel entered on the first
+        // frame plays all of its beats and not just the ones declared above.
+        ScrollTrigger.create({
+          trigger: mark,
+          start: "top 70%",
+          onEnter: () => landing.timeScale(1).play(),
+          onEnterBack: () => landing.timeScale(1).play(),
+          onLeaveBack: () => landing.timeScale(DUR_ENTER / DUR_EXIT).reverse(),
+        });
 
         // Differential drift across the panel's rise, in the archetype's own
         // order — which tile is the steady one is part of what tells the three
@@ -1099,34 +1205,58 @@ export function WelcomeChapters() {
           gsap.fromTo(
             tile,
             { yPercent: lag },
-            { yPercent: 0, ease: "none", scrollTrigger: rise() },
+            { yPercent: 0, ease: "none", scrollTrigger: rise(SCRUB_DRIFT) },
           );
         });
 
-        // The flip run, inside the dwell. Played on its own clock rather than
-        // scrubbed: a seam tied to scroll crosses as fast as the reader spins
-        // the wheel, and a panel that is pinned and motionless is exactly where
-        // that reads worst — the one thing moving on screen tearing across in
-        // two frames. Fired once the panel has landed, it looks the same to a
-        // reader who arrived gently and one who threw the page down.
+        // The push-in across the dwell, which is what keeps a pinned panel from
+        // being a still. Every archetype marks the one layer that is its
+        // picture rather than its frame — the photographs inside the tiles, the
+        // plate behind the window's cut, the two crops inside the table's
+        // apertures — so the composition holds the position it was drawn at and
+        // only what is seen through it closes. Marked in the JSX rather than
+        // selected by archetype here: which layer is the picture is a fact
+        // about how a panel is built, and it belongs beside the building.
         //
-        // One timeline for the whole panel rather than one per tile, which is
-        // what keeps 03's three seams a sequence at any scroll speed: three
-        // separate triggers would all fire in the same instant on a fast scroll
-        // and the run would collapse into a single event.
+        // Linear, because a dolly is a constant rate. The seam eases; the
+        // camera carrying it does not, or the two curves beat against each
+        // other and the seam reads as though it were hesitating.
+        const pushed = panel.querySelectorAll("[data-chapter-push]");
+        if (pushed.length > 0) {
+          gsap.fromTo(
+            pushed,
+            { scale: 1 },
+            {
+              scale: 1 + PUSH_PER_SECOND * runEnd(data),
+              ease: "none",
+              scrollTrigger: dwell(),
+            },
+          );
+        }
+
+        // The flip run, drawn by the dwell. The seam is the reader's to pull
+        // across: scrolling down advances it, scrolling back up uncrosses it,
+        // and the end of the dwell is where the replacement stands fully
+        // revealed. Nothing here runs on a clock of its own — the only time in
+        // it is `DWELL_SCRUB`, which is the seam catching up to a reader who has
+        // already stopped, not a run playing itself out regardless of one.
+        //
+        // One timeline for the whole panel rather than one per tile, so a panel
+        // with more than one seam stays a sequence: 01's two share a single
+        // scale, and the circle closes after the frame has turned however the
+        // reader travels.
         const flips = data.tiles.flatMap((tile, t) =>
           tile.flip ? [{ flip: tile.flip, el: tiles[t] }] : [],
         );
 
-        // Linear, and not for want of a curve: a seam is a straight edge
-        // crossing a photograph at a rate, and every eased version of it spends
-        // most of the window somewhere it cannot be seen — under expo.out the
-        // sweep is three-quarters done in a fifth of its duration, which is the
-        // scrubbed-at-speed problem again with a slower number on it.
+        // One curve for all three tweens of a seam — the clip that uncovers the
+        // incoming photograph and the two that drift the photographs behind it
+        // — because they are one edge and any difference between their rates
+        // shows up as the seam sliding off the pictures it is cutting between.
         if (flips.length > 0) {
           const run = gsap.timeline({
-            paused: true,
-            defaults: { ease: "none" },
+            defaults: { ease: SEAM_EASE },
+            scrollTrigger: dwell(),
           });
           for (const { flip, el } of flips) {
             const incoming = el.querySelector<HTMLElement>(
@@ -1155,16 +1285,6 @@ export function WelcomeChapters() {
                 at,
               );
           }
-
-          // Rewound when the reader leaves back over the landing edge, so a
-          // chapter scrolled up past and come down to again turns over a second
-          // time instead of being already spent.
-          ScrollTrigger.create({
-            ...dwell(),
-            onEnter: () => run.play(),
-            onEnterBack: () => run.play(),
-            onLeaveBack: () => run.reverse(),
-          });
         }
 
         // Covering the panel below. Its plate is occluded by this one outright,
