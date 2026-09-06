@@ -83,11 +83,39 @@ const cut = (text: string, beat: (i: number) => number) =>
     beat: beat(i).toFixed(3),
   }));
 
+/**
+ * The share of `--reveal` one letter spends resolving, and the number the
+ * stylesheet divides the letter's own beat by. Written onto the block as a
+ * custom property rather than typed out a second time in the CSS: the run of
+ * beats below is cut to land the last letter's window exactly on `--reveal`
+ * = 1, and a stylesheet holding its own opinion of how wide a window is would
+ * break that agreement by an amount nobody could see until the bottom line of
+ * the block never came into focus.
+ */
+const GLYPH_WINDOW = 0.45;
+
+/** A letter's place in the run, before it is quoted against anything: its
+ *  line, plus how far along that line it stands — measured against the longest
+ *  word rather than against its own, so the four lines arrive together instead
+ *  of in proportion to how long they are. */
+const glyphPlace = (w: number, g: number) => w + g / GLYPH_SPAN;
+
+/** The last letter's place, which is what the run is normalised against. */
+const LAST_PLACE = Math.max(
+  ...WORDS.map((word, w) => glyphPlace(w, word.length - 1)),
+);
+
 const WORD_LINES = WORDS.map((word, w) => ({
   word,
-  // Quoted against the longest word rather than against the run, so the four
-  // lines arrive together instead of in proportion to how long they are.
-  glyphs: cut(word, (g) => (w + g / GLYPH_SPAN) / (WORDS.length + 1)),
+  // Normalised to end at `1 - GLYPH_WINDOW`, so the last letter of DINE opens
+  // its window in time to close it on the same frame the beat does. Cut any
+  // longer and the beat saturates while the bottom of the block is still
+  // resolving, which leaves it soft and grey for the whole of the rest of the
+  // screen — until the shatter swaps it for sharp debris.
+  glyphs: cut(
+    word,
+    (g) => (glyphPlace(w, g) / LAST_PLACE) * (1 - GLYPH_WINDOW),
+  ),
 }));
 
 const FOOT_LINES = [FOOT_FIRST, FOOT_SECOND].map((line) => ({
@@ -194,6 +222,86 @@ const HERO_MAX = 3;
  *  that scale is most of the frame painted black; held here it passes over the
  *  arriving sentence as a shadow of the word that was just there. */
 const HERO_ALPHA = 0.5;
+
+/**
+ * The viewing distance a tumbling letter is drawn at, as a multiple of its own
+ * rendered height.
+ *
+ * This is the number that makes the shatter a room rather than a sheet. A
+ * letter turned about its own axes is foreshortened by exactly this ratio: at
+ * infinity it is an axis scale and the letter reads as a flat card being
+ * squashed, and the nearer the eye is put the harder the near edge grows
+ * against the far one. Three and a bit is close enough that a letter caught
+ * mid-turn is visibly a solid in a space, and far enough that it does not
+ * distort into a wedge.
+ *
+ * Quoted against the letter's own size rather than fixed in pixels: a hero at
+ * eight times its size is eight times further away, and so tumbles in the same
+ * proportion the small ones do instead of tearing itself apart.
+ */
+const SHARD_VIEW = 3.4;
+
+/**
+ * How much of its flight an ordinary letter keeps its full ink for.
+ *
+ * Nearly all of it. Letters used to start dissolving half way across, which
+ * left the middle of the frame holding a field of grey smoke that had to be
+ * scrolled through — the block did not shatter so much as evaporate. A letter
+ * leaves the frame; what fades is only the tail of the few that are slow
+ * enough to still be on it when the beat closes.
+ */
+const FLIGHT_INK = 0.82;
+
+/**
+ * The size an ordinary letter ends its flight at, as a span the field is dealt
+ * across. Not one number: a letter thrown toward the eye grows and one thrown
+ * away shrinks, and a field where every piece stays the size it was is a field
+ * with no depth in it at all — which is what the tumble alone could never fix.
+ * The heroes are still the act's one moment of *real* scale; this is the depth
+ * they need to be read against.
+ */
+const DEPTH_NEAR = 2.1;
+const DEPTH_FAR = 0.42;
+
+/**
+ * How far past the centre of the frame a hero letter's mark stands, as a share
+ * of the longer side of it.
+ *
+ * The mark used to be the centre itself, give or take a seventh, and that is a
+ * letter that grows to eight times its size *and stays where the sentence is
+ * about to be set*. Three of them at once left the middle of the screen under a
+ * stack of enormous type for the whole of the resolve. Aimed off the frame
+ * instead, the letter crosses the middle early — while it is still growing,
+ * which is the moment worth seeing — and by the end only an edge of it is on
+ * the screen at all, which is also how the reference draws its near letters.
+ */
+const HERO_EXIT = 0.72;
+/**
+ * What a shard has to be told to be drawn in the same type as the letter it
+ * replaces, longhand by longhand.
+ *
+ * Longhand rather than the `font` shorthand, which is what this used to copy.
+ * A computed `font` serialises to the empty string as soon as any longhand
+ * outside the shorthand's own grammar is non-initial — and the block is set in
+ * a variable face, so `font-variation-settings` is always non-initial and the
+ * shorthand is always empty. Every shard was therefore handed nothing and drawn
+ * at the 16px it inherited instead of the 152px it stood at: the block shattered
+ * into letters a ninth of their size, which is most of the reason the beat had
+ * no weight to it.
+ *
+ * `letter-spacing` is in the list because the block is tracked tight and the
+ * glyph box the shard is centred on was measured with that tracking in it.
+ */
+const SHARD_FONT = [
+  "font-family",
+  "font-size",
+  "font-weight",
+  "font-style",
+  "font-variation-settings",
+  "font-optical-sizing",
+  "letter-spacing",
+] as const;
+
 /** The seed. The field has to be identical on the way back up — a reader who
  *  scrolls up through the shatter and down again must see the same letters go
  *  the same ways — so nothing here is drawn from Math.random. */
@@ -223,8 +331,6 @@ const seeded = (seed: number) => {
   };
 };
 
-const DEG = Math.PI / 180;
-
 interface Shard {
   el: HTMLElement;
   /** Where the letter stood in the block, as the centre of its own box. */
@@ -237,10 +343,12 @@ interface Shard {
   tx: number;
   ty: number;
   grow: number;
-  /** How an ordinary letter leaves: a unit vector, a distance, and a tumble. */
+  /** How an ordinary letter leaves: a unit vector, a distance, a tumble, and
+   *  the size it arrives at — which is how near the eye it was thrown. */
   dirX: number;
   dirY: number;
   speed: number;
+  depth: number;
   rotX: number;
   rotY: number;
   rotZ: number;
@@ -345,7 +453,8 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
         // Which letters go through the centre instead of off the frame. Drawn
         // from the same seeded stream as everything else, so the choice is part
         // of the composition rather than a property of this page load.
-        const heroCount = HERO_MIN + Math.floor(rand() * (HERO_MAX - HERO_MIN));
+        const heroCount =
+          HERO_MIN + Math.floor(rand() * (HERO_MAX - HERO_MIN + 1));
         const heroes = new Set<number>();
         while (heroes.size < Math.min(heroCount, glyphs.length)) {
           heroes.add(Math.floor(rand() * glyphs.length));
@@ -359,7 +468,10 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
           el.className = hero
             ? `${styles.shard} ${styles.shardHero}`
             : styles.shard;
-          el.style.font = getComputedStyle(glyph).font;
+          const set = getComputedStyle(glyph);
+          for (const property of SHARD_FONT) {
+            el.style.setProperty(property, set.getPropertyValue(property));
+          }
           shardLayer.appendChild(el);
 
           const heading = (rand() * 2 - 1) * Math.PI;
@@ -370,17 +482,23 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
             w: box.width,
             h: box.height,
             hero,
-            tx: vw / 2 + (rand() * 2 - 1) * 0.15 * vw,
-            ty: vh / 2 + (rand() * 2 - 1) * 0.15 * vh,
+            tx: vw / 2 + Math.cos(heading) * HERO_EXIT * reachOut,
+            ty: vh / 2 + Math.sin(heading) * HERO_EXIT * reachOut,
             grow: 6 + rand() * 4,
             dirX: Math.cos(heading),
             // Biased upward: letters thrown off a page mostly go up, and a
             // field that leaves evenly in all directions reads as an explosion
             // diagram rather than as paper caught by a draught.
             dirY: Math.sin(heading) * (rand() * 1.18 - 1),
-            speed: (0.4 + rand() * 0.5) * reachOut,
-            rotX: (rand() * 2 - 1) * 360,
-            rotY: (rand() * 2 - 1) * 360,
+            // Far enough to clear the frame. They used to be thrown barely
+            // half a viewport and then faded where they stopped, which is why
+            // the middle of the shatter was a cloud rather than an exit.
+            speed: (0.78 + rand() * 0.72) * reachOut,
+            depth: DEPTH_FAR + rand() * (DEPTH_NEAR - DEPTH_FAR),
+            // A hero is readable type crossing the frame, not debris: it turns
+            // enough to have a near edge and a far one and no further.
+            rotX: (rand() * 2 - 1) * (hero ? 34 : 360),
+            rotY: (rand() * 2 - 1) * (hero ? 42 : 360),
             rotZ: hero ? (rand() * 2 - 1) * 15 : (rand() * 2 - 1) * 180,
             hold: rand() * 0.3,
             alpha: -1,
@@ -454,6 +572,10 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
           let alpha: number;
 
           if (shard.hero) {
+            // It leaves the frame rather than swelling to a stop in the
+            // middle of it: the mark is already outside the screen, so the
+            // letter crosses the centre early — while it is still growing —
+            // and ends the beat cropped by an edge.
             x = shard.ox + (shard.tx - shard.ox) * t;
             y = shard.oy + (shard.ty - shard.oy) * t;
             // Full size by half way, so the letter is enormous for the second
@@ -461,22 +583,22 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
             scale = 1 + (shard.grow - 1) * Math.min(1, t / 0.5);
             alpha =
               HERO_ALPHA *
-              (t < 0.15 ? t / 0.15 : t > 0.7 ? 1 - (t - 0.7) / 0.3 : 1);
+              (t < 0.12
+                ? t / 0.12
+                : t > FLIGHT_INK
+                  ? 1 - (t - FLIGHT_INK) / (1 - FLIGHT_INK)
+                  : 1);
           } else {
             x = shard.ox + shard.dirX * shard.speed * t;
             y = shard.oy + shard.dirY * shard.speed * t;
-            scale = 1;
+            // Toward the eye or away from it. The letter carries its throw all
+            // the way out rather than holding the size it was set at, which is
+            // what puts the field in a volume instead of on a pane.
+            scale = 1 + (shard.depth - 1) * t;
             alpha =
-              t < shard.hold + 0.3 ? 1 : 1 - (t - shard.hold - 0.3) / 0.35;
+              t < FLIGHT_INK ? 1 : 1 - (t - FLIGHT_INK) / (1 - FLIGHT_INK);
           }
           alpha = clamp01(alpha);
-
-          // The tumble, as two axis scales rather than as a rotation in space.
-          // A letter is a flat thing; turning one about its own horizontal and
-          // vertical is exactly the foreshortening a cosine gives, and it costs
-          // the compositor nothing.
-          const sx = Math.cos(shard.rotY * t * DEG);
-          const sy = shard.hero ? 1 : Math.cos(shard.rotX * t * DEG);
 
           if (alpha <= 0 && shard.alpha <= 0) {
             shard.alpha = 0;
@@ -486,10 +608,28 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
             shard.alpha = alpha;
             shard.el.style.opacity = alpha.toFixed(3);
           }
+
+          // The tumble, as a turn in a space with an eye in it.
+          //
+          // It used to be two axis scales — a cosine on each of the letter's
+          // own axes, which is the foreshortening a camera at infinity would
+          // give and costs the compositor nothing. What it also gives is a
+          // letter with no near edge and no far one: it squashes symmetrically
+          // and reads as a card being flattened rather than as a solid turning.
+          // `perspective()` before the rotations is the whole difference, and
+          // it is still one composited matrix.
+          //
+          // The distance is quoted off the letter's own drawn height, so a
+          // hero at eight times its size is looked at from eight times as far
+          // and turns in the same proportion the small ones do.
+          const view = shard.h * scale * SHARD_VIEW;
           shard.el.style.transform =
             `translate3d(${(x - shard.w / 2).toFixed(1)}px, ${(y - shard.h / 2).toFixed(1)}px, 0)` +
-            ` rotate(${(shard.rotZ * t).toFixed(2)}deg)` +
-            ` scale(${(scale * sx).toFixed(4)}, ${(scale * sy).toFixed(4)})`;
+            ` perspective(${view.toFixed(1)}px)` +
+            ` rotateX(${(shard.rotX * t).toFixed(2)}deg)` +
+            ` rotateY(${(shard.rotY * t).toFixed(2)}deg)` +
+            ` rotateZ(${(shard.rotZ * t).toFixed(2)}deg)` +
+            ` scale(${scale.toFixed(4)})`;
         }
       };
 
@@ -660,10 +800,17 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
         <div
           ref={wordsRef}
           className={`font-display ${styles.words}`}
+          style={{ "--glyph-window": GLYPH_WINDOW } as React.CSSProperties}
           aria-hidden
         >
           {WORD_LINES.map(({ word, glyphs }) => (
             <span key={word} className={styles.word}>
+              {/* Two boxes per letter, and the split is what lets the letter
+                  move at all: the outer one is its place in the line and never
+                  moves, because the shatter reads every one of them to decide
+                  where its debris starts and reads them at whatever point in
+                  the reveal the layout was last measured. The inner one is the
+                  letter's own arrival. */}
               {glyphs.map(({ key, ch, beat }) => (
                 <span
                   key={key}
@@ -671,7 +818,7 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
                   className={styles.glyph}
                   style={{ "--c": beat } as React.CSSProperties}
                 >
-                  {ch}
+                  <span className={styles.glyphInk}>{ch}</span>
                 </span>
               ))}
             </span>

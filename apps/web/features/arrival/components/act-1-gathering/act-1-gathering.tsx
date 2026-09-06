@@ -124,7 +124,11 @@ export function Act1Gathering() {
           trigger: section,
           start: "top top",
           end: "bottom bottom",
-          scrub: true, // Lenis is the only smoother
+          // The act is one pinned scene, so it takes the hard scrub: the mark,
+          // the field and the plate share edges with each other and with the
+          // pin, and a layer lagging the frame it is cut into is a gap. The
+          // drift lag is for things that move relative to the page.
+          scrub: true,
           onUpdate: (self) => {
             camera.progress = self.progress;
             camera.z = cameraAdvance(self.progress);

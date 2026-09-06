@@ -9,6 +9,7 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useEffect, useRef, type RefObject } from "react";
 import { prefersReducedMotion } from "@/features/arrival/lib/webgl-support";
+import { SCRUB_DRIFT } from "@/lib/motion-tokens";
 import styles from "./act-6-turndown.module.css";
 
 export type EmbossIntensity = "soft" | "deep";
@@ -29,7 +30,10 @@ export function EmbossedMonogram({
     gsap.registerPlugin(ScrollTrigger);
 
     const ctx = gsap.context(() => {
-      // ±6° across the footer's rise into view; ease "none" — Lenis smooths.
+      // ±6° across the footer's rise into view. Linear, and on the drift lag:
+      // the mark is pressed into the stone rather than laid against an edge, so
+      // it may trail the page and go on turning after the reader has stopped —
+      // which is what makes the tilt read as weight rather than as a slider.
       gsap.fromTo(
         emboss,
         { rotateX: 6, rotateY: -5 },
@@ -41,7 +45,7 @@ export function EmbossedMonogram({
             trigger,
             start: "top bottom",
             end: "bottom bottom",
-            scrub: true,
+            scrub: SCRUB_DRIFT,
           },
         },
       );
