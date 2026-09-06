@@ -1,0 +1,169 @@
+/* The photographs own the pace; ordinary document flow owns the journey. */
+.act {
+  background: var(--ivory-warm);
+}
+.rooms {
+  padding: clamp(5rem, 12vw, 12rem) 6vw;
+  background: var(--night);
+  color: var(--ivory);
+}
+.roomHeading {
+  margin-bottom: clamp(3rem, 6vw, 7rem);
+}
+.roomHeading h2 {
+  margin: 1.5rem 0 0;
+  font-size: clamp(2.8rem, 6.5vw, 7rem);
+  line-height: 1.08;
+  font-weight: 400;
+}
+.roomHeading em,
+.experienceHeading em,
+.invitation em {
+  font-weight: 400;
+}
+.roomSpread {
+  display: grid;
+  gap: 3rem;
+}
+.roomPhoto {
+  margin: 0;
+}
+.roomPhoto img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1.2;
+  object-fit: cover;
+}
+.roomPhoto figcaption {
+  padding-top: 1.2rem;
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+.roomAside {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1.5rem;
+}
+.roomAside p {
+  max-width: 18rem;
+  font-size: 1.125rem;
+  line-height: 1.6;
+}
+.roomAside img {
+  width: 64%;
+  height: auto;
+  aspect-ratio: 0.8;
+  object-fit: cover;
+  margin-top: 1.5rem;
+}
+.link {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 1.5rem;
+  color: inherit;
+  font-size: 0.875rem;
+  text-decoration: underline;
+  text-underline-offset: 8px;
+  text-decoration-thickness: 1px;
+  transition: opacity 200ms;
+}
+.link:hover {
+  opacity: 0.7;
+}
+.link:focus-visible {
+  outline: 2px solid currentcolor;
+  outline-offset: 8px;
+}
+.experiences {
+  padding: clamp(5rem, 10vw, 11rem) 6vw 0;
+  color: var(--ink);
+}
+.experienceHeading {
+  display: grid;
+  gap: 2rem;
+  margin-bottom: 5rem;
+}
+.experienceHeading h2 {
+  font-weight: 400;
+  font-size: clamp(3.25rem, 7vw, 7rem);
+  line-height: 1.1;
+  margin: 0;
+}
+.experienceHeading p {
+  max-width: 25rem;
+  font-size: 1rem;
+  line-height: 1.65;
+  margin: 0;
+}
+.experienceGrid {
+  display: grid;
+  gap: 4rem;
+}
+.experience {
+  scroll-margin-top: 110px;
+  min-width: 0;
+}
+.experience img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1.15;
+  object-fit: cover;
+}
+.experience h3 {
+  margin: 1.25rem 0 0.5rem;
+  font-size: clamp(2rem, 3vw, 3rem);
+  line-height: 1.15;
+  font-weight: 400;
+}
+.experience p {
+  margin: 0;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+}
+.invitation {
+  padding: clamp(5rem, 12vw, 12rem) 0;
+}
+.invitation p {
+  margin: 0 0 2rem;
+  font-size: clamp(2.8rem, 6vw, 6rem);
+  line-height: 1.12;
+}
+@media (min-width: 768px) {
+  .roomSpread {
+    grid-template-columns: 2.1fr 1fr;
+    gap: 8vw;
+    align-items: center;
+  }
+  .roomAside img {
+    width: 100%;
+  }
+  .experienceHeading {
+    grid-template-columns: 1.4fr 1fr;
+    align-items: end;
+    gap: 8vw;
+  }
+  .experienceGrid {
+    grid-template-columns: 1fr 1fr;
+    column-gap: 8vw;
+    row-gap: 6rem;
+    align-items: start;
+  }
+  .experience:nth-child(even) {
+    margin-top: 8rem;
+  }
+  .experience:nth-child(4n + 2) img {
+    aspect-ratio: 0.85;
+  }
+  .invitation {
+    margin-left: 20%;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .link {
+    transition: none;
+  }
+}

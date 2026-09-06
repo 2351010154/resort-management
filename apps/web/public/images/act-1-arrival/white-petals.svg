@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg">
+  <filter id="white-petals" color-interpolation-filters="sRGB" x="0" y="0" width="100%" height="100%">
+    <!-- Red-dominant petals get warm ivory; green foliage keeps its color. -->
+    <feColorMatrix in="SourceGraphic" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  5 -5 0 0 0" result="petalMask"/>
+    <feColorMatrix in="SourceGraphic" type="matrix" values=".85 0 0 .28 0  .82 0 0 .27 0  .77 0 0 .24 0  0 0 0 1 0" result="ivory"/>
+    <feComposite in="ivory" in2="petalMask" operator="in" result="petals"/>
+    <feComposite in="SourceGraphic" in2="petalMask" operator="out" result="foliage"/>
+    <feComposite in="petals" in2="foliage" operator="arithmetic" k1="0" k2="1" k3="1" k4="0"/>
+  </filter>
+</svg>

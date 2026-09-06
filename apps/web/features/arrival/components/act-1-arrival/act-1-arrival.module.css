@@ -1,0 +1,137 @@
+/* Act 1 — "The Arrival". One pinned stage on the page's own ivory: four clipped
+   windows onto a single photograph and, on a layer over them, two bougainvillea
+   branches. Layer order is fixed here so the pieces stay unaware of each
+   other. */
+
+.section {
+  background: var(--ivory);
+}
+
+/* z-index, not just position. The layers in this stage climb past the concierge
+   bar's 100, and without a stacking context of their own they would climb in the
+   root and stand over it. The scrubbed path is saved from that by accident —
+   pinning wraps the stage in a transformed spacer — but the reduced-motion path
+   is not pinned and would lose the bar behind the flowers. */
+.stage {
+  position: relative;
+  z-index: 0;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--ivory);
+}
+
+/* The frame is a full viewport box that is *scaled down* at rest rather than a
+   small box that is grown.
+ *
+ * That is the whole reason this act needs no measurement. "Fullscreen" is scale
+ * 1, on every viewport and at every aspect, so the end of the push is exact
+ * without a resize listener computing a cover factor — and the photograph inside
+ * is `object-fit: cover` against the viewport box from the first frame, so it is
+ * cropped identically at rest and at full size. Growing a small box instead
+ * makes the crop change as it grows, which reads as the picture breathing. */
+.frame {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 50%;
+  will-change: transform;
+  z-index: 10;
+}
+
+/* One window. Only `clip-path` is written here by the scrub; the mount entrance
+   owns this element's transform, and the two do not collide. */
+.panel {
+  position: absolute;
+  inset: 0;
+  will-change: clip-path;
+}
+
+/* The picture inside a window, and the only thing that carries the split.
+ *
+ * Its transform-origin is the frame's centre and not the panel's, which is what
+ * keeps the two halves in register: both panels scale about the same point, so
+ * the only thing separating their content is each one's own translation — and
+ * when that reaches zero the two halves are one photograph to the pixel. */
+.panelMedia {
+  position: absolute;
+  inset: 0;
+  transform-origin: 50% 50%;
+  will-change: transform;
+}
+
+.panelMedia > img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+/* Over the frame, and nearer.
+ *
+ * The branches are the plane closest to the camera, so they are drawn over the
+ * photograph and never clipped by it — a picture that passes in front of a
+ * flower has just told the reader the flower is further away than the wall.
+ * They are one layer the size of the viewport rather than two positioned
+ * elements, because the push scales this layer and only this layer: both
+ * branches then fly outward from the same centre the picture grows from, which
+ * is the one vanishing point that makes the stage read as depth, and the scrub
+ * writes one transform instead of two. The branches themselves carry no
+ * transform of their own beyond the flip below. */
+.foreground {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  transform-origin: 50% 50%;
+  will-change: transform;
+  pointer-events: none;
+}
+
+.flower {
+  position: absolute;
+}
+
+.flowerMedia {
+  display: block;
+  width: 100%;
+  height: auto;
+  /* Recolor the petals on every video frame and on the still fallback. */
+  filter: url("/images/act-1-arrival/white-petals.svg#white-petals");
+}
+
+/* Keep the artwork cut edges outside the lower corners.
+   Flip the hanging branches upward, keeping their side cuts off screen. */
+.flowerLeft {
+  left: -8%;
+  bottom: -5%;
+  width: 82vmin;
+}
+
+.flowerLeft .flowerMedia {
+  transform: scaleY(-1);
+}
+
+.flowerRight {
+  right: -13%;
+  bottom: -5%;
+  width: 82vmin;
+}
+
+.flowerRight .flowerMedia {
+  transform: scaleY(-1);
+}
+
+@media (max-width: 700px) {
+  /* The branches are sized in vmin, which on a tall phone is the width — so
+     without this they arrive at the same physical size as on desktop and stand
+     off in a corner of a page whose windows are nowhere near them. */
+  .flowerLeft {
+    width: 90vmin;
+    left: -14%;
+    bottom: -4%;
+  }
+
+  .flowerRight {
+    width: 82vmin;
+    right: -18%;
+    bottom: -4%;
+  }
+}

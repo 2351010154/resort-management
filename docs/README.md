@@ -39,6 +39,7 @@ the inconsistency rather than rewriting either source to conceal it.
 | Technology choices and rejected alternatives | [`architecture/tech-stack.md`](architecture/tech-stack.md) |
 | Hosting, database, storage, backup, payment, e-invoice and outbound-mail decisions | [`architecture/infrastructure.md`](architecture/infrastructure.md) |
 | Screen intent and navigation | [`screens.md`](screens.md) |
+| The marketing arrival's opening, and the assets only it consumes | [`architecture/arrival-opening.md`](architecture/arrival-opening.md) |
 | Order of operations for a change made by hand against a live environment | [`runbooks/`](runbooks/) |
 | Current delivery fields and blockers | [GitHub issues](https://github.com/2351010154/resort-management/issues) |
 
