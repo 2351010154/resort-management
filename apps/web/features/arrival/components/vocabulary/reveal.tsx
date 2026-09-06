@@ -324,25 +324,31 @@ const linesOf = (block: Element) =>
 // reference's `a * stagger` — so two display lines crossing the fold on the
 // same frame read as a sequence rather than a chord.
 const charsPlayer: Player = {
-  reveal: (blocks) =>
-    blocks.forEach((block, i) =>
+  reveal: (blocks) => {
+    blocks.forEach((block, i) => {
       enter(charsOf(block), CHARS.from, CHARS.to, STAGGER_CHARS).delay(
         i * STAGGER_CASCADE,
-      ),
-    ),
-  hide: (blocks) =>
-    blocks.forEach((block) =>
-      leave(charsOf(block), CHARS.hide, STAGGER_CHARS / 2),
-    ),
+      );
+    });
+  },
+  hide: (blocks) => {
+    blocks.forEach((block) => {
+      leave(charsOf(block), CHARS.hide, STAGGER_CHARS / 2);
+    });
+  },
 };
 
 const linesPlayer: Player = {
-  reveal: (blocks) =>
-    blocks.forEach((block, i) =>
-      enter(linesOf(block), LINES.from, LINES.to).delay(i * STAGGER_CASCADE),
-    ),
-  hide: (blocks) =>
-    blocks.forEach((block) => leave(linesOf(block), LINES.hide)),
+  reveal: (blocks) => {
+    blocks.forEach((block, i) => {
+      enter(linesOf(block), LINES.from, LINES.to).delay(i * STAGGER_CASCADE);
+    });
+  },
+  hide: (blocks) => {
+    blocks.forEach((block) => {
+      leave(linesOf(block), LINES.hide);
+    });
+  },
 };
 
 /**
