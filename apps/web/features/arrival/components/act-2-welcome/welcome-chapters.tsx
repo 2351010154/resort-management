@@ -264,8 +264,8 @@ const WINDOW_WALL = "M0 0H1000V660H0Z";
 /**
  * The opening, and the whole idea of the panel: the monogram is the window.
  *
- * Taken off `public/brand/mariva-monogram-intro.svg`, the heavy cut Act 1 flies
- * the lens into, rather than drawn to look like it. Two things in that mark are
+ * Taken off `public/brand/mariva-monogram-intro.svg`, the house's heavy cut of
+ * the mark, rather than drawn to look like it. Two things in that mark are
  * measured and reproduced here. Its central V descends about two fifths of the
  * mark's height from the top edge — 220 of the 560 units this opening is tall.
  * And the V is not symmetric: the arm falling from the left runs at about 0.85

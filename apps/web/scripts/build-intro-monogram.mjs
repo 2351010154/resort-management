@@ -1,15 +1,14 @@
-// Builds public/brand/mariva-monogram-intro.svg — the heavy, photo-carrying M
-// the intro cuts its window out of.
+// Builds public/brand/mariva-monogram-intro.svg — the heavy cut of the house's M.
 //
 // Constructed rather than traced. Every edge in the mark is a straight line or
 // a circular cap, and the four contours are defined by six lines that recur
 // throughout the letterform; expressing those lines once and intersecting them
-// keeps the joints exact, which a trace of the 486px comp could not. The intro
-// magnifies this mark ~45x, so a wobble of one comp pixel would arrive as a
-// visible kink in a stroke.
+// keeps the joints exact, which a trace of the 486px comp could not.
 //
-// The mark is used at its drawn weight — unlike the hairline nav monogram, it
-// gets no dilation pass (see INTRO_MONOGRAM in features/arrival/lib/monogram-glyph.ts).
+// The mark is used at its drawn weight, with no dilation pass — unlike the
+// hairline nav monogram. Nothing renders this file at runtime any more: it is
+// the measured record of the mark, and Act 2's window path is cut from it by
+// hand (see WINDOW_OPENING in act-2-welcome/welcome-chapters.tsx).
 //
 // Usage: node apps/web/scripts/build-intro-monogram.mjs
 
@@ -58,7 +57,8 @@ const CAP_R = { x: 447, y: 39, r: 39 };
 function meet(a, b, lo = -1000, hi = 2000) {
   // both are affine in y, so one secant step is exact
   const f = (y) => a(y) - b(y);
-  const y0 = lo, y1 = hi;
+  const y0 = lo,
+    y1 = hi;
   return y0 - (f(y0) * (y1 - y0)) / (f(y1) - f(y0));
 }
 
@@ -139,8 +139,14 @@ const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" fil
 `;
 
 const dest = path.resolve(
-  import.meta.dirname, "..", "public", "brand", "mariva-monogram-intro.svg",
+  import.meta.dirname,
+  "..",
+  "public",
+  "brand",
+  "mariva-monogram-intro.svg",
 );
 await writeFile(dest, svg);
 console.log(`mariva-monogram-intro.svg: ${svg.length} bytes`);
-console.log(`  V inner ${n(ldiagR(vInner))},${n(vInner)}  outer ${n(ldiagL(vOuter))},${n(vOuter)}`);
+console.log(
+  `  V inner ${n(ldiagR(vInner))},${n(vInner)}  outer ${n(ldiagL(vOuter))},${n(vOuter)}`,
+);

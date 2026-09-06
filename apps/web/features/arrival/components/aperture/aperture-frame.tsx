@@ -1,11 +1,13 @@
 // The arrival's one permanent grammar: an arch-topped opening with a hairline
 // keyline standing off it.
 //
-// Act 1 cuts that opening out of a plaster wall with the monogram lens; the acts
-// after it reuse the same silhouette in CSS, at a different aspect and in a
-// different role — a wide crop over a Table block, a tall crop riding up beside
+// The acts reuse one silhouette in CSS, at a different aspect and in a different
+// role each time — a wide crop over a Table block, a tall crop riding up beside
 // it. The shape never changes, which is what keeps the repetition reading as one
-// building rather than as a mannerism.
+// building rather than as a mannerism. Act 1 is the exception and always has
+// been: it cuts its own openings, from straight edges rather than this arch,
+// because they are a pair of windows resolving into one and an arch that has to
+// survive being halved is an arch that reads as damage.
 //
 // One component rather than a copied border-radius per block: the radii are the
 // device, and five near-identical copies of them are five chances for the arch to
