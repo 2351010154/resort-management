@@ -1,84 +1,8 @@
 "use client";
 
-// Act 2, second half — four ruled chapters hanging off the welcome line, on
-// the same wall and under the same foliage shadow (izanami "Philosophy"
-// composition: vertical rail label, ragged display line, and photographs
-// stacked on the far side).
-//
-// They live inside Act 2's section rather than in one of their own so the gobo
-// keeps casting over them: its canvas sticks for the length of the act, and the
-// act is now several viewports instead of one and a bit.
-//
-// The panels stack rather than scroll past one another: each pins to the top of
-// the viewport, holds for a dwell, and is then covered by the next one rising
-// over it. Each panel is two overlaid sticky layers so the shadow can still
-// fall between the photographs and the reading — see the chapters block in the
-// stylesheet for the z-scale that depends on.
-//
-// The four panels are not one template filled four times. Each carries an
-// archetype — how many photographs, what shapes, and how they stand against the
-// panel — and no two share one:
-//
-//   01 portal   a tall frame with a brass-ringed circle breaking its top
-//               corner, standing on two sheets of glass offset behind and
-//               across it
-//   02 table    no tiles at all — the arrival's arch-topped aperture at two
-//               crops: a wide opening across the top of the panel stopping
-//               short of the right margin, the house's one table read under
-//               its left half, and a tall opening at the right riding up into
-//               the room the wide one left
-//   03 window   one opening cut in the shape of the house's own monogram —
-//               the mark's V driven down into the picture from above and its
-//               outer strokes leaning in from the sides — carved into a wall
-//               thick enough to cast a reveal, with the reading and three
-//               marked facts on the far side
-//   04 bleed    one photograph filling the panel, dissolved into the wall down
-//               its left edge and along its foot, the reading over the dissolve
-//
-// The scale runs medium, big, shaped, everything. The table is wide and heavy
-// and anchored left, and the bled panel is the whole screen; a wide picture
-// covered by a whole-screen picture is one big thing giving way to another,
-// and the eye reads that as one panel that happened to change. What separates
-// them is the third one, and what separates it is not size — two drafts tried
-// to make it land by being small, and a small rectangle between two large ones
-// reads as a panel that is missing something. It lands by being a different
-// kind of hole: every other opening in the arrival is the arch, and this one is
-// the monogram, cut through plaster with a thickness the light can find. The
-// picture stays well inside its wall on every side, so what carries the panel
-// is the shape of the cut and not the area of the photograph.
-//
-// They used to be three stacks of rectangles at slightly different percentages,
-// and on a screen that is pinned and otherwise still that read as machinery: a
-// panel holds for a whole viewport, which is long enough to notice that the
-// frame, the satellite, and the corner are where they were last time. The
-// compositions also sat too small inside their own panel — a stack capped at
-// 28rem on a 1440 wall left a column of nothing between the reading and the
-// page edge. Each archetype now sizes off the height it is given rather than a
-// figure in rem, and the last one gives up the measure entirely.
-//
-// The tiled panels turn their photographs over, and the run is scrubbed
-// against the dwell: the seam is drawn by the reader's travel and uncrosses on
-// the way back up. The dwell is what buys it — a panel's hold is sized on the
-// run it has to fit — so the far edge of the hold is where the replacement is
-// fully in. What separates the runs is their shape: 01 descends from the frame
-// to the circle, and 04 spends its whole dwell on one seam climbing the panel —
-// the last chapter, and the one that hands over to Act 3.
-//
-// A pinned panel is not a still. Every archetype pushes in across its own
-// dwell — inside the frame, never on it, so the composition holds its drawn
-// position while the photograph inside it closes — and the seam is scrubbed
-// through a lag rather than pinned to the wheel, so it glides and comes to
-// rest instead of stepping with each notch. The three are one camera: a
-// locked-off frame, slowly dollying, with an edge crossing it.
-//
-// 02 and 03 have no seam to run. The table holds two openings still and spends
-// its dwell being read; it still holds for exactly as long as it used to, so
-// the act's rhythm is the one that was tuned — see `hold` on the chapter. The
-// window spends its dwell being carved: the photograph goes on settling back
-// behind the opening long after the panel has stopped, the reveal down the
-// inside of the cut deepens a beat later, and the three marked facts wipe in
-// one after another last. Nothing turns over. What moves is the wall's
-// thickness arriving, which is the one thing a panel about a hole can show.
+// Act 2, second half: six ruled chapters on the same wall and under the same
+// foliage shadow. Each chapter moves through one continuous vertical passage;
+// only the window and the closing lens hold for a beat.
 
 import {
   CHECK_IN_TIME,
@@ -91,12 +15,16 @@ import { useEffect, useRef } from "react";
 import { ApertureFrame } from "@/features/arrival/components/aperture/aperture-frame";
 import { ChooseDatesLink } from "@/features/arrival/components/booking/choose-dates-link";
 import {
+  Drift,
+  DriftFrame,
+  DriftImage,
+} from "@/features/arrival/components/vocabulary/drift";
+import {
   GUEST_FLOORS,
   ROOM_COUNT_IN_WORDS,
 } from "@/features/arrival/content/house-facts";
 import { arrivalImages } from "@/features/arrival/lib/image-manifest";
 import { tierSrc, tierSrcSet } from "@/features/arrival/lib/image-srcset";
-import { useScrollWeight } from "@/features/arrival/lib/lenis-scroll-provider";
 import { registerArrivalEases } from "@/features/arrival/lib/motion-eases";
 import { prefersReducedMotion } from "@/features/arrival/lib/webgl-support";
 import { ROOM_TYPES } from "@/features/booking/lib/room-types";
@@ -105,16 +33,15 @@ import {
   DUR_EXIT,
   DUR_SCENE_SLOW,
   EASE_ENTER,
-  SCRUB_DRIFT,
   STAGGER_CASCADE,
 } from "@/lib/motion-tokens";
 import styles from "./act-2-welcome.module.css";
 
 const CONVERGE = arrivalImages["act-1-converge"];
 const ROOMS = arrivalImages["act-4-rooms"];
-/** Landscapes cut wide enough to carry a whole panel on their own — the only
- *  set in the manifest that can, which is why the bled chapter draws from it
- *  rather than from the room and detail crops the other two are built out of. */
+/** Landscapes cut wide enough to carry a whole page width on their own — the
+ *  only set in the manifest that can, which is why the bled chapter draws from
+ *  it rather than from the room and detail crops the other two are built out of. */
 const PLATES = arrivalImages["act-2-chapters"];
 
 type ManifestImage = (typeof arrivalImages)[keyof typeof arrivalImages][number];
@@ -125,10 +52,6 @@ const bySlug = <T extends { src: string }>(set: readonly T[], slug: string) =>
 /** Indent of a display line, in em of its own size. */
 type Line = readonly [text: string, indent: number];
 
-/** Which composition a chapter's photographs take. The geometry itself lives in
- *  the archetype blocks of the stylesheet, selected on `data-arch`. */
-type Arch = "portal" | "table" | "window" | "bleed";
-
 /** A tile's place in its archetype, and its class key in the stylesheet. */
 type Slot = "frame" | "portal" | "bleed";
 
@@ -136,36 +59,35 @@ type Slot = "frame" | "portal" | "bleed";
  * Which way a seam travels. Physical, not logical: `clip-path: inset()` is
  * measured against the box's physical edges and is not mirrored by the
  * `direction: rtl` that flips a left-side panel, so "rightward" means rightward
- * on every panel. The sideways pair is used on the wide tile of a composition,
- * and each runs out towards the page edge that tile already hangs over rather
- * than in towards the reading — which is why both exist: a right-side panel
- * hangs its wide tile off the right edge and a mirrored one off the left, and
- * neither seam can turn around on its own.
+ * on every panel.
  */
 type Seam = "down" | "up" | "rightward" | "leftward";
 
 /**
- * The second photograph a tile turns over to during the panel's dwell — the
- * stretch where the panel has stopped travelling and only the camera inside it
- * is moving, so the seam is the one edge crossing anything. Carried by the tile
- * rather than the chapter, which is what lets a
- * panel run one flip or a sequence of them without a second shape of data.
+ * Where along a chapter's passage something happens, in heights of the
+ * viewport the chapter's top mark has travelled up from the bottom edge of the
+ * screen. 0 is the chapter's top edge appearing at the foot of the screen, 1 is
+ * that edge reaching the top of the screen, 1.5 is it half a screen above.
+ *
+ * Every scroll range in the act is written in this unit and nothing else, so a
+ * seam on the bled plate and a wipe on the table are placed on one scale and
+ * a chapter's beats can be read off its data as a sequence. It is a distance
+ * of wheel, not a time: the reader sets the pace.
+ */
+type Travel = number;
+
+/**
+ * The second photograph a tile turns over to across the chapter's passage. The
+ * seam is the reader's to pull: scrolling down advances it, scrolling back up
+ * uncrosses it, and it is placed on the chapter's own scale — `at` is where it
+ * starts and `dur` how much travel it takes to cross. A seam that reads as too
+ * quick is long here, and nowhere else.
  */
 interface Flip {
   image: ManifestImage;
   seam: Seam;
-  /** Where this seam starts along the panel's flip run, and how long it takes
-   *  to cross. Written on a clock rather than in shares of the dwell: the act
-   *  buys scroll per second of run at one rate (`--dwell-pace`), so a second
-   *  here is the same distance of wheel on every panel, and a panel that flips
-   *  more than once spaces its tiles along one scale.
-   *
-   *  Which makes `dur` the one figure that decides how fast a swap reads, and
-   *  it decides it outright: the scroll a seam crosses in is `dur` times the
-   *  pace, whatever else the panel is doing and however long the rest of the
-   *  run is. A seam that reads as too quick is short here, and nowhere else. */
-  at: number;
-  dur: number;
+  at: Travel;
+  dur: Travel;
 }
 
 interface Tile {
@@ -180,40 +102,44 @@ interface ChapterBase {
   /** Which side the photographs take. Alternates down the act. */
   side: "right" | "left";
   rail: string;
-  /** Painted in this order, and the lag table is read by position. */
-  tiles: readonly Tile[];
+  /**
+   * How much of the passage the chapter takes, in viewport heights. Written
+   * onto the chapter as its minimum height (`--travel`); a chapter is exactly
+   * this tall on a desktop and takes its own height on a phone.
+   */
+  travel: number;
+  /**
+   * Where the chapter's time-based entrance plays — the reading rising, the
+   * photographs settling. Placed where the reading actually sits: a chapter
+   * whose reading is under a wide opening lands later than one that opens on
+   * its headline.
+   */
+  landAt: Travel;
 }
 
-/** A panel built out of tiles: a ragged display line beside a composition of
- *  photographs, each of which may turn over during the dwell. */
+/** A chapter built out of tiles: a ragged display line beside a composition of
+ *  photographs, each of which may turn over during the passage. */
 interface TiledChapter extends ChapterBase {
   arch: "portal" | "bleed";
   lines: readonly Line[];
   body: string;
   caption: string;
+  tiles: readonly Tile[];
 }
 
 /**
- * The panels built out of a cut opening — the table and the window. Neither
- * carries tiles, because their composition is the opening rather than a stack
- * — so each also carries the one thing the tiled panels get for free: how long
- * it holds. A dwell is derived from the seams a panel has to fit, and a panel
- * with none would land and be covered in the same gesture.
+ * The chapters whose composition is one grid drawn in the type layer rather
+ * than a stack of tiles — the table, the window, the diptych and the pause.
+ * None carries tiles; each is rendered by a composition of its own below.
  */
-interface HeldChapter extends ChapterBase {
-  arch: "table" | "window";
-  tiles: readonly [];
-  /** In the same units `runEnd` returns, so the act still buys its dwell at one
-   *  pace. Both are what the two seams the tiled panels run used to ask for,
-   *  which is what keeps the stack's rhythm the one that was tuned against
-   *  them. */
-  hold: number;
+interface OpeningChapter extends ChapterBase {
+  arch: "table" | "window" | "diptych" | "pause";
 }
 
-type Chapter = TiledChapter | HeldChapter;
+type Chapter = TiledChapter | OpeningChapter;
 
-const holds = (chapter: Chapter): chapter is HeldChapter =>
-  chapter.arch === "table" || chapter.arch === "window";
+const tiled = (chapter: Chapter): chapter is TiledChapter =>
+  chapter.arch === "portal" || chapter.arch === "bleed";
 
 /**
  * Every fact in these sentences is `docs/architecture/property-and-tariff.md`
@@ -391,18 +317,112 @@ const HOUSE_MARKS: readonly HouseMark[] = [
  */
 const WINDOW_PLATE = bySlug(PLATES, "ocean-pool-dusk");
 
+/**
+ * The diptych's two hours: the same subject — water in a pool — in the
+ * morning and after dark. The pairing is the composition. Two different
+ * subjects split by a seam read as a broken layout; one subject at two hours
+ * reads as time passing under the reader's hand.
+ *
+ * The morning plate is bright to its edges and the evening one dark to its,
+ * which is what lets the line written over them turn colour at the seam: ink
+ * on the day, ivory on the night, and the seam is the only place they meet.
+ */
+const DIPTYCH_MORNING = bySlug(PLATES, "pool-hills-day");
+const DIPTYCH_EVENING = bySlug(CONVERGE, "dark-pool-dusk");
+
+/**
+ * The line over the diptych. Written twice in the markup, once in each ink,
+ * and the seam's clip decides which copy shows where — see the effect.
+ */
+const DIPTYCH_LINES: readonly string[] = [
+  "The same water,",
+  "morning and evening.",
+];
+
+/**
+ * Two sentences under the diptych, on the ivory beside the slab. The clock is
+ * §2's — the same constants the booking review reads back — and the rest
+ * claims nothing a guest could arrive and find untrue.
+ */
+const DIPTYCH_NOTE =
+  `The house opens its rooms at ${CHECK_IN_TIME} and asks for them back at ` +
+  `${CHECK_OUT_TIME}. Everything between the two is kept at your pace.`;
+
+/**
+ * Where the diptych's seam starts and stops, as the share of the frame the
+ * morning plate takes. The reader drags it from most of the frame to none of
+ * it: the chapter opens on the day and is left on the evening, whole. It used
+ * to stop short of the edge so the frame never stopped reading as two
+ * photographs, and what that actually read as was a swap that had not
+ * finished — a strip of morning still standing at the frame's left when the
+ * chapter left the screen. The seam is what the device is; a seam that has
+ * run off the edge has been drawn all the way, which is the point of dragging
+ * it.
+ *
+ * It also has to be finished while the frame is still on the screen. The
+ * chapter is 1.45 screens tall and the frame stands a fifth of one down it,
+ * so anything running past about 1.1 lands with the picture already leaving
+ * over the top edge — which is the other half of a swap that reads as
+ * unfinished.
+ */
+const DIPTYCH_SEAM = { from: 74, to: 0, at: 0.25, dur: 0.85 } as const;
+
+/**
+ * How far the plates behind the diptych's seam travel, in % of their own
+ * width. The morning drifts back as it is covered, the evening arrives a
+ * little behind the seam: the flip grammar, sideways.
+ */
+const DIPTYCH_DRIFT = 5;
+
+/** The pause: no photograph, one line at the centre of the dark screen, and
+ *  the opening grows through it. */
+const PAUSE_LINES: readonly string[] = ["Let the hour", "find you."];
+
+/**
+ * The pause's travel, on the chapter's own scale. The stage pins from 1 (its
+ * top at the top of the screen) to `travel`: about a screen of dark with the
+ * line on it, then the lens opens over the last stretch — timed so the
+ * opening is complete exactly as the pin releases, which is when the bleed's
+ * held plate is the whole screen anyway.
+ */
+const PAUSE = {
+  travel: 2.2,
+  lensAt: 1.9,
+  lensEnd: 2.2,
+} as const;
+
+/**
+ * The lens at its widest, as a length rather than a share: `clip-path` and
+ * masks take no "cover this box" keyword, and the circle has to clear the
+ * far corner of a 16:9 screen from its centre — half the diagonal is 0.58 of
+ * the long side, so 0.8 of it is clear on any aspect a desktop has.
+ */
+const LENS_OPEN = "80vmax";
+
+/**
+ * How far the bleed is pulled up under the pause, in viewport heights.
+ *
+ * The pause's stage pins for the pause's travel; the bleed's plate holds
+ * still for the bleed's. Overlapping them puts the bleed's plate under the
+ * stage — already stuck, already the full screen — before the lens starts, so
+ * what the opening reveals is a photograph that is not moving, and when the
+ * stage releases there is no seam because nothing under it changes. The
+ * figure is what makes that true: the bleed's plate sticks at
+ * `1 + PAUSE.travel - BLEED_LEAD` on the pause's scale, which has to be past
+ * where it pins and short of `PAUSE.lensAt`. The bleed's reading is pushed
+ * down by the same figure (`--hold-lead` in the stylesheet) so it lands after
+ * the lens rather than during it.
+ */
+const BLEED_LEAD = 1.4;
+
 const CHAPTERS: Chapter[] = [
   {
     index: "01",
-    side: "right",
+    side: "left",
     rail: "Rest",
-    // Portal: one tall frame, a circle set in a brass ring breaking its top
-    // corner, and two sheets of glass — one standing behind the frame, one
-    // crossing its foot. The act's establishing composition, and the only one
-    // holding anything that is not a photograph. The sheets are what stand the
-    // frame on something: a rectangle alone on the wall is what the panel used
-    // to be, and it read as flat at every size it was tried at.
     arch: "portal",
+    travel: 1.5,
+    landAt: 0.35,
     lines: [
       ["Rooms that keep", 0],
       ["the quiet you", 0],
@@ -414,39 +434,25 @@ const CHAPTERS: Chapter[] = [
       "Cedar, linen, and lamplight kept low enough to hear the room. Nothing " +
       "here asks anything of you.",
     caption: "Suites & Villas",
-    // The run descends: the frame goes first and largest, the circle closes.
     tiles: [
       {
         slot: "frame",
         image: bySlug(ROOMS, "room-cedar"),
-        // First, and the largest change: the same room at dusk, so the seam has
-        // something to show — two warm cedar interiors would turn over
-        // invisibly.
         flip: {
           image: bySlug(ROOMS, "room-premier"),
           seam: "down",
-          at: 0.35,
-          dur: 0.9,
+          at: 0.9,
+          dur: 0.7,
         },
       },
       {
         slot: "portal",
-        // Dark, and full to its own edges. The round-window detail was here
-        // first for the obvious reason — a circular subject in a circular tile
-        // — and it was the wrong picture for exactly that reason: the window is
-        // a dark disc on a pale wall, so a circle cut out of it came back as a
-        // dark disc inside a ring of that wall, and the ring read as three
-        // times its width. What the slot wants is a photograph with no margin
-        // of its own.
         image: bySlug(ROOMS, "room-onsen"),
-        // Last, and the shorter sweep — the panel's closing beat. Steam at dusk
-        // for a room standing in daylight, which at this size is the whole of
-        // what makes a seam inside a circle readable.
         flip: {
           image: bySlug(ROOMS, "room-washigamine"),
           seam: "down",
-          at: 1.2,
-          dur: 0.5,
+          at: 0.55,
+          dur: 0.35,
         },
       },
     ],
@@ -455,70 +461,41 @@ const CHAPTERS: Chapter[] = [
     index: "02",
     side: "left",
     rail: "Relax",
-    // The table. The one panel in the act that is not a stack of photographs
-    // hung on the wall: it is built out of the arrival's own aperture, the
-    // arch-topped opening Act 1 cuts with the monogram lens, at two crops of
-    // one room — a wide one across the top and a tall one on the detail. The
-    // aspect is the only thing that changes between them, which is the whole of
-    // what the device has to prove it can do.
-    //
-    // Nothing hangs off a corner, nothing turns over, and there is no measure
-    // running beside a picture: the reading sits *under* the wide opening
-    // rather than opposite it. That absence is what keeps the middle chapter
-    // from reading as 01 mirrored, which is the job the shingled pair used to
-    // hold and never quite did.
     arch: "table",
-    tiles: [],
-    // What this panel's two seams used to ask for. The dwell is a reading dwell
-    // now rather than a run, but it is the same length of hold, so the three
-    // panels still stack at the rhythm the act was tuned to.
-    hold: 1.4,
+    travel: 1.2,
+    landAt: 0.7,
   },
   {
     index: "03",
-    // The reading takes the right of the wall and the opening the left, which
-    // is the reference mirrored — 02 reads at the left, and two panels reading
-    // down the same column in a stack is the same panel twice. `side` places
-    // the rail, and the rail's rule is that it stands on the outer edge beside
-    // the type, so the reading moving right takes it with it.
     side: "left",
-    // Not one of the kicker's three words, and deliberately. Rest, Relax and
-    // Rejuvenate are the three chapters that say what the house offers — 01,
-    // 02 and 04 — and this panel says what the house *is*. The rail names the
-    // subject rather than a fourth amenity.
     rail: "The house",
-    // The window. One opening cut in the shape of the monogram, carved into a
-    // wall thick enough to have a reveal, with the reading and three marked
-    // facts on the other side of it.
-    //
-    // The act's device up to here is the arch — the same arch-topped opening
-    // at four crops. This panel is the one place that device is set aside, and
-    // it is set aside for the only shape with a better claim to be a hole in
-    // this building than the arch has: the house's own mark. That is the whole
-    // idea of the panel, and it is why the panel does not need to be either
-    // large or small to stand between the table and the bleed.
     arch: "window",
-    tiles: [],
-    // The table's hold, unchanged, so the stack keeps the rhythm it was tuned
-    // to. The panel arrives in three beats — the picture settling back behind
-    // the cut, the reveal deepening, then the marked facts wiping in — and the
-    // last of them lands well after the panel does.
-    hold: 1.4,
+    travel: 1.4,
+    landAt: 0.45,
   },
   {
     index: "04",
     side: "right",
+    rail: "Hours",
+    arch: "diptych",
+    travel: 1.45,
+    landAt: 0.4,
+  },
+  {
+    index: "05",
+    side: "right",
     rail: "Rejuvenate",
-    // The panel gives up the measure. One photograph fills it edge to edge and
-    // is dissolved back into the wall down its left side and along its foot,
-    // and the reading stands on the dissolve rather than beside the picture.
-    //
-    // Two panels of photographs held at arm's length inside a grid, and then
-    // the act stops holding them: the last chapter is the one the reader is
-    // standing in rather than looking at, which is the handover Act 3 opens on.
-    // `side` still places the rail and the reading — the photograph is behind
-    // both and pays no attention to the columns.
+    arch: "pause",
+    travel: PAUSE.travel,
+    landAt: 0.85,
+  },
+  {
+    index: "06",
+    side: "right",
+    rail: "Morning",
     arch: "bleed",
+    travel: 1.6 + BLEED_LEAD,
+    landAt: 0.45 + BLEED_LEAD - 0.5,
     lines: [
       ["The day begins", 0],
       ["somewhere", 1.5],
@@ -529,79 +506,20 @@ const CHAPTERS: Chapter[] = [
       "and one table of eight for whatever was picked that morning. You leave " +
       "lighter than you arrived.",
     caption: "Land & Table",
-    // One seam, and it takes the whole dwell. The other two panels spend their
-    // hold on a sequence — a change, then another, then the panel is done —
-    // and doing that a third time at full-panel scale would have been the act
-    // repeating its one trick at its loudest. A single edge crossing a whole
-    // screen slowly is the other thing a seam can be, and it is the one the
-    // closing chapter wants.
-    //
-    // Climbing, because the copy does. The photograph is a peak at first light
-    // over a village still in shadow; the one it gives way to is the garden the
-    // copy walks to, three minutes downhill from the kitchen — full daylight,
-    // full green, which at this size is the whole of what makes the seam
-    // readable. Two dawn landscapes would have crossed invisibly.
     tiles: [
       {
         slot: "bleed",
-        image: bySlug(PLATES, "snow-peak-roofs"),
+        image: bySlug(PLATES, "villa-deck-forest"),
         flip: {
           image: bySlug(PLATES, "garden-pavilion"),
           seam: "up",
-          at: 0.5,
-          dur: 1.75,
+          at: 0.9 + BLEED_LEAD,
+          dur: 1.1,
         },
       },
     ],
   },
 ];
-
-/**
- * How far each tile lags its panel as it rises, in % of its own height, by
- * position in the archetype's tile list. Per archetype rather than shared: in
- * `portal` the frame lags least and the circle most, so the composition reads
- * as depth arriving rather than as one parallax applied to two rectangles. The
- * tiles land on the composition as drawn and hold there for the dwell.
- *
- * `bleed` is zero, and not for want of trying: a photograph pinned to the
- * panel's own edges has nowhere to lag to, and any offset uncovers the edge it
- * was bled off. The panel's rise carries it, which is the point of bleeding it
- * — the reader is inside that frame rather than watching it arrive.
- *
- * `table` and `window` are empty because they hold no tiles at all; their
- * openings are laid out by the panel's own grid and rise with it.
- */
-const LAG: Record<Arch, readonly number[]> = {
-  portal: [4, 13],
-  table: [],
-  window: [],
-  bleed: [0],
-};
-
-/**
- * When a chapter's flip run is over, in seconds from the panel landing — the
- * last seam to finish, whichever tile it belongs to.
- *
- * This is what the dwell is sized on. It used to be a figure per flip count,
- * written in the stylesheet and kept level with these timings by a comment,
- * which is a pairing that can only ever drift: a seam moved half a second later
- * here left the panel it belongs to scrolling away mid-sweep with nothing to
- * say so. Read off the timings themselves, the dwell cannot be wrong about a
- * run it is derived from.
- *
- * A panel with no seams has nothing to derive from and says how long it holds
- * instead — see `hold`. Both are the same figure to the stylesheet, which is
- * the point: the act buys its dwell at one pace whatever the panel spends it
- * on.
- */
-const runEnd = (chapter: Chapter) =>
-  holds(chapter)
-    ? chapter.hold
-    : chapter.tiles.reduce(
-        (end, tile) =>
-          tile.flip ? Math.max(end, tile.flip.at + tile.flip.dur) : end,
-        0,
-      );
 
 const SLOT_CLASS: Record<Slot, string> = {
   frame: styles.slotFrame,
@@ -611,14 +529,27 @@ const SLOT_CLASS: Record<Slot, string> = {
 
 /** Rendered width of each slot, from its share of the archetype's stack. */
 const SLOT_SIZES: Record<Slot, string> = {
-  frame: "(max-width: 900px) 88vw, 34rem",
-  portal: "(max-width: 900px) 34vw, 12rem",
+  frame: "(max-width: 900px) 88vw, 36rem",
+  portal: "(max-width: 900px) 34vw, 13rem",
   // The one slot whose width is the window's.
   bleed: "100vw",
 };
 
 /**
- * Travel of the two photographs behind the seam, in % of the tile's own size,
+ * How far the small details lead the page and the slabs trail it, in per cent
+ * of their own height across their passage — the vocabulary's `Drift`. The
+ * circle is the quickest thing in the act, and a slab the slowest: what
+ * separates the composition into depth is that its three layers pass at three
+ * rates, and the reference's contrast device is exactly two neighbours given
+ * opposite drifts. A slab is the one thing on the wall taller than the
+ * screen, so its figure is small: a per cent of its own height is a long way.
+ */
+const PORTAL_LEAD = 55;
+const SLAB_TRAIL = 3;
+const TALL_OPENING_LEAD = 22;
+
+/**
+ * Travel of the two photographs behind a seam, in % of the tile's own size,
  * measured off the reference capture: the incoming one arrives a little slower
  * than the seam that uncovers it, and the outgoing one drifts back behind. The
  * two rates are the whole depth of the move — the tile itself never scales.
@@ -627,33 +558,44 @@ const FLIP_ENTER = 90;
 const FLIP_EXIT = 10;
 
 /**
- * The lag the dwell's tweens follow the scroll through, in seconds.
- *
- * The act's chapters run under the light scroll weight — a wheel notch buys its
- * full travel and Lenis settles inside a couple of frames, because these are
- * screens to read rather than watch. That is right for the words and wrong for
- * the one thing on the panel that is a camera move: pinned to the wheel exactly,
- * a seam steps once per notch and stops dead between them.
- *
- * So the glide is put back here rather than in the page's weight, where it would
- * cost the reader every line of type as well. The seam follows the scroll
- * instead of tracking it, and eases to rest a beat after the reader does.
+ * The wide opening's entrance: how far its photograph slides in behind the
+ * seam that uncovers it, in % of its own width. Less than a flip's, because
+ * there is nothing leaving under it — a plate arriving on a bare wall wants
+ * to arrive, not to chase an edge.
  */
-const DWELL_SCRUB = 0.8;
+const TABLE_WIDE_SLIDE = 12;
 
 /**
- * How far the frame closes per second of a panel's run, as a share of its own
- * size.
- *
- * A rate rather than a distance, and the same rate for all four panels, for the
- * reason `--dwell-pace` is one figure: a panel that holds longer has bought more
- * scroll, and a fixed push spread over more scroll is a slower camera. Written
- * per second, every panel dollies at one speed and the act reads as one lens.
- *
- * Small on purpose. This is the move the reader should feel rather than watch —
- * at 04's run it reaches about five per cent over a hold of half a screen.
+ * The seam that uncovers the wide opening: where it runs on the chapter's
+ * scale — starting as soon as the opening is showing under 01 and across
+ * before the reading lands — and the clips it runs between. The insets are
+ * negative on three sides so the keyline standing off the opening is drawn
+ * by the seam along with it rather than cut at the frame's own box. The
+ * stylesheet parks the frame at `from` so nothing flashes before this runs.
  */
-const PUSH_PER_SECOND = 0.022;
+const TABLE_WIPE = {
+  at: 0.05,
+  dur: 0.7,
+  from: "inset(-1rem 100% -1rem -1rem)",
+  to: "inset(-1rem 0% -1rem -1rem)",
+} as const;
+
+/**
+ * The lag the scrubbed seams follow the scroll through, in seconds.
+ *
+ * A seam pinned to the wheel exactly steps once per notch and stops dead
+ * between them. Following the scroll instead of tracking it, it glides and
+ * comes to rest a beat after the reader does. Longer than `SCRUB_DRIFT` because
+ * a seam is the one thing on the wall the reader is watching cross.
+ */
+const SEAM_SCRUB = 0.8;
+
+/**
+ * How far the window's plate closes across the act's one hold, as a share of
+ * its own size. Small on purpose: this is the move the reader should feel
+ * rather than watch, and it is what keeps the held screen from being a still.
+ */
+const HOLD_PUSH = 0.045;
 
 /**
  * The seam's curve, and the reason it is this one rather than the obvious one.
@@ -663,13 +605,9 @@ const PUSH_PER_SECOND = 0.022;
  * what it takes off the two ends it puts in the middle, which is the only part
  * of the sweep anyone is looking at. `power1.inOut` is quadratic, so its
  * velocity peaks at twice the average: it makes a seam read *faster* than the
- * linear one it replaced over the same distance, and the ends it bought that
- * with are the frames where nothing is visibly happening anyway.
- *
- * `sine.inOut` peaks at pi/2 — about 1.57 — which is the mildest in-out there
- * is, and the difference is the whole of what separates a seam that crosses
- * from one that snaps. What actually buys a slow seam is distance, and that is
- * `dur` above.
+ * linear one it replaced over the same distance. `sine.inOut` peaks at pi/2 —
+ * about 1.57 — which is the mildest in-out there is. What actually buys a slow
+ * seam is distance, and that is `dur` above.
  */
 const SEAM_EASE = "sine.inOut";
 
@@ -692,47 +630,137 @@ const SEAM: Record<
 };
 
 /**
- * A tile's photograph, in the layer the dwell's push-in drives.
+ * The document position of a point on a chapter's passage — see `Travel`.
  *
- * The scale is taken by this box rather than by the `img` inside it because the
- * landing already animates that `img` — it settles out of an over-scale as the
- * panel arrives — and two tweens writing one property is a fight decided by
- * whichever ran last. A box of its own is also what makes the push safe: `.tile`
- * clips it, so a photograph closing in cannot grow past the frame it is in,
- * uncover the panel behind it, or widen the page.
+ * A function rather than a figure, so ScrollTrigger re-reads it on every
+ * refresh: a resize changes both the viewport height the unit is measured in
+ * and where the chapter sits. Measured off the chapter's zero-height mark, which
+ * is in flow and never sticky, so the rect is where the chapter belongs and not
+ * where one of its layers is currently stuck.
  */
+const travelPoint = (mark: HTMLElement, p: Travel) => () =>
+  mark.getBoundingClientRect().top +
+  window.scrollY -
+  window.innerHeight * (1 - p);
+
 function TileImage({ image, slot }: { image: ManifestImage; slot: Slot }) {
   return (
-    <span className={styles.tilePush} data-chapter-push>
-      <img
-        src={tierSrc(image.src, 640)}
-        srcSet={tierSrcSet(image)}
-        sizes={SLOT_SIZES[slot]}
-        width={image.width}
-        height={image.height}
-        alt={image.alt}
-        loading="lazy"
-        decoding="async"
-      />
-    </span>
+    <img
+      src={tierSrc(image.src, 640)}
+      srcSet={tierSrcSet(image)}
+      sizes={SLOT_SIZES[slot]}
+      width={image.width}
+      height={image.height}
+      alt={image.alt}
+      loading="lazy"
+      decoding="async"
+    />
   );
 }
 
 /**
- * The table panel's inside: three children of the panel's own grid rather than
- * a box of its own, so the wide opening can span the measure while the reading
- * and the tall opening share the row under it.
+ * A tile that may turn over: one photograph, or two layered with the seam cut
+ * on the upper one. The clip is on the layer and the travel on the photograph
+ * inside it, because an inset() is measured against the box it sits on, and
+ * clipping and moving the same element would drag the seam along with the
+ * picture.
+ */
+function Tile({ tile, className }: { tile: Tile; className?: string }) {
+  const { slot, image, flip } = tile;
+  return (
+    <div
+      className={[styles.tile, className].filter(Boolean).join(" ")}
+      // Read by the stylesheet for the overscan the outgoing photograph needs
+      // on the side it drifts away from.
+      data-seam={flip?.seam}
+    >
+      {flip ? (
+        <>
+          <div className={`${styles.tileLayer} ${styles.tileCurrent}`}>
+            <TileImage image={image} slot={slot} />
+          </div>
+          <div className={`${styles.tileLayer} ${styles.tileNext}`}>
+            <TileImage image={flip.image} slot={slot} />
+          </div>
+        </>
+      ) : (
+        <TileImage image={image} slot={slot} />
+      )}
+    </div>
+  );
+}
+
+/**
+ * The portal's stack: the frame with its photograph lagging inside it and the
+ * circle crossing ahead of the page. Rendered in paint order — every layer is
+ * positioned, so DOM order is the z-scale inside the stack. The slab the two
+ * stand on is not in the stack: it reaches the page's edge, which the stack,
+ * held to the measure, cannot, so it is a child of the plate layer itself.
+ *
+ * The frame is the vocabulary's `DriftFrame`: a clipped window with the
+ * photograph bleeding past it by exactly as far as it travels, so the picture
+ * moves inside a frame that holds still on the page. That is the restrained
+ * lag the large imagery in the act is allowed, and the whole of it.
+ */
+function PortalStack({ tiles }: { tiles: readonly Tile[] }) {
+  const frame = tiles.find((t) => t.slot === "frame")!;
+  const portal = tiles.find((t) => t.slot === "portal")!;
+  return (
+    <>
+      <DriftFrame className={SLOT_CLASS.frame}>
+        <DriftImage mode="through">
+          <Tile tile={frame} className={styles.tileFill} />
+        </DriftImage>
+      </DriftFrame>
+
+      <Drift mode="up" amount={PORTAL_LEAD} className={SLOT_CLASS.portal}>
+        <Tile tile={portal} className={styles.tileRound} />
+      </Drift>
+    </>
+  );
+}
+
+/**
+ * The dark slab a composition stands on: a block of umber hanging off one
+ * edge of the page, taller than the screen, trailing the page a little.
+ * Absolute inside the layer it is given to, which is the one box in a chapter
+ * that spans the page — the measure the compositions are held to stops at
+ * the gutter, and a slab that stops at the gutter is a card.
+ *
+ * Carries the chapter's index on a vertical rule, in sand, the way the
+ * reference's dark block carries its page number: the number is on the dark
+ * and the reading is on the ivory, so the slab is part of the chapter rather
+ * than a backdrop behind it.
+ */
+function Slab({ index, edge }: { index: string; edge: "left" | "right" }) {
+  return (
+    // The wrapper places the slab and the drift inside it moves it: the
+    // vocabulary's block takes no attributes of its own, and the placement
+    // wants the edge to read from the stylesheet.
+    <div className={styles.slab} data-edge={edge} aria-hidden>
+      <Drift mode="down" amount={SLAB_TRAIL} className={styles.slabFace}>
+        <span className={styles.slabRule}>
+          <span className={`caps-label ${styles.slabIndex}`}>{index}</span>
+        </span>
+      </Drift>
+    </div>
+  );
+}
+
+/**
+ * The table chapter's inside: three children of the chapter's own grid rather
+ * than a box of its own, so the wide opening can span the measure while the
+ * reading and the tall opening share the row under it.
  *
  * The index leads the eyebrow on one caps line instead of standing on a line of
  * its own. Both are the same tracked mono at the same size, and stacked they
  * read as a label that has been printed twice — where the panel's number and
  * what the panel is about are one thought: 02, the table.
  *
- * The landing fade is carried by the photographs rather than by the frames
- * around them: the keyline and the tinted opening are the aperture, and an
- * opening that arrives already struck and then takes its picture is the device
- * doing what it says it is for. Fading the frame would have been the arch
- * fading in as a graphic.
+ * The wide opening is not faded in with the rest: it is drawn by the seam the
+ * reader pulls (`data-table-wide`, in the effect) — the arch, its keyline and
+ * the picture behind it uncovered together from the page's edge, so the
+ * aperture is struck by the reader's own travel rather than arriving made.
  */
 function TableComposition({ index }: { index: string }) {
   return (
@@ -747,8 +775,7 @@ function TableComposition({ index }: { index: string }) {
           alt={TABLE_WIDE.alt}
           loading="lazy"
           decoding="async"
-          data-chapter-fade
-          data-chapter-push
+          data-table-wide
         />
       </ApertureFrame>
 
@@ -785,20 +812,23 @@ function TableComposition({ index }: { index: string }) {
         />
       </div>
 
-      <ApertureFrame ratio="4 / 5" className={styles.tableTall}>
-        <img
-          src={tierSrc(TABLE_TALL.src, 1280)}
-          srcSet={tierSrcSet(TABLE_TALL)}
-          sizes="(max-width: 900px) 62vw, 22rem"
-          width={TABLE_TALL.width}
-          height={TABLE_TALL.height}
-          alt={TABLE_TALL.alt}
-          loading="lazy"
-          decoding="async"
-          data-chapter-fade
-          data-chapter-push
-        />
-      </ApertureFrame>
+      {/* The small detail crossing quicker: the tall opening leads the page
+          while the wide one above it sits at the page's own pace. */}
+      <Drift mode="up" amount={TALL_OPENING_LEAD} className={styles.tableTall}>
+        <ApertureFrame ratio="4 / 5">
+          <img
+            src={tierSrc(TABLE_TALL.src, 1280)}
+            srcSet={tierSrcSet(TABLE_TALL)}
+            sizes="(max-width: 900px) 62vw, 22rem"
+            width={TABLE_TALL.width}
+            height={TABLE_TALL.height}
+            alt={TABLE_TALL.alt}
+            loading="lazy"
+            decoding="async"
+            data-chapter-fade
+          />
+        </ApertureFrame>
+      </Drift>
     </>
   );
 }
@@ -859,9 +889,9 @@ function HouseGlyphMark({ glyph }: { glyph: HouseGlyph }) {
 }
 
 /**
- * The window's inside: the opening and the reading, two children of the panel's
- * own grid, drawn entirely in the type layer for the reason the table is (see
- * the archetype block in the stylesheet).
+ * The window's inside: the opening and the reading, two children of the
+ * chapter's own grid, drawn entirely in the type layer (see the archetype block
+ * in the stylesheet).
  *
  * The opening is four layers deep, back to front, and the order is the whole of
  * how it reads as a hole in something thick rather than a shaped photograph:
@@ -886,17 +916,15 @@ function HouseGlyphMark({ glyph }: { glyph: HouseGlyph }) {
  * is above and to the left, which is where the act's gobo throws it from: a
  * surface inside the cut that faces up or left is turned into that light and is
  * the sill, and one that faces down or right is turned away from it and is the
- * reveal. Drawn with only the dark one the cut read as a grey line round a
- * shaped photograph however dark the line was made, because a bevel a reader
- * believes is a light edge and a dark edge, not one of them twice as strong.
+ * reveal.
  *
- * Three things arrive after the panel has, in this order, each looked up by the
- * timeline rather than queried into the shared tweens so a panel without one
- * carries no empty tween: the plate settling back behind the cut
+ * Three things arrive after the chapter has landed, in this order, each looked
+ * up by the timeline rather than queried into the shared tweens so a chapter
+ * without one carries no empty tween: the plate settling back behind the cut
  * (`data-chapter-settle`), the reveal deepening (`data-chapter-detail`), and the
  * marked facts wiping in one after another (`data-chapter-leader`). The plate's
- * box then takes the dwell's push-in (`data-chapter-push`), which is the only
- * one of the four that is still going once the panel has stopped. Under reduced
+ * box then takes the hold's push-in (`data-chapter-push`), which is the only one
+ * of the four that is still going once the chapter has pinned. Under reduced
  * motion none of it runs and the frame is complete as drawn.
  */
 function WindowComposition({ index }: { index: string }) {
@@ -904,7 +932,7 @@ function WindowComposition({ index }: { index: string }) {
     <>
       <div className={styles.windowOpening}>
         {/* The push is on the plate's box, not on the plate: the `img` is
-            already settling back behind the cut as the panel lands, and the
+            already settling back behind the cut as the chapter lands, and the
             cut itself must not move — it is a hole in a wall. */}
         <div className={styles.windowPicture} data-chapter-push>
           <img
@@ -1021,14 +1049,156 @@ function WindowComposition({ index }: { index: string }) {
   );
 }
 
+/**
+ * The diptych's inside: the reading on the ivory and the frame on the slab,
+ * two children of the chapter's own grid, drawn entirely in the type layer
+ * like the table and the window. The slab is the type layer's too — it has
+ * to sit under the frame and over the wall, and the plate layer is under the
+ * gobo, which would have thrown the leaf shadow onto the dark, where it reads
+ * as a stain rather than as light.
+ *
+ * The frame is two panes the size of the frame, one over the other: the
+ * morning with the line set in ink over it, and the evening with the same
+ * line set in ivory, clipped from the left by the seam. The line is inside
+ * the pane rather than beside it because a clip is measured against the box
+ * it sits on — clipping the ivory line by itself would cut it at a share of
+ * its own width, not the frame's. One custom property, `--seam`, is what the
+ * effect drags, and the pane's clip and the hairline both read it, so the
+ * picture, the type and the rule cannot disagree about where the seam is.
+ */
+function DiptychComposition({ index }: { index: string }) {
+  const headline = (className: string) => (
+    <p className={`font-display ${styles.diptychLine} ${className}`}>
+      {DIPTYCH_LINES.map((line) => (
+        <span key={line} className={styles.diptychLineRow}>
+          {line}
+        </span>
+      ))}
+    </p>
+  );
+  return (
+    <>
+      <Slab index={index} edge="right" />
+
+      <div className={styles.chapterText}>
+        <div className={styles.chapterHold}>
+          <p className={`caps-label ${styles.chapterIndex}`} data-chapter-fade>
+            {index}
+          </p>
+          <p className={styles.chapterBody} data-chapter-fade>
+            {DIPTYCH_NOTE}
+          </p>
+          <p
+            className={`caps-label ${styles.chapterCaption}`}
+            data-chapter-fade
+          >
+            Morning &amp; Evening
+          </p>
+        </div>
+      </div>
+
+      <div className={styles.diptych} data-diptych>
+        <div className={styles.diptychPane}>
+          <img
+            src={tierSrc(DIPTYCH_MORNING.src, 1280)}
+            srcSet={tierSrcSet(DIPTYCH_MORNING)}
+            sizes="(max-width: 900px) 92vw, 62vw"
+            width={DIPTYCH_MORNING.width}
+            height={DIPTYCH_MORNING.height}
+            alt={DIPTYCH_MORNING.alt}
+            loading="lazy"
+            decoding="async"
+            data-diptych-morning
+          />
+          {headline(styles.diptychLineInk)}
+        </div>
+        <div className={`${styles.diptychPane} ${styles.diptychEvening}`}>
+          <img
+            src={tierSrc(DIPTYCH_EVENING.src, 1280)}
+            srcSet={tierSrcSet(DIPTYCH_EVENING)}
+            sizes="(max-width: 900px) 92vw, 62vw"
+            width={DIPTYCH_EVENING.width}
+            height={DIPTYCH_EVENING.height}
+            alt={DIPTYCH_EVENING.alt}
+            loading="lazy"
+            decoding="async"
+            data-diptych-evening
+          />
+          {headline(styles.diptychLineIvory)}
+        </div>
+        <span className={styles.diptychSeam} aria-hidden />
+      </div>
+    </>
+  );
+}
+
+/**
+ * The pause's inside: one display line at the centre of the pinned stage, and
+ * nothing else on it. The line rises the way every other chapter's headline
+ * does (`data-chapter-line`), and the stage's mask opens the lens through its
+ * middle (`--lens`, on the stage — see the effect).
+ */
+function PauseComposition() {
+  return (
+    <div className={styles.pauseScreen} data-pause-lens>
+      <p className={`font-display ${styles.pauseLine}`}>
+        {PAUSE_LINES.map((line) => (
+          <span key={line} className={styles.lineClip}>
+            <span
+              data-chapter-line
+              className={styles.pauseRow}
+              style={{ display: "block" }}
+            >
+              {line}
+            </span>
+          </span>
+        ))}
+      </p>
+    </div>
+  );
+}
+
+/** The reading of a tiled chapter: index, ragged display line, body, caption.
+ *  Wrapped in a block that holds still for part of the passage (see
+ *  `.chapterHold` in the stylesheet) and then leaves ahead of the picture. */
+function ChapterReading({ chapter }: { chapter: TiledChapter }) {
+  return (
+    <div className={styles.chapterText}>
+      <div className={styles.chapterHold}>
+        <p className={`caps-label ${styles.chapterIndex}`} data-chapter-fade>
+          {chapter.index}
+        </p>
+        <h2 className={`font-display ${styles.chapterHead}`}>
+          {chapter.lines.map(([text, indent]) => (
+            <span key={text} className={styles.lineClip}>
+              <span
+                data-chapter-line
+                className={styles.chapterLine}
+                style={
+                  {
+                    display: "block",
+                    "--indent": `${indent}em`,
+                  } as React.CSSProperties
+                }
+              >
+                {text}
+              </span>
+            </span>
+          ))}
+        </h2>
+        <p className={styles.chapterBody} data-chapter-fade>
+          {chapter.body}
+        </p>
+        <p className={`caps-label ${styles.chapterCaption}`} data-chapter-fade>
+          {chapter.caption}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 export function WelcomeChapters() {
   const rootRef = useRef<HTMLDivElement>(null);
-
-  // The one stretch of Act 2 that is read rather than watched: four panels
-  // that pin, hold still, and turn a photograph over. The act around it keeps
-  // the cinematic weight — this claims the light one for its own length and
-  // hands it back at the far edge.
-  useScrollWeight(rootRef, "light");
 
   useEffect(() => {
     const root = rootRef.current;
@@ -1037,64 +1207,29 @@ export function WelcomeChapters() {
     registerArrivalEases();
 
     const ctx = gsap.context(() => {
-      const panels = gsap.utils.toArray<HTMLElement>(
+      const chapters = gsap.utils.toArray<HTMLElement>(
         `.${styles.chapter}`,
         root,
       );
-      const marks = panels.map(
-        (panel) => panel.querySelector<HTMLElement>("[data-chapter-mark]")!,
-      );
 
-      panels.forEach((panel, i) => {
-        // The panels are rendered from CHAPTERS in order, so position is the
-        // link back to the data the archetype and the flip are written in.
+      chapters.forEach((chapter, i) => {
+        // The chapters are rendered from CHAPTERS in order, so position is the
+        // link back to the data the archetype and the seams are written in.
         const data = CHAPTERS[i];
-        const mark = marks[i];
-        const next = marks[i + 1];
-        const tiles = gsap.utils.toArray<HTMLElement>(`.${styles.tile}`, panel);
+        const mark = chapter.querySelector<HTMLElement>("[data-chapter-mark]")!;
+        const at = (p: Travel) => travelPoint(mark, p);
 
-        // The panel's rise: from its top edge touching the bottom of the
-        // screen to the moment it lands and pins.
-        //
-        // Two scrubs come off it, and which one a tween takes is the rule in
-        // lenis-scroll-provider rather than a preference. The cover edge below
-        // shares a line with the panel it is cutting, so it has to sit exactly
-        // where the scroll says; a tile drifting inside the panel moves
-        // relative to the page and takes the second smoothing, so it trails
-        // the hand and is still settling after the panel has landed.
-        const rise = (scrub: number | true = true) =>
-          ({
-            trigger: mark,
-            start: "top bottom",
-            end: "top top",
-            scrub,
-          }) as const;
-        // Its dwell: from landing to the next panel's edge appearing, or, for
-        // the last one, to the act letting go. Both stretches of a panel's
-        // scroll are the reader's to drive, but they are driven differently:
-        // the rise is scrubbed hard because the covering edge is a physical
-        // relationship between two panels and cannot lag behind the panel it
-        // is cutting, while everything the dwell drives is a camera and glides.
-        const dwell = () =>
-          ({
-            trigger: mark,
-            start: "top top",
-            endTrigger: next ?? root,
-            end: next ? "top bottom" : "bottom bottom",
-            scrub: DWELL_SCRUB,
-          }) as const;
-
-        // The panel's arrival. Paused and played rather than fired by its own
-        // trigger, so leaving back over the landing edge can run the whole
-        // thing backwards: a chapter scrolled up past empties itself and fills
-        // again on the way down, which is the same grammar the flip run below
-        // has always used and the rest of the ride now keeps too. The reverse
-        // is three times the speed of the entrance — a block that leaves is
-        // leaving because the reader has already moved on.
+        // The chapter's arrival: the reading rising, the photographs settling
+        // out of an over-scale. Paused and played rather than scrubbed, so a
+        // block that is being read arrives on a clock and not on the wheel —
+        // and so leaving back over its landing point can run the whole thing
+        // backwards. The reverse is three times the speed of the entrance: a
+        // block that leaves is leaving because the reader has already moved
+        // on.
         const landing = gsap
           .timeline({ paused: true, defaults: { ease: EASE_ENTER } })
           .fromTo(
-            panel.querySelectorAll("[data-chapter-line]"),
+            chapter.querySelectorAll("[data-chapter-line]"),
             { yPercent: 115 },
             {
               yPercent: 0,
@@ -1105,7 +1240,7 @@ export function WelcomeChapters() {
           // The photographs settle out of an over-scale inside their own clip,
           // so nothing moves in the layout and nothing has to start hidden.
           .fromTo(
-            panel.querySelectorAll(`.${styles.tile} img`),
+            chapter.querySelectorAll(`.${styles.tile} img`),
             { scale: 1.09 },
             {
               scale: 1,
@@ -1115,7 +1250,7 @@ export function WelcomeChapters() {
             0,
           )
           .fromTo(
-            panel.querySelectorAll("[data-chapter-fade]"),
+            chapter.querySelectorAll("[data-chapter-fade]"),
             { autoAlpha: 0, y: 16 },
             {
               autoAlpha: 1,
@@ -1127,15 +1262,14 @@ export function WelcomeChapters() {
           );
 
         // The window's beats, in the order they land. Each is looked up rather
-        // than queried into the tweens above so a panel without one carries no
-        // empty tween; the panels either side of the window have none of them.
+        // than queried into the tweens above so a chapter without one carries
+        // no empty tween; the chapters either side of the window have none of
+        // them.
         //
         // First, the same settle the tiles make, at the slow cinematic length
-        // rather than the scene one, so it is still going after the panel has
-        // landed — and barely going, which is the point. On this panel it is
-        // also the parallax: the plate is behind a wall, so it drifts back into
-        // the cut rather than arriving flush with it.
-        const settling = panel.querySelector<HTMLElement>(
+        // rather than the scene one, so it is still going after the chapter
+        // has pinned — and barely going, which is the point.
+        const settling = chapter.querySelector<HTMLElement>(
           "[data-chapter-settle]",
         );
         if (settling) {
@@ -1147,13 +1281,12 @@ export function WelcomeChapters() {
           );
         }
 
-        // Then the reveal down the inside of the cut, once the panel and the
-        // reading are in. It starts lifted, which is the wall at its thinnest —
-        // the reveal layer sits directly under the cut and shows no band at all
-        // — and settles to where the band is fully open, so what the reader sees
-        // is the wall gaining its thickness. Late enough to be caught on a panel
-        // that has otherwise stopped, which is the whole of the beat.
-        const detail = panel.querySelector<HTMLElement>(
+        // Then the reveal down the inside of the cut, once the reading is in.
+        // It starts lifted, which is the wall at its thinnest, and settles to
+        // where the band is fully open, so what the reader sees is the wall
+        // gaining its thickness. Late enough to be caught on a screen that has
+        // otherwise stopped, which is the whole of the hold.
+        const detail = chapter.querySelector<HTMLElement>(
           "[data-chapter-detail]",
         );
         if (detail) {
@@ -1166,10 +1299,9 @@ export function WelcomeChapters() {
         }
 
         // Last, the marked facts: each is uncovered from its glyph outwards, so
-        // the ring draws and the caption follows it, one after another along the
-        // row. A clip rather than a set of faded parts — one property on one
-        // element, and the caption cannot arrive ahead of its mark.
-        const leaders = panel.querySelectorAll("[data-chapter-leader]");
+        // the ring draws and the caption follows it, one after another along
+        // the row.
+        const leaders = chapter.querySelectorAll("[data-chapter-leader]");
         if (leaders.length > 0) {
           landing.fromTo(
             leaders,
@@ -1183,125 +1315,205 @@ export function WelcomeChapters() {
           );
         }
 
-        // Built once the whole landing exists, so a panel entered on the first
-        // frame plays all of its beats and not just the ones declared above.
+        // Built once the whole landing exists, so a chapter entered on the
+        // first frame plays all of its beats and not just the ones declared
+        // above.
         ScrollTrigger.create({
           trigger: mark,
-          start: "top 70%",
+          start: at(data.landAt),
           onEnter: () => landing.timeScale(1).play(),
           onEnterBack: () => landing.timeScale(1).play(),
           onLeaveBack: () => landing.timeScale(DUR_ENTER / DUR_EXIT).reverse(),
         });
 
-        // Differential drift across the panel's rise, in the archetype's own
-        // order — which tile is the steady one is part of what tells the three
-        // compositions apart.
-        tiles.forEach((tile, t) => {
-          const lag = LAG[data.arch][t] ?? 0;
-          // A bled tile is pinned to the panel's edges and has none to give;
-          // skipped rather than tweened to zero so it does not carry a
-          // ScrollTrigger that recalculates on every resize to do nothing.
-          if (lag === 0) return;
-          gsap.fromTo(
-            tile,
-            { yPercent: lag },
-            { yPercent: 0, ease: "none", scrollTrigger: rise(SCRUB_DRIFT) },
-          );
-        });
-
-        // The push-in across the dwell, which is what keeps a pinned panel from
-        // being a still. Every archetype marks the one layer that is its
-        // picture rather than its frame — the photographs inside the tiles, the
-        // plate behind the window's cut, the two crops inside the table's
-        // apertures — so the composition holds the position it was drawn at and
-        // only what is seen through it closes. Marked in the JSX rather than
-        // selected by archetype here: which layer is the picture is a fact
-        // about how a panel is built, and it belongs beside the building.
-        //
-        // Linear, because a dolly is a constant rate. The seam eases; the
-        // camera carrying it does not, or the two curves beat against each
-        // other and the seam reads as though it were hesitating.
-        const pushed = panel.querySelectorAll("[data-chapter-push]");
-        if (pushed.length > 0) {
-          gsap.fromTo(
-            pushed,
-            { scale: 1 },
-            {
-              scale: 1 + PUSH_PER_SECOND * runEnd(data),
-              ease: "none",
-              scrollTrigger: dwell(),
-            },
-          );
-        }
-
-        // The flip run, drawn by the dwell. The seam is the reader's to pull
-        // across: scrolling down advances it, scrolling back up uncrosses it,
-        // and the end of the dwell is where the replacement stands fully
-        // revealed. Nothing here runs on a clock of its own — the only time in
-        // it is `DWELL_SCRUB`, which is the seam catching up to a reader who has
-        // already stopped, not a run playing itself out regardless of one.
-        //
-        // One timeline for the whole panel rather than one per tile, so a panel
-        // with more than one seam stays a sequence: 01's two share a single
-        // scale, and the circle closes after the frame has turned however the
-        // reader travels.
-        const flips = data.tiles.flatMap((tile, t) =>
-          tile.flip ? [{ flip: tile.flip, el: tiles[t] }] : [],
-        );
-
-        // One curve for all three tweens of a seam — the clip that uncovers the
-        // incoming photograph and the two that drift the photographs behind it
-        // — because they are one edge and any difference between their rates
+        // The seams, drawn by the reader across the chapter's passage. One
+        // timeline for the whole chapter rather than one per tile, placed on
+        // the chapter's own scale from its top edge appearing to its top edge
+        // a whole passage above the screen, so a chapter with more than one
+        // seam stays a sequence however the reader travels. One curve for all
+        // three tweens of a seam — the clip that uncovers the incoming
+        // photograph and the two that drift the photographs behind it —
+        // because they are one edge, and any difference between their rates
         // shows up as the seam sliding off the pictures it is cutting between.
+        const flips = tiled(data)
+          ? data.tiles.flatMap((tile) => (tile.flip ? [tile.flip] : []))
+          : [];
+        const seamed = chapter.querySelectorAll<HTMLElement>(
+          `.${styles.tile}[data-seam]`,
+        );
         if (flips.length > 0) {
+          const span = 1 + data.travel;
           const run = gsap.timeline({
             defaults: { ease: SEAM_EASE },
-            scrollTrigger: dwell(),
+            scrollTrigger: {
+              trigger: mark,
+              start: at(0),
+              end: at(span),
+              scrub: SEAM_SCRUB,
+              invalidateOnRefresh: true,
+            },
           });
-          for (const { flip, el } of flips) {
+          flips.forEach((flip, f) => {
+            const el = seamed[f];
             const incoming = el.querySelector<HTMLElement>(
               `.${styles.tileNext}`,
             )!;
             const outgoing = incoming.previousElementSibling!;
-            const { at, dur: duration } = flip;
+            const { at: start, dur: duration } = flip;
             const { from, axis, sign } = SEAM[flip.seam];
             run
               .fromTo(
                 incoming,
                 { clipPath: from },
                 { clipPath: "inset(0% 0% 0% 0%)", duration },
-                at,
+                start,
               )
               .fromTo(
                 incoming.querySelector("img"),
                 { [axis]: sign * FLIP_ENTER },
                 { [axis]: 0, duration },
-                at,
+                start,
               )
               .fromTo(
                 outgoing.querySelector("img"),
                 { [axis]: 0 },
                 { [axis]: sign * FLIP_EXIT, duration },
-                at,
+                start,
               );
-          }
+          });
+          // Holds the timeline open to the end of the passage, so a seam's
+          // position on the scale is its position on the scroll and not a
+          // share of however long the last seam happened to run.
+          run.to({}, { duration: Math.max(0, span - run.duration()) });
         }
 
-        // Covering the panel below. Its plate is occluded by this one outright,
-        // but its type sits above every plate — that is what keeps the gobo
-        // between the two — so it is clipped to this panel's top edge instead,
-        // which is the same straight line doing the covering.
-        const covered = panels[i - 1]?.querySelector<HTMLElement>(
-          `.${styles.panelType}`,
-        );
-        if (covered) {
+        // The table's wide opening, uncovered from the page's edge as the
+        // reader pulls it up. The seam sweeps out from the left, which is the
+        // edge the opening hangs off, and the photograph follows it in a
+        // little behind — the same grammar as a flip, on a plate arriving on a
+        // bare wall rather than replacing one.
+        const wide = chapter.querySelector<HTMLElement>("[data-table-wide]");
+        if (wide) {
+          const frame = wide.closest<HTMLElement>(`.${styles.tableWide}`)!;
+          gsap
+            .timeline({
+              defaults: { ease: SEAM_EASE, duration: TABLE_WIPE.dur },
+              scrollTrigger: {
+                trigger: mark,
+                start: at(TABLE_WIPE.at),
+                end: at(TABLE_WIPE.at + TABLE_WIPE.dur),
+                scrub: SEAM_SCRUB,
+                invalidateOnRefresh: true,
+              },
+            })
+            .fromTo(
+              frame,
+              { clipPath: TABLE_WIPE.from },
+              { clipPath: TABLE_WIPE.to },
+              0,
+            )
+            .fromTo(wide, { xPercent: -TABLE_WIDE_SLIDE }, { xPercent: 0 }, 0);
+        }
+
+        // The diptych's seam, dragged by the reader across the frame's
+        // passage. One custom property on the frame, read by both clips and
+        // the hairline, so the picture and the line turn over on the same
+        // edge; the two plates drift behind it in the flip grammar — the one
+        // being covered backing away, the one arriving following the seam in.
+        const diptych = chapter.querySelector<HTMLElement>("[data-diptych]");
+        if (diptych) {
+          gsap
+            .timeline({
+              defaults: { ease: SEAM_EASE, duration: DIPTYCH_SEAM.dur },
+              scrollTrigger: {
+                trigger: mark,
+                start: at(DIPTYCH_SEAM.at),
+                end: at(DIPTYCH_SEAM.at + DIPTYCH_SEAM.dur),
+                scrub: SEAM_SCRUB,
+                invalidateOnRefresh: true,
+              },
+            })
+            .fromTo(
+              diptych,
+              { "--seam": `${DIPTYCH_SEAM.from}%` },
+              { "--seam": `${DIPTYCH_SEAM.to}%` },
+              0,
+            )
+            .fromTo(
+              diptych.querySelector("[data-diptych-morning]"),
+              { xPercent: 0 },
+              { xPercent: -DIPTYCH_DRIFT },
+              0,
+            )
+            .fromTo(
+              diptych.querySelector("[data-diptych-evening]"),
+              { xPercent: DIPTYCH_DRIFT },
+              { xPercent: 0 },
+              0,
+            );
+        }
+
+        // The lens. A hole in the pause's mask, grown from nothing to past
+        // the screen's corners over the last stretch of the pin, easing in: a
+        // circle that opens at a constant rate reads as fastest at the start,
+        // when it is smallest, and what the moment wants is a coin that
+        // hesitates and then takes the screen. Scrubbed hard rather than
+        // followed — its edge is the seam between two chapters.
+        const pause = chapter.querySelector<HTMLElement>("[data-pause-lens]");
+        if (pause) {
           gsap.fromTo(
-            covered,
-            { clipPath: "inset(0% 0% 0% 0%)" },
+            pause.closest<HTMLElement>(`.${styles.panelType}`)!,
+            { "--lens": "0vmax" },
             {
-              clipPath: "inset(0% 0% 100% 0%)",
+              "--lens": LENS_OPEN,
+              ease: "power2.in",
+              scrollTrigger: {
+                trigger: mark,
+                start: at(PAUSE.lensAt),
+                end: at(PAUSE.lensEnd),
+                scrub: true,
+                invalidateOnRefresh: true,
+              },
+            },
+          );
+        }
+
+        // The bleed's ground: the wall carried back over the photograph where
+        // the words stand. It arrives with the reading rather than being
+        // there from the start — under the lens the plate is whole, and the
+        // dissolve is what the copy brings with it.
+        const ground = chapter.querySelector<HTMLElement>(
+          "[data-chapter-ground]",
+        );
+        if (ground) {
+          landing.fromTo(
+            ground,
+            { autoAlpha: 0 },
+            { autoAlpha: 1, duration: DUR_ENTER },
+            0,
+          );
+        }
+
+        // The hold's push-in, on the one chapter that holds. The window pins
+        // for a beat once its top reaches the top of the screen, and across
+        // that beat the plate behind the cut closes in — linear, because a
+        // dolly is a constant rate — so the held screen is a camera move
+        // rather than a still.
+        const pushed = chapter.querySelectorAll("[data-chapter-push]");
+        if (pushed.length > 0) {
+          gsap.fromTo(
+            pushed,
+            { scale: 1 },
+            {
+              scale: 1 + HOLD_PUSH,
               ease: "none",
-              scrollTrigger: rise(),
+              scrollTrigger: {
+                trigger: mark,
+                start: at(1),
+                end: at(data.travel),
+                scrub: SEAM_SCRUB,
+                invalidateOnRefresh: true,
+              },
             },
           );
         }
@@ -1317,21 +1529,20 @@ export function WelcomeChapters() {
           key={chapter.index}
           data-side={chapter.side}
           data-arch={chapter.arch}
-          // How many seams this panel has to fit. Derived rather than written
-          // down, so the two cannot drift — and present at zero, because it is
-          // also what the stylesheet selects a pinning panel on.
-          data-flips={chapter.tiles.filter((tile) => tile.flip).length}
           className={styles.chapter}
           style={
             {
               "--i": i,
-              // Seconds the flip run takes. The stylesheet turns it into the
-              // dwell at one pace for the whole act, and zeroes it where the
-              // panels do not pin at all.
-              "--run": runEnd(chapter),
+              // Viewport heights the chapter takes. The stylesheet turns it
+              // into the chapter's minimum height on a desktop, and lets the
+              // chapter take its own height where nothing needs the scale.
+              "--travel": chapter.travel,
             } as React.CSSProperties
           }
         >
+          {/* Zero height, in flow, at the chapter's top: what every scroll
+              range in the act is measured from, because the layers below may
+              be stuck somewhere else. */}
           <div data-chapter-mark className={styles.chapterMark} aria-hidden />
 
           <div className={`${styles.panel} ${styles.panelType}`}>
@@ -1340,131 +1551,56 @@ export function WelcomeChapters() {
                 {chapter.rail}
               </p>
 
-              {holds(chapter) ? (
-                chapter.arch === "table" ? (
-                  <TableComposition index={chapter.index} />
-                ) : (
-                  <WindowComposition index={chapter.index} />
-                )
+              {tiled(chapter) ? (
+                <ChapterReading chapter={chapter} />
+              ) : chapter.arch === "table" ? (
+                <TableComposition index={chapter.index} />
+              ) : chapter.arch === "window" ? (
+                <WindowComposition index={chapter.index} />
+              ) : chapter.arch === "diptych" ? (
+                <DiptychComposition index={chapter.index} />
               ) : (
-                <div className={styles.chapterText}>
-                  <p
-                    className={`caps-label ${styles.chapterIndex}`}
-                    data-chapter-fade
-                  >
-                    {chapter.index}
-                  </p>
-                  <h2 className={`font-display ${styles.chapterHead}`}>
-                    {chapter.lines.map(([text, indent]) => (
-                      <span key={text} className={styles.lineClip}>
-                        <span
-                          data-chapter-line
-                          className={styles.chapterLine}
-                          style={
-                            {
-                              display: "block",
-                              "--indent": `${indent}em`,
-                            } as React.CSSProperties
-                          }
-                        >
-                          {text}
-                        </span>
-                      </span>
-                    ))}
-                  </h2>
-                  <p className={styles.chapterBody} data-chapter-fade>
-                    {chapter.body}
-                  </p>
-                  <p
-                    className={`caps-label ${styles.chapterCaption}`}
-                    data-chapter-fade
-                  >
-                    {chapter.caption}
-                  </p>
-                </div>
+                <PauseComposition />
               )}
             </div>
           </div>
 
-          <div className={`${styles.panel} ${styles.panelPlate}`}>
-            <div className={styles.panelInner}>
-              {/* The aperture panels keep the plate as the wall that covers
-                  the panel below and nothing else: their composition is one
-                  grid of openings and reading, and the two layers here are two
-                  grids that only ever agree about a column width. It is drawn
-                  in the type layer — see the archetype blocks in the
-                  stylesheet. */}
-              {!holds(chapter) && (
+          {/* The photographs, under the gobo. The opening chapters draw
+              everything in the type layer — their composition is one grid of
+              openings and reading — and carry nothing here. */}
+          {tiled(chapter) && (
+            <div className={`${styles.panel} ${styles.panelPlate}`}>
+              {/* The portal's slab is the plate layer's own child rather
+                  than the stack's: it reaches the page's edge, and the leaf
+                  shadow falls across it the way it falls across the wall. */}
+              {chapter.arch === "portal" && (
+                <Slab index={chapter.index} edge="left" />
+              )}
+              <div className={styles.panelInner}>
                 <div className={styles.stack}>
-                  {/* The sheet the composition stands on, offset up and out
-                    behind the frame. Rendered ahead of the tiles because that
-                    is the order it paints in — every one of these is
-                    positioned, so DOM order is the z-scale inside the stack. */}
-                  {chapter.arch === "portal" && (
-                    <div
-                      className={`${styles.glass} ${styles.glassSheet}`}
-                      data-chapter-fade
-                      aria-hidden
-                    />
-                  )}
-
-                  {chapter.tiles.map(({ slot, image, flip }) => (
-                    <div
-                      key={slot}
-                      className={`${styles.tile} ${SLOT_CLASS[slot]}`}
-                      // Read by the stylesheet for the overscan the outgoing
-                      // photograph needs on the side it drifts away from.
-                      data-seam={flip?.seam}
-                    >
-                      {flip ? (
-                        <>
-                          <div
-                            className={`${styles.tileLayer} ${styles.tileCurrent}`}
-                          >
-                            <TileImage image={image} slot={slot} />
-                          </div>
-                          <div
-                            className={`${styles.tileLayer} ${styles.tileNext}`}
-                          >
-                            <TileImage image={flip.image} slot={slot} />
-                          </div>
-                        </>
-                      ) : (
-                        <TileImage image={image} slot={slot} />
-                      )}
-                    </div>
-                  ))}
-
-                  {/* And the sheet across its foot, which is the one that reads
-                    as glass: it is the only layer in the act with a
-                    photograph behind it to frost. */}
-                  {chapter.arch === "portal" && (
-                    <div
-                      className={`${styles.glass} ${styles.glassBand}`}
-                      data-chapter-fade
-                      aria-hidden
-                    />
-                  )}
-
-                  {/* The reading's ground on the bled panel. The dissolve gets
-                    the photograph most of the way out of the words' way; this
-                    settles the rest of it, and holds while the photograph
-                    turns over to a darker one halfway through the dwell. */}
-                  {chapter.arch === "bleed" && (
-                    <div
-                      className={styles.bleedHaze}
-                      data-chapter-fade
-                      aria-hidden
-                    />
+                  {chapter.arch === "portal" ? (
+                    <PortalStack tiles={chapter.tiles} />
+                  ) : (
+                    <>
+                      <Tile
+                        tile={chapter.tiles[0]}
+                        className={SLOT_CLASS.bleed}
+                      />
+                      {/* The reading's ground: the dissolve gets the
+                          photograph most of the way out of the words' way,
+                          and this settles the rest of it. Faded in with the
+                          reading — see the effect. */}
+                      <div
+                        className={styles.bleedHaze}
+                        data-chapter-ground
+                        aria-hidden
+                      />
+                    </>
                   )}
                 </div>
-              )}
+              </div>
             </div>
-          </div>
-
-          {/* Carries the dwell as flow height, and is how the capture script
-              measures it now that it is not the same for every chapter. */}
-          <div data-chapter-dwell className={styles.chapterDwell} aria-hidden />
+          )}
         </article>
       ))}
     </div>

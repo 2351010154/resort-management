@@ -35,7 +35,7 @@
      z-scale is written to hold that sandwich open — see the chapters block.
      Only works because nothing between here and .section makes its own
      stacking context. */
-  z-index: 5;
+  z-index: 20;
 }
 
 /* Pinned to the viewport for the length of the act: the window throwing the
@@ -78,7 +78,7 @@
 .copy {
   position: relative;
   /* Reading level: above the gobo, like every chapter's type. */
-  z-index: 6;
+  z-index: 21;
   text-align: center;
   padding: var(--space-3);
 }
@@ -139,132 +139,95 @@
     letter-spacing: 0.16em;
   }
 }
-
 /* ── Chapters ────────────────────────────────────────────────────────────────
-   Four ruled panels hanging off the welcome line, izanami "Philosophy"
-   composition: a vertical rail label, a ragged display line, and overlapping
-   photographs on the far side. Alternate panels mirror the whole arrangement,
-   and each one takes a different archetype for the photographs — see the
-   archetype blocks below.
+   Six ruled chapters hanging off the welcome line, izanami "Philosophy"
+   composition: a vertical rail label, a ragged display line, and photographs
+   on the far side. Alternate chapters mirror the whole arrangement, and each
+   one takes a different archetype for the photographs — see the archetype
+   blocks below. Two of them stand on a dark slab hanging off the page's edge
+   and one is dark to its own edges, so the passage has a value to jump to.
 
-   The panels stack: each one pins to the top of the viewport and the next
-   slides up over it. Each panel is therefore two overlaid sticky layers rather
-   than one — the plate (wall, ruled edge, photographs) and the type — because
-   sticky makes a stacking context, and one sticky panel would flatten both
-   sides of the gobo's sandwich into a single layer. The act paints in this
-   order:
+   The chapters are one continuous passage. Each is a block in flow, taller
+   than the screen by the travel its data asks for (`--travel`, in viewport
+   heights), and scrolls through like any other block. Nothing pins for
+   reading except the window, and that only for a beat; the pause pins
+   because its lens opens onto the chapter under it. What holds still holds
+   still with `position: sticky` inside its own cell, so it releases and
+   leaves with the page rather than being covered.
 
-     1 + i   panel plates
-     5       .goboWrap — the leaf shadow, multiplied
-     6 + i   panel type, and the welcome line alongside it
+   Each chapter is two overlaid layers rather than one — the plate (its
+   photographs) and the type — because the gobo has to fall between them:
+   the shadow crosses the wall and the photographs and stops short of the
+   reading. The act paints in this order:
 
-   so the shadow still crosses the wall and the photographs and still stops
-   short of the reading. Nothing between .section and a layer may make a
-   stacking context: keep .chapters and .chapter free of z-index, transform,
-   filter, and sticky or fixed positioning.
+     1 + i   chapter plates
+     20      .goboWrap — the leaf shadow, multiplied
+     21 + i  chapter type, and the welcome line alongside it
+     30      the pause's stage, which covers the bleed's type under its lens
 
-   What the split costs: a plate cannot occlude the type of the panel it is
-   covering, since every type sits above every plate. That type is clipped to
-   the incoming plate's top edge instead (welcome-chapters.tsx) — the same
-   straight edge, arrived at the other way round. */
+   The layers are grid items sharing one cell, and a grid item takes a
+   z-index without being positioned. Nothing between .section and a layer may
+   make a stacking context: keep .chapters and .chapter free of z-index,
+   transform, filter, and sticky or fixed positioning. */
 .chapters {
   position: relative;
   /* The measure's own margin, and the figure any layer that wants to reach the
      page edge from inside it bleeds by. */
   --gutter: clamp(1.25rem, 4vw, 4.5rem);
-  /* Scroll a panel holds still for after it lands and before the next one
-     covers it. The reveal finishes here, and the tile flips are fired by the
-     landing and play out inside it.
-
-     Scroll bought per second of that run. The seams are written on a clock
-     (`at` and `dur` in welcome-chapters.tsx) and the act converts that clock
-     into distance once, here, so every panel derives its own hold from the run
-     it actually has (`--run`, set in the same file) and a second of run means
-     the same wheel on all of them.
-
-     24vh a second was the rate while a pinned panel was motionless under its
-     seam, and the figure was held down by that: scroll spent on a still is
-     scroll a reader is only getting through. It is not a still now — every
-     panel dollies across its own hold — so the hold is worth more, and it is
-     bought at the rate the seams themselves want, which is the one that lets an
-     edge cross a whole screen slowly enough to be watched crossing. */
-  --dwell-pace: 40vh;
+  /* Where a block that holds still sits while it holds — the rail, and a
+     tiled chapter's reading. In vh, because it is a place on the screen. */
+  --hold-top: 24vh;
 }
 
-/* No box of its own: the layers take their sticky containing block from
-   .chapters, or each panel would unpin at the end of its own article instead
-   of holding until the next panel has covered it. */
+/* The two layers share the one cell, so the chapter is as tall as the taller
+   of them and never shorter than its travel. `min-height` rather than
+   `height`: a short window or a long reading is allowed to push a chapter
+   past its budget rather than out of its own box. */
 .chapter {
-  display: contents;
+  display: grid;
+  min-height: calc(var(--travel) * 100vh);
 }
 
-/* Each panel holds for as long as its own run asks and no longer. 04 climbs to
-   its largest change last and is the longest hold in the act because it earns
-   it — not because the four were sorted into buckets by tile count. 02 and 03
-   turn nothing over and spend their hold being read; `--run` carries either,
-   so the exchange rate below is written once. */
-.chapter[data-flips] {
-  --dwell: calc(var(--run) * var(--dwell-pace));
-}
-
-/* Zero height, in flow, at the panel's static top. The layers are sticky, so
-   their rects report where they are stuck rather than where the panel belongs;
-   every ScrollTrigger in the act measures this instead. */
+/* Zero height, in flow, at the chapter's static top. The layers below may be
+   stuck somewhere else; every ScrollTrigger in the act measures this instead. */
 .chapterMark {
+  grid-area: 1 / 1;
+  align-self: start;
   height: 0;
 }
 
-/* The dwell, held open as flow rather than as a margin on a layer. A sticky box
-   is kept off the foot of its containing block by its own bottom margin, so a
-   margin on the plate alone would release it a dwell before its type and tear
-   the panel in half on the way into Act 3. */
-.chapterDwell {
-  height: var(--dwell);
-}
-
 .panel {
-  position: sticky;
-  top: 0;
-  height: 100vh;
+  grid-area: 1 / 1;
+  min-width: 0;
 }
 
 .panelPlate {
   z-index: calc(1 + var(--i));
-  /* Lifted onto the type layer it follows in the flow — the two are one panel. */
-  margin-top: -100vh;
-  background: var(--ivory-warm);
-  /* The rule between chapters, now also the panel's leading edge: the same
-     hairline, sweeping up over the panel it covers. */
+}
+
+/* The rule between chapters. On the type layer so it stands over any
+   photograph that has strayed up from the chapter below — the same hairline
+   the index and the caption carry, the width of the page. */
+.panelType {
+  z-index: calc(21 + var(--i));
   border-top: 1px solid rgb(var(--stone-deep-rgb) / 0.18);
 }
 
-.panelType {
-  z-index: calc(6 + var(--i));
-}
+/* The composition, held to the act's measure inside a full-bleed layer.
 
-/* The composition itself, held to the act's measure inside a full-bleed layer
-   so the plate's wall covers the previous panel edge to edge.
-
-   Must stay unpositioned. The bled archetype's stack is taken out of this grid
-   and positioned against the panel instead, which only reaches the panel while
-   nothing between the two is a containing block.
+   Must stay unpositioned. Nothing here is absolute against it any more, but
+   a position would give the sticky blocks inside it a containing block
+   short of the one they are sized against.
 
    The photographs take exactly the width their archetype asked for and the
-   reading takes the rest, and that is the whole of the fix for a composition
-   that used to sit small inside its own panel. A fraction gave the stack a
-   column that had nothing to do with what would go in it: a stack is sized off
-   the panel's height — a pinned panel is exactly one viewport, and a tall
-   photograph in it runs out of height long before it runs out of width — so a
-   `1.05fr` column left 150px of nothing between the picture and the page edge
-   on a 1440 wall, and more on a shorter one.
-
-   The track reads `--stack-w`, the same figure the stack sets its own width
-   from, because the plate and the type are two separate grids that have to
-   agree. Sizing the track to its contents instead would have collapsed it to
-   nothing in the type layer, which holds no photographs — and on a mirrored
-   panel, where the photographs take the first column, that puts the reading on
-   top of them. Nothing is set for the bled archetype, which has no column: the
-   fallback is the whole point of the fallback. */
+   reading takes the rest. The track reads `--stack-w`, the same figure the
+   stack sets its own width from, because the plate and the type are two
+   separate grids that have to agree. Sizing the track to its contents
+   instead would have collapsed it to nothing in the type layer, which holds
+   no photographs — and on a mirrored chapter, where the photographs take the
+   first column, that puts the reading on top of them. Nothing is set for the
+   bled archetype, which has no column: the fallback is the whole point of the
+   fallback. */
 .panelInner {
   height: 100%;
   max-width: 1560px;
@@ -273,28 +236,29 @@
   display: grid;
   grid-template-columns: 3rem minmax(0, 1fr) var(--stack-w, 0px);
   column-gap: clamp(1.5rem, 3.4vw, 4rem);
-  align-items: center;
-  /* Tighter than the act's usual block rhythm, and deliberately: this padding
-     is subtracted from the height the compositions size themselves off, so
-     every rem of it is nearly two off the photograph. */
-  padding-block: clamp(2rem, 5vh, 3.5rem);
+  align-items: start;
 }
 
 .chapter[data-side="left"] .panelInner {
   grid-template-columns: var(--stack-w, 0px) minmax(0, 1fr) 3rem;
 }
 
-/* Every child is pinned to row 1. Without it the mirrored panel breaks into
+/* Every child is pinned to row 1. Without it the mirrored chapter breaks into
    three rows: auto-placement will not walk back to an earlier column, and the
    mirror puts the rail (first in the DOM) in the last one. */
 .panelInner > * {
   grid-row: 1;
 }
 
-/* Vertical caps label, always on the outer edge beside the type. */
+/* Vertical caps label, always on the outer edge beside the type. Its cell is
+   the whole chapter, so it holds at the same height for the chapter's whole
+   passage: the one thing on the wall that says which chapter this still is
+   while the rest of it moves. */
 .chapterRail {
   grid-column: 1;
   align-self: start;
+  position: sticky;
+  top: var(--hold-top);
   writing-mode: vertical-rl;
   color: var(--stone);
   font-size: 0.625rem;
@@ -306,8 +270,27 @@
   grid-column: 3;
 }
 
+/* The reading of a tiled chapter, and how long it holds. The cell is one
+   screen tall (`--hold-cell`) inside a chapter that is taller, and the block
+   inside it sticks at the hold height: it arrives at the page's pace, stops
+   where it can be read while the photographs go on passing, and is released
+   when its own cell has scrolled through — before the picture has, so the
+   last of the chapter is the photograph alone. Its padding is the same figure
+   as the stick point, so the block stops rather than jumping to it. */
 .chapterText {
   grid-column: 2;
+  align-self: start;
+  box-sizing: border-box;
+  height: calc(var(--hold-cell, 1) * 100vh);
+  /* `--hold-lead` is the screens a chapter spends hidden under the one
+     before it (the bleed, under the pause's lens); the reading is pushed
+     down by it so it lands once the chapter is seen. */
+  padding-top: calc(var(--hold-lead, 0px) + var(--hold-top));
+}
+
+.chapterHold {
+  position: sticky;
+  top: var(--hold-top);
 }
 
 .chapterIndex {
@@ -326,10 +309,9 @@
   opacity: 0.5;
 }
 
-/* Up a step with the photographs. The head is the only thing on the reading
-   side with any mass to it, and against a composition that now fills the panel
-   the old size read as a caption to the picture rather than the other half of
-   the frame. */
+/* The head is the only thing on the reading side with any mass to it, and
+   against a composition that fills its column the size has to be the other
+   half of the frame rather than a caption to the picture. */
 .chapterHead {
   font-size: clamp(2.25rem, 4.6vw, 4.35rem);
   /* The clip's 1.20 floor again — see .lineClip. */
@@ -350,12 +332,8 @@
 
 /* The one block of running prose in the act, and it stays in the mono — the tracked
    caps and the fixed pitch against a Garamond are the house's voice, not an
-   oversight. What was wrong was the measure. `ch` is the advance of "0", so in a
-   proportional face 33ch is comfortably more than 33 characters; in a fixed-pitch
-   one it is exactly 33, well under the 45 a line wants before it starts costing the
-   reader a return sweep. The 1.9 leading was paying for that — an over-open line
-   compensating for an over-short one. Widening the measure to 46 characters lets the
-   leading come back down to something the paragraph actually wants.
+   oversight. `ch` is the advance of "0", so in a fixed-pitch face 46ch is exactly
+   46 characters, which is where a line stops costing the reader a return sweep.
 
    The column it sits in is `minmax(0, 1fr)`, so this only caps; at narrower widths
    the block takes what the grid gives it. */
@@ -385,23 +363,15 @@
 
 /* The stack: the frame the tiles are positioned inside, never a box that shows.
    Each archetype below sets its own proportions, and its tiles hang off those
-   edges with logical insets, so a mirrored panel needs one direction flip
+   edges with logical insets, so a mirrored chapter needs one direction flip
    rather than a second set of coordinates.
 
-   The vh term in each width is the panel's doing, and is what actually sizes
-   the composition on a desktop: a stacked panel is exactly one viewport, so a
-   frame that is taller than it is wide runs out of height first, and every
-   archetype's width is really its height budget divided by its own ratio. The
-   rem term is only the ceiling on a tall window.
-
-   Both are set on the chapter rather than on the stack, because the panel's
-   grid track is the same figure (see `.panelInner`) and a stack that disagreed
-   with its own column would leave the slack the column was sized to remove.
-
-   No percentage term in the desktop widths: they are grid track sizes as well
-   as element widths, and a track cannot be a percentage of a row it is sizing.
-   `max-width` covers overflow instead, and only bites in the single-column
-   layouts at the foot of this file. */
+   Sized off the viewport as well as in rem, and the vh term is the one that
+   holds on most screens: a composition that is taller than it is wide is
+   allowed to be about nine tenths of a screen tall at any viewport height, so
+   its foot lands where the next chapter's opening is pulled up to meet it (see
+   the table's negative margin). Set on the chapter rather than on the stack,
+   because the grid track is the same figure (see `.panelInner`). */
 .stack {
   grid-column: 3;
   position: relative;
@@ -409,6 +379,7 @@
   width: var(--stack-w, min(30rem, 60vh));
   max-width: 100%;
   margin-inline-start: auto;
+  margin-top: var(--stack-top, 0);
 }
 
 .chapter[data-side="left"] .stack {
@@ -419,35 +390,35 @@
 .tile {
   position: absolute;
   overflow: hidden;
-  box-shadow: 0 18px 46px rgb(var(--ink-rgb) / 0.16);
-  will-change: transform;
 }
 
-/* What the dwell's push-in scales, one per photograph. Fills the tile exactly,
-   so it is transparent to everything else in here: the seam layers inside it
-   keep measuring their overscan against the same box they always did, and the
-   tile's own clip is what stops the push growing past the frame. */
-.tilePush {
-  position: absolute;
+/* A tile inside a frame that moves it: fills the box it is given. */
+.tileFill {
   inset: 0;
-  display: block;
+}
+
+/* The circle's tile: fills its round wrapper and is cut round itself, so the
+   seam layers inside are clipped to the circle and not to a square. */
+.tileRound {
+  inset: 0;
+  border-radius: 50%;
 }
 
 .tile img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  /* Settles out of a slight over-scale as the panel arrives; the tile clips
+  /* Settles out of a slight over-scale as the chapter arrives; the tile clips
      it, so there is no layout move and nothing to hide before JS runs. */
   will-change: transform;
 }
 
 /* A flipping tile holds two photographs, one over the other; the seam sweeps
-   down the tile and the layers travel at different rates behind it
-   (welcome-chapters.tsx). */
-/* The seam is cut on the layer and the travel runs on the photograph inside
-   it: an inset() is measured against the box it sits on, so clipping and
-   moving the same element would drag the seam along with the picture. */
+   across the tile and the layers travel at different rates behind it
+   (welcome-chapters.tsx). The seam is cut on the layer and the travel runs on
+   the photograph inside it: an inset() is measured against the box it sits on,
+   so clipping and moving the same element would drag the seam along with the
+   picture. */
 .tileLayer {
   position: absolute;
   inset: 0;
@@ -457,7 +428,7 @@
    photograph drifts away from: it pushes back against the seam, and without the
    overrun it would uncover that edge of the tile on its way. The tile clips the
    surplus. Physical sides, like the travel itself — a transform is not mirrored
-   by the `direction: rtl` that flips a left-side panel. */
+   by the `direction: rtl` that flips a left-side chapter. */
 .tileCurrent {
   bottom: -14%;
 }
@@ -485,49 +456,168 @@
   will-change: clip-path;
 }
 
-/* The archetypes, selected on `data-arch`. Three panels of one composition at
-   slightly different percentages read as a template — a panel pins for a whole
-   viewport, which is long enough for the eye to find the frame, the satellite,
-   and the corner exactly where they were — so no two share a silhouette: the
+/* The archetypes, selected on `data-arch`. No two share a silhouette: the
    tile count, the shapes, the overlap, and, for the last one, whether the
    composition is inside the measure at all.
 
    Widths are shares of the stack; `top`/`bottom` are shares of its height, so a
    tile's own aspect-ratio and the stack's are what set the vertical figures.
    Every tile ratio is matched to its photograph's native one (the manifest runs
-   0.76, 1.00, and 1.62), since the tiles cover rather than contain. */
+   0.76, 1.00, and 1.62), since the tiles cover rather than contain.
 
-/* A — portal (01). A tall frame inset from the top of the stack, a circle in a
-   brass ring rising into the room that inset leaves, and two sheets of glass —
-   one standing behind the frame and offset out past it, one crossing its foot.
-   The act's establishing composition.
+   The slot rules are written under `.stack` so they outrank the vocabulary's
+   own drift classes, which the wrappers also carry. */
+
+/* A — portal (01). An ink slab hanging off the page's left edge, a tall
+   frame inset from the top of the stack and standing across the slab's right
+   edge — most of it on the dark, the rest on the wall — and a circle in a
+   brass ring rising into the room the inset leaves, over the dark. The act's
+   establishing composition, and the first place it shows a dark value.
 
    The stack is the whole arrangement, not the photograph: the frame starts 12%
-   down it, and that 12% is what the circle breaks up into. Sizing the stack to
-   the frame instead put the circle above the panel's top edge, where the plate
-   stops and the hairline that leads it runs. */
+   down it, and that 12% is what the circle breaks up into. It stands a fifth of
+   a screen below the chapter's rule, so the reading beside it opens the
+   chapter. The slab starts a tenth of a screen down and runs past the foot of
+   the frame, so the frame reads as standing on it rather than hung on it. */
 .chapter[data-arch="portal"] {
   --stack-ar: 4 / 5.6;
-  --stack-w: min(34rem, 58vh);
+  --stack-w: min(36rem, 64vh);
+  --stack-top: 20vh;
+  --hold-cell: 1;
+  /* How much of the stack's width the slab reaches under, from the page's
+     edge. Enough that the frame is on the dark by more than half, and the
+     circle, at the stack's inner top corner, wholly. */
+  --slab-reach: 0.62;
 }
 
-.slotFrame {
+/* The reading takes the right of the page, hard against the rail. Its column
+   is what is left after the stack, and a block set at the start of it stands
+   in the middle of the wall with a quarter-screen of empty ivory beyond it —
+   which reads as a column that stopped short rather than as the composition's
+   other side. The two chapters under this one both read at the left, so this
+   one is the act's right-hand reading and has to look chosen.
+
+   Shrink-wrapped rather than given a width: the ragged display line and the
+   prose under it both stop at their own measure (the body's `46ch`), and only
+   a box the width of the widest of them puts the two on one right edge. */
+.chapter[data-arch="portal"] .chapterText {
+  justify-self: end;
+  width: max-content;
+  max-width: 100%;
+}
+
+/* The slab's containing block. The plate layer is a grid item with a z-index
+   already, so positioning it makes no new stacking context — it is the one
+   layer under the gobo that spans the page, which is what a slab that has to
+   reach the page's edge needs. */
+.chapter[data-arch="portal"] .panelPlate {
+  position: relative;
+}
+
+/* The slab: a block of ink off one edge of the page, taller than the
+   screen. Its width is measured from the page's edge to a point inside the
+   composition: the run from the edge to the measure (nothing on a narrow
+   screen, the centring on a wide one), the gutter, and the reach into the
+   stack — so the frame overhangs it by the same share at every width. The
+   drift inside is what moves; this wrapper only places. */
+.slab {
+  position: absolute;
+  top: 10vh;
+  height: 120vh;
+  width: calc(
+    max(0px, (100vw - 1560px) / 2) +
+    var(--gutter) +
+    var(--stack-w) *
+    var(--slab-reach)
+  );
+  pointer-events: none;
+}
+
+.slab[data-edge="left"] {
+  left: 0;
+}
+
+.slab[data-edge="right"] {
+  right: 0;
+}
+
+/* Ink, not umber. Umber is the palette's warm brown and against this act's
+   ivory wall it resolves as a grey card rather than as a dark value — the
+   slab has to be the darkest thing on the page for the frame standing on it
+   to have anything to stand against, and it is the same ink the pause's
+   screen is painted in, so the act has one dark and not two. */
+.slabFace {
+  position: absolute;
+  inset: 0;
+  background: var(--ink);
+}
+
+/* The chapter's number on the slab, on a vertical rule — the reference's
+   page number on its dark block. Halfway across the gutter: the frame that
+   overhangs the slab starts at the measure's edge, one gutter in, and a rule
+   standing there puts the number's second digit under the photograph. */
+.slabRule {
+  position: absolute;
+  top: 12%;
+  bottom: 12%;
+  inset-inline-start: max(1rem, var(--gutter) * 0.5);
+  width: 1px;
+  background: linear-gradient(
+    180deg,
+    transparent,
+    rgb(var(--ivory-rgb) / 0.35) 12%,
+    rgb(var(--ivory-rgb) / 0.35) 88%,
+    transparent
+  );
+}
+
+.slab[data-edge="right"] .slabRule {
+  inset-inline-start: auto;
+  inset-inline-end: max(1rem, var(--gutter) * 0.5);
+}
+
+/* The number sits on the rule, at its middle, on a patch of the slab's own
+   tone so the line breaks for it. */
+.slabIndex {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding-block: 0.75rem;
+  background: var(--ink);
+  color: var(--sand);
+  font-size: 0.625rem;
+  letter-spacing: 0.24em;
+  font-variant-numeric: lining-nums tabular-nums;
+  /* The rule it sits on is a pixel wide; without this the two digits stack. */
+  white-space: nowrap;
+}
+
+/* The frame is the vocabulary's drift window: it holds its place in the stack
+   while the photograph inside it lags the page by a little. */
+.stack .slotFrame {
+  position: absolute;
   z-index: 1;
   top: 12%;
   bottom: 0;
   inset-inline: 0;
+  box-shadow: 0 18px 46px rgb(var(--ink-rgb) / 0.16);
 }
 
-.slotPortal {
+/* The circle leads the page — the quickest thing in the act — and is lifted
+   further off the wall than the frame it breaks over: it is the one tile with
+   nothing behind it on two of its sides. At the stack's inner top corner,
+   which on the mirrored chapter is the corner over the slab: a brass ring on
+   the dark is the composition's one point of light. */
+.stack .slotPortal {
+  position: absolute;
   z-index: 3;
   top: 0;
   inset-inline-end: 8%;
   width: 36%;
   aspect-ratio: 1;
   border-radius: 50%;
-  /* Lifted further off the wall than the frame it breaks over — it is the one
-     tile in the act with nothing behind it on two of its sides. */
-  box-shadow: 0 22px 48px rgb(var(--ink-rgb) / 0.22);
+  box-shadow: 0 22px 48px rgb(var(--ink-rgb) / 0.32);
 }
 
 /* The ring. Brushed rather than flat: a conic sweep around the palette's brass
@@ -561,107 +651,40 @@
   mask-image: radial-gradient(closest-side, transparent 0 85%, var(--ink) 87%);
 }
 
-/* The two sheets. Not photographs and not the wall: panes of the same glass the
-   ring is set into, one standing the composition on something and one laid
-   across its foot. What they are for is depth — the frame was a rectangle lying
-   flat on a flat wall, and at every size that was tried it stayed one. */
-.glass {
-  position: absolute;
-  pointer-events: none;
-  border: 1px solid rgb(var(--ivory-rgb) / 0.5);
-}
+/* B — the table (02). The one chapter with no stack in it. Instead of tiles
+   hung on the wall it takes the arrival's own aperture — the arch-topped
+   opening Act 1 cuts with the monogram lens — at two crops: a wide one across
+   the top of the chapter, stopping short of the right margin, and a tall one
+   at the right riding up into the room the wide one left. The reading sits
+   under the wide opening's left half rather than in a column beside a picture,
+   which is the whole of what keeps the second chapter from reading as A
+   mirrored.
 
-.glassSheet {
-  z-index: 0;
-  top: 5%;
-  /* Past the foot of the frame, not level with it. Stopping short read as a
-     panel that had been cut to fit behind the photograph; overrunning reads as
-     the thing the photograph is standing on, which is what it is for. */
-  bottom: -4%;
-  inset-inline-start: -11%;
-  inset-inline-end: 7%;
-  background: linear-gradient(
-    150deg,
-    rgb(var(--ivory-rgb) / 0.62),
-    rgb(var(--ivory-rgb) / 0.14) 62%,
-    rgb(var(--stone-deep-rgb) / 0.06)
-  );
-  box-shadow: 0 24px 60px rgb(var(--ink-rgb) / 0.07);
-}
+   Laid out by the chapter's own grid rather than by a positioned stack, and
+   drawn entirely in the type layer: a composition whose opening and reading
+   share rows needs the row heights to agree, and a row sized by a photograph
+   in one layer is a row sized by nothing in the other. What it costs: the gobo
+   multiplies between the two layers, so the leaf shadow does not fall across
+   these two openings the way it falls across the tiles. That is the right side
+   of the trade — an aperture is a hole cut in the house, not a photograph
+   hanging on the wall the light is raking.
 
-/* The one that reads as glass rather than as paper, because it is the only
-   layer in the act with a photograph behind it to frost. Runs out past the
-   frame on the reading side so the blur is seen starting and stopping.
-
-   Everything here is set to keep it from reading as a card laid on the
-   photograph, which is what it was at first pass: it sat a third of the way up
-   the frame with a drop shadow under it, and a lit rectangle with a shadow is
-   an object rather than a surface. It is down at the foot now, shallower, and
-   casts nothing.
-
-   The tint is doing more than it looks like it should have to, and the blur is
-   why. Frosted glass shows whatever is behind it averaged, and what is behind
-   this is the foot of a bed — white linen over dark timber over floor — which
-   averages to mud. A thinner tint was the honest number and the wrong one: the
-   band has to read as lit rather than as a smear, so it carries enough ivory
-   to sit above the darkest thing it crosses. Desaturating it turned the cedar
-   grey as well, so it lifts the saturation instead of dropping it. */
-.glassBand {
-  z-index: 4;
-  bottom: 2%;
-  height: 9%;
-  inset-inline-start: -11%;
-  inset-inline-end: -2%;
-  background: rgb(var(--ivory-rgb) / 0.38);
-  backdrop-filter: blur(24px) saturate(1.08);
-}
-
-/* B — the table (02). The one panel with no stack in it. Instead of tiles hung
-   on the wall it takes the arrival's own aperture — the arch-topped opening Act
-   1 cuts with the monogram lens — at two crops of one room: a wide one across
-   the top of the panel, stopping short of the right margin, and a tall one at
-   the right riding up into the room the wide one left. The reading sits under
-   the wide opening's left half rather than in a column beside a picture, which
-   is the whole of what keeps the middle panel from reading as A mirrored.
-
-   Laid out by the panel's own grid rather than by a positioned stack, and drawn
-   entirely in the type layer. The plate and the type are two separate grids
-   that agree only because the stack's width is one figure both of them read
-   (see `.panelInner`); a composition whose opening and reading share rows would
-   need the row heights to agree as well, and a row sized by a photograph in one
-   layer is a row sized by nothing in the other. The plate stays behind this as
-   the wall that covers the panel below.
-
-   What it costs: the gobo multiplies between the two layers, so the leaf shadow
-   does not fall across these two openings the way it falls across the tiles.
-   That is the right side of the trade here — an aperture is a hole cut in the
-   house, not a photograph hanging on the wall the light is raking. */
-.chapter[data-arch="table"] {
-  /* The donor block this composition comes from is a whole section, free to be
-     as tall as its picture. A pinned panel is exactly one viewport, and a 16:9
-     opening spanning the measure on a 1440 wall is over half of it — so the
-     wide opening takes its height from the panel and crops to it rather than
-     pushing the reading off the foot of the screen. The rem term is the ceiling
-     on a tall window, where the vh figure would outrun the picture. */
-  --table-wide-h: min(44vh, 28rem);
-}
-
+   Starts under its own rule, with a screen's tenth of wall before the opening.
+   It used to be pulled up into the foot of the portal so the opening peeked
+   under the room; with the room standing on a slab that runs to the foot of
+   its chapter, the two compositions collided, and a wide arch pressed against
+   a dark block is two ideas in one place. */
 .chapter[data-arch="table"] .panelInner {
   /* The donor's proportions: the reading a little wider than the column the
      tall opening stands in. The rail keeps the third track, on the outer edge
-     like every other panel's. */
+     like every other chapter's. */
   grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr) 3rem;
   grid-template-rows: auto auto;
   column-gap: var(--space-4);
-  /* In vh with the opening above it: everything in this panel that can be paid
-     for out of the panel's own height is, so a shorter window takes the gap and
-     the crop down together instead of running the reading off the foot. */
   row-gap: clamp(1.25rem, 3.5vh, 2rem);
-  /* Rows sized by their contents and the pair of them centred in the panel, so
-     the composition sits in the middle of the screen however much of the note
-     wraps at a given width. */
   align-items: start;
-  align-content: center;
+  align-content: start;
+  padding-top: 10vh;
 }
 
 .chapter[data-arch="table"] .tableWide {
@@ -671,14 +694,17 @@
      up into. The two frames overlap in the eye without ever overlapping on the
      grid. */
   margin-right: var(--space-5);
-  /* The height is set and the aspect given up, rather than the crop being
-     capped with a `max-height`. A frame that keeps its ratio and has its height
-     clamped does not stay the width of the column it was stretched into — it
-     gives the width back to the ratio and leaves half the panel empty. The
-     opening is a hole of the panel's own proportion here; the photograph behind
-     it covers, which is what the aspect was ever for. */
-  aspect-ratio: auto;
-  height: var(--table-wide-h);
+  /* The reader's own travel draws it — see the wipe in welcome-chapters.tsx.
+     Parked fully hidden behind the seam so nothing flashes before the effect
+     takes it over; the clip reaches past the frame on the other three sides so
+     the keyline standing off the opening is drawn along with it. */
+  will-change: clip-path;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .chapter[data-arch="table"] .tableWide {
+    clip-path: inset(-1rem 100% -1rem -1rem);
+  }
 }
 
 .chapter[data-arch="table"] .tableCopy {
@@ -698,7 +724,9 @@
 }
 
 /* Pulled up into the margin the wide opening left, and held to the width of its
-   own column so the two arches stand in the same column of air. */
+   own column so the two arches stand in the same column of air. The wrapper is
+   the vocabulary's drift, leading the page: the small detail crossing quicker
+   while the wide opening above it keeps the page's own pace. */
 .chapter[data-arch="table"] .tableTall {
   grid-row: 2;
   grid-column: 2;
@@ -771,26 +799,24 @@
    carved into a wall thick enough to have a reveal, with the reading and three
    marked facts on the far side of it.
 
-   The counter-beat between the widest composition in the act and the one that
-   fills the screen. Two earlier drafts made it the counter-beat by being small,
-   and a small rectangle between two large ones reads as a panel that is missing
-   something rather than as a pause. This one is the counter-beat by being a
-   different kind of hole: the arch is the arrival's permanent grammar and every
-   other opening in the act is a crop of it, and this is the one place the house
-   cuts its own mark instead. The picture stays well inside its wall on all four
-   sides, so what the panel is carried by is the shape of the cut.
+   The act's one hold. The layer is a screen tall and sticks at the top of the
+   viewport until the chapter's own travel has passed under it, then scrolls
+   away like any other block: a beat of stillness between two passages, spent
+   on the one composition in the act that shows something — a wall gaining its
+   thickness — that cannot be seen on a thing that is moving. Sticky on the
+   layer itself; it makes a stacking context, which a layer already has.
 
-   Built the way the table is — opening and reading as children of the panel's
-   own grid, drawn entirely in the type layer, the plate behind it as the wall
-   that covers the panel below — and for the same reason (see B). The reading
-   takes the right of the wall, mirroring the reference, because 02 reads at the
-   left and two panels reading down the same column is the same panel twice; the
-   rail follows the reading to the outer edge on that side.
+   Built the way the table is — opening and reading as children of the
+   chapter's own grid, drawn entirely in the type layer — and for the same
+   reason (see B). The reading takes the right of the wall, mirroring the
+   reference, because 02 reads at the left and two chapters reading down the
+   same column in a row is the same chapter twice; the rail follows the reading
+   to the outer edge on that side.
 
-   Sized off the panel's height like the table's opening, and capped by the
-   column's width, so the composition fits both a short window and a narrow one
-   without either dimension being the only one that counts. The rem term is the
-   ceiling on a tall window. */
+   Sized off the screen's height like the table's opening used to be, and
+   capped by the column's width, so the composition fits both a short window
+   and a narrow one without either dimension being the only one that counts.
+   The rem term is the ceiling on a tall window. */
 .chapter[data-arch="window"] {
   --window-h: min(60vh, 32rem);
   /* The plaster seen edge-on down the inside of the cut. Two steps towards the
@@ -814,6 +840,13 @@
   --window-depth: clamp(7px, 1.05vw, 15px);
 }
 
+.chapter[data-arch="window"] .panelType {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+}
+
 .chapter[data-arch="window"] .panelInner {
   /* The reference's proportions: the opening across roughly the leading
      two-thirds, the reading in the last third, and the rail in its own track
@@ -822,12 +855,19 @@
   column-gap: clamp(1.5rem, 3.2vw, 3.5rem);
   align-items: center;
   align-content: center;
+  padding-block: clamp(2rem, 5vh, 3.5rem);
+}
+
+/* The rail on the held chapter sits where the composition does rather than
+   at the hold height: the whole layer is what holds. */
+.chapter[data-arch="window"] .chapterRail {
+  position: static;
 }
 
 /* The opening. Everything inside it is absolute against this box, and the box
    clips: the wall carries a `drop-shadow`, which falls outward from its own
    rectangle as well as inward from the cut, and the outward half has no business
-   on the panel. What is left inside the box is plaster in the panel's own tone,
+   on the wall. What is left inside the box is plaster in the chapter's own tone,
    so the edge of this element is invisible and the wall reads as the wall. */
 .chapter[data-arch="window"] .windowOpening {
   grid-column: 1;
@@ -896,8 +936,7 @@
 /* Layer 3: the sill — the wall shape again, in the warm cream, offset up and
    left inside its own viewBox so a band of it stands proud of the cut along the
    bottom and right insides. Those are the faces of the jamb that turn into the
-   light, and they are lighter than the wall in front of them, which is the half
-   of the bevel the first draft of this panel did not have. */
+   light, and they are lighter than the wall in front of them. */
 .windowSill {
   fill: var(--window-sill-tone);
 }
@@ -949,8 +988,9 @@
     );
 }
 
-/* Layer 6: the wall, in the panel's own plaster so its own edges disappear into
-   the panel, carrying the shadow the whole cut throws into the room behind it.
+/* Layer 6: the wall, in the chapter's own plaster so its own edges disappear
+   into the wall, carrying the shadow the whole cut throws into the room behind
+   it.
 
    `drop-shadow` and not `box-shadow: inset`: the wall is one filled shape with a
    hole in it, and a drop shadow follows the silhouette it actually has — hole
@@ -971,9 +1011,9 @@
   );
 }
 
-/* The reading. Flush left inside its own column, with the panel's rhythm in a
-   flex gap so the index does not also carry the margin it holds open beside a
-   display line. */
+/* The reading. Flush left inside its own column, with the chapter's rhythm in
+   a flex gap so the index does not also carry the margin it holds open beside
+   a display line. */
 .chapter[data-arch="window"] .windowReading {
   grid-column: 2;
   display: flex;
@@ -1030,9 +1070,9 @@
 }
 
 /* The marked facts: three columns under the reading, each a ring, a number and
-   a two-line caption. The row is the panel's small type doing the work the
-   tiled panels give to a caption, and the three glyphs are what stops it being
-   a list. */
+   a two-line caption. The row is the chapter's small type doing the work the
+   tiled chapters give to a caption, and the three glyphs are what stops it
+   being a list. */
 .windowMarks {
   list-style: none;
   margin: var(--space-2) 0 0;
@@ -1102,20 +1142,272 @@
   text-wrap: pretty;
 }
 
-/* C — bled (04). One photograph filling the panel, dissolved back into the wall
-   down its left edge and along its foot, with the reading standing on the
-   dissolve. The closing chapter, and the only one the reader is inside rather
-   than looking at.
+/* E — the diptych (04). An ink slab off the page's right edge — the mirror
+   of the portal's — carrying one wide frame that overhangs the slab's left
+   edge onto the wall, with two hours of the same water in it split by a seam
+   the reader drags. The reading sits on the ivory beside the slab and holds
+   like a tiled chapter's.
 
-   Positioned against the panel, not the measure. `.panelInner` is a static
-   grid, so an absolutely positioned item in it falls through to the sticky
-   plate — which is exactly one viewport at the top of the screen, which is the
-   frame this composition wants. Giving `.panelInner` a position would quietly
-   crop this back to the measure. */
-.chapter[data-arch="bleed"] .stack {
+   Drawn entirely in the type layer, like the table and the window, and the
+   slab with it: under the gobo the leaf shadow would multiply onto the dark,
+   where it is a stain rather than light. The slab's containing block is the
+   type layer, which is positioned for it; nothing else in the layer is
+   absolute against it. */
+.chapter[data-arch="diptych"] {
+  --hold-cell: 1;
+}
+
+.chapter[data-arch="diptych"] .panelInner {
+  /* The reading takes a narrow column on the ivory and the frame the wide
+     one; the rail keeps the first track on the outer edge. */
+  grid-template-columns: 3rem minmax(0, 0.8fr) minmax(0, 1.55fr);
+}
+
+/* The slab is the frame's own column, inset from its left edge and bled off
+   the page's right — a grid item rather than a block positioned against the
+   page, which is what keeps it out of the reading.
+
+   Measured in vw it reached under the reading on a wide screen and put ink
+   under the words; and the frame, hung over its column's left edge to cross
+   it, ran over them from the other side. Both are the same mistake: the
+   overhang is a relationship between the frame and the slab, and neither of
+   them belongs in the reading's column. Sharing the column and stepping the
+   slab in by a tenth of it holds the straddle at every measure — the frame's
+   left tenth stands on the ivory, the rest on the dark — and neither can
+   cross the gutter to reach the type.
+
+   Shorter than the portal's: the frame is wide rather than tall, and a slab
+   running on for half a screen under it is an empty dark wall before the
+   pause's. */
+.chapter[data-arch="diptych"] .slab {
+  position: relative;
+  grid-column: 3;
+  height: 88vh;
+  width: auto;
+  margin-top: 6vh;
+  margin-inline-start: 10%;
+  margin-inline-end: calc(
+    -1 *
+    (var(--gutter) + max(0px, (100vw - 1560px) / 2))
+  );
+}
+
+/* The frame. Fills its column, capped by the screen's height so a tall
+   narrow window does not get a frame that is all of it, and hung from the
+   column's end so the cap takes width off its left — the side the slab's
+   edge is under. A fifth of a screen down, past the slab's top edge, so the
+   slab is seen above it. */
+.chapter[data-arch="diptych"] .diptych {
+  grid-column: 3;
+  justify-self: end;
+  position: relative;
+  width: min(100%, 104vh);
+  aspect-ratio: 16 / 10;
+  margin-top: 18vh;
+  overflow: hidden;
+  /* Where the seam stands before the effect takes it — the middle, which is
+     also the whole of it under reduced motion and on a phone. */
+  --seam: 50%;
+  box-shadow: 0 28px 64px rgb(var(--ink-rgb) / 0.32);
+}
+
+/* Parked at the seam's start so nothing jumps when the effect writes it. */
+@media (prefers-reduced-motion: no-preference) {
+  .chapter[data-arch="diptych"] .diptych {
+    --seam: 74%;
+  }
+}
+
+/* A pane: the frame's whole box, a photograph and the line over it. The
+   evening pane is clipped from the left by the seam; the morning shows where
+   it is cut away. */
+.diptychPane {
   position: absolute;
   inset: 0;
-  width: auto;
+  overflow: hidden;
+}
+
+.diptychPane img {
+  display: block;
+  /* Wider than the pane by more than it drifts, so the drift never uncovers
+     an edge of the pane. */
+  width: 112%;
+  height: 100%;
+  margin-inline-start: -6%;
+  object-fit: cover;
+  will-change: transform;
+}
+
+.diptychEvening {
+  clip-path: inset(0 0 0 var(--seam));
+  will-change: clip-path;
+}
+
+/* The line, at the foot of the frame. The same size and place in both panes,
+   so the seam turns its colour and nothing else. */
+.diptychLine {
+  position: absolute;
+  left: 6%;
+  bottom: 8%;
+  margin: 0;
+  font-size: clamp(1.75rem, 3.4vw, 3.4rem);
+  line-height: 1.12;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.diptychLineRow {
+  display: block;
+}
+
+.diptychLineInk {
+  color: var(--ink);
+}
+
+.diptychLineIvory {
+  color: var(--ivory);
+}
+
+/* The hairline on the seam: the one thing in the frame that says it is a
+   seam and not a torn photograph. */
+.diptychSeam {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: var(--seam);
+  width: 1px;
+  background: rgb(var(--ivory-rgb) / 0.75);
+  pointer-events: none;
+}
+
+/* F — the pause (05). The dark chapter: a stage of ink the size of the
+   screen, pinned for the chapter's travel, with one display line at its
+   centre and nothing else on it. Then the lens: the stage's mask opens from
+   a point at that centre until the photograph the bleed is holding under it
+   is the whole screen.
+
+   The mask is a hole rather than a clip on a photograph, so what the opening
+   reveals is whatever is beneath the stage — the bleed's held plate — and
+   not a copy of it inside this chapter that would have to be matched to the
+   real one at the handover. That is also why the stage sits above every
+   other chapter's type: the bleed's reading is under the stage while the lens
+   opens, and it is seen through the hole and not over the ink. */
+.chapter[data-arch="pause"] .panelType {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  height: 100vh;
+  z-index: 30;
+  overflow: hidden;
+  background: var(--ink);
+  color: var(--ivory);
+  border-top: 0;
+  /* The lens: a radius the effect grows. The transparent stop sits a pixel
+     inside the radius, so at nothing the mask is a full sheet of ink — a
+     stop at the radius itself left a one-pixel point open at the centre. */
+  --lens: 0px;
+  -webkit-mask-image: radial-gradient(
+    circle at 50% 50%,
+    transparent calc(var(--lens) - 1px),
+    var(--ink) var(--lens)
+  );
+  mask-image: radial-gradient(
+    circle at 50% 50%,
+    transparent calc(var(--lens) - 1px),
+    var(--ink) var(--lens)
+  );
+}
+
+.chapter[data-arch="pause"] .panelInner {
+  display: block;
+  max-width: none;
+  height: 100%;
+  padding: 0;
+}
+
+/* The rail on the stage rather than in the flow: the stage is what holds. */
+.chapter[data-arch="pause"] .chapterRail {
+  position: absolute;
+  top: var(--hold-top);
+  left: var(--gutter);
+  color: var(--sand);
+}
+
+/* The screen: the line at its centre, and nothing else on the ink — so the
+   lens opens through the middle of the words. */
+.pauseScreen {
+  height: 100%;
+  display: grid;
+  place-items: center;
+  padding-inline: var(--gutter);
+}
+
+.pauseLine {
+  margin: 0;
+  text-align: center;
+  font-size: clamp(3rem, 8vw, 8rem);
+  /* The clip's 1.20 floor again — see .lineClip. */
+  line-height: 1.2;
+  font-weight: 300;
+  letter-spacing: 0;
+  color: var(--ivory);
+}
+
+/* Headroom over that floor, on the typed element so the em resolves against
+   its own size. */
+.pauseRow {
+  padding-bottom: 0.06em;
+}
+
+/* C — bled (06). One photograph the width of the page, held the size of the
+   screen for the chapter's whole travel, with the reading standing on a
+   dissolve carried back over it. The closing chapter, and the only one the
+   reader is inside rather than looking at.
+
+   It starts early, under the pause: the plate is stuck and the whole screen
+   while the pause's lens opens over it, so the opening reveals a photograph
+   that is not moving, and the stage releasing off it changes nothing — there
+   is no top edge to arrive and no seam to hide, which is what the ramp that
+   used to blur the plate's top was for. The reading is pushed down by the
+   screens it spends hidden (`--hold-lead`) and holds a little lower than the
+   other chapters' — it is standing on a photograph, not beside one — then
+   leaves ahead of the picture. No rule at the top: a hairline across a
+   full-bleed photograph is a crack.
+
+   The pull-up is `BLEED_LEAD` in welcome-chapters.tsx, in screens, and the
+   two have to be written the same: the effect places this chapter's landing
+   on the same figure. */
+.chapter[data-arch="bleed"] {
+  --hold-top: 30vh;
+  --lead: 1.4;
+  --hold-lead: calc(var(--lead) * 50vh);
+  --hold-cell: 2;
+  margin-top: calc(var(--lead) * -100vh);
+}
+
+.chapter[data-arch="bleed"] .panelType {
+  border-top: 0;
+}
+
+/* The rail waits under the pause with the reading. */
+.chapter[data-arch="bleed"] .chapterRail {
+  margin-top: var(--hold-lead);
+}
+
+.chapter[data-arch="bleed"] .panelPlate .panelInner {
+  display: block;
+  max-width: none;
+  padding: 0;
+}
+
+/* The plate's box: the screen, stuck at its top for as long as the chapter
+   has height under it, then leaving with the page. Sticky on the stack
+   itself, which is the tiles' containing block either way. */
+.chapter[data-arch="bleed"] .stack {
+  position: sticky;
+  top: 0;
+  width: 100%;
+  height: 100vh;
   max-width: none;
   aspect-ratio: auto;
   margin: 0;
@@ -1125,85 +1417,65 @@
   inset: 0;
   /* An edge that has been dissolved cannot also be casting a shadow. */
   box-shadow: none;
-  /* The dissolve: two ramps intersected. Across, so the photograph gives out
-     under the reading — the ramp is long and starts shallow, because the words
-     sit over its middle and the photograph turns over to a much darker one
-     halfway through the dwell, so what has to hold is the darker of the two.
-     And up from the foot, which is the edge the next panel arrives over. The
-     top and the outer edge stay whole; those are the two the picture is bled
-     off. */
-  -webkit-mask-image:
-    linear-gradient(
-      96deg,
-      transparent 10%,
-      rgb(var(--ink-rgb) / 0.08) 28%,
-      rgb(var(--ink-rgb) / 0.42) 46%,
-      var(--ink) 68%
-    ),
-    linear-gradient(180deg, var(--ink) 0 72%, transparent 100%);
-  -webkit-mask-composite: source-in;
-  mask-image:
-    linear-gradient(
-      96deg,
-      transparent 10%,
-      rgb(var(--ink-rgb) / 0.08) 28%,
-      rgb(var(--ink-rgb) / 0.42) 46%,
-      var(--ink) 68%
-    ),
-    linear-gradient(180deg, var(--ink) 0 72%, transparent 100%);
-  mask-composite: intersect;
 }
 
-/* The last of the wall, carried back over the photograph where the words are.
-   The dissolve above is a straight ramp and the reading is not a straight
-   column — the head runs wide and the caption does not — so this is the shape
-   the type actually takes, and it is the wall's own colour so the two cannot
-   be told apart where they meet. */
+/* The wall, carried back over the photograph where the words stand: the
+   reading's ground, and the whole of the dissolve now that the plate has no
+   ramps of its own. Deep down the left and gone by the middle, for the whole
+   height of the plate — the reading moves against the picture while it
+   holds, so its ground has to be there wherever it is standing. The wall's
+   own colour, so the two cannot be told apart where they meet. Faded in with
+   the reading (see the effect); whole where nothing fades it. */
 .bleedHaze {
   position: absolute;
   inset: 0;
   pointer-events: none;
-  background: radial-gradient(
-    64% 72% at 17% 47%,
-    rgb(var(--ivory-warm-rgb) / 0.82) 0%,
-    rgb(var(--ivory-warm-rgb) / 0.44) 42%,
-    rgb(var(--ivory-warm-rgb) / 0) 74%
+  background: linear-gradient(
+    96deg,
+    rgb(var(--ivory-warm-rgb) / 0.94) 0%,
+    rgb(var(--ivory-warm-rgb) / 0.72) 22%,
+    rgb(var(--ivory-warm-rgb) / 0.3) 42%,
+    rgb(var(--ivory-warm-rgb) / 0) 60%
   );
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .bleedHaze {
+    opacity: 0;
+  }
 }
 
 /* Phones and small tablets: one column, stack under the type, rail inline.
    The mirror has nothing left to mirror at this width, so it stands down —
-   and neither does the stacking: a panel is taller than the viewport here, so
-   the chapters go back to being plain blocks that scroll past one another. */
+   and so does everything that holds: the chapters are plain blocks that take
+   their own height and scroll past one another, the two layers stack rather
+   than overlay, and nothing sticks. */
 @media (max-width: 900px) {
-  .chapters,
-  /* Also at the archetype selectors' specificity: nothing pins here, so the
-     dwell a three-seam panel asks for would be an empty screen of scroll. */
-  .chapter[data-flips] {
-    --dwell: 0px;
-  }
-
-  .chapter {
+  .chapter,
+  .chapter[data-arch="table"] {
     display: block;
+    min-height: auto;
+    margin-top: 0;
     padding-block: clamp(4rem, 10vh, 7rem);
     border-top: 1px solid rgb(var(--stone-deep-rgb) / 0.18);
   }
 
-  .panel {
-    position: relative;
+  .panelType,
+  .chapter[data-arch="window"] .panelType {
+    position: static;
     height: auto;
+    border-top: 0;
   }
 
   .panelPlate {
     margin-top: clamp(3rem, 9vh, 5rem);
-    background: none;
-    border-top: 0;
   }
 
   .panelInner,
   .chapter[data-side="left"] .panelInner {
     grid-template-columns: minmax(0, 1fr);
     row-gap: clamp(3rem, 9vh, 5rem);
+    height: auto;
     padding-block: 0;
   }
 
@@ -1220,7 +1492,17 @@
   }
 
   .chapterRail {
+    position: static;
     writing-mode: horizontal-tb;
+  }
+
+  .chapterText {
+    height: auto;
+    padding-top: 0;
+  }
+
+  .chapterHold {
+    position: static;
   }
 
   .chapter[data-side="left"] .stack {
@@ -1235,6 +1517,7 @@
      width now. */
   .chapter[data-arch="portal"] {
     --stack-w: min(84%, 20rem);
+    --stack-top: 0;
   }
 
   .stack {
@@ -1243,22 +1526,22 @@
 
   /* Each archetype gives back what the narrower stack costs it, so the overlaps
      stay the ones drawn above rather than tightening at every width. */
-  .slotPortal {
+  .stack .slotPortal {
     inset-inline-end: 4%;
     width: 40%;
   }
 
   /* The table comes apart into one column in the order it reads: the wide
-     opening, the reading, then the detail. Nothing pins here, so there is no
-     panel height to fit and no gap for the tall opening to ride up into — it is
-     inset from the right instead, which keeps the sequence composed rather than
-     merely stacked. */
+     opening, the reading, then the detail. There is no gap for the tall
+     opening to ride up into — it is inset from the right instead, which keeps
+     the sequence composed rather than merely stacked. */
   .chapter[data-arch="table"] .panelInner {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: auto;
     column-gap: 0;
     row-gap: clamp(2rem, 6vh, 3rem);
     align-content: start;
+    padding-top: 0;
   }
 
   .chapter[data-arch="table"] .tableWide,
@@ -1268,12 +1551,8 @@
     grid-column: 1;
   }
 
-  /* Nothing pins here, so the opening goes back to being the crop it was cut
-     as: the 16:9 the component was given, at the column's full width. */
   .chapter[data-arch="table"] .tableWide {
     margin-right: 0;
-    aspect-ratio: var(--aperture-ratio);
-    height: auto;
   }
 
   .chapter[data-arch="table"] .tableTall {
@@ -1287,11 +1566,10 @@
   }
 
   /* The window comes apart into the column in the order it is built: the
-     opening, then the reading under it. Nothing pins here, so there is no panel
-     height to size the cut off — it takes the column's full width instead and
-     keeps its viewBox aspect, which is the one thing that must not give, since
-     both SVG layers are drawn without a preserved ratio of their own. Written
-     at the archetype selectors' specificity, or the vh cap would stay. */
+     opening, then the reading under it. There is no screen height to size the
+     cut off — it takes the column's full width instead and keeps its viewBox
+     aspect, which is the one thing that must not give, since both SVG layers
+     are drawn without a preserved ratio of their own. */
   .chapter[data-arch="window"] .panelInner {
     grid-template-columns: minmax(0, 1fr);
     row-gap: clamp(1.75rem, 5vh, 2.75rem);
@@ -1309,39 +1587,83 @@
     max-width: none;
   }
 
-  .glassSheet,
-  .glassBand {
-    inset-inline-start: -7%;
+  /* A slab on a phone is a band behind its column's photographs: the whole
+     height of the layer it is in, and most of the column's width. The
+     diptych's is a grid item on the desktop, standing in the frame's own
+     column; here there is one column and it would push the frame down a row,
+     so it goes back to being positioned — and the type layer, which is only
+     its containing block on this side of the query, with it. */
+  .slab,
+  .chapter[data-arch="diptych"] .slab {
+    top: 0;
+    height: 100%;
+    width: 72%;
   }
 
-  /* The bled panel goes back to being a photograph in the column: nothing pins
-     here, so there is no panel for it to fill and no reading for it to sit
-     under. It keeps the foot of its dissolve — that edge is the composition
-     rather than a way of clearing room for words that are now above it — and
-     drops the sideways one, which has nothing left to clear.
-
-     The composite is reset rather than left to a single layer. A lone mask
-     layer composited `source-in` against nothing beneath it is a mask of
-     nothing on the browsers that still want the prefixed keyword, and the
-     photograph disappears. */
-  .chapter[data-arch="bleed"] .stack {
+  .chapter[data-arch="diptych"] .panelType {
     position: relative;
-    inset: auto;
-    width: 100%;
-    max-width: none;
-    aspect-ratio: 4 / 5;
+  }
+
+  .chapter[data-arch="diptych"] .slab {
+    position: absolute;
+    grid-column: auto;
     margin: 0;
   }
 
-  .slotBleed {
-    -webkit-mask-image: linear-gradient(
-      180deg,
-      var(--ink) 0 74%,
-      transparent 100%
-    );
-    -webkit-mask-composite: source-over;
-    mask-image: linear-gradient(180deg, var(--ink) 0 74%, transparent 100%);
-    mask-composite: add;
+  /* The diptych comes apart into the column: the reading, then the frame at
+     the column's full width with the seam at its middle. */
+  .chapter[data-arch="diptych"] .panelInner {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .chapter[data-arch="diptych"] .diptych {
+    grid-column: 1;
+    justify-self: stretch;
+    width: 100%;
+    margin-top: 0;
+  }
+
+  /* The pause is a dark block in the flow: the stage takes its own height and
+     there is no lens — the bleed follows it as the next block. */
+  .chapter[data-arch="pause"] .panelType {
+    position: static;
+    height: auto;
+    -webkit-mask-image: none;
+    mask-image: none;
+    padding-block: clamp(4rem, 10vh, 7rem);
+  }
+
+  .chapter[data-arch="pause"] .chapterRail {
+    position: static;
+    padding-inline: var(--gutter);
+    margin-bottom: 2rem;
+  }
+
+  .pauseScreen {
+    height: auto;
+    padding-block: 3rem;
+  }
+
+  /* The bled chapter goes back to being a photograph in the column, in the
+     flow after the pause, with nothing to hide under: there is no reading
+     for it to sit under, so the ground goes too. */
+  .chapter[data-arch="bleed"] {
+    --hold-lead: 0px;
+    --hold-cell: 1;
+    margin-top: 0;
+  }
+
+  .chapter[data-arch="bleed"] .chapterRail {
+    margin-top: 0;
+  }
+
+  /* Relative, not static: the tile is absolute against this box, and a
+     static stack hands it the whole section to fill. */
+  .chapter[data-arch="bleed"] .stack {
+    position: relative;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 4 / 5;
   }
 
   .bleedHaze {
@@ -1349,33 +1671,76 @@
   }
 }
 
-/* Reduced motion: a plain static stack. Nothing pins, so the panels simply sit
-   one under another — handled here rather than in JS so there is no first
-   paint where they are still sticky. */
+/* Reduced motion: a plain flow of chapters at their own height. Nothing holds
+   — a block that sticks while the page moves is a motion of its own — and
+   nothing is budgeted travel it would spend on an empty wall. Handled here
+   rather than in JS so there is no first paint where they are still sticky. */
 @media (prefers-reduced-motion: reduce) {
-  .chapters,
-  .chapter[data-flips] {
-    --dwell: 0px;
+  .chapter {
+    min-height: auto;
   }
 
-  .panel {
+  .chapterRail,
+  .chapterHold,
+  .chapter[data-arch="window"] .panelType,
+  .chapter[data-arch="pause"] .panelType {
+    position: static;
+  }
+
+  .chapter[data-arch="window"] .panelType,
+  .chapter[data-arch="pause"] .panelType {
+    height: auto;
+  }
+
+  .chapterText {
+    height: auto;
+  }
+
+  /* The pause is a block of ink with its line on it; no lens, because
+     nothing is under the stage to open onto. */
+  .chapter[data-arch="pause"] .panelType {
+    -webkit-mask-image: none;
+    mask-image: none;
+    padding-block: clamp(4rem, 10vh, 7rem);
+  }
+
+  .chapter[data-arch="pause"] .chapterRail {
+    padding-inline: var(--gutter);
+    margin-bottom: 2rem;
+  }
+
+  .pauseScreen {
+    height: auto;
+    padding-block: 3rem;
+  }
+
+  /* The bled chapter follows the pause in the flow, whole from the first
+     paint. */
+  .chapter[data-arch="bleed"] {
+    --hold-lead: 0px;
+    --hold-cell: 1;
+    margin-top: 0;
+  }
+
+  .chapter[data-arch="bleed"] .chapterRail {
+    margin-top: 0;
+  }
+
+  .chapter[data-arch="bleed"] .stack {
     position: relative;
+    height: auto;
+    aspect-ratio: 16 / 10;
   }
 }
 
-/* Below this the sheets have nowhere to stand out to without crowding the
-   frame, and the frosted band is wider than the blur it is meant to show. Both
-   go; the circle stays, because it is what the panel is. */
+/* Below this the frame takes nearly the column; the circle stays, because it
+   is what the chapter is. */
 @media (max-width: 520px) {
   .chapter[data-arch="portal"] {
     --stack-w: min(86%, 18rem);
   }
 
-  .glass {
-    display: none;
-  }
-
-  .slotPortal {
+  .stack .slotPortal {
     inset-inline-end: 2%;
     width: 44%;
   }
