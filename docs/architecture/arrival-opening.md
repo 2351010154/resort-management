@@ -20,15 +20,18 @@ Two decisions were taken by the owner on 2026-09-06 and are not open:
   used to open with — the plaster wall, the eroding M, the depth card field and
   the push through the letter — is gone, along with its SDF, glyph tracer and
   video tiles. Act 1 no longer needs WebGL. The house's mark is still on the page
-  in the concierge bar, in Act 2's window and in Act 6's embossed footer.
+  in the concierge bar and in Act 6's embossed footer.
 - **The opening ends on the photograph, with no wordmark.** The reference scales
   a display word up over its final frame; this one does not. The act's only copy
   is the statement it opens with, which leaves before the push.
 
+Since 2026-09-07 the act also holds its full photograph for one more viewport
+after the push, for the length Act 2's ribbon takes to be born over it — see
+[`arrival-ribbon.md`](arrival-ribbon.md).
+
 The mark's heavy cut, [`mariva-monogram-intro.svg`](../../apps/web/public/brand/mariva-monogram-intro.svg)
-and its generator, are kept although nothing renders them at runtime: Act 2's
-window path is measured off that file, so it is the record behind a shape the
-code states as coordinates.
+and its generator, are kept although nothing renders them at runtime: it is the
+measured record of the mark for any composition cut from the letterform.
 
 ## Assets
 
