@@ -38,6 +38,26 @@ for (const profile of [
     top: element.getBoundingClientRect().top + window.scrollY,
     length: Number(element.style.getPropertyValue("--length")),
   }));
+  if (profile.reducedMotion !== "reduce") {
+    for (const offset of [-120, -80, -40, 0]) {
+      await page.evaluate(
+        (y) => window.scrollTo(0, y),
+        act.top + (offset * profile.height) / 100,
+      );
+      await page.waitForTimeout(700);
+      const backdropTop = await section
+        .locator('[class*="backdrop"]')
+        .first()
+        .evaluate((element) => element.getBoundingClientRect().top);
+      if (Math.abs(backdropTop) > 1)
+        throw new Error(
+          `${profile.name}: hero handoff shifted ${backdropTop}px`,
+        );
+      await page.screenshot({
+        path: path.join(out, `${profile.name}-entrance-${offset}.png`),
+      });
+    }
+  }
   for (const [name, position, scene] of moments) {
     const offset =
       profile.reducedMotion === "reduce"

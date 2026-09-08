@@ -17,17 +17,17 @@ import { Canvas, createPortal, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { SecondOrderSpring2 } from "@/features/arrival/lib/second-order-spring";
-import { useInView } from "@/lib/use-in-view";
 import {
   isWebglAvailable,
   prefersReducedMotion,
 } from "@/features/arrival/lib/webgl-support";
+import { useInView } from "@/lib/use-in-view";
+import styles from "./foliage-gobo.module.css";
 import {
   compositeFragment,
   maskFragment,
   quadVertex,
 } from "./foliage-gobo-shader";
-import styles from "./foliage-gobo.module.css";
 
 /** Mask resolution. oryzo runs its gobo target at the same size. */
 const MASK_SIZE = 512;
@@ -102,12 +102,12 @@ function castScale(width: number, height: number): number {
 // above the wall's bottom edge at any scroll position — so nothing here needs to
 // watch where the act sits on screen.
 
-function GoboPasses({ still }: { still: boolean }) {
+function GoboPasses({ still, maskSize }: { still: boolean; maskSize: number }) {
   const size = useThree((state) => state.size);
 
   const target = useMemo(
     () =>
-      new THREE.WebGLRenderTarget(MASK_SIZE, MASK_SIZE, {
+      new THREE.WebGLRenderTarget(maskSize, maskSize, {
         depthBuffer: false,
         stencilBuffer: false,
         minFilter: THREE.LinearFilter,
@@ -115,7 +115,7 @@ function GoboPasses({ still }: { still: boolean }) {
         wrapS: THREE.ClampToEdgeWrapping,
         wrapT: THREE.ClampToEdgeWrapping,
       }),
-    [],
+    [maskSize],
   );
   useEffect(() => () => target.dispose(), [target]);
 
@@ -257,7 +257,16 @@ function GoboPasses({ still }: { still: boolean }) {
   );
 }
 
-export function FoliageGobo({ className }: { className?: string }) {
+export function FoliageGobo({
+  className,
+  resolution,
+  maskSize = MASK_SIZE,
+}: {
+  className?: string;
+  /** Soft shadows can render below display resolution without losing detail. */
+  resolution?: number;
+  maskSize?: number;
+}) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const inView = useInView(wrapRef);
   // Decided after mount, never during render: the server has no idea which of
@@ -284,13 +293,13 @@ export function FoliageGobo({ className }: { className?: string }) {
           <Canvas
             // Parked under reduced motion: one frame, then nothing.
             frameloop={mode === "still" || !inView ? "demand" : "always"}
-            dpr={[1, 1.5]}
+            dpr={resolution ?? [1, 1.5]}
             // Opaque white clear: under the wrapper's multiply, white is "no
             // shadow here" and the wall comes through untouched.
             gl={{ alpha: false, antialias: false }}
             onCreated={({ gl }) => gl.setClearColor(0xffffff, 1)}
           >
-            <GoboPasses still={mode === "still"} />
+            <GoboPasses still={mode === "still"} maskSize={maskSize} />
           </Canvas>
         </div>
       )}

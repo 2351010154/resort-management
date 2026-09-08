@@ -82,8 +82,23 @@ function stepBetween(knots: readonly Knot[], y: number, key: "cx" | "w") {
       const prev = knots[Math.max(0, i - 1)];
       const next = knots[Math.min(knots.length - 1, i + 2)];
       const span = b.y - a.y;
-      const m0 = ((b[key] - prev[key]) / (b.y - prev.y)) * span;
-      const m1 = ((next[key] - a[key]) / (next.y - a.y)) * span;
+      // Flatten extrema and plateau joins: unrestricted Catmull tangents
+      // overshoot the authored width and kink where a constant span begins.
+      const delta = b[key] - a[key];
+      const tangent = (before: number, after: number, raw: number) =>
+        before * after <= 0
+          ? 0
+          : Math.sign(delta) * Math.min(Math.abs(raw), 3 * Math.abs(delta));
+      const m0 = tangent(
+        a[key] - prev[key],
+        delta,
+        ((b[key] - prev[key]) / (b.y - prev.y)) * span,
+      );
+      const m1 = tangent(
+        delta,
+        next[key] - b[key],
+        ((next[key] - a[key]) / (next.y - a.y)) * span,
+      );
       return (
         (2 * t ** 3 - 3 * t ** 2 + 1) * a[key] +
         (t ** 3 - 2 * t ** 2 + t) * m0 +
@@ -104,8 +119,8 @@ export function sway(y: number, s: number): number {
  * drift stays smaller, so the paper feels alive without shaking the copy. */
 export function edgeWave(y: number, scroll: number, time: number, phase = 0) {
   return (
-    2.6 * Math.sin(y * 0.043 - scroll * 0.018 + time * 0.85 + phase) +
-    0.65 * Math.sin(y * 0.087 + time * 1.1 + phase)
+    2.1 * Math.sin(y * 0.031 - scroll * 0.01 + time * 0.42 + phase) +
+    0.45 * Math.sin(y * 0.058 + time * 0.57 + phase)
   );
 }
 
@@ -162,6 +177,20 @@ function spline(
  *  them is the smoothstep curve itself rather than a polygon of it, and that
  *  the knots packed into the sheet's first few units are each sampled. */
 const EDGE_STEP = 4;
+
+const introLowerPath = (endX: number, exitSlope = 0) =>
+  `M-12 5C6 9 22 -4 32 -4C43 -4 43 18 46 28C48 36 ${fmt(endX - exitSlope * 8)} 44 ${fmt(endX)} 52`;
+
+/** The coastal photograph follows the underside of the leading paper. */
+export function introShorePath() {
+  const points: readonly (readonly [number, number])[] = [
+    [49, 52],
+    [55, 68],
+    [15, 84],
+    [-12, 96],
+  ];
+  return `${introLowerPath(49, (55 - 49) / (68 - 52))}${spline(points, false)}Z`;
+}
 
 /**
  * The radius of an opening's outline at angle `t`, as a share of its nominal
@@ -222,6 +251,7 @@ export interface RibbonPathOptions {
   time?: number;
   edgeMotion?: boolean;
   edgeScale?: number;
+  narrow?: boolean;
   aspect: number;
   /** Each opening with how far open it is. */
   apertures: readonly { aperture: ApertureGeometry; open: number }[];
@@ -244,13 +274,16 @@ export function ribbonPath({
   time = 0,
   edgeMotion = swaying,
   edgeScale = 1,
+  narrow = false,
   aspect,
   apertures,
 }: RibbonPathOptions): string {
   if (to <= from) return "";
   const left: [number, number][] = [];
   const right: [number, number][] = [];
-  for (let y = from; y <= to + EDGE_STEP; y += EDGE_STEP) {
+  const capY = narrow ? 20 : 52;
+  if (to <= capY) return "";
+  for (let y = Math.max(from, capY); y <= to + EDGE_STEP; y += EDGE_STEP) {
     const yy = Math.min(y, to);
     const c = centre(knots, yy, s, swaying);
     const half = width(knots, yy) / 2;
@@ -267,8 +300,50 @@ export function ribbonPath({
   }
   right.reverse();
 
-  let d = `M${fmt(left[0][0])} ${fmt(left[0][1])}${spline(left, false)}`;
-  d += `L${fmt(right[0][0])} ${fmt(right[0][1])}${spline(right, false)}Z`;
+  // Match the incoming Bézier tangent to the first sampled edge segment.
+  // The edge moves with the breeze, so a fixed control point leaves a cusp.
+  const exitSlope =
+    left.length > 1 ? (left[1][0] - left[0][0]) / (left[1][1] - left[0][1]) : 0;
+  const start =
+    !narrow && from <= capY
+      ? introLowerPath(left[0][0], exitSlope)
+      : `M${fmt(left[0][0])} ${fmt(left[0][1])}`;
+  let d = `${start}${spline(left, false)}`;
+  d += `L${fmt(right[0][0])} ${fmt(right[0][1])}${spline(right, false)}`;
+  if (from <= capY) {
+    // Horizontal crest: both sides arrive together, then turn into the S.
+    // Its shallow travelling swell is independent of the readable centreline.
+    const crest: [number, number][] = [];
+    const rightX = right[right.length - 1][0];
+    const leftX = narrow ? left[0][0] : -12;
+    const profile: [number, number][] = [
+      [leftX, -3],
+      [0, 0.7],
+      [4, 1.1],
+      [18, -2.4],
+      [32, -10.5],
+      [42, -12.5],
+      [56, -7],
+      [68, -0.4],
+      [76.5, 1.1],
+      [88, -0.3],
+      [100, -5.7],
+      [rightX, -12],
+    ];
+    // Interpolate height over x before sampling: uneven control-point spacing
+    // otherwise makes the shallow left trough fold into a visible notch.
+    const crestKnots = profile.map(([x, y]) => ({ y: x, cx: y, w: 0 }));
+    for (let i = 0; i <= 64; i++) {
+      const x = rightX + ((leftX - rightX) * i) / 64;
+      const y = stepBetween(crestKnots, x, "cx");
+      const breath = edgeMotion
+        ? 0.65 * Math.sin(time * 0.42 + x * 0.045 - s * 0.004) * edgeScale
+        : 0;
+      crest.push([x, y + breath]);
+    }
+    d += `L${fmt(crest[0][0])} ${fmt(crest[0][1])}${spline(crest, false)}`;
+  }
+  d += "Z";
 
   for (const { aperture, open } of apertures) {
     const reach = aperture.r * 1.4;
