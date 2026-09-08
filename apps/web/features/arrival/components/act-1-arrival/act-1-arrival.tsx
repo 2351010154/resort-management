@@ -11,11 +11,17 @@
 //              bougainvillea in front of it — nearer the camera — swells
 //              faster and runs off the sides before the picture is full.
 //              Nothing fades.
+//   the hold   the full photograph stays pinned for one more viewport while
+//              Act 2's ivory ribbon is born over it — a band of sheet rising
+//              from the foot, with its first opening looking back through at
+//              this picture.
 //
 // The act ends on the photograph at full size rather than blooming to ivory. It
-// does not need to: the stage is pinned with `pinSpacing: false`, so Act 2's own
-// opaque ivory rises over this one as the reader keeps going. A bloom would be a
-// second handoff on top of the one the page already performs.
+// does not need to: the stage is pinned with `pinSpacing: false`, and Act 2
+// paints no ground of its own under its first stretch, so the ribbon rises
+// over this one picture and the picture goes on being the ground under the
+// ribbon after the pin lets go. One image spans the two acts; a bloom would be
+// a cut in the middle of it.
 //
 // The ground is ivory and the bar is ink over it for as long as that is what the
 // bar is standing on. Once the growing photograph reaches it the act claims the
@@ -25,6 +31,7 @@
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useEffect, useRef, useState } from "react";
+import { ACT2_OVERHANG } from "@/features/arrival/lib/act-seams";
 import { useArrivalActStore } from "@/features/arrival/lib/act-store";
 import { tierSrcSet } from "@/features/arrival/lib/image-srcset";
 import { registerArrivalEases } from "@/features/arrival/lib/motion-eases";
@@ -40,22 +47,37 @@ import styles from "./act-1-arrival.module.css";
 import { FLOWER_LEFT, FLOWER_RIGHT, HERO_PLATE } from "./hero-plate";
 
 /**
- * Scroll distance the act is spread over. The morph owns the first ~110vh and
- * the push the remaining ~130vh: joining the windows is a reading of geometry
- * and wants room, while the push is one accelerating gesture and gets heavy if
- * it is given more scroll than it has motion to fill.
+ * The act's beats as scroll lengths, in viewport heights. Written as lengths
+ * rather than as shares of the pin so that adding a beat at the end — which
+ * the seam hold is — leaves the others exactly the length they were tuned to.
+ *
+ * The morph owns the first ~53vh and the push ~76vh: joining the windows is a
+ * reading of geometry and wants room, while the push is one accelerating
+ * gesture and gets heavy if it is given more scroll than it has motion to
+ * fill. Between them is the join hold — a beat with nothing moving, so the
+ * reader sees that the two halves are one picture before that picture starts
+ * coming at them. Cut it and the join is never actually witnessed; it is
+ * simply overtaken.
+ *
+ * The seam hold is Act 2's number, not this act's: it is how long the ribbon
+ * takes to be born over the held picture, and the picture holds for exactly
+ * that.
  */
-const ACT_HEIGHT = "240vh";
+const MORPH_TRAVEL = 53;
+const JOIN_HOLD = 11;
+const PUSH_TRAVEL = 76;
+const SEAM_HOLD = ACT2_OVERHANG;
+
+const PIN_TRAVEL = MORPH_TRAVEL + JOIN_HOLD + PUSH_TRAVEL + SEAM_HOLD;
+/** The section: the pinned travel plus the screen the stage occupies. */
+const ACT_HEIGHT = `${PIN_TRAVEL + 100}vh`;
 
 /** Progress at which the two windows have become one rectangle. */
-const MORPH_END = 0.38;
-/**
- * Progress at which the joined frame starts growing. The gap between this and
- * MORPH_END is the hold — a beat with nothing moving, so the reader sees that
- * the two halves are one picture before that picture starts coming at them. Cut
- * it and the join is never actually witnessed; it is simply overtaken.
- */
-const PUSH_START = 0.46;
+const MORPH_END = MORPH_TRAVEL / PIN_TRAVEL;
+/** Progress at which the joined frame starts growing. */
+const PUSH_START = (MORPH_TRAVEL + JOIN_HOLD) / PIN_TRAVEL;
+/** Progress at which the push is done and the picture is held for the seam. */
+const PUSH_END = (MORPH_TRAVEL + JOIN_HOLD + PUSH_TRAVEL) / PIN_TRAVEL;
 
 /**
  * Frame scale at rest, where 1 is exactly the viewport.
@@ -360,7 +382,7 @@ export function Act1Arrival() {
         scrub: true,
         onUpdate: (self) => {
           const morph = easeInOut(ramp(self.progress, 0, MORPH_END));
-          const push = easeIn(ramp(self.progress, PUSH_START, 1));
+          const push = easeIn(ramp(self.progress, PUSH_START, PUSH_END));
 
           left.style.clipPath = quadPath(LEFT_REST, LEFT_JOINED, morph);
           right.style.clipPath = quadPath(RIGHT_REST, RIGHT_JOINED, morph);

@@ -1,0 +1,489 @@
+"use client";
+
+import gsap from "gsap";
+import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { type CSSProperties, useEffect, useId, useRef, useState } from "react";
+import { HERO_PLATE } from "@/features/arrival/components/act-1-arrival/hero-plate";
+import { ChooseDatesLink } from "@/features/arrival/components/booking/choose-dates-link";
+import { FoliageGobo } from "@/features/arrival/components/foliage-gobo/foliage-gobo";
+import { ACT2_OVERHANG } from "@/features/arrival/lib/act-seams";
+import { useArrivalActStore } from "@/features/arrival/lib/act-store";
+import { tierSrcSet } from "@/features/arrival/lib/image-srcset";
+import styles from "./act-2-ribbon.module.css";
+import {
+  type Aperture,
+  BEATS,
+  HORIZON,
+  KNOTS,
+  KNOTS_NARROW,
+  MOBILE_LENGTH,
+  RIBBON_LENGTH,
+  type RibbonImage,
+  SCENE_LENGTH,
+} from "./ribbon-beats";
+import { aperturePath, aspectOf, centre, ribbonPath } from "./ribbon-geometry";
+import { cameraAt, exitOpacity, ramp, smooth } from "./ribbon-pacing";
+
+const PLATE_BLEED = 2.25;
+const css = (value: Record<string, string | number>) => value as CSSProperties;
+
+function geometryFor(aperture: Aperture, narrow: boolean, aspect: number) {
+  const r = narrow
+    ? Math.min(19, 35 / aspect)
+    : aperture.shape === "circle"
+      ? aperture.widthVw / (2 * aspect)
+      : aperture.r;
+  return {
+    ...aperture,
+    dx: narrow ? 0 : aperture.dx,
+    r,
+    stretch: narrow ? 1 : aperture.widthVw / (2 * r * aspect),
+  };
+}
+
+function Photo({
+  image,
+  className,
+  sizes = "100vw",
+}: {
+  image: RibbonImage;
+  className?: string;
+  sizes?: string;
+}) {
+  return (
+    <img
+      className={className}
+      src={image.src}
+      srcSet={tierSrcSet(image)}
+      sizes={sizes}
+      width={image.width}
+      height={image.height}
+      alt={image.alt}
+      loading="lazy"
+      decoding="async"
+    />
+  );
+}
+
+export function Act2Ribbon() {
+  const sectionRef = useRef<HTMLElement>(null);
+  const sceneRef = useRef<HTMLDivElement>(null);
+  const worldRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+  const sheetRef = useRef<SVGPathElement>(null);
+  const outlineRef = useRef<SVGPathElement>(null);
+  const heroRef = useRef<HTMLDivElement>(null);
+  const waterRef = useRef<HTMLDivElement>(null);
+  const copyWorldRef = useRef<HTMLDivElement>(null);
+  const clipId = useId();
+  const setNavDark = useArrivalActStore((state) => state.setNavDark);
+  const [view, setView] = useState({
+    narrow: false,
+    reduced: true,
+    aspect: 0.625,
+  });
+
+  useEffect(() => {
+    const motion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const sync = () =>
+      setView({
+        narrow: window.innerWidth <= 700,
+        reduced: motion.matches,
+        aspect: aspectOf(window.innerWidth, window.innerHeight),
+      });
+    sync();
+    window.addEventListener("resize", sync);
+    motion.addEventListener("change", sync);
+    return () => {
+      window.removeEventListener("resize", sync);
+      motion.removeEventListener("change", sync);
+    };
+  }, []);
+
+  const { narrow, reduced, aspect } = view;
+  const length = reduced
+    ? SCENE_LENGTH + ACT2_OVERHANG
+    : narrow
+      ? MOBILE_LENGTH
+      : RIBBON_LENGTH;
+  const knots = narrow ? KNOTS_NARROW : KNOTS;
+  const openings = BEATS.flatMap((beat) =>
+    beat.aperture ? [geometryFor(beat.aperture, narrow, aspect)] : [],
+  );
+  const staticOptions = {
+    knots,
+    from: -ACT2_OVERHANG,
+    to: SCENE_LENGTH,
+    s: 0,
+    swaying: false,
+    aspect,
+    apertures: openings.map((aperture) => ({ aperture, open: 1 })),
+  };
+
+  useEffect(() => {
+    const section = sectionRef.current;
+    const scene = sceneRef.current;
+    const svg = svgRef.current;
+    const world = worldRef.current;
+    const copyWorld = copyWorldRef.current;
+    if (!section || !scene || !svg || !world || !copyWorld) return;
+    if (reduced) {
+      scene.style.opacity = "1";
+      section.style.setProperty("--scene-opacity", "1");
+      world.style.transform = "none";
+      copyWorld.style.transform = "none";
+      for (const element of section.querySelectorAll<HTMLElement>(
+        "[data-copy], [data-plate]",
+      )) {
+        element.style.removeProperty("transform");
+        element.style.removeProperty("opacity");
+      }
+      const frozen = BEATS.flatMap((beat) =>
+        beat.aperture
+          ? [{ aperture: geometryFor(beat.aperture, narrow, aspect), open: 1 }]
+          : [],
+      );
+      const options = {
+        knots,
+        from: -ACT2_OVERHANG,
+        to: SCENE_LENGTH,
+        s: 0,
+        swaying: false,
+        aspect,
+        apertures: frozen,
+      };
+      sheetRef.current?.setAttribute("d", ribbonPath(options));
+      outlineRef.current?.setAttribute(
+        "d",
+        ribbonPath({ ...options, apertures: [] }),
+      );
+      for (const element of section.querySelectorAll<HTMLElement>(
+        "[data-photo-drift], [data-next-image]",
+      )) {
+        element.style.removeProperty("transform");
+        element.style.removeProperty("clip-path");
+      }
+      const frozenClips = section.querySelectorAll<SVGPathElement>(
+        "[data-aperture-clip]",
+      );
+      frozen.forEach(({ aperture }, index) => {
+        frozenClips[index].setAttribute(
+          "d",
+          aperturePath(
+            { ...aperture, y: 0.5, r: 1 / PLATE_BLEED, stretch: 1 },
+            0.5,
+            1,
+            1,
+          ),
+        );
+      });
+      setNavDark(2, false);
+      return;
+    }
+    gsap.registerPlugin(ScrollTrigger);
+    const geometries = BEATS.flatMap((beat) =>
+      beat.aperture ? [geometryFor(beat.aperture, narrow, aspect)] : [],
+    );
+    const plates = Array.from(
+      section.querySelectorAll<HTMLElement>("[data-plate]"),
+    );
+    const copies = Array.from(
+      section.querySelectorAll<HTMLElement>("[data-copy]"),
+    );
+    const clipPaths = Array.from(
+      section.querySelectorAll<SVGPathElement>("[data-aperture-clip]"),
+    );
+    let top = 0;
+    let vh = window.innerHeight / 100;
+    let vw = window.innerWidth / 100;
+    let scroll = window.scrollY;
+    let copyHeights: number[] = [];
+    let navDark = false;
+    let alive = true;
+    let lastFrame = -1;
+    const measure = () => {
+      top = section.getBoundingClientRect().top + window.scrollY;
+      vh = window.innerHeight / 100;
+      vw = window.innerWidth / 100;
+      copyHeights = copies.map((copy) => copy.offsetHeight / vh);
+    };
+    const paint = (time: number) => {
+      const travel = (scroll - top) / vh;
+      if (!alive || travel < -200 || travel > length) return;
+      const camera = cameraAt(travel, narrow) + (narrow ? 18 : 0);
+      // The small centre drift carries the photographs. The stronger edge
+      // wave is independent, so the paper moves without shaking the reading.
+      const phase = travel * 0.38 + time * 8;
+      world.style.transform = `translate3d(0,${-camera * vh}px,0)`;
+      copyWorld.style.transform = world.style.transform;
+      svg.setAttribute(
+        "viewBox",
+        `0 ${camera - ACT2_OVERHANG} 100 ${100 + ACT2_OVERHANG}`,
+      );
+      scene.style.opacity = String(exitOpacity(travel, length));
+      section.style.setProperty("--scene-opacity", scene.style.opacity);
+      if (heroRef.current)
+        heroRef.current.style.opacity = String(
+          1 - smooth(ramp(camera, 55, 170)),
+        );
+      if (waterRef.current)
+        waterRef.current.style.opacity = String(
+          1 - smooth(ramp(camera, 425, 500)),
+        );
+
+      const drawn = geometries.map((geometry, index) => {
+        const screenY = geometry.y - camera;
+        const opening = 0.87 + 0.13 * smooth(ramp(100 - screenY, 8, 48));
+        const x = centre(knots, geometry.y, phase, !narrow) + geometry.dx;
+        const plate = plates[index];
+        plate.style.transform = `translateX(${(x - (centre(knots, geometry.y, 0, false) + geometry.dx)) * vw}px)`;
+        // The DOM crop and SVG hole use the exact same animated outline.
+        clipPaths[index].setAttribute(
+          "d",
+          aperturePath(
+            { ...geometry, y: 0.5, r: 1 / PLATE_BLEED, stretch: 1 },
+            0.5,
+            opening,
+            1,
+          ),
+        );
+        const image = plate.querySelector<HTMLElement>("[data-photo-drift]");
+        if (image)
+          image.style.transform = `translateY(${(screenY - 50) * 0.045}%) scale(${1.025 + 0.035 * ramp(screenY, 20, 100)})`;
+        const next = plate.querySelector<HTMLElement>("[data-next-image]");
+        if (next)
+          next.style.clipPath = `inset(${(1 - smooth(ramp(camera, geometry.y - 62, geometry.y - 24))) * 100}% 0 0)`;
+        return { aperture: geometry, open: opening };
+      });
+      const options = {
+        knots,
+        from: Math.max(-ACT2_OVERHANG, camera - ACT2_OVERHANG),
+        to: camera + 124,
+        s: phase,
+        time,
+        swaying: !narrow,
+        edgeMotion: true,
+        edgeScale: narrow ? 0.35 : 1,
+        aspect,
+        apertures: drawn,
+      };
+      sheetRef.current?.setAttribute("d", ribbonPath(options));
+      outlineRef.current?.setAttribute(
+        "d",
+        ribbonPath({ ...options, apertures: [] }),
+      );
+
+      for (let index = 0; index < copies.length; index++) {
+        const beat = BEATS[index];
+        const authoredY = Number(copies[index].dataset.copyY);
+        const anchor =
+          beat.id === "horizon"
+            ? Math.max(0, camera + (narrow ? 64 : 76) - authoredY)
+            : 0;
+        const screenY = authoredY + anchor - camera;
+        const entering =
+          beat.id === "horizon"
+            ? smooth(ramp(camera, 465, 490))
+            : smooth(ramp(100 - screenY, 6, 28));
+        copies[index].style.opacity = String(entering);
+        const drift =
+          narrow || beat.onPhoto || beat.id === "horizon"
+            ? 0
+            : centre(knots, beat.y, phase) - centre(knots, beat.y, 0, false);
+        copies[index].style.transform =
+          `translate(${drift * vw}px,${(1 - entering) * 24 + anchor * vh}px)`;
+        const hidden =
+          screenY > 110 ||
+          screenY + copyHeights[index] < 0 ||
+          exitOpacity(travel, length) < 0.05;
+        copies[index].inert = hidden;
+      }
+      const dark = camera > 175 && camera < 275;
+      if (dark !== navDark) {
+        navDark = dark;
+        setNavDark(2, dark);
+      }
+      section.dataset.camera = camera.toFixed(2);
+    };
+    measure();
+    const trigger = ScrollTrigger.create({
+      trigger: section,
+      start: "top 200%",
+      end: "bottom top",
+      onRefresh: (self) => {
+        measure();
+        scroll = self.scroll();
+        paint(gsap.ticker.time);
+      },
+      onUpdate: (self) => {
+        scroll = self.scroll();
+      },
+    });
+    const tick = (time: number) => {
+      if (document.hidden || time - lastFrame < 1 / 30) return;
+      lastFrame = time;
+      paint(time);
+    };
+    gsap.ticker.add(tick);
+    paint(gsap.ticker.time);
+    return () => {
+      alive = false;
+      trigger.kill();
+      gsap.ticker.remove(tick);
+      setNavDark(2, false);
+      for (const element of copies) element.inert = false;
+    };
+  }, [narrow, reduced, aspect, length, knots, setNavDark]);
+
+  return (
+    <section
+      ref={sectionRef}
+      className={styles.section}
+      data-act={2}
+      data-still={reduced ? "true" : undefined}
+      aria-label="A slower day at Mariva"
+      style={css({ "--length": length, "--overhang": ACT2_OVERHANG })}
+    >
+      <div className={styles.stage}>
+        <div ref={sceneRef} className={styles.viewport}>
+          <div className={styles.backdrop}>
+            <Photo image={HORIZON} />
+            <div ref={waterRef} className={styles.waterBackdrop}>
+              <Photo image={HORIZON} />
+            </div>
+            <div ref={heroRef} className={styles.heroBackdrop}>
+              <Photo image={HERO_PLATE} />
+            </div>
+          </div>
+          <div ref={worldRef} className={styles.world}>
+            {openings.map((aperture, index) => {
+              const id = `${clipId}-photo-${index}`;
+              return (
+                <div
+                  key={aperture.image.src}
+                  className={styles.plate}
+                  data-plate={index}
+                  style={css({
+                    "--x": centre(knots, aperture.y, 0, false) + aperture.dx,
+                    "--y": aperture.y,
+                    "--r": aperture.r,
+                    "--stretch": aperture.stretch ?? 1,
+                    clipPath: `url(#${id})`,
+                  })}
+                >
+                  <svg className={styles.clipDefinitions} aria-hidden="true">
+                    <defs>
+                      <clipPath id={id} clipPathUnits="objectBoundingBox">
+                        <path
+                          data-aperture-clip={index}
+                          d={aperturePath(
+                            {
+                              ...aperture,
+                              y: 0.5,
+                              r: 1 / PLATE_BLEED,
+                              stretch: 1,
+                            },
+                            0.5,
+                            1,
+                            1,
+                          )}
+                        />
+                      </clipPath>
+                    </defs>
+                  </svg>
+                  <div className={styles.photoDrift} data-photo-drift="">
+                    <Photo
+                      image={aperture.image}
+                      sizes="(max-width: 700px) 85vw, 75vw"
+                    />
+                    {aperture.nextImage && (
+                      <div className={styles.nextImage} data-next-image="">
+                        <Photo
+                          image={aperture.nextImage}
+                          sizes="(max-width: 700px) 85vw, 75vw"
+                        />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <svg
+            ref={svgRef}
+            className={styles.ribbon}
+            viewBox={`0 ${-ACT2_OVERHANG} 100 ${reduced ? SCENE_LENGTH + ACT2_OVERHANG : 200}`}
+            preserveAspectRatio="none"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <defs>
+              <clipPath id={`${clipId}-sheet`}>
+                <path
+                  ref={outlineRef}
+                  d={ribbonPath({ ...staticOptions, apertures: [] })}
+                />
+              </clipPath>
+            </defs>
+            <path
+              ref={sheetRef}
+              className={styles.sheet}
+              fillRule="evenodd"
+              clipPath={`url(#${clipId}-sheet)`}
+              d={ribbonPath(staticOptions)}
+            />
+          </svg>
+          <div ref={copyWorldRef} className={styles.copyWorld}>
+            {BEATS.map((beat) => {
+              const geometry =
+                beat.aperture && geometryFor(beat.aperture, narrow, aspect);
+              const y = narrow
+                ? beat.y + (geometry ? geometry.r + 7 : -10)
+                : beat.y - (beat.onPhoto ? 27 : 18);
+              return (
+                <div
+                  key={beat.id}
+                  className={styles.beat}
+                  data-copy={beat.id}
+                  data-beat={beat.id}
+                  data-copy-y={y}
+                  data-on-photo={beat.onPhoto || undefined}
+                  style={css({ "--x": narrow ? 12 : beat.x, "--y": y })}
+                >
+                  {beat.id !== "horizon" && (
+                    <p className={styles.marker}>
+                      {beat.index && (
+                        <span className={styles.index}>{beat.index}</span>
+                      )}
+                      <span>{beat.label}</span>
+                    </p>
+                  )}
+                  <h2 className={styles.display}>
+                    {beat.lines.map((line) => (
+                      <span key={line}>{line}</span>
+                    ))}
+                  </h2>
+                  {beat.note && <p className={styles.note}>{beat.note}</p>}
+                  {beat.facts && (
+                    <ul className={styles.facts}>
+                      {beat.facts.map((fact) => (
+                        <li key={fact}>{fact}</li>
+                      ))}
+                    </ul>
+                  )}
+                  {beat.action && (
+                    <ChooseDatesLink
+                      className={styles.actionLink}
+                      context={beat.label}
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+      <FoliageGobo className={styles.gobo} />
+    </section>
+  );
+}

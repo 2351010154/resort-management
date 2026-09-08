@@ -1,7 +1,8 @@
 "use client";
 
-// Act 2's wall: a gobo — foliage shadow cast through an off-frame window at the
-// top right, leaves fluttering on their stems.
+// The arrival's light: a gobo — foliage shadow cast through an off-frame window
+// at the top right, leaves fluttering on their stems. Act 2 mounts it over its
+// ribbon and the photographs the ribbon is laid on, and it falls on both.
 //
 // Two passes, per the oryzo.ai gobo it is modelled on. A 512² offscreen pass
 // draws and wiggles the mask; the screen pass blurs it into a penumbra and
@@ -26,7 +27,7 @@ import {
   maskFragment,
   quadVertex,
 } from "./foliage-gobo-shader";
-import styles from "./act-2-welcome.module.css";
+import styles from "./foliage-gobo.module.css";
 
 /** Mask resolution. oryzo runs its gobo target at the same size. */
 const MASK_SIZE = 512;
@@ -256,7 +257,7 @@ function GoboPasses({ still }: { still: boolean }) {
   );
 }
 
-export function FoliageGobo() {
+export function FoliageGobo({ className }: { className?: string }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const inView = useInView(wrapRef);
   // Decided after mount, never during render: the server has no idea which of
@@ -271,7 +272,11 @@ export function FoliageGobo() {
   }, []);
 
   return (
-    <div ref={wrapRef} className={styles.goboWrap} aria-hidden>
+    <div
+      ref={wrapRef}
+      className={[styles.goboWrap, className].filter(Boolean).join(" ")}
+      aria-hidden
+    >
       {mode === null ? null : mode === "css" ? (
         <div className={styles.goboFallback} />
       ) : (

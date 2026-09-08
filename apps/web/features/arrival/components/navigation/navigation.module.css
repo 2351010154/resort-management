@@ -174,3 +174,10 @@
     display: none;
   }
 }
+
+/* The ribbon places dark photography and light paper behind the same bar.
+   Blend the lettering locally instead of choosing one theme for both. */
+.bar[data-over-ribbon]:not([data-phase="island"]) {
+  color: var(--ivory);
+  mix-blend-mode: difference;
+}

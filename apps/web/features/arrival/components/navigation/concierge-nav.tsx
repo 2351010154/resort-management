@@ -8,8 +8,8 @@
 
 import { useEffect } from "react";
 import { useArrivalActStore } from "@/features/arrival/lib/act-store";
-import { NavHoverLink } from "./nav-hover-link";
 import { DynamicIslandMenu, NAV_LINKS } from "./dynamic-island-menu";
+import { NavHoverLink } from "./nav-hover-link";
 import styles from "./navigation.module.css";
 
 // Acts whose ground is dark for the whole of their scroll, which is also what
@@ -40,6 +40,7 @@ export function ConciergeNav() {
   const menuOpen = useArrivalActStore((s) => s.menuOpen);
   const setMenuOpen = useArrivalActStore((s) => s.setMenuOpen);
   const navDark = useArrivalActStore(navIsDark);
+  const overRibbon = useArrivalActStore((s) => s.activeAct === 2);
 
   // Scroll phase with hysteresis (enter 80vh / exit 60vh) so the
   // wordmark<->monogram crossfade never flickers at the boundary.
@@ -85,6 +86,7 @@ export function ConciergeNav() {
       <header
         className={styles.bar}
         data-phase={navPhase}
+        data-over-ribbon={overRibbon || undefined}
         data-theme={navDark || menuOpen ? "dark" : "light"}
       >
         {/* A real address, not `#act-1`: the acts carry no id, and the mark is
