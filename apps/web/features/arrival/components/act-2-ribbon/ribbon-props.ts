@@ -41,7 +41,8 @@ const image = (name: string, width: number, height: number) => ({
 // reaches them. Stones wait under the rooms note. In the water passage a
 // ladle hangs high in the ivory band and its pour, seated over the ladle's
 // own stream, sinks faster than it does, so the scroll stretches the water.
-// Bread rests under the table's note.
+// At the table the dish of oil sits on the ivory beside the photograph's
+// lower left, the loaf under the note: one object each side of the lobe.
 export const PROPS: readonly Prop[] = [
   {
     id: "teapot",
@@ -101,26 +102,26 @@ export const PROPS: readonly Prop[] = [
     spin: -3,
   },
   {
+    id: "olive-oil",
+    ...image("olive-oil", 640, 584),
+    x: 2,
+    y: 350,
+    size: 10,
+    tilt: -5,
+    rate: 0.14,
+    drop: 8,
+    spin: 4,
+  },
+  {
     id: "sourdough",
     ...image("sourdough", 640, 491),
-    x: 65,
-    y: 358,
-    size: 10,
+    x: 67,
+    y: 360,
+    size: 9,
     tilt: -18,
     rate: 0.2,
     drop: 10,
     spin: 8,
-  },
-  {
-    id: "croissant",
-    ...image("croissant", 640, 466),
-    x: 79,
-    y: 346,
-    size: 6,
-    tilt: 22,
-    rate: 0.3,
-    drop: 14,
-    spin: -14,
   },
 ];
 
