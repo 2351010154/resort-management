@@ -21,6 +21,7 @@
   overflow: hidden;
 }
 .backdrop {
+  background: var(--paper);
   position: absolute;
   top: 100vh;
   width: 100%;
@@ -30,6 +31,30 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+/* Keep the scene intact and feather only the stone at the page join. */
+.horizonImage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.horizonImage::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: clamp(40px, 8vh, 88px);
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    rgb(231 216 198 / 0),
+    rgb(231 216 198 / 0.16) 30%,
+    rgb(231 216 198 / 0.5) 58%,
+    rgb(231 216 198 / 0.84) 80%,
+    rgb(231 216 198)
+  );
+}
+.horizonImage img {
+  object-position: center bottom;
 }
 .heroBackdrop,
 .waterBackdrop {

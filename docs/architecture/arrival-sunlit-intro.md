@@ -1,5 +1,8 @@
 # Sunlit arrival redesign
 
+> [!NOTE]
+> **Archived / Superseded:** This document records an earlier design exploration for the arrival opening. It is superseded by [`arrival-opening.md`](arrival-opening.md), which owns the current Act 1 aperture and photographic plate decisions.
+
 The supplied intro.mp4 is a visual reference, not application footage. Its split photographic windows, ivory ground and overlapping bougainvillea informed this adaptation.
 
 ## Page behavior
