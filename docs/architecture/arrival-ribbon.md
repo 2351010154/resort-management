@@ -50,6 +50,19 @@ not versioned). The ones that shape the code:
 - **Apertures have declared roles.** `reading` openings hold their place while
   the photograph behind drifts; `feature` openings open from nothing and close
   again; the `exit` opening is the lens.
+- **Props rest on the sheet and never enter the lobe below.** The small
+  objects filling a lobe's spare ivory (`ribbon-props.ts`) are one still life
+  per lobe, read as a day at the house: the tea that fell out of the first
+  opening, stones under the rooms note, a ladle whose pour is drawn down the
+  water passage's band, bread under the table's note. They are authored like
+  beats, in page units, and ride the paper. Each sinks against it by its own
+  rate to a bounded drop, turning a little, and settles; the bound is chosen
+  so that at full drop the prop still clears every later opening and block of
+  copy it shares a column with, on every common aspect, which
+  `ribbon-props.spec.ts` checks. Nothing is pinned to the viewport — a prop
+  that tracked the camera read as a sticker. Cutouts come from
+  `design-materials/transparent-objects`, trimmed to 640px. Narrow screens
+  have no spare ivory and get no props.
 - **The gobo falls on everything.** Plates, then the sheet, then the leaf
   shadow, then the type. The section carries no z-index so the multiply reaches
   the neighbouring acts' pictures.
