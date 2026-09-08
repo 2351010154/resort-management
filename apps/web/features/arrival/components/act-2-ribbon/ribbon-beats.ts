@@ -1,5 +1,4 @@
 import { CHECK_IN_TIME, CHECK_OUT_TIME } from "@mariva/shared";
-import { HERO_PLATE } from "@/features/arrival/components/act-1-arrival/hero-plate";
 import { ROOM_COUNT_IN_WORDS } from "@/features/arrival/content/house-facts";
 import { arrivalImages } from "@/features/arrival/lib/image-manifest";
 import type { ApertureGeometry, Knot } from "./ribbon-geometry";
@@ -62,17 +61,17 @@ export const BEATS: readonly Beat[] = [
     id: "light",
     index: "01",
     label: "A different perspective",
-    y: 42,
-    x: 46,
-    lines: ["Light comes in", "before you do."],
-    note: "Stone. Sunlight. A little room to pause.",
+    y: 15.7,
+    x: 56,
+    lines: ["A different", "perspective."],
+    note: "Coastal living reimagined.",
     aperture: {
-      y: 44,
-      dx: 11,
+      y: 18,
+      dx: 14.5,
       r: 26,
-      widthVw: 27,
+      widthVw: 21.6,
       shape: "circle",
-      image: HERO_PLATE,
+      image: HORIZON,
     },
   },
   {
@@ -153,12 +152,10 @@ export const BEATS: readonly Beat[] = [
 // Large lobes hold a photograph and its heading together. Narrow, diagonal
 // necks expose the darker ground and point toward the following chapter.
 export const KNOTS: readonly Knot[] = [
-  { y: -100, cx: 38, w: 0 },
-  { y: -86, cx: 46, w: 84 },
-  { y: -66, cx: 60, w: 110 },
-  { y: -25, cx: 79, w: 58 },
-  { y: 20, cx: 74, w: 62 },
-  { y: 52, cx: 73, w: 64 },
+  // A full-width tidal crest separates the acts before the ribbon turns.
+  { y: -100, cx: 70, w: 88 },
+  { y: 18, cx: 70, w: 88 },
+  { y: 52, cx: 81.5, w: 65 },
   { y: 82, cx: 60, w: 91 },
   { y: 107, cx: 49, w: 112 },
   { y: 140, cx: 49, w: 112 },
@@ -179,8 +176,10 @@ export const KNOTS: readonly Knot[] = [
   { y: SCENE_LENGTH, cx: 116, w: 0 },
 ];
 export const KNOTS_NARROW: readonly Knot[] = [
-  { y: -100, cx: 50, w: 0 },
-  { y: -40, cx: 50, w: 88 },
+  { y: -100, cx: 50, w: 124 },
+  { y: -40, cx: 50, w: 124 },
+  { y: 20, cx: 50, w: 124 },
+  { y: 48, cx: 50, w: 88 },
   { y: 510, cx: 50, w: 88 },
   { y: 550, cx: 74, w: 58 },
   { y: 575, cx: 112, w: 0 },

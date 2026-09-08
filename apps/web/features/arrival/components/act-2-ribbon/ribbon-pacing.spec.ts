@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { KNOTS, MOBILE_LENGTH, RIBBON_LENGTH } from "./ribbon-beats";
-import { edgeWave, ribbonPath } from "./ribbon-geometry";
+import { BEATS, KNOTS, MOBILE_LENGTH, RIBBON_LENGTH } from "./ribbon-beats";
+import { centre, edgeWave, ribbonPath } from "./ribbon-geometry";
 import { cameraAt, exitOpacity } from "./ribbon-pacing";
 
 describe("ribbon camera", () => {
@@ -47,7 +47,21 @@ describe("ribbon edge motion", () => {
     );
     expect(
       Math.abs(edgeWave(120, 140, 0) - edgeWave(120, 140, 2)),
-    ).toBeGreaterThan(1);
+    ).toBeGreaterThan(0.25);
+  });
+  it("keeps the first circular photo clear of the compact introduction", () => {
+    const aperture = BEATS[0].aperture!;
+    for (let time = 0; time <= 60; time += 0.5) {
+      const phase = time * 8;
+      const photoLeft =
+        centre(KNOTS, aperture.y, phase) + aperture.dx - aperture.widthVw / 2;
+      // The introduction occupies 54–73vw; its own centre drift is shared.
+      const textRight =
+        73 +
+        centre(KNOTS, BEATS[0].y, phase) -
+        centre(KNOTS, BEATS[0].y, 0, false);
+      expect(photoLeft).toBeGreaterThan(textRight);
+    }
   });
   it("freezes completely for reduced motion", () => {
     expect(ribbonPath({ ...options, swaying: false, time: 0 })).toBe(

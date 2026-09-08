@@ -1,4 +1,5 @@
 .section {
+  --shell-outline: oklch(100% 0 0);
   --paper: var(--ivory-warm);
   --headline: clamp(2.75rem, 4.4vw, 4.75rem);
   --label: 0.6875rem;
@@ -36,6 +37,10 @@
   position: absolute;
   inset: 0;
 }
+.heroBackdrop img {
+  /* Match Act 1's final frame crop so the shared photograph never snaps. */
+  transform: scale(1.06);
+}
 .waterBackdrop {
   overflow: hidden;
 }
@@ -57,6 +62,25 @@
 }
 .copyWorld {
   z-index: 4;
+}
+.shell {
+  position: absolute;
+  top: 100vh;
+  left: 85vw;
+  width: clamp(4rem, 7vw, 7rem);
+  z-index: 3;
+  pointer-events: none;
+  will-change: transform, opacity;
+  transform: rotate(-16deg);
+}
+.shell img {
+  display: block;
+  width: 100%;
+  height: auto;
+  filter: drop-shadow(2px 0 0 var(--shell-outline))
+    drop-shadow(-2px 0 0 var(--shell-outline))
+    drop-shadow(0 2px 0 var(--shell-outline))
+    drop-shadow(0 -2px 0 var(--shell-outline));
 }
 .plate {
   position: absolute;
@@ -96,7 +120,6 @@
   height: 100%;
   z-index: 2;
   pointer-events: none;
-  filter: drop-shadow(0 4px 8px rgb(var(--ink-rgb) / 0.12));
 }
 .sheet {
   fill: var(--paper);
@@ -163,10 +186,49 @@
   color: var(--stone-deep);
 }
 .beat[data-beat="light"] {
-  width: 30vw;
+  width: 19vw;
 }
 .beat[data-beat="light"] .display {
-  font-size: clamp(2.5rem, 3.8vw, 4rem);
+  font-size: clamp(2rem, 2.9vw, 3rem);
+  line-height: 1;
+}
+.beat[data-beat="light"] .marker {
+  position: relative;
+  margin-bottom: 2rem;
+}
+.beat[data-beat="light"] .index::after {
+  position: absolute;
+  left: -2.8vw;
+  top: -2rem;
+  width: 1px;
+  height: 3.625rem;
+}
+.beat[data-beat="light"] .index::before {
+  content: "";
+  position: absolute;
+  left: calc(-2.8vw - 3px);
+  top: 1.375rem;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentcolor;
+}
+.beat[data-beat="light"] .note {
+  margin-top: 2.25rem;
+  margin-left: 0;
+  max-width: 19ch;
+  font-size: 0.75rem;
+  line-height: 1.9;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.beat[data-beat="light"] .actionLink {
+  margin-left: 0;
+  gap: 2.25rem;
+}
+.beat[data-beat="light"] .actionLink::after {
+  width: 2.25rem;
+  height: 2.25rem;
 }
 .beat[data-beat="rooms"] {
   width: 25vw;
@@ -224,6 +286,10 @@
   outline-offset: 4px;
 }
 @media (max-width: 700px) {
+  .shell {
+    left: 90vw;
+    width: 8vw;
+  }
   .section {
     --headline: clamp(2.25rem, 9vw, 3rem);
     --body: 0.8125rem;
@@ -269,6 +335,9 @@
   inset: 0;
   height: 100%;
 }
+.section[data-still="true"] .shell {
+  top: 380vh;
+}
 .section[data-still="true"] .viewport {
   top: 0;
   height: 100%;
@@ -293,7 +362,8 @@
   }
   .photoDrift,
   .plate,
-  .beat {
+  .beat,
+  .shell {
     will-change: auto;
   }
 }

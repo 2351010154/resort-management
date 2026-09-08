@@ -21,7 +21,13 @@ import {
   type RibbonImage,
   SCENE_LENGTH,
 } from "./ribbon-beats";
-import { aperturePath, aspectOf, centre, ribbonPath } from "./ribbon-geometry";
+import {
+  aperturePath,
+  aspectOf,
+  centre,
+  introShorePath,
+  ribbonPath,
+} from "./ribbon-geometry";
 import { cameraAt, exitOpacity, ramp, smooth } from "./ribbon-pacing";
 
 const PLATE_BLEED = 2.25;
@@ -73,8 +79,10 @@ export function Act2Ribbon() {
   const sheetRef = useRef<SVGPathElement>(null);
   const outlineRef = useRef<SVGPathElement>(null);
   const heroRef = useRef<HTMLDivElement>(null);
+  const backdropRef = useRef<HTMLDivElement>(null);
   const waterRef = useRef<HTMLDivElement>(null);
   const copyWorldRef = useRef<HTMLDivElement>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
   const clipId = useId();
   const setNavDark = useArrivalActStore((state) => state.setNavDark);
   const [view, setView] = useState({
@@ -112,6 +120,7 @@ export function Act2Ribbon() {
   );
   const staticOptions = {
     knots,
+    narrow,
     from: -ACT2_OVERHANG,
     to: SCENE_LENGTH,
     s: 0,
@@ -128,6 +137,9 @@ export function Act2Ribbon() {
     const copyWorld = copyWorldRef.current;
     if (!section || !scene || !svg || !world || !copyWorld) return;
     if (reduced) {
+      backdropRef.current?.style.removeProperty("transform");
+      shellRef.current?.style.removeProperty("transform");
+      shellRef.current?.style.removeProperty("opacity");
       scene.style.opacity = "1";
       section.style.setProperty("--scene-opacity", "1");
       world.style.transform = "none";
@@ -145,6 +157,7 @@ export function Act2Ribbon() {
       );
       const options = {
         knots,
+        narrow,
         from: -ACT2_OVERHANG,
         to: SCENE_LENGTH,
         s: 0,
@@ -193,6 +206,16 @@ export function Act2Ribbon() {
     const clipPaths = Array.from(
       section.querySelectorAll<SVGPathElement>("[data-aperture-clip]"),
     );
+    const images = plates.map((plate) =>
+      plate.querySelector<HTMLElement>("[data-photo-drift]"),
+    );
+    const nextImages = plates.map((plate) =>
+      plate.querySelector<HTMLElement>("[data-next-image]"),
+    );
+    const copyY = copies.map((copy) => Number(copy.dataset.copyY));
+    const baseX = geometries.map(
+      (geometry) => centre(knots, geometry.y, 0, false) + geometry.dx,
+    );
     let top = 0;
     let vh = window.innerHeight / 100;
     let vw = window.innerWidth / 100;
@@ -200,7 +223,8 @@ export function Act2Ribbon() {
     let copyHeights: number[] = [];
     let navDark = false;
     let alive = true;
-    let lastFrame = -1;
+    let lastScroll = Number.NaN;
+    let lastPaint = -1;
     const measure = () => {
       top = section.getBoundingClientRect().top + window.scrollY;
       vh = window.innerHeight / 100;
@@ -210,12 +234,24 @@ export function Act2Ribbon() {
     const paint = (time: number) => {
       const travel = (scroll - top) / vh;
       if (!alive || travel < -200 || travel > length) return;
-      const camera = cameraAt(travel, narrow) + (narrow ? 18 : 0);
+      const approach = smooth(ramp(travel, -70, 0));
+      const camera = cameraAt(travel, narrow) * approach + (narrow ? 18 : 0);
+      // Keep the shared hero registered to the viewport while this stage
+      // approaches its sticky position, avoiding a second photo scrolling in.
+      if (backdropRef.current)
+        backdropRef.current.style.transform = `translate3d(0,${Math.min(0, travel) * vh}px,0)`;
       // The small centre drift carries the photographs. The stronger edge
       // wave is independent, so the paper moves without shaking the reading.
       const phase = travel * 0.38 + time * 8;
       world.style.transform = `translate3d(0,${-camera * vh}px,0)`;
       copyWorld.style.transform = world.style.transform;
+      if (shellRef.current) {
+        // Travel with the reader through water and dining, then naturally
+        // leave the viewport. The same path runs backwards on reverse scroll.
+        const passage = smooth(ramp(camera, 140, 340));
+        const shellY = 210 + passage * 140;
+        shellRef.current.style.transform = `translate3d(0,${(shellY - camera) * vh}px,0) rotate(${-8 + passage * 12}deg)`;
+      }
       svg.setAttribute(
         "viewBox",
         `0 ${camera - ACT2_OVERHANG} 100 ${100 + ACT2_OVERHANG}`,
@@ -233,10 +269,19 @@ export function Act2Ribbon() {
 
       const drawn = geometries.map((geometry, index) => {
         const screenY = geometry.y - camera;
-        const opening = 0.87 + 0.13 * smooth(ramp(100 - screenY, 8, 48));
-        const x = centre(knots, geometry.y, phase, !narrow) + geometry.dx;
+        const entryY = screenY + Math.max(0, -travel);
+        const entrance = smooth(
+          ramp(100 - entryY, index === 0 ? 20 : 0, index === 0 ? 72 : 58),
+        );
+        const opening = 0.22 + 0.78 * entrance;
         const plate = plates[index];
-        plate.style.transform = `translateX(${(x - (centre(knots, geometry.y, 0, false) + geometry.dx)) * vw}px)`;
+        const visible =
+          screenY + geometry.r * 1.4 >= -ACT2_OVERHANG &&
+          screenY - geometry.r * 1.4 <= 124;
+        plate.style.visibility = visible ? "visible" : "hidden";
+        if (!visible) return { aperture: geometry, open: opening };
+        const x = centre(knots, geometry.y, phase, !narrow) + geometry.dx;
+        plate.style.transform = `translateX(${(x - baseX[index]) * vw}px)`;
         // The DOM crop and SVG hole use the exact same animated outline.
         clipPaths[index].setAttribute(
           "d",
@@ -247,16 +292,17 @@ export function Act2Ribbon() {
             1,
           ),
         );
-        const image = plate.querySelector<HTMLElement>("[data-photo-drift]");
+        const image = images[index];
         if (image)
-          image.style.transform = `translateY(${(screenY - 50) * 0.045}%) scale(${1.025 + 0.035 * ramp(screenY, 20, 100)})`;
-        const next = plate.querySelector<HTMLElement>("[data-next-image]");
+          image.style.transform = `translateY(${(screenY - 50) * 0.065}%) scale(${1.025 + 0.38 * (1 - entrance)})`;
+        const next = nextImages[index];
         if (next)
           next.style.clipPath = `inset(${(1 - smooth(ramp(camera, geometry.y - 62, geometry.y - 24))) * 100}% 0 0)`;
         return { aperture: geometry, open: opening };
       });
       const options = {
         knots,
+        narrow,
         from: Math.max(-ACT2_OVERHANG, camera - ACT2_OVERHANG),
         to: camera + 124,
         s: phase,
@@ -267,15 +313,29 @@ export function Act2Ribbon() {
         aspect,
         apertures: drawn,
       };
-      sheetRef.current?.setAttribute("d", ribbonPath(options));
-      outlineRef.current?.setAttribute(
-        "d",
-        ribbonPath({ ...options, apertures: [] }),
-      );
+      // Share the edge calculation between the filled sheet and its clip.
+      const outline = ribbonPath({ ...options, apertures: [] });
+      const holes = drawn
+        .filter(
+          ({ aperture }) =>
+            aperture.y + aperture.r * 1.4 >= options.from &&
+            aperture.y - aperture.r * 1.4 <= options.to,
+        )
+        .map(({ aperture, open }) =>
+          aperturePath(
+            aperture,
+            centre(knots, aperture.y, phase, !narrow) + aperture.dx,
+            open,
+            aspect,
+          ),
+        )
+        .join("");
+      sheetRef.current?.setAttribute("d", outline + holes);
+      outlineRef.current?.setAttribute("d", outline);
 
       for (let index = 0; index < copies.length; index++) {
         const beat = BEATS[index];
-        const authoredY = Number(copies[index].dataset.copyY);
+        const authoredY = copyY[index];
         const anchor =
           beat.id === "horizon"
             ? Math.max(0, camera + (narrow ? 64 : 76) - authoredY)
@@ -317,11 +377,19 @@ export function Act2Ribbon() {
       },
       onUpdate: (self) => {
         scroll = self.scroll();
+        // Scroll-linked layers must stay registered with the native sticky
+        // stage on every frame, including the overlapping hero handoff.
+        lastScroll = scroll;
+        lastPaint = gsap.ticker.time;
+        paint(lastPaint);
       },
     });
     const tick = (time: number) => {
-      if (document.hidden || time - lastFrame < 1 / 30) return;
-      lastFrame = time;
+      if (document.hidden) return;
+      // Only the ambient breeze is rate-limited; scrolling runs at display rate.
+      if (scroll === lastScroll && time - lastPaint < 1 / 30) return;
+      lastScroll = scroll;
+      lastPaint = time;
       paint(time);
     };
     gsap.ticker.add(tick);
@@ -332,6 +400,7 @@ export function Act2Ribbon() {
       gsap.ticker.remove(tick);
       setNavDark(2, false);
       for (const element of copies) element.inert = false;
+      for (const plate of plates) plate.style.removeProperty("visibility");
     };
   }, [narrow, reduced, aspect, length, knots, setNavDark]);
 
@@ -346,7 +415,7 @@ export function Act2Ribbon() {
     >
       <div className={styles.stage}>
         <div ref={sceneRef} className={styles.viewport}>
-          <div className={styles.backdrop}>
+          <div ref={backdropRef} className={styles.backdrop}>
             <Photo image={HORIZON} />
             <div ref={waterRef} className={styles.waterBackdrop}>
               <Photo image={HORIZON} />
@@ -418,6 +487,9 @@ export function Act2Ribbon() {
             focusable="false"
           >
             <defs>
+              <clipPath id={`${clipId}-shore`}>
+                <path d={introShorePath()} transform="translate(4 -3)" />
+              </clipPath>
               <clipPath id={`${clipId}-sheet`}>
                 <path
                   ref={outlineRef}
@@ -425,6 +497,17 @@ export function Act2Ribbon() {
                 />
               </clipPath>
             </defs>
+            {!narrow && (
+              <image
+                href={HORIZON.src}
+                x="-1"
+                y="-8"
+                width="70"
+                height="110"
+                preserveAspectRatio="xMidYMin slice"
+                clipPath={`url(#${clipId}-shore)`}
+              />
+            )}
             <path
               ref={sheetRef}
               className={styles.sheet}
@@ -433,13 +516,23 @@ export function Act2Ribbon() {
               d={ribbonPath(staticOptions)}
             />
           </svg>
+          <div ref={shellRef} className={styles.shell} aria-hidden="true">
+            <img
+              src="/images/act-2-ribbon/seashell.webp"
+              width={480}
+              height={504}
+              alt=""
+              loading="lazy"
+              decoding="async"
+            />
+          </div>
           <div ref={copyWorldRef} className={styles.copyWorld}>
             {BEATS.map((beat) => {
               const geometry =
                 beat.aperture && geometryFor(beat.aperture, narrow, aspect);
               const y = narrow
                 ? beat.y + (geometry ? geometry.r + 7 : -10)
-                : beat.y - (beat.onPhoto ? 27 : 18);
+                : beat.y - (beat.onPhoto ? 27 : beat.id === "light" ? 9 : 18);
               return (
                 <div
                   key={beat.id}
@@ -455,7 +548,7 @@ export function Act2Ribbon() {
                       {beat.index && (
                         <span className={styles.index}>{beat.index}</span>
                       )}
-                      <span>{beat.label}</span>
+                      {beat.id !== "light" && <span>{beat.label}</span>}
                     </p>
                   )}
                   <h2 className={styles.display}>
@@ -464,6 +557,11 @@ export function Act2Ribbon() {
                     ))}
                   </h2>
                   {beat.note && <p className={styles.note}>{beat.note}</p>}
+                  {beat.id === "light" && (
+                    <a className={styles.actionLink} href="/booking">
+                      Explore
+                    </a>
+                  )}
                   {beat.facts && (
                     <ul className={styles.facts}>
                       {beat.facts.map((fact) => (
@@ -483,7 +581,7 @@ export function Act2Ribbon() {
           </div>
         </div>
       </div>
-      <FoliageGobo className={styles.gobo} />
+      <FoliageGobo className={styles.gobo} resolution={0.65} maskSize={256} />
     </section>
   );
 }

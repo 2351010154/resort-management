@@ -12,8 +12,8 @@ export const ramp = (value: number, from: number, to: number) =>
 // Arrival, slow inspection, then travel to the next composition. Every hold
 // still advances gently, so the scene never feels like a locked scrollbar.
 export const CAMERA_STOPS = [
-  [0, 0],
-  [170, 14],
+  [0, -32],
+  [170, -18],
   [300, 86],
   [460, 104],
   [590, 179],
