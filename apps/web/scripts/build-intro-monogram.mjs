@@ -7,8 +7,9 @@
 //
 // The mark is used at its drawn weight, with no dilation pass — unlike the
 // hairline nav monogram. Nothing renders this file at runtime any more: it is
-// the measured record of the mark, and Act 2's window path is cut from it by
-// hand (see WINDOW_OPENING in act-2-welcome/welcome-chapters.tsx).
+// the measured record of the mark, kept so that a composition cut from the
+// letterform — Act 2's old window opening was one — can be measured against
+// the house's own drawing rather than redrawn to look like it.
 //
 // Usage: node apps/web/scripts/build-intro-monogram.mjs
 

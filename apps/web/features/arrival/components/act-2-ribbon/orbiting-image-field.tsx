@@ -10,7 +10,7 @@ import { useEffect, useRef, type RefObject } from "react";
 import { arrivalImages } from "@/features/arrival/lib/image-manifest";
 import { prefersReducedMotion } from "@/features/arrival/lib/webgl-support";
 import { SCRUB_DRIFT } from "@/lib/motion-tokens";
-import styles from "./act-2-welcome.module.css";
+import styles from "./act-2-ribbon.module.css";
 
 // Off since the act took the slide-2 comp: the comp's wall carries the foliage
 // shadow and nothing else, and floating photographs read as clutter against it.

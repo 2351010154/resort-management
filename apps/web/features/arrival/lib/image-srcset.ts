@@ -9,7 +9,10 @@ export function tierSrc(src: string, width: number): string {
 }
 
 /** Full `srcset` so the browser picks by layout width and pixel density. */
-export function tierSrcSet(image: Pick<ArrivalImage, "src" | "tiers">): string {
+export function tierSrcSet(image: {
+  src: string;
+  tiers: readonly ArrivalImage["tiers"][number][];
+}): string {
   return [...image.tiers]
     .sort((a, b) => a - b)
     .map((w) => `${tierSrc(image.src, w)} ${w}w`)

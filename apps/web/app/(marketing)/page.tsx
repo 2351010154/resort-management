@@ -2,7 +2,7 @@
 // own pin/scrub; the page only sequences them.
 
 import { Act1Arrival } from "@/features/arrival/components/act-1-arrival/act-1-arrival";
-import { WelcomeLine } from "@/features/arrival/components/act-2-welcome/welcome-line";
+import { Act2Ribbon } from "@/features/arrival/components/act-2-ribbon/act-2-ribbon";
 import { VideoSwell } from "@/features/arrival/components/act-3-approach/video-swell";
 import { Act4Stay } from "@/features/arrival/components/act-4-stay/act-4-stay";
 import { InvitationScreen } from "@/features/arrival/components/act-5-invitation/invitation-screen";
@@ -13,7 +13,7 @@ export default function ArrivalPage() {
     <>
       <main>
         <Act1Arrival />
-        <WelcomeLine />
+        <Act2Ribbon />
         <VideoSwell />
         <Act4Stay />
         <InvitationScreen />

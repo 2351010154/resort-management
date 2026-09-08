@@ -1,0 +1,299 @@
+.section {
+  --paper: var(--ivory-warm);
+  --headline: clamp(2.75rem, 4.4vw, 4.75rem);
+  --label: 0.6875rem;
+  --body: 0.875rem;
+  --image-bleed: 2.25;
+  position: relative;
+  height: calc(var(--length) * 1vh);
+}
+.stage {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  z-index: 2;
+}
+.viewport {
+  position: absolute;
+  top: -100vh;
+  width: 100%;
+  height: 200vh;
+  overflow: hidden;
+}
+.backdrop {
+  position: absolute;
+  top: 100vh;
+  width: 100%;
+  height: 100vh;
+}
+.backdrop img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.heroBackdrop,
+.waterBackdrop {
+  position: absolute;
+  inset: 0;
+}
+.waterBackdrop {
+  overflow: hidden;
+}
+.waterBackdrop img {
+  transform: scale(1.45);
+  object-position: 35% 70%;
+  filter: brightness(0.48) saturate(0.8);
+}
+.world,
+.copyWorld {
+  position: absolute;
+  top: 100vh;
+  left: 0;
+  width: 100%;
+  will-change: transform;
+}
+.world {
+  z-index: 1;
+}
+.copyWorld {
+  z-index: 4;
+}
+.plate {
+  position: absolute;
+  left: calc(var(--x) * 1vw);
+  top: calc(var(--y) * 1vh);
+  width: calc(var(--r) * var(--image-bleed) * var(--stretch) * 1vh);
+  height: calc(var(--r) * var(--image-bleed) * 1vh);
+  margin-top: calc(var(--r) * var(--image-bleed) * -0.5vh);
+  margin-left: calc(var(--r) * var(--image-bleed) * var(--stretch) * -0.5vh);
+  overflow: hidden;
+  will-change: transform;
+}
+.clipDefinitions {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+.photoDrift {
+  position: absolute;
+  inset: -5% 0;
+  will-change: transform;
+}
+.photoDrift img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.nextImage {
+  position: absolute;
+  inset: 0;
+  clip-path: inset(100% 0 0);
+}
+.ribbon {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  pointer-events: none;
+  filter: drop-shadow(0 4px 8px rgb(var(--ink-rgb) / 0.12));
+}
+.sheet {
+  fill: var(--paper);
+}
+.gobo {
+  z-index: 3;
+  opacity: calc(0.55 * var(--scene-opacity, 1));
+}
+.beat {
+  position: absolute;
+  top: calc(var(--y) * 1vh);
+  left: calc(var(--x) * 1vw);
+  width: 27vw;
+  color: var(--ink);
+  will-change: transform, opacity;
+}
+.marker {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  font-family: var(--font-mono), monospace;
+  font-size: var(--label);
+  line-height: 1.5;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+.index {
+  display: inline-flex;
+  align-items: center;
+  gap: 1rem;
+}
+.index::after {
+  content: "";
+  width: 2.5rem;
+  height: 1px;
+  background: currentcolor;
+  opacity: 0.45;
+}
+.display {
+  font-family: var(--font-display), serif;
+  font-weight: 400;
+  font-size: var(--headline);
+  line-height: 1.04;
+  letter-spacing: -0.035em;
+}
+.display > span {
+  display: block;
+}
+.note {
+  max-width: 23ch;
+  margin-top: 1.5rem;
+  font-size: var(--body);
+  line-height: 1.7;
+  color: var(--stone-deep);
+}
+.facts {
+  margin: 1.5rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.5rem;
+  font-size: var(--body);
+  color: var(--stone-deep);
+}
+.beat[data-beat="light"] {
+  width: 30vw;
+}
+.beat[data-beat="light"] .display {
+  font-size: clamp(2.5rem, 3.8vw, 4rem);
+}
+.beat[data-beat="rooms"] {
+  width: 25vw;
+}
+.beat[data-beat="table"] {
+  width: 30vw;
+}
+.beat[data-on-photo] {
+  width: 44vw;
+  color: var(--ivory);
+  text-shadow: 0 2px 16px rgb(var(--ink-rgb) / 0.2);
+}
+.beat[data-on-photo] .display {
+  font-size: clamp(4rem, 7.2vw, 7.5rem);
+}
+.beat[data-on-photo] .note {
+  color: var(--ivory);
+}
+.beat[data-beat="horizon"] {
+  width: 31vw;
+}
+.beat[data-beat="horizon"] .display {
+  font-size: clamp(2.5rem, 3.8vw, 4rem);
+}
+.actionLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.25rem;
+  min-height: 44px;
+  margin-top: 1.5rem;
+  font-size: var(--label);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--ink);
+}
+.actionLink::after {
+  content: "→";
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid currentcolor;
+  border-radius: 50%;
+  font-size: 1.25rem;
+  transition: transform 180ms ease;
+}
+.actionLink:hover::after {
+  transform: translateX(4px);
+}
+.actionLink:active::after {
+  transform: translateX(2px);
+}
+.actionLink:focus-visible {
+  outline: 2px solid currentcolor;
+  outline-offset: 4px;
+}
+@media (max-width: 700px) {
+  .section {
+    --headline: clamp(2.25rem, 9vw, 3rem);
+    --body: 0.8125rem;
+  }
+  .beat,
+  .beat[data-beat],
+  .beat[data-on-photo] {
+    width: 76vw;
+  }
+  .marker {
+    margin-bottom: 1rem;
+    font-size: 0.625rem;
+  }
+  .beat[data-beat="light"] .display,
+  .beat[data-beat="horizon"] .display {
+    font-size: var(--headline);
+  }
+  .beat[data-on-photo] {
+    color: var(--ink);
+    text-shadow: none;
+  }
+  .beat[data-on-photo] .display {
+    font-size: clamp(3.5rem, 16vw, 5rem);
+  }
+  .beat[data-on-photo] .note {
+    color: var(--stone-deep);
+  }
+  .note,
+  .facts,
+  .actionLink {
+    margin-top: 1rem;
+  }
+  .note {
+    max-width: 32ch;
+  }
+  .beat[data-beat="horizon"] {
+    background: rgb(var(--ivory-rgb) / 0.88);
+    padding: 1.5rem;
+  }
+}
+.section[data-still="true"] .stage {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+}
+.section[data-still="true"] .viewport {
+  top: 0;
+  height: 100%;
+  overflow: clip;
+}
+.section[data-still="true"] .backdrop {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+.section[data-still="true"] .heroBackdrop,
+.section[data-still="true"] .waterBackdrop {
+  display: none;
+}
+.section[data-still="true"] .world,
+.section[data-still="true"] .copyWorld {
+  will-change: auto;
+}
+@media (prefers-reduced-motion: reduce) {
+  .actionLink::after {
+    transition: none;
+  }
+  .photoDrift,
+  .plate,
+  .beat {
+    will-change: auto;
+  }
+}
