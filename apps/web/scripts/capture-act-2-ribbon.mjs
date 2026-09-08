@@ -10,7 +10,8 @@ const base =
   args.find((arg) => !arg.startsWith("--")) ?? "http://localhost:3000";
 const out = screenshotDir("act-2-ribbon");
 await mkdir(out, { recursive: true });
-// Scroll positions on the 1480vh desktop track; the final value is the
+// Scroll positions on the authored 1380vh camera travel, scaled below to
+// the current track length; the final value is the
 // corresponding camera position for native reduced-motion scrolling.
 const moments = [
   ["light", 70, 0],

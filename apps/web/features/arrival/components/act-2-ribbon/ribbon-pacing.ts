@@ -27,14 +27,42 @@ export const CAMERA_STOPS = [
   [1380, 534],
 ] as const;
 
+const CAMERA_TANGENTS = CAMERA_STOPS.map(([x, y], index) => {
+  if (index === CAMERA_STOPS.length - 1) return 0;
+  const [nextX, nextY] = CAMERA_STOPS[index + 1];
+  const nextSlope = (nextY - y) / (nextX - x);
+  if (index === 0) return nextSlope;
+  const [previousX, previousY] = CAMERA_STOPS[index - 1];
+  const previousSlope = (y - previousY) / (x - previousX);
+  const previousSpan = x - previousX;
+  const nextSpan = nextX - x;
+  const weight1 = 2 * nextSpan + previousSpan;
+  const weight2 = nextSpan + 2 * previousSpan;
+  return (weight1 + weight2) / (weight1 / previousSlope + weight2 / nextSlope);
+});
+
 export function cameraAt(scroll: number, narrow = false): number {
-  const scale = narrow ? (MOBILE_LENGTH - 100) / (RIBBON_LENGTH - 100) : 1;
+  const authoredTravel = CAMERA_STOPS[CAMERA_STOPS.length - 1][0];
+  const scale =
+    ((narrow ? MOBILE_LENGTH : RIBBON_LENGTH) - 100) / authoredTravel;
   const position = Math.max(0, scroll / scale);
   for (let i = 1; i < CAMERA_STOPS.length; i++) {
     const [end, to] = CAMERA_STOPS[i];
     const [start, from] = CAMERA_STOPS[i - 1];
-    if (position <= end)
-      return from + (to - from) * smooth((position - start) / (end - start));
+    if (position <= end) {
+      const t = (position - start) / (end - start);
+      const t2 = t * t;
+      const t3 = t2 * t;
+      // Shared monotone tangents carry momentum through each reading beat.
+      // The camera progressively slows and releases instead of stopping at
+      // every boundary; harmonic slopes keep it inside the authored stops.
+      return (
+        (2 * t3 - 3 * t2 + 1) * from +
+        (t3 - 2 * t2 + t) * (end - start) * CAMERA_TANGENTS[i - 1] +
+        (-2 * t3 + 3 * t2) * to +
+        (t3 - t2) * (end - start) * CAMERA_TANGENTS[i]
+      );
+    }
   }
   return CAMERA_STOPS[CAMERA_STOPS.length - 1][1];
 }

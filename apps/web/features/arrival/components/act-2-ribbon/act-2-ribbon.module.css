@@ -57,7 +57,7 @@
   will-change: transform;
 }
 .world {
-  z-index: 1;
+  z-index: 3;
 }
 .copyWorld {
   z-index: 4;
@@ -70,7 +70,7 @@
   height: calc(var(--r) * var(--image-bleed) * 1vh);
   margin-top: calc(var(--r) * var(--image-bleed) * -0.5vh);
   margin-left: calc(var(--r) * var(--image-bleed) * var(--stretch) * -0.5vh);
-  overflow: hidden;
+  overflow: visible;
   will-change: transform;
 }
 .clipDefinitions {
@@ -372,5 +372,129 @@
   .beat,
   .prop {
     will-change: auto;
+  }
+}
+
+.photoCrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+/* Layers share a fixed crop; the diagonal reveal is animated independently. */
+.sliderTrack {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+}
+.sliderFrame {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.sliderFrame img {
+  will-change: transform;
+}
+.sliderNodes {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  position: absolute;
+  right: 9%;
+  bottom: 0;
+  display: flex;
+  width: 140px;
+  height: 44px;
+  color: var(--ink);
+}
+.sliderNodes::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 22px;
+  right: 22px;
+  height: 1px;
+  background: currentcolor;
+  opacity: 0.3;
+}
+.sliderNodes::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 22px;
+  width: 14px;
+  height: 14px;
+  border: 1px solid currentcolor;
+  border-radius: 50%;
+  transform: translate(calc(-50% + var(--slide) * 48px), -50%);
+  transition-property: transform;
+  transition-duration: var(--slide-duration);
+  transition-timing-function: var(--ease-wipe);
+  pointer-events: none;
+}
+.sliderNodes button {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.sliderNodes button + button {
+  margin-left: 4px;
+}
+.sliderNodes button::before {
+  content: "";
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: currentcolor;
+}
+.sliderNodes button:focus-visible {
+  outline: 1px solid currentcolor;
+  outline-offset: -4px;
+  border-radius: 50%;
+}
+
+.gobo,
+.gobo * {
+  /* R3F sets pointer events inline on its decorative canvas wrapper. */
+  pointer-events: none !important;
+}
+
+.sliderProgress {
+  position: absolute;
+  top: 50%;
+  left: 22px;
+  width: 96px;
+  height: 1px;
+  background: currentcolor;
+  transform: scaleX(0);
+  transform-origin: left center;
+  pointer-events: none;
+}
+
+.sauceStack {
+  position: relative;
+  aspect-ratio: 640 / 584;
+}
+.sauceStack img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  transition: opacity 650ms var(--ease-ui);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sauceStack img {
+    transition: none;
   }
 }
