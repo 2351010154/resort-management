@@ -27,6 +27,10 @@ export const HORIZON = generated(
   "horizon",
   "Sunlit limestone terrace overlooking a rocky island and the blue sea.",
 );
+export const HORIZON_TERRACE = generated(
+  "horizon-terrace",
+  "The blue sea beyond a pale limestone terrace that continues into warm ivory.",
+);
 const BEDROOM = generated(
   "bedroom",
   "A linen-covered bed beside open doors looking out over the sea.",

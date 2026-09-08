@@ -1,32 +1,33 @@
-/* Act 3 — the arrival loop, fullscreen, released by Act 2's ribbon; then the
-   hour falls across the hold.
+/* Act 3 — floema video swell: centered card scales to fullscreen by scroll,
+   then the hour falls across the fullscreen hold beat.
    z-scale inside the stage: footage 0 / dusk grade 1 / tail fade 3 /
    caption 4 (the nav owns 100). */
 
-/* Reached up under Act 2 by the overlap the two acts agree on (`--overlap`,
-   set by the component from `act-seams.ts`), and painted *under* it: a
-   negative z-index puts this section beneath every positioned layer of the
-   page while still over its ground, so the frame pins under the ribbon's
-   sheet and is seen through the ribbon's last opening as it grows. Only
-   under a scrub — without one nothing holds and the two acts simply follow
-   each other. */
 .section {
+  margin-top: 35vh;
   position: relative;
-  /* Same wall Act 2's sheet is cut from, so the two acts read as one
-     surface where the sheet's foot is ever seen over this act's ground. The
-     dark this act hands over is made by the grade on the frame, not by
-     repainting the section under it. */
+  /* Same wall Act 2 settles on, so the two acts read as one surface. Plain
+     ivory here cut a hard line across the frame at the seam, and this act has
+     no reason to go back to it — its foot dissolves into Act 4's dark. The
+     ground stays light because for three quarters of the pin it is genuinely
+     the page the card is sitting on; the dark this act hands over is made by
+     the grade on the frame, not by repainting the section under it. */
   background: var(--ivory-warm);
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .section {
-    z-index: -1;
-    margin-top: calc(var(--overlap, 0) * -1vh);
-  }
+.section::before {
+  content: "";
+  position: absolute;
+  inset: -35vh 0 100%;
+  background: linear-gradient(
+    to bottom,
+    rgb(231 216 198),
+    var(--ivory-warm) 85%
+  );
 }
 
 .stage {
+  background: var(--ivory-warm);
   /* The hour, and the single number every layer of the grade is written off.
      0 is the light the loop was shot in; 1 is nightfall. It lives on the stage
      rather than on the shell so the scrub, the footage filter, the sky overlay
@@ -42,13 +43,15 @@
   overflow: hidden;
 }
 
-/* The frame, the size of the screen from the first paint: what the ribbon's
-   last opening looks through, and what the reader is left with. */
+/* Pre-sized fullscreen; GSAP scales it DOWN initially so the scrub up is
+   pure GPU compositing (scaling a playing video up from a small layout box
+   stutters). */
 .videoShell {
   position: relative;
   width: 100vw;
   height: 100vh;
   overflow: hidden;
+  will-change: transform, border-radius;
 }
 
 .videoShell video {

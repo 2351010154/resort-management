@@ -14,6 +14,7 @@ import {
   type Aperture,
   BEATS,
   HORIZON,
+  HORIZON_TERRACE,
   KNOTS,
   KNOTS_NARROW,
   MOBILE_LENGTH,
@@ -28,9 +29,9 @@ import {
   introShorePath,
   ribbonPath,
 } from "./ribbon-geometry";
-import { cameraAt, exitOpacity, ramp, smooth } from "./ribbon-pacing";
-import { RibbonSlider } from "./ribbon-slider";
+import { cameraAt, ramp, smooth } from "./ribbon-pacing";
 import { dropProgress, PROPS } from "./ribbon-props";
+import { RibbonSlider } from "./ribbon-slider";
 
 const PLATE_BLEED = 2.25;
 const css = (value: Record<string, string | number>) => value as CSSProperties;
@@ -265,7 +266,7 @@ export function Act2Ribbon() {
         "viewBox",
         `0 ${camera - ACT2_OVERHANG} 100 ${100 + ACT2_OVERHANG}`,
       );
-      scene.style.opacity = String(exitOpacity(travel, length));
+      scene.style.opacity = "1";
       section.style.setProperty("--scene-opacity", scene.style.opacity);
       if (heroRef.current)
         heroRef.current.style.opacity = String(
@@ -361,10 +362,7 @@ export function Act2Ribbon() {
             : centre(knots, beat.y, phase) - centre(knots, beat.y, 0, false);
         copies[index].style.transform =
           `translate(${drift * vw}px,${(1 - entering) * 24 + anchor * vh}px)`;
-        const hidden =
-          screenY > 110 ||
-          screenY + copyHeights[index] < 0 ||
-          exitOpacity(travel, length) < 0.05;
+        const hidden = screenY > 110 || screenY + copyHeights[index] < 0;
         copies[index].inert = hidden;
       }
       const dark = camera > 175 && camera < 275;
@@ -425,7 +423,9 @@ export function Act2Ribbon() {
       <div className={styles.stage}>
         <div ref={sceneRef} className={styles.viewport}>
           <div ref={backdropRef} className={styles.backdrop}>
-            <Photo image={HORIZON} />
+            <div className={styles.horizonImage}>
+              <Photo image={HORIZON_TERRACE} />
+            </div>
             <div ref={waterRef} className={styles.waterBackdrop}>
               <Photo image={HORIZON} />
             </div>

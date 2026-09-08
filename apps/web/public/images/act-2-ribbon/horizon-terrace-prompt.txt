@@ -1,0 +1,5 @@
+Built-in image_gen edit prompt:
+Edit this website photograph. Keep crisp photographic sea, island, mountain, olive branches and limestone architecture with the original composition in the upper 70%. Redesign the foreground terrace as a pale warm ivory limestone surface whose color naturally matches solid sRGB #eee7de. The terrace should occupy the entire lower edge across the full width, including bottom left. Reduce its cracks, shadows and surface markings towards the foreground: the last 15% of the picture is a completely uniform opaque #eee7de stone surface with no seams or shadows. This is a physical continuous pale stone foreground, NOT a fade, fog, blur, opacity wash, or gradient overlay on the scene. The sea and rocks stay sharp and fully saturated. Aim for seamless connection of the bottom edge to a website background #eee7de. Landscape image 3:2. No text, no UI.
+
+Output: apps/web/public/images/act-2-ribbon/horizon-terrace-1536.webp and horizon-terrace-768.webp.
+The generated foreground retains warm stone variation; the space below it connects that stone tone to the ivory page without an overlay on the photograph.

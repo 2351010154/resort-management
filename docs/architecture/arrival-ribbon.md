@@ -27,7 +27,7 @@ not versioned). The ones that shape the code:
   type stands in ivory on the photograph, a left lobe with the table opening
   and the copy in caps on its right, and a last lobe carrying its index at the
   page's edge, its display beside it and an opening that turns from day to dusk
-  to the right of that — then the sheet widening for the lens. Five beats, four
+  to the right of that — then the sheet widening for the lens. Six beats, four
   numbered; openings can be wider than round (`stretch`), a marker can stand
   away from its display (`marker`), and a stack states what it stands on (`on`).
 - **Scale is a set of relations, not a set of numbers.** The reference keeps
@@ -54,8 +54,8 @@ not versioned). The ones that shape the code:
   objects filling a lobe's spare ivory (`ribbon-props.ts`) are one still life
   per lobe, read as a day at the house: the tea that fell out of the first
   opening, stones under the rooms note, a ladle whose pour is drawn down the
-  water passage's band, a dish of oil beside the table photograph's lower
-  left and a loaf under its note. They are authored like
+  water passage's band, and a dish of oil beside the table photograph's lower
+  left. They are authored like
   beats, in page units, and ride the paper. Each sinks against it by its own
   rate to a bounded drop, turning a little, and settles; the bound is chosen
   so that at full drop the prop still clears every later opening and block of
