@@ -29,6 +29,7 @@ import {
   ribbonPath,
 } from "./ribbon-geometry";
 import { cameraAt, exitOpacity, ramp, smooth } from "./ribbon-pacing";
+import { dropProgress, PROPS } from "./ribbon-props";
 
 const PLATE_BLEED = 2.25;
 const css = (value: Record<string, string | number>) => value as CSSProperties;
@@ -82,7 +83,6 @@ export function Act2Ribbon() {
   const backdropRef = useRef<HTMLDivElement>(null);
   const waterRef = useRef<HTMLDivElement>(null);
   const copyWorldRef = useRef<HTMLDivElement>(null);
-  const shellRef = useRef<HTMLDivElement>(null);
   const clipId = useId();
   const setNavDark = useArrivalActStore((state) => state.setNavDark);
   const [view, setView] = useState({
@@ -138,14 +138,12 @@ export function Act2Ribbon() {
     if (!section || !scene || !svg || !world || !copyWorld) return;
     if (reduced) {
       backdropRef.current?.style.removeProperty("transform");
-      shellRef.current?.style.removeProperty("transform");
-      shellRef.current?.style.removeProperty("opacity");
       scene.style.opacity = "1";
       section.style.setProperty("--scene-opacity", "1");
       world.style.transform = "none";
       copyWorld.style.transform = "none";
       for (const element of section.querySelectorAll<HTMLElement>(
-        "[data-copy], [data-plate]",
+        "[data-copy], [data-plate], [data-prop]",
       )) {
         element.style.removeProperty("transform");
         element.style.removeProperty("opacity");
@@ -213,6 +211,10 @@ export function Act2Ribbon() {
       plate.querySelector<HTMLElement>("[data-next-image]"),
     );
     const copyY = copies.map((copy) => Number(copy.dataset.copyY));
+    const props = PROPS.map((prop) => ({
+      prop,
+      element: section.querySelector<HTMLElement>(`[data-prop="${prop.id}"]`),
+    }));
     const baseX = geometries.map(
       (geometry) => centre(knots, geometry.y, 0, false) + geometry.dx,
     );
@@ -245,13 +247,18 @@ export function Act2Ribbon() {
       const phase = travel * 0.38 + time * 8;
       world.style.transform = `translate3d(0,${-camera * vh}px,0)`;
       copyWorld.style.transform = world.style.transform;
-      if (shellRef.current) {
-        // Travel with the reader through water and dining, then naturally
-        // leave the viewport. The same path runs backwards on reverse scroll.
-        const passage = smooth(ramp(camera, 140, 340));
-        const shellY = 210 + passage * 140;
-        shellRef.current.style.transform = `translate3d(0,${(shellY - camera) * vh}px,0) rotate(${-8 + passage * 12}deg)`;
-      }
+      // Props ride the paper and sink against it by their own bounded drop,
+      // turning as they go, so the same path runs backwards on reverse
+      // scroll. The bob is ambient, a breath apiece, and no two share a period.
+      props.forEach(({ prop, element }, index) => {
+        if (!element) return;
+        const progress = dropProgress(prop, camera);
+        const bob = Math.sin(time * (0.5 + index * 0.13) + index * 1.7) * 0.5;
+        element.style.transform = `translate3d(0,${(prop.drop * progress + bob) * vh}px,0) rotate(${prop.spin * progress}deg)`;
+        element.style.opacity = prop.fade
+          ? String(1 - smooth(ramp(camera, prop.fade[0], prop.fade[1])))
+          : "1";
+      });
       svg.setAttribute(
         "viewBox",
         `0 ${camera - ACT2_OVERHANG} 100 ${100 + ACT2_OVERHANG}`,
@@ -537,17 +544,31 @@ export function Act2Ribbon() {
               </g>
             )}
           </svg>
-          <div ref={shellRef} className={styles.shell} aria-hidden="true">
-            <img
-              src="/images/act-2-ribbon/seashell.webp"
-              width={480}
-              height={504}
-              alt=""
-              loading="lazy"
-              decoding="async"
-            />
-          </div>
           <div ref={copyWorldRef} className={styles.copyWorld}>
+            {!narrow &&
+              PROPS.map((prop) => (
+                <div
+                  key={prop.id}
+                  className={styles.prop}
+                  data-prop={prop.id}
+                  aria-hidden="true"
+                  style={css({
+                    "--x": prop.x,
+                    "--y": prop.y,
+                    "--size": prop.size,
+                    "--tilt": `${prop.tilt}deg`,
+                  })}
+                >
+                  <img
+                    src={prop.src}
+                    width={prop.width}
+                    height={prop.height}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                  />
+                </div>
+              ))}
             {BEATS.map((beat) => {
               const geometry =
                 beat.aperture && geometryFor(beat.aperture, narrow, aspect);

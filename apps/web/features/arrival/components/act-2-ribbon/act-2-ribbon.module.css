@@ -1,5 +1,4 @@
 .section {
-  --shell-outline: oklch(100% 0 0);
   --paper: var(--ivory-warm);
   --headline: clamp(2.75rem, 4.4vw, 4.75rem);
   --label: 0.6875rem;
@@ -63,25 +62,6 @@
 .copyWorld {
   z-index: 4;
 }
-.shell {
-  position: absolute;
-  top: 100vh;
-  left: 85vw;
-  width: clamp(4rem, 7vw, 7rem);
-  z-index: 3;
-  pointer-events: none;
-  will-change: transform, opacity;
-  transform: rotate(-16deg);
-}
-.shell img {
-  display: block;
-  width: 100%;
-  height: auto;
-  filter: drop-shadow(2px 0 0 var(--shell-outline))
-    drop-shadow(-2px 0 0 var(--shell-outline))
-    drop-shadow(0 2px 0 var(--shell-outline))
-    drop-shadow(0 -2px 0 var(--shell-outline));
-}
 .plate {
   position: absolute;
   left: calc(var(--x) * 1vw);
@@ -127,6 +107,30 @@
 .chapterTrail {
   color: var(--ink);
   opacity: 0.3;
+}
+/* Props rest on the sheet. The scroll drop is on the wrapper so the hover
+   lift on the image never fights it; all share one light with the gobo. */
+.prop {
+  position: absolute;
+  top: calc(var(--y) * 1vh);
+  left: calc(var(--x) * 1vw);
+  width: calc(var(--size) * 1vw);
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+.prop img {
+  display: block;
+  width: 100%;
+  height: auto;
+  pointer-events: auto;
+  transform: rotate(var(--tilt));
+  transition: transform 350ms ease;
+  filter: drop-shadow(0 8px 10px rgb(var(--ink-rgb) / 0.12));
+}
+@media (hover: hover) and (pointer: fine) {
+  .prop img:hover {
+    transform: translateY(-8px) rotate(calc(var(--tilt) + 5deg)) scale(1.12);
+  }
 }
 .gobo {
   z-index: 3;
@@ -290,10 +294,6 @@
   outline-offset: 4px;
 }
 @media (max-width: 700px) {
-  .shell {
-    left: 90vw;
-    width: 8vw;
-  }
   .section {
     --headline: clamp(2.25rem, 9vw, 3rem);
     --body: 0.8125rem;
@@ -339,9 +339,6 @@
   inset: 0;
   height: 100%;
 }
-.section[data-still="true"] .shell {
-  top: 380vh;
-}
 .section[data-still="true"] .viewport {
   top: 0;
   height: 100%;
@@ -361,13 +358,19 @@
   will-change: auto;
 }
 @media (prefers-reduced-motion: reduce) {
+  .prop img {
+    transition: none;
+  }
+  .prop img:hover {
+    transform: rotate(var(--tilt));
+  }
   .actionLink::after {
     transition: none;
   }
   .photoDrift,
   .plate,
   .beat,
-  .shell {
+  .prop {
     will-change: auto;
   }
 }
