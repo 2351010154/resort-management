@@ -178,18 +178,18 @@ function spline(
  *  the knots packed into the sheet's first few units are each sampled. */
 const EDGE_STEP = 4;
 
-const introLowerPath = (endX: number, exitSlope = 0) =>
-  `M-12 5C6 9 22 -4 32 -4C43 -4 43 18 46 28C48 36 ${fmt(endX - exitSlope * 8)} 44 ${fmt(endX)} 52`;
+const introLowerPath = (endX: number, exitSlope = 0, photoBleed = 0) =>
+  `M-12 0C-5 -3 0 -6 4 -6C14 -6 20 0 24 -1C28 -2 29 -4 32 -4C${43 + photoBleed} -4 ${43 + photoBleed} 18 ${46 + photoBleed} 28C${48 + photoBleed} 36 ${fmt(endX - exitSlope * 8)} 44 ${fmt(endX)} 52`;
 
 /** The coastal photograph follows the underside of the leading paper. */
 export function introShorePath() {
   const points: readonly (readonly [number, number])[] = [
-    [49, 52],
-    [55, 68],
+    [55, 52],
+    [61, 68],
     [15, 84],
     [-12, 96],
   ];
-  return `${introLowerPath(49, (55 - 49) / (68 - 52))}${spline(points, false)}Z`;
+  return `${introLowerPath(55, (61 - 55) / (68 - 52), 6)}${spline(points, false)}Z`;
 }
 
 /**
@@ -318,9 +318,9 @@ export function ribbonPath({
     const leftX = narrow ? left[0][0] : -12;
     const profile: [number, number][] = [
       [leftX, -3],
-      [0, 0.7],
-      [4, 1.1],
-      [18, -2.4],
+      [0, -9],
+      [4, -9.5],
+      [18, -5.5],
       [32, -10.5],
       [42, -12.5],
       [56, -7],
@@ -331,7 +331,7 @@ export function ribbonPath({
       [rightX, -12],
     ];
     // Interpolate height over x before sampling: uneven control-point spacing
-    // otherwise makes the shallow left trough fold into a visible notch.
+    // otherwise makes the shallow left swell fold into a visible notch.
     const crestKnots = profile.map(([x, y]) => ({ y: x, cx: y, w: 0 }));
     for (let i = 0; i <= 64; i++) {
       const x = rightX + ((leftX - rightX) * i) / 64;

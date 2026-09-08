@@ -488,7 +488,7 @@ export function Act2Ribbon() {
           >
             <defs>
               <clipPath id={`${clipId}-shore`}>
-                <path d={introShorePath()} transform="translate(4 -3)" />
+                <path d={introShorePath()} />
               </clipPath>
               <clipPath id={`${clipId}-sheet`}>
                 <path
@@ -515,6 +515,27 @@ export function Act2Ribbon() {
               clipPath={`url(#${clipId}-sheet)`}
               d={ribbonPath(staticOptions)}
             />
+            {!narrow && (
+              <g
+                className={styles.chapterTrail}
+                clipPath={`url(#${clipId}-sheet)`}
+              >
+                <path
+                  d="M80 58C83 82 34 78 20 108"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1"
+                  vectorEffect="non-scaling-stroke"
+                />
+                <ellipse
+                  cx="20"
+                  cy="108"
+                  rx="0.16"
+                  ry={0.16 / aspect}
+                  fill="currentColor"
+                />
+              </g>
+            )}
           </svg>
           <div ref={shellRef} className={styles.shell} aria-hidden="true">
             <img

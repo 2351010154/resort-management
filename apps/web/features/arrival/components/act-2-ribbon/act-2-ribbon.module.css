@@ -124,6 +124,10 @@
 .sheet {
   fill: var(--paper);
 }
+.chapterTrail {
+  color: var(--ink);
+  opacity: 0.3;
+}
 .gobo {
   z-index: 3;
   opacity: calc(0.55 * var(--scene-opacity, 1));
@@ -189,7 +193,7 @@
   width: 19vw;
 }
 .beat[data-beat="light"] .display {
-  font-size: clamp(2rem, 2.9vw, 3rem);
+  font-size: clamp(2.25rem, 3.2625vw, 3.375rem);
   line-height: 1;
 }
 .beat[data-beat="light"] .marker {

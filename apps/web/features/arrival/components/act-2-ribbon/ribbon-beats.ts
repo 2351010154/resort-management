@@ -71,7 +71,9 @@ export const BEATS: readonly Beat[] = [
       r: 26,
       widthVw: 21.6,
       shape: "circle",
-      image: HORIZON,
+      image: arrivalImages["act-2-orbit"].find((image) =>
+        image.src.includes("/tea-terrace-sunset-"),
+      )!,
     },
   },
   {
