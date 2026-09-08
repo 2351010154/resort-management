@@ -6,8 +6,8 @@ import type { ApertureGeometry, Knot } from "./ribbon-geometry";
 // Scene distance and scroll distance are deliberately different. Long holds
 // belong to the camera, not to empty ivory between the photographs.
 export const SCENE_LENGTH = 650;
-export const RIBBON_LENGTH = 1480;
-export const MOBILE_LENGTH = 1040;
+export const RIBBON_LENGTH = 1370;
+export const MOBILE_LENGTH = 965;
 
 export interface RibbonImage {
   src: string;

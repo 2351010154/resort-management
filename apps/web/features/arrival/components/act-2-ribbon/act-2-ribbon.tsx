@@ -29,6 +29,7 @@ import {
   ribbonPath,
 } from "./ribbon-geometry";
 import { cameraAt, exitOpacity, ramp, smooth } from "./ribbon-pacing";
+import { RibbonSlider } from "./ribbon-slider";
 import { dropProgress, PROPS } from "./ribbon-props";
 
 const PLATE_BLEED = 2.25;
@@ -84,6 +85,7 @@ export function Act2Ribbon() {
   const waterRef = useRef<HTMLDivElement>(null);
   const copyWorldRef = useRef<HTMLDivElement>(null);
   const clipId = useId();
+  const [tableSlide, setTableSlide] = useState(0);
   const setNavDark = useArrivalActStore((state) => state.setNavDark);
   const [view, setView] = useState({
     narrow: false,
@@ -444,7 +446,6 @@ export function Act2Ribbon() {
                     "--y": aperture.y,
                     "--r": aperture.r,
                     "--stretch": aperture.stretch ?? 1,
-                    clipPath: `url(#${id})`,
                   })}
                 >
                   <svg className={styles.clipDefinitions} aria-hidden="true">
@@ -467,20 +468,35 @@ export function Act2Ribbon() {
                       </clipPath>
                     </defs>
                   </svg>
-                  <div className={styles.photoDrift} data-photo-drift="">
-                    <Photo
+                  {index === 1 || index === 2 ? (
+                    <RibbonSlider
                       image={aperture.image}
-                      sizes="(max-width: 700px) 85vw, 75vw"
+                      clipPath={`url(#${id})`}
+                      reduced={reduced}
+                      rooms={index === 1}
+                      onSlideChange={index === 2 ? setTableSlide : undefined}
                     />
-                    {aperture.nextImage && (
-                      <div className={styles.nextImage} data-next-image="">
+                  ) : (
+                    <div
+                      className={styles.photoCrop}
+                      style={{ clipPath: `url(#${id})` }}
+                    >
+                      <div className={styles.photoDrift} data-photo-drift="">
                         <Photo
-                          image={aperture.nextImage}
+                          image={aperture.image}
                           sizes="(max-width: 700px) 85vw, 75vw"
                         />
+                        {aperture.nextImage && (
+                          <div className={styles.nextImage} data-next-image="">
+                            <Photo
+                              image={aperture.nextImage}
+                              sizes="(max-width: 700px) 85vw, 75vw"
+                            />
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -559,14 +575,35 @@ export function Act2Ribbon() {
                     "--tilt": `${prop.tilt}deg`,
                   })}
                 >
-                  <img
-                    src={prop.src}
-                    width={prop.width}
-                    height={prop.height}
-                    alt=""
-                    loading="lazy"
-                    decoding="async"
-                  />
+                  {prop.id === "olive-oil" ? (
+                    <div className={styles.sauceStack} data-sauce={tableSlide}>
+                      {[
+                        prop.src,
+                        "/images/act-2-ribbon/sauce-verde.webp",
+                        "/images/act-2-ribbon/sauce-tomato.webp",
+                      ].map((src, index) => (
+                        <img
+                          key={src}
+                          src={src}
+                          width={640}
+                          height={584}
+                          alt=""
+                          loading="lazy"
+                          decoding="async"
+                          style={{ opacity: tableSlide === index ? 1 : 0 }}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <img
+                      src={prop.src}
+                      width={prop.width}
+                      height={prop.height}
+                      alt=""
+                      loading="lazy"
+                      decoding="async"
+                    />
+                  )}
                 </div>
               ))}
             {BEATS.map((beat) => {
