@@ -1,69 +1,25 @@
-/* The two plates at the foot of the room step.
- *
- * Neither scrolls and neither is taller than its own contents. The composition
- * is fixed at the height of the window — the thing this replaced was a dialog
- * with the browser's own scrollbar running down its side, and a room read
- * through a scrollbar is a room read through a window frame.
- */
-
 .stage {
   display: grid;
-  /* The wide plate sets the column; the price plate sits under its bottom edge,
-     at the right. One track, and the two plates are the two rows of it.
 
-     **The gap is the seam between two statements**, not spacing. The plates
-     abutted edge on edge before, which draws as one plate with a rule through
-     it — see the header of `room-stage.tsx` for why the room and its price are
-     deliberately two. */
   grid-template-columns: minmax(0, 1fr);
   row-gap: var(--space-2);
   min-width: 0;
 }
 
-/* ---- The room ------------------------------------------------------------ */
-
-/* What the property says, in two columns: what this room *is* on the left, what
-   is *true* of it on the right.
-
-   **`1fr 1.7fr`, and the right column is the wider one on purpose.** It was
-   `1fr auto` — sized for a shut strip of glyphs, which is what left the widest
-   plate on the screen four fifths empty. The right column now carries a facts
-   grid over a three-across list, and it is the denser half; the left is a name
-   and two short paragraphs and does not want more measure than it can fill.
-   Fractions rather than `auto` so the seam between them lands on the same
-   vertical whichever room is staged — a rule that moves when a guest presses
-   Deluxe is a rule they notice.
-
-   1.55 was the first split and it was short by a track: three amenity columns
-   in the right half came out at 118px each at 1440, and "Desk and reading
-   light" does not fit in 118px — so the list that is supposed to be the
-   quietest thing on the plate drew four rows at three different heights. The
-   left column gives the width, because it is prose that reflows and the right is
-   a grid that cannot.
-
-   The shadow is the one in the funnel doing structural work rather than
-   decoration: it is what says the plate is *on* the photograph rather than a
-   hole cut in it. */
 .card {
   position: relative;
   z-index: 0;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.7fr);
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
   align-items: stretch;
-  gap: var(--space-2) var(--space-3);
-  /* The comp's inset rather than a step on the spacing scale, and the same
-     trade the plate's type made: at --space-3 the air inside this plate was
-     sized for the document and the reading inside it no longer is. */
-  padding: 1.75rem;
+  gap: 1rem 1.5rem;
+
+  padding: 1.5rem clamp(1.5rem, 2.1vw, 2.25rem);
   background: var(--ivory);
   border-radius: var(--plate-radius);
   box-shadow: 0 1.5rem 3rem rgb(var(--night-rgb) / 0.24);
 }
 
-/* The column reads as one paragraph about one room, so it is spaced as one: the
-   kicker sits on the name, and the two blocks of prose under it are pushed apart
-   by their own margins rather than by a uniform gap that would separate the
-   kicker from its heading too. */
 .head {
   display: flex;
   flex-direction: column;
@@ -73,82 +29,43 @@
 
 .kicker {
   font-size: var(--plate-xs, var(--text-xs));
-  color: var(--stone);
+  color: var(--stone-deep);
 }
 
-/* **Not `--text-display-sm`, for the reason `rooms-view.module.css` gives about
-   its own title.** That token's 3.5vw term is sized for a heading with the
-   window to itself; this one has the left half of a plate that is half the
-   window, so it resolved to 50px in a 250px column and "Panorama Suite" broke
-   over two lines with the second one nearly touching the description. 2.3vw is
-   the same shape sized for the column it is in, and it is still comfortably the
-   largest thing on the step — which it should be, because it names the
-   photograph the whole window is showing. */
 .name {
   font-family: var(--font-display), serif;
   font-variant-numeric: lining-nums;
-  font-size: clamp(2.15rem, 2.85vw, 3.1rem);
-  font-weight: 300;
+  font-size: clamp(2.75rem, 3.2vw, 3.5rem);
+  font-weight: 500;
   line-height: 1.1;
   color: var(--ink);
 }
 
-/* What the property says about the room. `--space-2` off the name because it is
-   a different register — a body, not a label — and the air is what says so.
-   `34rem` is a reading measure the two sentences never reach at this column
-   width; it is here so a longer description cannot run to a line the eye loses
-   its place in. */
 .blurb {
-  margin-top: var(--space-2);
+  margin-top: 0.75rem;
   max-width: 34rem;
   font-size: var(--plate-sm, var(--text-base));
-  line-height: 1.7;
+  line-height: 1.5;
   color: var(--ink);
 }
 
-/* The plan's terms, last and quietest in the column.
- *
- * **Directly under the description, not pinned to the foot of the column.** It
- * was `margin-top: auto`, on the argument that the clause should sit level with
- * the last line of the amenity list across the seam. What that produced was a
- * hand's width of empty ivory between the description and the clause — the comp
- * has a control in that gap and this plate has nothing to put there, so the
- * alignment bought one tidy baseline at the price of a hole in the middle of the
- * left column. The column reads as one paragraph about one room, which is what
- * the block comment above it claims, and now it is set as one.
- *
- * --text-xs and --stone-deep: §2's weight for what a guest reads once and holds
- * the hotel to. Not --stone, which is 3.4:1 on ivory and fails at this size.
- */
 .terms {
-  margin-top: var(--space-2);
+  margin-top: 0.75rem;
   max-width: 34rem;
   font-size: var(--plate-xs, var(--text-xs));
   line-height: 1.6;
   color: var(--stone-deep);
 }
 
-/* ---- The facts ----------------------------------------------------------- */
-
-/* The card's right column: the facts, then a rule, then what is in every room.
-   The vertical rule dividing the two halves of the plate belongs here rather
-   than to either list inside it, so it runs the whole seam — `align-items:
-   stretch` on the card is what makes it the plate's full height. Sized to its
-   contents it was a two-inch tick beside a four-inch column, which reads as a
-   rule that failed to draw rather than as a division. */
 .detail {
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
   min-width: 0;
-  padding-left: var(--space-2);
+  padding-left: var(--space-3);
   border-left: 1px solid rgb(var(--umber-rgb) / 0.15);
 }
 
-/* It is a focus target, not a control: `tabindex="-1"` keeps it out of the tab
-   order and the ring only ever appears because `.toFacts` sent focus here. Drawn
-   on the whole column rather than on the first fact, because what the guest was
-   sent to is the column. */
 .detail:focus {
   outline: none;
 }
@@ -158,28 +75,6 @@
   outline-offset: var(--space-1);
 }
 
-/* The one press on this plate: an outlined box with the label at one end and a
-   chevron at the other, which is the shape the comp draws it in.
- *
- * **Outlined and not filled, and that is the whole of the distinction it has to
- * carry.** `Continue` on the plate below is the single filled control on the
- * step — §2 gives --dusk-amber to the one thing a guest can do next — and this
- * does not commit them to anything. A second filled control here would read as
- * a second way forward and be pressed as one.
- *
- * The chevron points at what the press does: it sends the guest across the
- * seam, to the column on the right. It is the only picture in this half of the
- * plate and it is `aria-hidden` — the label already says where it goes.
- *
- * **There is a rule inside the box, under the label, and it is the control's
- * emphasis rather than the box's.** The comp draws the outline as the faintest
- * line on the plate and then underscores the words inside it — so what a guest
- * reads is an underlined phrase, and the box is the tap target around it. Drawn
- * the other way round, which is what shipped, the box was the loudest outlined
- * thing in the left column and the words inside it were unremarkable. The
- * outline is a third lighter for the same reason, so the two lines are in the
- * order the comp puts them in.
- */
 .toFacts {
   position: relative;
   align-self: flex-start;
@@ -187,12 +82,11 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-  min-width: 9rem;
+  min-width: 11rem;
+  min-height: 2.75rem;
   margin-top: var(--space-2);
-  /* Asymmetric: the extra at the foot is the air the rule stands in, which is
-     what keeps it an underline on the phrase rather than a second border
-     hanging off the bottom of the box. */
-  padding: 0.5rem 0.875rem 0.75rem;
+
+  padding: 0.5rem 1.25rem;
   font-size: var(--plate-sm, var(--text-sm));
   line-height: 1.4;
   color: var(--ink);
@@ -206,29 +100,11 @@
     border-color 0.4s var(--ease-ui);
 }
 
-/* The rule under the words. Inset to the box's own padding so it runs the
-   measure of the label and the chevron and stops where they do. */
-.toFacts::after {
-  content: "";
-  position: absolute;
-  right: 0.875rem;
-  bottom: 0.375rem;
-  left: 0.875rem;
-  border-bottom: 1px solid rgb(var(--umber-rgb) / 0.45);
-  transition: border-color 0.4s var(--ease-ui);
-}
-
 .toFacts:hover {
   background: rgb(var(--umber-rgb) / 0.04);
   border-color: rgb(var(--umber-rgb) / 0.35);
 }
 
-.toFacts:hover::after {
-  border-bottom-color: var(--umber);
-}
-
-/* Flat, at the type's own colour: a chevron in an accent would be a second
-   thing on the plate asking to be looked at. */
 .toFactsMark {
   flex: none;
   width: 1rem;
@@ -241,68 +117,28 @@
   outline-offset: 2px;
 }
 
-/* Two across and two down, and a stated count rather than `auto-fit`.
- *
- * Every type has exactly these four now — see `room-stage.tsx` — so the grid is
- * the same shape whichever room is staged, which is what lets a guest walking the
- * list read one fact in the same place each time instead of re-finding it in a
- * strip that has re-flowed. `auto-fit` was for a set that varied in length and
- * there is none.
- *
- * **Two, not four, and the property's own words are why.** Four across is the
- * shape the comp draws, and the comp's values are "1 QUEEN BED" with the
- * dimension demoted to the line under it. `property-and-tariff.md` §1 writes a
- * bed as one string with its dimension inside it — "one king bed (1.80 m), one
- * single bed (1.00 m)" for the Premier — and four tracks of a 520px column give
- * that 118px to wrap in, which is five lines and a row of facts at five
- * different heights. Splitting the string to fit the grid would mean this
- * stylesheet deciding where a bed's name ends, so the grid gives instead.
- *
- * `minmax(0, 1fr)` rather than a minimum measure: the longest value on the
- * property wraps inside its own track rather than pushing a third column into
- * existence.
- *
- * The column gap is --space-2 and not --space-3, which is the same trade the
- * grid above is making: two tracks of this column are 178px at 1440 with the
- * narrower gap and 170px with the wider, and "One queen bed (1.60 m)" needs 141
- * of whatever is left after the glyph. A rem of air between two columns of facts
- * buys nothing a wrapped bed does not immediately cost back.
- */
 .facts {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-2);
 }
 
-/* Icon, then the two lines it marks. The icon column is fixed so every fact
-   starts on one vertical — a row of glyphs that each set their own indent is a
-   strip the eye cannot run across. `start`, not `centre`: a bed with a dimension
-   wraps to two lines, and a centred glyph then floats between them. */
 .fact {
   display: grid;
   grid-template-columns: 1.25rem minmax(0, 1fr);
-  /* Two rows, because the value and the term are now laid out by this grid
-     rather than stacked inside a wrapper element: a `dl` may group a pair in one
-     `div` and no deeper, so the column they read as is made here. The glyph
-     spans both rows so it stays on one vertical beside the pair. */
+
   grid-template-rows: auto auto;
-  column-gap: 0.5rem;
+  column-gap: 1rem;
   row-gap: 0.125rem;
   align-items: start;
   min-width: 0;
 }
 
-/* A CSS mask over `currentColor` — see the note in `room-stage.tsx`. --stone,
-   which §2 gives to "what is nearly furniture": the words carry the fact and the
-   glyph only says which fact it is.
-
-   It spans both rows of `.fact`, which is what keeps one glyph beside the pair
-   it marks rather than one per line. */
 .factIcon {
   grid-row: 1 / span 2;
   width: 1.25rem;
   height: 1.25rem;
-  color: var(--stone);
+  color: var(--stone-deep);
   background: currentColor;
   mask-image: var(--fact-icon);
   mask-repeat: no-repeat;
@@ -314,153 +150,74 @@
   -webkit-mask-position: center;
 }
 
-/* Kept as a no-op class name so the value and term can be placed in the second
-   column of `.fact` without a wrapper element between them and the `dl`. */
 .factValue,
 .factTerm {
   grid-column: 2;
   min-width: 0;
 }
 
-/* The line being read, so it takes --ink and the larger of the two sizes. Set in
-   the inherited display face rather than the caps run — `room-stage.tsx` has the
-   argument, and it is about metres.
-
-   **`dd` before `dt` in the source, so the margin has to go.** A definition list
-   prints the value under the term by default and the browser indents it; here
-   the value comes first and the term qualifies it, which is the order the eye
-   wants when the value is a number. */
 .factValue {
   margin: 0;
+  font-weight: 600;
   font-size: var(--plate-sm, var(--text-sm));
   line-height: 1.35;
   color: var(--ink);
 }
 
-/* `bedding` and `aspect` are stored as they are written in
-   `property-and-tariff.md` §1 — "one queen bed (1.60 m)", "courtyard", lower
-   case, because both were written as the value half of a term/value pair. They
-   still are one here, and they still open a line, so they are capitalised by
-   this stylesheet rather than in the data: how a fact is printed is
-   presentation, and rewriting the property's own words to suit one screen is
-   not. */
 .factValue::first-letter {
   text-transform: uppercase;
 }
 
-/* Which question the value answers, quieter than the value above it. Not a caps
-   run: a caps line under a sentence-case one reads as the louder of the two,
-   which is backwards. --stone-deep rather than --stone, which is 3.4:1 on ivory
-   and fails at this size. */
 .factTerm {
   font-size: var(--plate-xs, var(--text-xs));
   line-height: 1.4;
   color: var(--stone-deep);
 }
 
-/* The extra bed, on the one type whose maximum is above what its bedding
-   sleeps. A sentence rather than a fifth fact — see `room-stage.tsx` — so it is
-   set as one, at the weight of the quiet half of a fact. */
 .extra {
   font-size: var(--plate-xs, var(--text-xs));
   line-height: 1.5;
   color: var(--stone-deep);
 }
 
-/* ---- What is in every room ----------------------------------------------- */
-
-/* Twelve lines under a rule, in three columns, and every decision here is about
- * keeping it *quiet*.
- *
- * The objection that once deleted this list was that a property printing "Wi-Fi"
- * as a feature is telling you it might not have had it — and that objection is
- * about presentation, which is this file's job to answer. So: no heading, no
- * glyphs, no ticks, no boxes, --text-xs and --stone, and a plain hairline over
- * the top to separate it from the four facts that actually distinguish this room
- * from the other four. It reads as a specification, which is what it is.
- *
- * `column-count` rather than a grid, because reading order is the point: the
- * property file lists these down the page and columns fill the same way. A grid
- * with `grid-auto-flow: row` would print the property's rows as this plate's
- * columns and quietly re-group them.
- *
- * **Two columns of six, not the comp's three of four.** Three tracks of this
- * column are 140px each, and "Kettle, tea and coffee" and "Desk and reading
- * light" both wrap in that — which turns a list whose whole job is to be quiet
- * into a ragged block with four different row heights in it. Two tracks are
- * 223px, every line fits, and the run is the same height it was because the
- * wrapping was adding the rows the extra column saved. It also puts the list on
- * the same two-track rhythm as the facts above it.
- *
- * `margin-top: auto` pushes the list to the foot of its column. It is a no-op
- * while this column is the taller of the two, and it is what keeps the rule
- * where it belongs if the left column ever grows past it.
- */
-/* Three across, which is what the comp draws and what the twelve lines want:
-   twelve into three is four even rows, and into two it was six — a list half
-   again as tall as the facts beside it, which is what pushed the plate's bottom
-   edge past where the composition wanted it.
-
-   The gap is --space-2 rather than --space-3 for the same reason the facts grid
-   is two tracks and not four: the longest line here is "Kettle, tea and coffee",
-   and a third track only earns its place if that line still sits on one. */
-.amenities {
+.amenitiesSection {
   margin-top: auto;
-  padding-top: var(--space-2);
+  padding-top: 0.75rem;
   border-top: 1px solid rgb(var(--umber-rgb) / 0.15);
-  column-count: 3;
-  column-gap: var(--space-1);
+}
+.amenitiesTitle {
+  margin-bottom: 0.75rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--ink);
+}
+.amenities {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(4, auto);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  row-gap: 0.375rem;
+  column-gap: 0.5rem;
   list-style: none;
 }
 
-/* --stone-deep, not --stone: §2 would give furniture the lighter one, but
-   #8a7b6e on ivory is 3.4:1 and this is 12px running text. Quiet is a job for
-   the size and the absence of any mark, not for making the words hard to read. */
 .amenity {
-  /* Keeps a two-word line from breaking across a column boundary, which is the
-     one way a list this quiet can still draw attention to itself. */
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
   break-inside: avoid;
   font-size: var(--plate-xs, var(--text-xs));
-  line-height: 1.9;
+  line-height: 1.45;
   color: var(--stone-deep);
 }
 
-/* **Two columns until the plate is wide enough for three**, which is later than
-   it looks. Three tracks need 118px each for "Desk and reading light", and the
-   right column of the card does not reach 370px until the window is about
-   1416 — so between the stack width and there, the third track was bought by
-   wrapping four of the twelve lines. Two tracks are six rows rather than four,
-   which is taller; a ragged block is worse than a tall one, and the plate has
-   the height because the left column at that width is running four lines of
-   description anyway. */
-@media (min-width: 78rem) and (max-width: 88.999rem) {
+@media (min-width: 78rem) and (max-width: 94rem) {
   .amenities {
-    column-count: 2;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(6, auto);
   }
 }
 
-/* ---- The price ----------------------------------------------------------- */
-
-/* The second plate: hung off the first's bottom-right corner, flush to its right
- * edge and directly under it.
- *
- * **It used to overlap, and the overlap was the defect.** It was pulled up over
- * the card by `--space-2` and inset from its right edge by `--space-3`, which
- * put a shadowed box halfway across the bottom of the plate it was meant to sit
- * beside — two plates fighting for one corner rather than two statements in one
- * column. Flush and stacked, the pair reads as an L in the window's corner: one
- * outer edge down the right, one along the bottom, and a seam between them that
- * is a seam rather than a collision.
- *
- * `justify-self: end` with a stated minimum rather than a column of the grid:
- * the plate should be as wide as the total and the button need and no wider — a
- * price plate stretched to the width of the room plate is a second card, not a
- * figure.
- *
- * `z-index: 1` against the card's 0, because it is the plate in front and its
- * shadow has to fall on the card rather than under it — which is what separates
- * the two grounds where they meet.
- */
 .price {
   position: relative;
   z-index: 1;
@@ -485,26 +242,14 @@
 
 .figuresTerm {
   font-size: var(--plate-xs, var(--text-xs));
-  color: var(--stone);
+  color: var(--stone-deep);
 }
 
-/* The authoritative figure. The five per-night figures in the list are for
-   comparing; this is the number the guest is agreeing to.
-
-   **It went up while everything around it came down**, and that is the whole
-   point of the pass rather than an exception to it. The step's type was set at
-   the document's scale inside plates a quarter and a half of the window wide, so
-   the question, five room names and twelve amenity lines were all competing with
-   this. Quieting them is what lets the one number the guest is committing to be
-   the loudest thing on the right-hand side, which is the order the screen should
-   read in. */
 .total {
   font-family: var(--font-display), serif;
-  /* A price, in a face whose figures are oldstyle by default — see the note on
-     `.font-display` in globals.css. Without this the total's 3s and 5s hang below
-     the line and its 6s ride above it. */
+
   font-variant-numeric: lining-nums;
-  font-size: 1.9rem;
+  font-size: 2.25rem;
   line-height: 1.2;
   color: var(--ink);
   white-space: nowrap;
@@ -513,7 +258,7 @@
 .included {
   font-size: var(--plate-xs, var(--text-xs));
   line-height: 1.5;
-  color: var(--stone);
+  color: var(--stone-deep);
 }
 
 .act {
@@ -523,23 +268,16 @@
   gap: var(--space-1);
 }
 
-/* The one primary action on the screen, and the one place the accent is spent
-   as ink — §2. The rung is --dusk-amber-ink: the ivory label on #b48b60 is
-   2.7:1, which is under what WCAG AA asks of any text and well under what it
-   asks of the one control the step exists to offer. Same hue, read-on-ivory
-   lightness — `tokens.css` argues the split. */
 .continue {
   min-width: 12rem;
-  min-height: 3rem; /* 48px. 44 is the floor, and this is the button. */
+  min-height: 3rem;
   padding: 0 var(--space-3);
   font-size: var(--text-sm);
   color: var(--ivory);
   background: var(--dusk-amber-ink);
   border: 1px solid var(--dusk-amber-ink);
-  /* The transform is the press — see `.continue:active` — and it runs at 0.16s
-     against the colours' 0.4s. Two speeds because they answer two different
-     things: a pointer crossing the button has all the time in the world, and a
-     finger on it does not. */
+  border-radius: 0.25rem;
+
   transition:
     background-color 0.4s var(--ease-ui),
     color 0.4s var(--ease-ui),
@@ -551,9 +289,6 @@
   background: transparent;
 }
 
-/* Pressed, and the request it started is still out. The colours are the ones
-   `stay-shell.module.css` gives its own waiting button, because a guest moving
-   between the two screens is reading one funnel. */
 .continue:disabled {
   cursor: default;
   color: rgb(var(--ivory-rgb) / 0.6);
@@ -561,23 +296,10 @@
   border-color: var(--stone);
 }
 
-/* **The screen's one primary action, pressing down.**
- *
- * A pixel of travel rather than a scale, and the difference matters at this
- * size: a 12rem button scaled by even a hundredth changes its width visibly and
- * takes the two lines under it with it. Moved down by one, it is a key being
- * pressed and nothing around it moves at all.
- *
- * It is the last thing the guest does on this screen before the room is held
- * and the funnel leaves for the stay's own url, which is the one moment the
- * button must not feel unresponsive — the press answers immediately, and the
- * disabled state below carries the wait that follows it. */
 .continue:active {
   transform: translateY(1px);
 }
 
-/* §9. One pixel, snapped rather than travelled, is not worth the exception —
-   the button's own colour inversion is the press here. */
 @media (prefers-reduced-motion: reduce) {
   .continue:active {
     transform: none;
@@ -592,22 +314,15 @@
 .hold {
   font-size: var(--plate-xs, var(--text-xs));
   line-height: 1.5;
-  color: var(--stone);
+  color: var(--stone-deep);
   text-align: center;
 }
 
-/* ---- Narrow -------------------------------------------------------------- */
-
-/* Under the picture, the two plates are sections of a page that scrolls rather
- * than boxes laid on a photograph. So they lose their grounds, their shadows and
- * their overlap and become what they always were underneath: a heading with
- * facts, and a total with a button.
- */
 @media (max-width: 77.999rem) {
   .card {
     grid-template-columns: minmax(0, 1fr);
-    padding: var(--space-2) 0 0;
-    background: none;
+    padding: var(--space-3);
+    background: var(--ivory);
     box-shadow: none;
   }
 
@@ -619,8 +334,6 @@
     padding-top: var(--space-2);
   }
 
-  /* Nothing is being held to the foot of a column any more — the column is the
-     page — so the list's `margin-top: auto` becomes the air it stood in for. */
   .amenities {
     margin-top: 0;
   }
@@ -628,8 +341,8 @@
   .price {
     justify-self: stretch;
     min-width: 0;
-    padding: var(--space-2) 0 0;
-    background: none;
+    padding: var(--space-3);
+    background: var(--ivory);
     box-shadow: none;
     border-top: 1px solid rgb(var(--umber-rgb) / 0.15);
   }
@@ -639,25 +352,18 @@
   }
 }
 
-/* Below the stack width the plate is a section of a scrolling page, and at a
-   phone's measure two fact tracks are 150px each — which "one king bed (1.80 m),
-   one single bed (1.00 m)" does not survive. One column, four down, is the
-   same reading order with room to say it. The amenity list goes to one track at
-   the same point and for the same reason — two would be 158px at a phone's
-   width, which is under the measure its longest line needs. Twelve rows is long,
-   and a page that scrolls here can afford them; a ragged block cannot. */
 @media (max-width: 48rem) {
   .facts {
     grid-template-columns: minmax(0, 1fr);
   }
 
   .amenities {
-    column-count: 1;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: none;
+    grid-auto-flow: row;
   }
 }
 
-/* At a phone's width the total and the button cannot sit side by side without
-   the button becoming a 9rem stub. */
 @media (max-width: 30rem) {
   .continue {
     min-width: 0;
@@ -667,4 +373,11 @@
   .act {
     flex: 1 1 100%;
   }
+}
+
+.amenityIcon {
+  width: 1rem;
+  height: 1rem;
+  flex: none;
+  color: var(--ink);
 }

@@ -95,6 +95,7 @@ import {
   recallStay,
   rememberStay,
 } from "@/features/booking/lib/remembered-stay";
+import { roomGallery } from "@/features/booking/lib/room-images";
 import { roomType } from "@/features/booking/lib/room-types";
 import { holdRefusal, holdStay } from "@/features/booking/lib/stay-funnel";
 import {
@@ -146,6 +147,10 @@ export function BookingScreen() {
   );
 
   const [picked, setPicked] = useState<RoomTypeCode | null>(null);
+  const [photo, setPhoto] = useState<{
+    code: RoomTypeCode;
+    index: number;
+  } | null>(null);
   const [nextStep, setNextStep] = useState<string | null>(null);
   const [holding, setHolding] = useState(false);
   const router = useRouter();
@@ -582,7 +587,10 @@ export function BookingScreen() {
       <RoomsView
         offers={offers}
         onChangeDates={onChangeDates}
-        onSelect={setPicked}
+        onSelect={(code) => {
+          setPicked(code);
+          setPhoto(null);
+        }}
         partition={partition}
         party={search.party}
         range={search.range}
@@ -596,6 +604,7 @@ export function BookingScreen() {
   // `selectedType` rather than the step is the test, and the difference is the
   // empty state: this branch is also where a range with nothing takeable in it
   // lands, and `NoAvailability` wants the whole width with no plate beside it.
+  const photoIndex = photo?.code === selected ? photo.index : 0;
   const staged = selectedType !== null && selectedOffer !== null;
 
   return funnel(
@@ -633,7 +642,9 @@ export function BookingScreen() {
             reset is `room-ground.tsx`'s own now, the component stays mounted for
             the life of the step, and both ways of changing the picture — walking
             frames, and picking another room — go through one dissolve. */}
-        {selectedType === null ? null : <RoomGround type={selectedType} />}
+        {selectedType === null ? null : (
+          <RoomGround background index={photoIndex} type={selectedType} />
+        )}
 
         <div className={styles.plates}>
           {/* The list plate: where the guest is, what they answered, the
@@ -690,6 +701,21 @@ export function BookingScreen() {
               also exactly what `check-booking-screen.mjs` reads, by walking up
               one level from `[data-room-stage]`. One div in the wrong place
               broke a composition rule and the check that guards it. */}
+          {selectedType && selectedOffer ? (
+            <div className={styles.gallery}>
+              <RoomGround
+                index={photoIndex}
+                type={selectedType}
+                onStep={(by) => {
+                  const length = roomGallery(selectedType.code).length;
+                  setPhoto({
+                    code: selectedType.code,
+                    index: (photoIndex + by + length) % length,
+                  });
+                }}
+              />
+            </div>
+          ) : null}
           {selectedType && selectedOffer ? (
             <m.div
               className={styles.stage}

@@ -1,21 +1,3 @@
-/* The room list.
- *
- * One column of short rows on a plate, over a photograph of the room the guest
- * is on. Round 3 made every row a photographic band the width of the page,
- * because the picture was the only thing that told five rooms apart and the list
- * was the whole screen. The picture is the whole screen now and the list is a
- * plate on it, so the row went back to being a row: a thumbnail to find it by,
- * and four facts at the same x on every line.
- */
-
-/* A half-rem between rows. Each row draws its own complete box — that is what
-   `.label`'s transparent border is for — so the gap is what tells five boxes
-   apart, and at a quarter-rem it did not: the list read as one block ruled into
-   fifths rather than as five things to choose between.
-
-   A quarter was what the fifth room could be afforded when the rows carried a
-   6rem thumbnail and type set at the page's scale. Both came down, and this is
-   where the height went. */
 .list {
   list-style: none;
   display: grid;
@@ -26,30 +8,13 @@
   min-width: 0;
 }
 
-/* ---- The row ------------------------------------------------------------ */
-
-/* Three slots: the thumbnail, everything written, and the state. The hairline is
-   the row's own rather than a divider between rows — a selected row has to be
-   able to draw a complete box, and a shared border cannot.
-
-   `transparent` at rest rather than no border, so selecting does not move the
-   four rows under it by a pixel. */
 .label {
   position: relative;
   display: grid;
-  grid-template-columns: 4.75rem minmax(0, 1fr) auto;
+  grid-template-columns: 6.25rem minmax(0, 1fr) auto;
   align-items: center;
-  /* 0.5rem, not --space-2. The row is a picture, a short block of type and a
-     mark, and a full rem between each of the three spent the width the facts
-     line needs — "3 guests, 52 m², corner, two aspects" is the longest string
-     the five types produce and it wrapped at 1440, which left one row of the
-     five a line taller than its neighbours.
 
-     The rail came in to the comp's quarter of the window and the furniture paid
-     for it: a quarter-rem off each gap, a quarter off the thumbnail and a
-     quarter off the mark leave that string 172px of the 173 the row now has,
-     against the 166 it measures at `--plate-xs`. */
-  gap: 0.5rem;
+  gap: 1rem;
   padding: 0.5rem;
   cursor: pointer;
   border: 1px solid transparent;
@@ -63,36 +28,12 @@
   background: rgb(var(--umber-rgb) / 0.04);
 }
 
-/* The press, and it is a darker step of the same wash rather than anything that
- * moves.
- *
- * **No transform, and the row's own header says why**: a `transform` on a
- * `cover` image re-rasterises its layer, and the thumbnail is inside this box.
- * Scaling the row on press would put a photograph of a hotel room through a
- * resample on every click, to say something a shade of ground says for nothing.
- *
- * The distinction it draws is worth having on its own terms: hover is "this is
- * the one under your pointer", press is "I have your press". Without the second
- * one, a row that takes a fifth of a second to change colour under a finger
- * looks like it did not register.
- */
 .label:active {
   background: rgb(var(--umber-rgb) / 0.09);
-  /* **Arriving fast and leaving slow, which is the shape of every press.** The
-     0.4s above is right for a pointer drifting across five rows; it is far too
-     slow for a finger, which is down and up inside 100ms — the wash would still
-     be on its way in when the press it answers is already over. So the press
-     lands almost immediately and the release keeps the row's own easing out. */
+
   transition-duration: 0.06s;
 }
 
-/* The one control, and it is not drawn.
- *
- * `appearance: none` and a zero box rather than `display: none` or
- * `visibility: hidden`: a radio that is not rendered is a radio the platform
- * takes out of the tab order, and the arrow-key selection this list is built on
- * goes with it. It stays in the layer, sized to nothing, and the label around it
- * is what the guest sees and presses. */
 .radio {
   position: absolute;
   width: 1px;
@@ -103,41 +44,25 @@
   appearance: none;
 }
 
-/* The focus ring belongs to the row, because the row is what the guest is
-   moving through. Drawn from the input's own `:focus-visible` so it appears for
-   the keyboard and not for the pointer. */
 .label:has(.radio:focus-visible) {
   outline: 2px solid var(--dusk-amber);
   outline-offset: 2px;
 }
 
-/* The chosen room. --ocean is what the guest has already chosen; --dusk-amber is
-   the one thing they can do next, and the two never trade jobs — §2. */
 .row[data-selected] .label {
-  background: rgb(var(--ocean-rgb) / 0.1);
+  background: rgb(var(--ocean-rgb) / 0.025);
   border-color: var(--ocean);
 }
 
-/* A fixed box, and `cover` inside it. The five thumbnails have to be the same
-   size or a longer name changes the size of the picture beside it — which is the
-   one thing a column of five comparisons cannot survive. 3:2 is the shape every
-   frame is cut to, so nothing is cropped twice. */
 .thumb {
   display: block;
-  width: 4.75rem;
-  /* `height: auto` is load-bearing, not tidying. The `<img>` carries `width` and
-     `height` attributes so the row reserves its box before the file decodes, and
-     those map to the presentational `width`/`height` *properties* — which beat
-     `aspect-ratio`, because a ratio only resolves a dimension that is `auto`.
-     Without this the thumbnail is 96px wide and 960px tall, and five of them
-     are consistently, identically wrong, which is exactly the shape of defect
-     the same-box check below cannot see. */
+  width: 6.25rem;
+
   height: auto;
-  aspect-ratio: 3 / 2;
+  aspect-ratio: 5 / 3;
   object-fit: cover;
   border-radius: calc(var(--row-radius) - 0.125rem);
-  /* What the frame shows before its image decodes — §2's role for --umber. A
-     warm dark rectangle rather than a hole. */
+
   background: var(--umber);
 }
 
@@ -147,38 +72,15 @@
   min-width: 0;
 }
 
-/* The name leads the row, not the price. A guest scanning five rooms is scanning
-   five *names*; the figure is what they read once they have stopped on one.
-
-   **--text-lg was a heading's size and there are five of them.** 22px in a
-   column this narrow made every row shout, so the list read as five headings
-   with prices under them rather than as one comparison — and the room's own name
-   on the plate beside it, which is the thing actually being looked at, was
-   competing with all five. 15px still leads its row by five sizes over the facts
-   under it, which is the only job the name has here.
-
-   **19px is that same decision, re-measured for the current face.** The 15px above
-   was set in Literata, whose x-height is 0.507em; Cormorant Garamond's is 0.386em,
-   so 15px here would render a third smaller than the size that judgement was made
-   at — around a 6px x-height, which is not a scanning size. 19px in this face is
-   what 15px looked like in that one, so the row still reads as a comparison rather
-   than as five headings. The 22px that shouted was 22px of a much larger-bodied
-   face; it is not what this is.
-
-   Weight goes to 400 for the same reason it does not on the arrival: five names
-   scanned quickly on a pale ground want the sturdier stroke, and a 300 Light at
-   this size is where a high-contrast Garamond starts dropping its thins. */
 .name {
   font-family: var(--font-display), serif;
   font-variant-numeric: lining-nums;
-  font-size: 1.1875rem;
-  font-weight: 400;
+  font-size: 1.375rem;
+  font-weight: 500;
   line-height: 1.25;
   color: var(--ink);
 }
 
-/* --stone-deep, not --stone: this line is the three facts that tell the five
-   rooms apart, and it is the line the eye actually runs down. */
 .facts {
   font-size: var(--plate-xs, var(--text-xs));
   line-height: 1.4;
@@ -192,14 +94,12 @@
   white-space: nowrap;
 }
 
-/* The state, drawn. Inside the label it belongs to, so aiming at it selects the
-   row — it is not a second control and must never become one. */
 .mark {
   flex: none;
   display: grid;
   place-items: center;
-  width: 1.5rem;
-  height: 1.5rem;
+  width: 2rem;
+  height: 2rem;
   color: var(--stone);
   border: 1px solid rgb(var(--umber-rgb) / 0.25);
   border-radius: 50%;
@@ -218,25 +118,11 @@
   color: var(--ivory);
   background: var(--ink);
   border-color: var(--ink);
-  /* The one moment on this list worth marking, marked once.
-   *
-   * Everything else on the row answers the pointer; this answers the *choice*,
-   * and it is the only frame in which the screen says "that one" back. The
-   * colours were already doing it over 0.4s, which is a fade rather than a
-   * confirmation — a check mark that eases into being was never pressed, it was
-   * always going to be there.
-   *
-   * It runs on the mark and not on the row because the row is a comparison the
-   * guest is still reading; the mark is the answer. And it runs once, on the
-   * transition into the state — `data-selected` toggling is what starts it, so
-   * there is no version of this that loops or that fires on a re-render. */
+
   animation: mark-taken 0.32s var(--ease-ui);
 }
 
 @keyframes mark-taken {
-  /* From the size it already was, so nothing jumps on the first frame. The
-     overshoot is small on purpose: this is a tick appearing in a 1.5rem disc
-     beside a price, not a celebration. */
   0% {
     transform: scale(1);
   }
@@ -255,13 +141,6 @@
   height: 0.75rem;
 }
 
-/* ---- Short --------------------------------------------------------------- */
-
-/* The row's own share of the same trade `booking-screen.module.css` makes at
-   this height: the separation between rows and the padding inside them are air,
-   and air is what a short window has none of. The picture and the type do not
-   move — a row that shrank its own thumbnail to fit the window would be five
-   rooms drawn smaller so that five rooms could be drawn. */
 @media (min-width: 78rem) and (max-height: 50rem) {
   .list {
     gap: 0.25rem;
@@ -272,14 +151,6 @@
   }
 }
 
-/* ---- Narrow -------------------------------------------------------------- */
-
-/* Below the stack width the plate stops being a quarter of the window and
-   becomes the width of the page, so the row goes back to the document's own
-   scale: there is nothing beside it to be quiet against, and the picture has the
-   measure to be a picture again. The two sizes read from the plate scale come
-   back on their own — `booking-screen.module.css` drops that scale at the same
-   width — and only the name, which is set outright, has to be said twice. */
 @media (max-width: 77.999rem) {
   .label {
     grid-template-columns: 6rem minmax(0, 1fr) auto;
@@ -295,8 +166,6 @@
   }
 }
 
-/* The thumbnail gives up width before the type does: at 375 an 8rem picture and
-   a price on one line leave the facts nowhere to go. */
 @media (max-width: 26rem) {
   .label {
     grid-template-columns: 5.5rem minmax(0, 1fr) auto;
