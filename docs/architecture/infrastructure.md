@@ -2,7 +2,7 @@
 
 Where the system runs and how money moves through it. Full rationale, costs and
 evidence:
-[`plans/reports/archive/advise-260726-1401-infra-money-rails.md`](../../plans/reports/archive/advise-260726-1401-infra-money-rails.md)
+`plans/reports/archive/advise-260726-1401-infra-money-rails.md`
 (R3), frozen 2026-07-26.
 
 Region is **AWS `ap-southeast-1` (Singapore)** wherever a region is selectable —
@@ -315,4 +315,4 @@ Everything gated on someone else's process — VNPay onboarding documents and
 timeline, whether Nghị định 70/2025 binds this entity's activity codes, the
 registration record's statutory retention floor, the cross-border transfer
 dossier for guest personal data held in Singapore — lives in milestone `M0` of
-[`../../plans/backlog.md`](../../plans/backlog.md).
+`plans/backlog.md`.

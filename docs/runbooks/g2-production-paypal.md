@@ -5,7 +5,7 @@ the same gate VNPay's flip is held to —
 [`g2-production-payment.md`](g2-production-payment.md) is that runbook, and
 this one does not repeat it. Its six items and the reasoning behind them are
 stated once, in
-[`../architecture/infrastructure.md`](../architecture/infrastructure.md)
+[`../architecture/infrastructure.md#payments`](../architecture/infrastructure.md#payments)
 §Payments, at the paragraph beginning "The trigger". Read that paragraph
 first: the six items are the deployment's, ticked once, and are not re-ticked
 for PayPal if VNPay has already flipped. What PayPal owes on top of them is
@@ -143,5 +143,5 @@ Whether the operating entity holds a licence to collect foreign currency
 governs how a PayPal-paid folio is invoiced under `ASM-03`'s tax-agent answer,
 not whether the flip above may proceed — the ledger posts VND either way. See
 [`../product-requirements.md`](../product-requirements.md) `ASM-03` and
-[`../architecture/infrastructure.md`](../architecture/infrastructure.md)
+[`../architecture/infrastructure.md#payments`](../architecture/infrastructure.md#payments)
 §Payments.
