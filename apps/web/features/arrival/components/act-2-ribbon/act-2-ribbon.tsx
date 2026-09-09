@@ -244,7 +244,8 @@ export function Act2Ribbon() {
       // Keep the shared hero registered to the viewport while this stage
       // approaches its sticky position, avoiding a second photo scrolling in.
       if (backdropRef.current)
-        backdropRef.current.style.transform = `translate3d(0,${Math.min(0, travel) * vh}px,0)`;
+        backdropRef.current.style.transform =
+          travel < 0 ? `translate3d(0,${travel * vh}px,0)` : "none";
       // The small centre drift carries the photographs. The stronger edge
       // wave is independent, so the paper moves without shaking the reading.
       const phase = travel * 0.38 + time * 8;
@@ -423,7 +424,7 @@ export function Act2Ribbon() {
       <div className={styles.stage}>
         <div ref={sceneRef} className={styles.viewport}>
           <div ref={backdropRef} className={styles.backdrop}>
-            <div className={styles.horizonImage}>
+            <div className={styles.horizonImage} data-stone-horizon="">
               <Photo image={HORIZON_TERRACE} />
             </div>
             <div ref={waterRef} className={styles.waterBackdrop}>
