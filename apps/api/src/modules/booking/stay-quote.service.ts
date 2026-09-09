@@ -51,15 +51,19 @@
 // so a promotion gated on it would be gated on nothing, and the absence of a
 // tier and the absence of a discount are the same sentence.
 //
-// **Only tier-gated promotions are read here.** A row with
-// `requires_loyalty_tier` null is a campaign open to everyone, and applying one
-// would move the price of every stay the property sells — including the ones
-// `availability.service.ts` quotes, which prices no promotions at all and says
-// so. Until the funnel can show a campaign price, quoting one only at the moment
-// of sale would show a guest one figure and sell them another. §7's discount has
-// no such problem: an anonymous search has no tier, so there is nothing it could
-// have been shown that this contradicts, and what changes at the point of sale
-// changes downward for a guest who has signed in.
+// **Which row applies is not decided here.** `modules/pricing/tier-promotion.ts`
+// owns that, because `availability.service.ts` now asks the same question while
+// the guest is still choosing: a signed-in member is shown the discounted total
+// on the room card and in the month grid, and the figure this service freezes has
+// to be the one they were shown. Two readings of `valid_to` would be a card and
+// a confirmation free to disagree, which is the failure the paragraph above
+// describes one level down, about the arithmetic.
+//
+// **Only tier-gated promotions are read.** A row with `requires_loyalty_tier`
+// null is a campaign open to everyone, and applying one would move the price of
+// every stay the property sells; until the funnel can show a campaign price,
+// quoting one only at the moment of sale would show a guest one figure and sell
+// them another. §7's discount has no such problem — the funnel quotes it too.
 
 import {
   type LoyaltyTier,
@@ -67,8 +71,6 @@ import {
   type Party,
   partySize,
   planAdjustedRoomGross,
-  promotionReduction,
-  type QuotedPromotion,
   type RatePlanCode,
   type RoomTypeCode,
   type StayDate,
@@ -78,25 +80,23 @@ import {
 import { parseDate } from "@internationalized/date";
 import { Injectable } from "@nestjs/common";
 import { ORPCError } from "@orpc/nest";
-import {
-  and,
-  asc,
-  eq,
-  gte,
-  isNotNull,
-  isNull,
-  lt,
-  lte,
-  or,
-} from "drizzle-orm";
+import { and, asc, eq, gte, lt } from "drizzle-orm";
 import type { DbExecutor } from "../../database/database.module.js";
 import { roomType } from "../../database/schema/inventory.js";
 import {
-  promotion,
   propertyTariff,
   rateCalendar,
   ratePlan,
 } from "../../database/schema/pricing.js";
+import {
+  type AppliedPromotion,
+  bestTierPromotion,
+  tierPromotions,
+} from "../pricing/tier-promotion.js";
+
+// Re-exported because this service's answer is what a booking freezes, and the
+// callers that read a frozen quote have always named the type from here.
+export type { AppliedPromotion };
 
 export interface StayQuoteRequest {
   readonly roomType: RoomTypeCode;
@@ -109,11 +109,6 @@ export interface StayQuoteRequest {
    * guest standing at `MEMBER` — see the header on why those are one case.
    */
   readonly loyaltyTier?: LoyaltyTier | null;
-}
-
-/** A promotion as it was frozen, and the code that names the row it came from. */
-export interface AppliedPromotion extends QuotedPromotion {
-  readonly code: string;
 }
 
 /** One night at the calendar price it was sold at — a `booking_night` row. */
@@ -230,80 +225,24 @@ export class StayQuoteService {
   /**
    * The promotion §7's ladder entitles this guest to, or null.
    *
-   * **The gate is a floor, not an equality.** `pricing.ts` calls
-   * `requires_loyalty_tier` "the tier a discount is *gated on*", and a gate is
-   * something a guest is at least as high as — which is also the only reading
-   * under which `rate-calendar.ts`'s sentence about MEMBER holds, since a
-   * promotion gated on the tier everybody has would be gated on nothing. So a
-   * Gold guest qualifies for a Silver-gated campaign as well as a Gold-gated
-   * one, and `loyalty_tier`'s declaration order is what `<=` compares on.
-   *
-   * **One promotion applies, and it is the one that takes the most off.**
-   * Stacking is a decision about campaigns rather than about tiers — which two
-   * combine, in what order, to what floor — and §7 asks for none of it: a guest
-   * is on one rung and is owed one discount. Ranking by what each candidate
-   * actually reduces, rather than by its stored value, is what makes the two
-   * scales comparable at all: −5% and 200,000 ₫ off order differently on one
-   * night than on seven.
-   *
-   * **The window has to cover the whole stay.** The discount is taken off the
-   * summed room total, so a campaign that expires mid-stay would otherwise
-   * discount nights it had already stopped applying to. Requiring it to cover
-   * the departure's last night is the reading that cannot overpay, and §7's own
-   * rows carry no window at all — a loyalty discount is open-ended by
-   * construction, which is what the nullable ends of `promotion` are for.
+   * Both halves are `modules/pricing/tier-promotion.ts`'s — which rows the tier
+   * reaches, and which of them takes the most off this stay. The header says why
+   * they are not written out here: the funnel asks the same question before the
+   * guest commits, and one of the two answers has to be the other's.
    */
   private async tierPromotion(
     exec: DbExecutor,
     request: StayQuoteRequest,
     stay: { nights: number; roomGross: VndAmount },
   ): Promise<AppliedPromotion | null> {
-    const tier = request.loyaltyTier ?? null;
+    const candidates = await tierPromotions(exec, request.loyaltyTier ?? null);
 
-    if (tier === null) {
-      return null;
-    }
-
-    // The last night of the stay, which is the departure date less one — the
-    // departure is not a night sold, and a campaign ending on the guest's last
-    // morning covered every night they were charged for.
-    const lastNight = request.checkOut.subtract({ days: 1 }).toString();
-
-    const candidates = await exec
-      .select({
-        code: promotion.code,
-        type: promotion.type,
-        value: promotion.value,
-      })
-      .from(promotion)
-      .where(
-        and(
-          eq(promotion.isActive, true),
-          // Tier-gated rows only. The header says why an open campaign is not
-          // this milestone's to apply.
-          isNotNull(promotion.requiresLoyaltyTier),
-          lte(promotion.requiresLoyaltyTier, tier),
-          // A null at either end is a campaign that has always been running or
-          // has no end — which is what §7's two rows are.
-          or(
-            isNull(promotion.validFrom),
-            lte(promotion.validFrom, request.checkIn.toString()),
-          ),
-          or(isNull(promotion.validTo), gte(promotion.validTo, lastNight)),
-          or(
-            isNull(promotion.minNights),
-            lte(promotion.minNights, stay.nights),
-          ),
-        ),
-      )
-      // By code, so the row a tie settles on is the same row on every run. The
-      // tie is in đồng and moves nobody's price, but the code is frozen onto
-      // the booking and read back by a human — an unordered scan would let two
-      // identical stays freeze different campaigns and make a report of what a
-      // discount was taken under depend on the plan Postgres picked.
-      .orderBy(asc(promotion.code));
-
-    return best(candidates, stay);
+    return bestTierPromotion(candidates, {
+      checkIn: request.checkIn,
+      checkOut: request.checkOut,
+      nights: stay.nights,
+      roomGross: stay.roomGross,
+    });
   }
 
   /**
@@ -410,44 +349,4 @@ export class StayQuoteService {
 
     return row.gross;
   }
-}
-
-/**
- * The candidate that takes the most off this stay's room rate, or null.
- *
- * Ranked by what each one actually reduces rather than by its stored value,
- * because the two scales are not otherwise comparable — `promotionReduction` is
- * the same arithmetic `stayTotalGross` will apply, so the row that wins here is
- * the row that produces the lowest total there.
- *
- * A tie goes to the lowest code, which the caller orders on. It is a tie in
- * đồng, so nothing about the guest's price depends on which one wins; what it
- * decides is only which code the booking freezes, and freezing the same one
- * every time is what keeps two identical stays reading identically afterwards.
- *
- * A candidate that reduces by nothing is discarded rather than frozen. A
- * `FIXED_AMOUNT` row cannot reduce by nothing — the constraint keeps it below
- * zero — but a `PERCENTAGE` row can, against a stay whose room total is small
- * enough that integer division truncates the discount away. Freezing that one
- * would put a code and a value on a booking whose total they did not move, and
- * a guest reading their confirmation would find a discount that took nothing
- * off.
- */
-function best(
-  candidates: readonly AppliedPromotion[],
-  stay: { roomGross: VndAmount },
-): AppliedPromotion | null {
-  let winner: AppliedPromotion | null = null;
-  let deepest = 0n;
-
-  for (const candidate of candidates) {
-    const reduction = promotionReduction(stay.roomGross, candidate);
-
-    if (reduction > deepest) {
-      winner = candidate;
-      deepest = reduction;
-    }
-  }
-
-  return winner;
 }

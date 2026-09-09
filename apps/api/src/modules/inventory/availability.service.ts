@@ -39,13 +39,31 @@
 //   the extra head, so a party of three is quoted the same here whether or not a
 //   bed has to be carried in. §6's priced extra bed is a desk posting for one a
 //   guest asked for, and a folio line is not an offer.
-// - **Promotions** (`FR-PRC-03`).
+// - **Campaign promotions** (`FR-PRC-03`) — a `promotion` row open to everyone.
+//   Applying one would move the price of every stay the property sells, and
+//   nothing on the funnel can yet say why a figure moved.
+//
+// §7's **member discount** is the one promotion both answers do price, and it is
+// not an exception to the line above. A tier-gated row applies to one guest, the
+// guest is the caller, and the alternative was worse than silence: the sale
+// applies the discount from the account on the session, so a funnel that priced
+// without it showed a Gold guest a total the review screen then undercut. A
+// price that falls at the last step is not a pleasant surprise — it is the
+// property having quoted the wrong number twice. Which row applies is
+// `modules/pricing/tier-promotion.ts`'s single answer, shared with the sale, so
+// the card and the confirmation cannot read `valid_to` differently.
+//
+// **A stranger is quoted exactly what this always quoted.** No tier, no
+// candidates, no statement issued — the discount is a thing the caller carries,
+// not a thing the calendar holds.
 
 import {
   INCLUDED_OCCUPANCY,
+  type LoyaltyTier,
   nightCount,
   type Party,
   partySize,
+  planAdjustedRoomGross,
   type RateCalendar,
   type RatePlanCode,
   type RoomTypeCode,
@@ -68,6 +86,13 @@ import {
   ratePlan,
   stayRestriction,
 } from "../../database/schema/pricing.js";
+import { TierDerivationService } from "../guest/tier-derivation.service.js";
+import {
+  bestTierPromotion,
+  discountableTier,
+  type TierPromotionCandidate,
+  tierPromotions,
+} from "../pricing/tier-promotion.js";
 
 // The aggregates below are hand-written SQL, and their identifiers still come
 // from the schema objects.
@@ -141,7 +166,10 @@ interface NightAggregate {
 
 @Injectable()
 export class AvailabilityService {
-  constructor(@Inject(DRIZZLE) private readonly db: Database) {}
+  constructor(
+    @Inject(DRIZZLE) private readonly db: Database,
+    private readonly tiers: TierDerivationService,
+  ) {}
 
   /**
    * One offer per type for a chosen range.
@@ -150,6 +178,11 @@ export class AvailabilityService {
    * that is a calendar the property has not published yet, which is a different
    * thing from a room it has sold, and quoting it as sold out would tell the
    * guest the wrong thing about a date they could ask about by telephone.
+   *
+   * `guestUserId` is the account on the session, or null for the stranger this
+   * route was written for. It is the caller's identity and never a parameter of
+   * the search: the controller reads it off the principal, so nothing on the
+   * wire can ask to be priced as somebody else's tier.
    */
   async search(query: {
     checkIn: StayDate;
@@ -157,6 +190,7 @@ export class AvailabilityService {
     plan: RatePlanCode;
     adults: number;
     childAges: readonly number[];
+    guestUserId?: string | null;
   }): Promise<StayOffer> {
     const nights = nightCount({ checkIn: query.checkIn, checkOut: query.checkOut });
     // The wire carries the party flat, because a query string has no nesting.
@@ -169,6 +203,7 @@ export class AvailabilityService {
     const heads = partySize(party);
     const pricing = await this.planPricing(query.plan);
     const extraPersonGross = await this.extraPersonRate(party);
+    const discounts = await this.memberDiscounts(query.guestUserId);
     const checkIn = query.checkIn.toString();
     const checkOut = query.checkOut.toString();
 
@@ -205,13 +240,28 @@ export class AvailabilityService {
     const offers = rows
       .filter((row) => Number(row.nights_priced) === nights)
       .map((row): RoomTypeOffer => {
+        const standardTotal = BigInt(row.standard_total);
+
+        // Ranked per type rather than once for the search: the two forms a
+        // `promotion` takes are only comparable against the figure they would
+        // reduce, and a suite and a standard double are not that figure. The
+        // rows were fetched once, above; this is arithmetic.
         const total = stayTotalGross({
-          standardTotal: BigInt(row.standard_total),
+          standardTotal,
           percentAdjustment: pricing.percentAdjustment,
           breakfastPerPersonGross: pricing.breakfastPerPersonGross,
           extraPersonPerNightGross: extraPersonGross,
           nights,
           party,
+          promotion: bestTierPromotion(discounts, {
+            checkIn: query.checkIn,
+            checkOut: query.checkOut,
+            nights,
+            roomGross: planAdjustedRoomGross(
+              standardTotal,
+              pricing.percentAdjustment,
+            ),
+          }),
         });
 
         return {
@@ -258,8 +308,10 @@ export class AvailabilityService {
     from: StayDate;
     to: StayDate;
     plan: RatePlanCode;
+    guestUserId?: string | null;
   }): Promise<RateCalendar> {
     const pricing = await this.planPricing(query.plan);
+    const discounts = await this.memberDiscounts(query.guestUserId);
     const from = query.from.toString();
     const to = query.to.toString();
 
@@ -303,16 +355,9 @@ export class AvailabilityService {
           lowestGross:
             isSoldOut || night?.lowest_gross == null
               ? null
-              : stayTotalGross({
-                  standardTotal: BigInt(night.lowest_gross),
-                  percentAdjustment: pricing.percentAdjustment,
-                  breakfastPerPersonGross: pricing.breakfastPerPersonGross,
-                  // Nobody is beyond the included two, so the rate is
-                  // multiplied by no heads. Reading the tariff to pass it here
-                  // would be a query for a number this call cannot use.
-                  extraPersonPerNightGross: 0n,
-                  nights: 1,
-                  party: INCLUDED_PARTY,
+              : this.cellGross(BigInt(night.lowest_gross), pricing, {
+                  date,
+                  discounts,
                 }),
           isSoldOut,
           // A sold-out night is not also reported as closed to arrival. They
@@ -324,6 +369,78 @@ export class AvailabilityService {
         };
       }),
     };
+  }
+
+  /**
+   * What one cell costs a member — the night priced as the stay it would be.
+   *
+   * **A cell is quoted as a one-night stay, and that is the conservative
+   * reading.** A campaign gated on three nights does not reduce a single one, so
+   * the grid draws the undiscounted figure and the room card then quotes less
+   * once the guest has picked a range long enough to earn it. The other
+   * direction is the one that cannot be allowed: a grid promising a discount the
+   * range the guest then chooses does not qualify for.
+   *
+   * The window is tested against this night for the same reason. A campaign that
+   * runs to the end of March discounts a March cell and not an April one, which
+   * is what a guest scanning the grid for a cheaper week is entitled to see.
+   */
+  private cellGross(
+    lowestGross: bigint,
+    pricing: PlanPricing,
+    night: {
+      date: StayDate;
+      discounts: readonly TierPromotionCandidate[];
+    },
+  ): bigint {
+    return stayTotalGross({
+      standardTotal: lowestGross,
+      percentAdjustment: pricing.percentAdjustment,
+      breakfastPerPersonGross: pricing.breakfastPerPersonGross,
+      // Nobody is beyond the included two, so the rate is multiplied by no
+      // heads. Reading the tariff to pass it here would be a query for a number
+      // this call cannot use.
+      extraPersonPerNightGross: 0n,
+      nights: 1,
+      party: INCLUDED_PARTY,
+      promotion: bestTierPromotion(night.discounts, {
+        checkIn: night.date,
+        checkOut: night.date.add({ days: 1 }),
+        nights: 1,
+        roomGross: planAdjustedRoomGross(
+          lowestGross,
+          pricing.percentAdjustment,
+        ),
+      }),
+    });
+  }
+
+  /**
+   * The discounts the caller's own tier reaches, or none at all.
+   *
+   * Two statements for a signed-in member and none for anybody else, which is
+   * what keeps `NFR-03`'s budget where it was for the caller this route was
+   * written for. `TierDerivationService` is the single answer to what tier a
+   * guest holds — `FR-GST-04` makes it a derived value — so this asks it rather
+   * than reading a column, exactly as the sale does.
+   *
+   * The rows come back once for the whole answer. A month grid ranks them
+   * against 365 nights and a search against five types; a query per night would
+   * be a year of round trips for a handful of rows that do not change inside one
+   * request.
+   */
+  private async memberDiscounts(
+    guestUserId: string | null | undefined,
+  ): Promise<readonly TierPromotionCandidate[]> {
+    if (!guestUserId) {
+      return [];
+    }
+
+    const tier: LoyaltyTier | null = discountableTier(
+      await this.tiers.deriveTier(this.db, guestUserId),
+    );
+
+    return await tierPromotions(this.db, tier);
   }
 
   /**
