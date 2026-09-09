@@ -1,7 +1,7 @@
 .screen {
   font-family: var(--font-display), serif;
   font-size: 1.125rem;
-  font-weight: 500;
+  font-weight: 400;
 
   font-variant-numeric: lining-nums;
 
@@ -146,6 +146,19 @@
 
 .screen[data-panel="shut"] .views {
   overflow-y: visible;
+}
+
+/* Scale the room composition, keeping the navbar and background at full size.
+   Keep the available width so scaling does not add a second outer margin. */
+@media (min-width: 78rem) {
+  .screen[data-panel="rooms"] .plates {
+    width: 100%;
+    justify-self: center;
+    align-self: start;
+    grid-template-rows: minmax(24rem, auto) auto;
+    padding-top: 3.5rem;
+    zoom: 0.85;
+  }
 }
 
 @media (max-width: 77.999rem) {

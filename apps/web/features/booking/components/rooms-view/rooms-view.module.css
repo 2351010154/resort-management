@@ -105,7 +105,7 @@
   font-family: var(--font-display), serif;
   font-variant-numeric: lining-nums;
   font-size: clamp(1.75rem, 2.25vw, 2.5rem);
-  font-weight: 500;
+  font-weight: 400;
   line-height: 1.1;
   color: var(--ink);
 }
