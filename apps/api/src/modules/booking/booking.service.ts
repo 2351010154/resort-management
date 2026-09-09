@@ -67,6 +67,7 @@ import { BookingTokenService } from "../auth/booking-token/booking-token.service
 import { accountForAddress } from "../auth/guest/registered-address.js";
 import { GuestService, type NewGuest } from "../guest/guest.service.js";
 import { TierDerivationService } from "../guest/tier-derivation.service.js";
+import { discountableTier } from "../pricing/tier-promotion.js";
 import { BookingCancellationService } from "../notification/booking-cancellation.service.js";
 import { BookingConfirmationService } from "../notification/booking-confirmation.service.js";
 import { HousekeepingService } from "../housekeeping/housekeeping.service.js";
@@ -2672,12 +2673,12 @@ export class BookingService {
    * funnel hold taken before the guest attached an account — because there is
    * no history to derive from and §7's ladder is about a guest's own stays.
    *
-   * `MEMBER` becomes null too, and that is `rate-calendar.ts`'s rule rather than
-   * a convenience: the base tier carries no discount, so a promotion gated on it
-   * would be gated on nothing, and `LOYALTY_TIERS` deliberately does not hold
-   * the word. Derived here and not stored anywhere — `FR-GST-04` makes the tier
-   * a derived value, and what the booking freezes is the *discount* it produced,
-   * never the tier itself.
+   * `MEMBER` becomes null too, and `discountableTier` is where that rule lives
+   * rather than here: the funnel narrows a derived tier the same way before it
+   * quotes a member rate, and two spellings of the line is how a guest comes to
+   * be priced as a member on one screen and not on the next. Derived here and
+   * not stored anywhere — `FR-GST-04` makes the tier a derived value, and what
+   * the booking freezes is the *discount* it produced, never the tier itself.
    *
    * A stay attached to an account after the fact keeps the price it was sold at.
    * §8 freezes a quote at the moment of sale, and a guest who signed in
@@ -2691,9 +2692,7 @@ export class BookingService {
       return null;
     }
 
-    const tier = await this.tiers.deriveTier(exec, userId);
-
-    return tier === "MEMBER" ? null : tier;
+    return discountableTier(await this.tiers.deriveTier(exec, userId));
   }
 
   /** When a hold stops holding — `FR-BOOK-02`, at the configured length. */

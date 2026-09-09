@@ -28,17 +28,35 @@ import { afterEach, describe, expect, it } from "vitest";
 import type { BookingTokenService } from "../../modules/auth/booking-token/booking-token.service.js";
 import type { GuestAuthService } from "../../modules/auth/guest/guest-auth.service.js";
 import type { Principal } from "./principal.js";
-import { RequiresCapability } from "./access.decorators.js";
+import { CurrentPrincipal, RequiresCapability } from "./access.decorators.js";
 import { AccessGuard, StaffJwtGuard } from "./access.guard.js";
 
 const reached = z.object({ reached: z.literal(true) });
+
+/**
+ * What the public route answers: that it was reached, and by whom.
+ *
+ * The second field is the one `availability.controller.ts` depends on. An
+ * unauthenticated row is reachable by a stranger *and* carries a principal when
+ * a session happens to arrive on it, which is what lets a search quote a member
+ * their own price. The guard resolves the caller before it takes the public
+ * branch; if it ever stopped, every signed-in guest would silently read as a
+ * stranger and be quoted the rack rate — a failure with no error and no test
+ * anywhere else to catch it.
+ */
+const reachedBy = z.object({
+  reached: z.literal(true),
+  caller: z.string().nullable(),
+});
 
 // Three fixture routes, one per outcome the guard can produce on an oRPC
 // handler. Real capability keys, because `RequiresCapability` is typed against
 // the matrix and inventing one would not compile.
 const fixture = {
   // `unauthenticated: true` in the matrix — anyone, signed in or not.
-  public: oc.route({ method: "GET", path: "/fixture/public" }).output(reached),
+  public: oc
+    .route({ method: "GET", path: "/fixture/public" })
+    .output(reachedBy),
   // MANAGER and ADMIN only. A guest must not reach it.
   managerOnly: oc
     .route({ method: "GET", path: "/fixture/manager-only" })
@@ -60,8 +78,14 @@ const fixture = {
 class FixtureController {
   @RequiresCapability("availability.search")
   @Implement(fixture.public)
-  publicRoute() {
-    return implement(fixture.public).handler(() => ({ reached: true }) as const);
+  publicRoute(@CurrentPrincipal() principal: Principal | null) {
+    return implement(fixture.public).handler(() => ({
+      reached: true as const,
+      // Narrowed by realm, as `availability.controller.ts` narrows it: a
+      // booking credential carries no account, and a staff one is not a guest
+      // whose loyalty standing a price could be quoted against.
+      caller: principal?.realm === "guest" ? principal.userId : null,
+    }));
   }
 
   @RequiresCapability("inventory.close-room")
@@ -193,7 +217,24 @@ describe("deny-by-default on oRPC routes", () => {
     const response = await request(app.getHttpServer()).get("/fixture/public");
 
     expect(response.status).toBe(200);
-    expect(response.body).toEqual({ reached: true });
+    // Reached, and by nobody — a stranger carries no principal for a handler to
+    // price against.
+    expect(response.body).toEqual({ reached: true, caller: null });
+  });
+
+  it("hands a signed-in caller's principal to an unauthenticated row", async () => {
+    // The row is public and the caller has a session, and both facts survive
+    // together: the guard does not skip resolving a principal merely because
+    // the row would admit a stranger. `availability.search` is that row in
+    // production, and this is the whole mechanism by which a signed-in guest is
+    // quoted §7's member discount before they commit — without it the funnel
+    // would quote the rack rate to everybody, answer 200, and break no test.
+    app = await appAs(GUEST);
+
+    const response = await request(app.getHttpServer()).get("/fixture/public");
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({ reached: true, caller: GUEST.userId });
   });
 
   // The direction that would leak: a guarded route the guard failed to guard.

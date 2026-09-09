@@ -11,6 +11,14 @@
 //     prices the stay through it.
 //  3. `BookingService` freezes what was applied, so the folio bills the figure
 //     the guest agreed to rather than re-deriving one.
+//  4. `AvailabilityService` finds the same row while the guest is still
+//     choosing, so the price on the room card is the price they are sold.
+//
+// The fourth is the one that fails without breaking anything. A funnel quoting
+// the rack rate to a Gold guest still sells them the discount, still reconciles,
+// still bills correctly — it simply shows them a number the review screen
+// undercuts, and a total that falls at the last step is the property having
+// quoted the wrong figure twice rather than a courtesy.
 //
 // A suite that exercised any of them alone would pass against a system where
 // nobody is ever actually charged less — which is exactly the state this file
@@ -56,6 +64,7 @@ import { FolioService } from "../src/modules/folio/folio.service.js";
 import { RoomChargeSweep } from "../src/modules/folio/room-charge-sweep.js";
 import { GuestService } from "../src/modules/guest/guest.service.js";
 import { HousekeepingService } from "../src/modules/housekeeping/housekeeping.service.js";
+import { AvailabilityService } from "../src/modules/inventory/availability.service.js";
 import { InventoryService } from "../src/modules/inventory/inventory.service.js";
 import {
   LOYALTY_PROMOTIONS,
@@ -110,6 +119,7 @@ class StoppedClock extends BusinessDateService {
 let pool: pg.Pool;
 let db: ReturnType<typeof drizzle<typeof schema>>;
 let bookings: BookingService;
+let funnel: AvailabilityService;
 let stays: AssignmentService;
 let folios: FolioService;
 let sweep: RoomChargeSweep;
@@ -175,6 +185,12 @@ beforeAll(async () => {
     // Nothing here cancels a confirmed stay that names somebody to write to.
     noCancellations,
   );
+
+  // The same derivation the sale uses, on the same stopped clock. A funnel
+  // measuring the guest against a different ladder from the one the sale reads
+  // is precisely the disagreement these cases exist to catch, so a stub here
+  // would answer the question for them.
+  funnel = new AvailabilityService(db, tiersAt(clock));
 
   sweep = new RoomChargeSweep(folios, silentLogger);
 });
@@ -386,6 +402,84 @@ describe("what a guest on the ladder is actually quoted", () => {
     expect(sold.stayTotalGross).toBe(
       (roomUnderThePlan * 95n) / 100n + breakfast + extraHead,
     );
+  });
+});
+
+describe("what the funnel quotes before the guest commits", () => {
+  /** A range no other case books, so the search reads a whole property. */
+  const ARRIVAL = "2028-04-10";
+  const DEPARTURE = "2028-04-13";
+
+  it("quotes a Gold guest the total the sale then freezes", async () => {
+    // The claim the whole feature rests on, stated as one equality: what the
+    // room card says and what the booking is written at are the same number.
+    // Asserted as identity rather than as two percentages, because two
+    // independent 10% calculations off two different bases would satisfy a
+    // looser check while still differing by a đồng of truncation.
+    const guest = await aGoldGuest();
+
+    const quoted = await offerFor(guest, ARRIVAL, DEPARTURE);
+    const sold = await sell(guest, ARRIVAL, DEPARTURE);
+
+    expect(quoted).toBe(sold.stayTotalGross);
+    expect((await rowOf(sold)).quotedPromotionCode).toBe("LOYALTY_GOLD");
+
+    // And it is genuinely the discounted figure rather than both being the rack
+    // rate, which the equality alone would not distinguish.
+    expect(quoted).toBe(((await standardTotalOf(sold)) * 90n) / 100n);
+  });
+
+  it("quotes a stranger exactly what it always quoted", async () => {
+    // The route is the one unauthenticated row in the matrix, and nothing about
+    // this change may move the answer it gives the caller it was written for.
+    const stranger = await offerFor(null, ARRIVAL, DEPARTURE);
+    const member = await offerFor(await aGoldGuest(), ARRIVAL, DEPARTURE);
+
+    expect(member).toBe((stranger * 90n) / 100n);
+
+    const sold = await sell(null, ARRIVAL, DEPARTURE);
+
+    expect(stranger).toBe(sold.stayTotalGross);
+  });
+
+  it("drops the month grid's cell for a member too", async () => {
+    // The grid is where a guest chooses their dates, so a discount that reached
+    // only the room cards would still let a member plan a stay against the rack
+    // rate and be surprised — downward, but by a number they never saw.
+    const guest = await aGoldGuest();
+
+    const [asStranger] = await cellsFor(null, ARRIVAL);
+    const [asMember] = await cellsFor(guest, ARRIVAL);
+
+    expect(asStranger).toBeGreaterThan(0n);
+    expect(asMember).toBe((asStranger! * 90n) / 100n);
+  });
+
+  it("holds a grid cell at the standard price when the discount needs more nights than a cell has", async () => {
+    // A cell is priced as the one-night stay it represents, so a campaign gated
+    // on three nights does not reduce it — and the room card then quotes less
+    // once the guest picks a range long enough to earn it. The other direction
+    // is the one that cannot be allowed: a grid promising a discount the range
+    // the guest actually chooses does not qualify for.
+    const guest = await aGoldGuest();
+
+    await db
+      .update(promotion)
+      .set({ minNights: 3 })
+      .where(eq(promotion.code, "LOYALTY_GOLD"));
+    await db.delete(promotion).where(eq(promotion.code, "LOYALTY_SILVER"));
+
+    const [asStranger] = await cellsFor(null, ARRIVAL);
+    const [asMember] = await cellsFor(guest, ARRIVAL);
+
+    expect(asMember).toBe(asStranger);
+
+    // Three nights does earn it, and the sale agrees.
+    const quoted = await offerFor(guest, ARRIVAL, DEPARTURE);
+    const sold = await sell(guest, ARRIVAL, DEPARTURE);
+
+    expect(quoted).toBe(sold.stayTotalGross);
+    expect(quoted).toBeLessThan(await offerFor(null, ARRIVAL, DEPARTURE));
   });
 });
 
@@ -688,6 +782,73 @@ async function theLadderIs(rungs: {
     tierGoldStays: rungs.goldStays,
     tierGoldRevenueVnd: rungs.goldRevenueVnd,
   });
+}
+
+/**
+ * An account standing at Gold, by the stays axis.
+ *
+ * The two finished stays are real history and the ladder is set to meet them,
+ * which is the same route every case above takes to a rung — a tier written into
+ * a column would be testing a value this system deliberately does not store.
+ */
+async function aGoldGuest(): Promise<string> {
+  const guest = await aGuestAccount();
+
+  await aFinishedStay(guest);
+  await aFinishedStay(guest);
+  await theLadderIs({
+    silverStays: 1,
+    silverRevenueVnd: UNREACHABLE.revenueVnd,
+    goldStays: 2,
+    goldRevenueVnd: UNREACHABLE.revenueVnd,
+  });
+
+  return guest;
+}
+
+/**
+ * What the funnel's room card says a `DELUXE` costs this caller.
+ *
+ * Null is the stranger the route was written for — the search reads the account
+ * off the session in production, and passing it here is the same value arriving
+ * by the same argument.
+ */
+async function offerFor(
+  guestUserId: string | null,
+  checkIn: string,
+  checkOut: string,
+): Promise<bigint> {
+  const { offers } = await funnel.search({
+    checkIn: parseDate(checkIn),
+    checkOut: parseDate(checkOut),
+    plan: "STANDARD",
+    adults: 2,
+    childAges: [],
+    guestUserId,
+  });
+
+  const deluxe = offers.find((offer) => offer.code === "DELUXE");
+
+  if (!deluxe) {
+    throw new Error(`the search priced no DELUXE for ${checkIn}`);
+  }
+
+  return deluxe.stayTotalGross;
+}
+
+/** The month grid's cheapest-room figure per night, from `from` for two nights. */
+async function cellsFor(
+  guestUserId: string | null,
+  from: string,
+): Promise<(bigint | null)[]> {
+  const grid = await funnel.calendar({
+    from: parseDate(from),
+    to: parseDate(from).add({ days: 2 }),
+    plan: "STANDARD",
+    guestUserId,
+  });
+
+  return grid.nights.map((night) => night.lowestGross);
 }
 
 /** An account with nothing behind it yet. */

@@ -451,6 +451,29 @@ what it was quoted and never re-derives it, so a guest who was sold a Gold rate
 keeps it if their tier later falls, and the night audit bills the figure they
 agreed to.
 
+**And it reaches them before they commit.** The availability search and the month
+calendar derive the caller's tier off the session and quote the same discount, so
+a signed-in member reads their own price on the grid and on the room card rather
+than meeting it for the first time on the review screen. Both routes are the
+matrix's one `unauthenticated: true` row and stay that way: a stranger is quoted
+exactly what they always were, and the account is read off the session and never
+off the wire — an account id a caller could send would be a request to be priced
+at somebody else's tier.
+
+Which row applies is decided in one place for both, and that is the point of
+having a place: the funnel and the sale reading `valid_to` differently is a room
+card and a confirmation free to disagree. A grid cell is priced as the one-night
+stay it represents, so a discount gated on three nights leaves the cell at the
+standard price and appears on the room card once the guest picks a long enough
+range — the conservative direction, since a grid may not promise a reduction the
+chosen range does not earn.
+
+**Signing in afterwards does not reprice a stay.** The discount is applied from
+the account attached when the quote is made, so a guest who holds a room as a
+stranger and signs in later keeps the price they were quoted. §8 freezes a quote
+at the moment of sale, and a guest who signed in afterwards was not quoted a
+member rate to be given one retrospectively.
+
 Three consequences follow, and each is a rule rather than an accident:
 
 - **It moves the room rate and nothing else.** Breakfast and the extra-person
@@ -460,10 +483,11 @@ Three consequences follow, and each is a rule rather than an accident:
   gets whichever takes the most off. One promotion applies; tier discounts do not
   stack.
 - **Only tier-gated promotions apply.** A `promotion` row open to everyone —
-  `requires_loyalty_tier` null — is a campaign, and the funnel cannot yet show
-  one. Applying it only at the point of sale would show a guest one price and
-  sell them another, so nothing applies it until the search path can price it.
-  The tier discount has no such problem: an anonymous search has no tier.
+  `requires_loyalty_tier` null — is a campaign, and nothing on the funnel can yet
+  say why a figure moved. A campaign also moves the price of every stay the
+  property sells, which is a larger decision than §7's; nothing applies one. The
+  tier discount has no such problem, because the funnel quotes it too — the
+  discount belongs to the caller, and the caller is who the search is answering.
 
 The earn rate was decided before any redemption exists, because it defines what
 a point *is*: reseeding balances after guests already hold them is a support
