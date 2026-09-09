@@ -224,6 +224,38 @@
   font-size: var(--body);
   color: var(--stone-deep);
 }
+.actionLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.25rem;
+  min-height: 44px;
+  margin-top: 1.5rem;
+  font-size: var(--label);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--ink);
+}
+.actionLink::after {
+  content: "→";
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid currentcolor;
+  border-radius: 50%;
+  font-size: 1.25rem;
+  transition: transform 180ms ease;
+}
+.actionLink:hover::after {
+  transform: translateX(4px);
+}
+.actionLink:active::after {
+  transform: translateX(2px);
+}
+.actionLink:focus-visible {
+  outline: 2px solid currentcolor;
+  outline-offset: 4px;
+}
 .beat[data-beat="light"] {
   width: 19vw;
 }
@@ -292,38 +324,6 @@
 }
 .beat[data-beat="horizon"] .display {
   font-size: clamp(2.5rem, 3.8vw, 4rem);
-}
-.actionLink {
-  display: inline-flex;
-  align-items: center;
-  gap: 1.25rem;
-  min-height: 44px;
-  margin-top: 1.5rem;
-  font-size: var(--label);
-  text-transform: uppercase;
-  letter-spacing: 0.2em;
-  color: var(--ink);
-}
-.actionLink::after {
-  content: "→";
-  display: grid;
-  place-items: center;
-  width: 2.5rem;
-  height: 2.5rem;
-  border: 1px solid currentcolor;
-  border-radius: 50%;
-  font-size: 1.25rem;
-  transition: transform 180ms ease;
-}
-.actionLink:hover::after {
-  transform: translateX(4px);
-}
-.actionLink:active::after {
-  transform: translateX(2px);
-}
-.actionLink:focus-visible {
-  outline: 2px solid currentcolor;
-  outline-offset: 4px;
 }
 @media (max-width: 700px) {
   .section {
