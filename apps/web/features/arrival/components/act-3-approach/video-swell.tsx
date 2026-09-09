@@ -54,6 +54,40 @@ export function VideoSwell() {
 
   useEffect(() => setReduced(prefersReducedMotion()), []);
 
+  // GSAP transforms its pin wrapper, which makes CSS fixed backgrounds
+  // scroll locally. Register each crop against the viewport explicitly.
+  useEffect(() => {
+    const section = sectionRef.current;
+    const stage = stageRef.current;
+    const horizon = document.querySelector<HTMLElement>("[data-stone-horizon]");
+    if (!section || !stage || !horizon) return;
+    const surfaces = [
+      { element: horizon, pseudo: "::after" },
+      { element: section, pseudo: "::before" },
+      { element: stage, pseudo: "::before" },
+    ];
+    const previous = new Map<HTMLElement, number>();
+    const sync = () => {
+      for (const { element, pseudo } of surfaces) {
+        const rect = element.getBoundingClientRect();
+        const layer = getComputedStyle(element, pseudo);
+        const offset = -(rect.top + Number.parseFloat(layer.top));
+        if (!Number.isFinite(offset) || previous.get(element) === offset)
+          continue;
+        element.style.setProperty("--stone-offset", `${offset}px`);
+        previous.set(element, offset);
+      }
+    };
+    // Run after the pin's scroll update, including its refresh and resize work.
+    gsap.ticker.add(sync);
+    sync();
+    return () => {
+      gsap.ticker.remove(sync);
+      for (const { element } of surfaces)
+        element.style.removeProperty("--stone-offset");
+    };
+  }, []);
+
   // Reduced motion holds the frame fullscreen for the whole act, so the bar is
   // over video the entire time it owns the viewport.
   useEffect(() => {
