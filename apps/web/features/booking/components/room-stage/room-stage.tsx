@@ -1,82 +1,5 @@
 "use client";
 
-// What the property says about the room on the ground, and what it costs.
-//
-// **The stage stopped being a column and became two plates.** It held the
-// photograph, a card straddling its bottom edge and a foot under both, all
-// inside the right-hand 68% of the screen. The photograph is the whole window
-// now — `room-ground.tsx` — so what is left here is the reading laid on it: a
-// wide plate stating the room, and a smaller one beside its bottom edge stating
-// the total and offering the one way forward.
-//
-// **Two plates rather than one, because they are two different kinds of
-// sentence.** The first is what is true of the room whether or not the guest
-// takes it. The second is what they would be agreeing to. Printing the figure
-// inside the same box as the bed size makes the price one more fact about the
-// room; giving it its own plate makes it the thing being decided.
-//
-// **The two plates are separated, not overlapped**, and the separation is the
-// composition's own seam rather than a margin. An earlier cut lifted the price
-// over the first plate's bottom-right corner; what shipped was neither — the two
-// abutted exactly, edge on edge, which reads as one plate with a rule through it
-// and loses the distinction the paragraph above is making. A stated gap says
-// they are two statements. The room's plate ends, and what it would cost begins.
-//
-// **The division of prices is the one the funnel has always drawn.** The list
-// compares per night, five figures at the same x. This states the total, once,
-// in full, beside the button that acts on it. Neither number is on a photograph.
-//
-// **The plate says what the room is, and it says it without being asked.**
-//
-// It did not. The facts were a strip of two or three unlabelled glyphs behind a
-// `View detail` disclosure, there was no description and no amenity list, and
-// what that produced was the widest plate on the screen holding a name, one
-// cancellation clause and a hand's width of empty ivory — a box that looked like
-// it had failed to load. The disclosure was defensible on its own terms and it
-// was answering the wrong question: the plate was not too dense, it was empty.
-//
-// So the press is gone and the plate is a plate. Two columns, and the division
-// is what each half is *for*:
-//
-// - **Left: what this room is.** The kicker, the name, the two sentences the
-//   property says about it, and the plan's terms. It reads top to bottom as one
-//   paragraph about one room.
-// - **Right: what is true of it.** Four facts, open, each a glyph beside a value
-//   and the word for what the value is. Then a rule, and under it the twelve
-//   lines that are in every room.
-//
-// **Both of the things this file used to refuse are now sourced rather than
-// written.** `design-foundations.md` §6 forbids a *component* inventing a hotel
-// fact — not the property stating one. `property-and-tariff.md` §1 now carries
-// the descriptions and the amenity list, ⚑ like everything else in §1–§6, and
-// `room-types.ts` is the one place the code reads them from. The old objection
-// to the amenity list was about register, and the stylesheet answers it: no
-// heading, no glyphs, no ticks, the smallest weight on the plate. It answers
-// "what is in the room" and does not pretend to be what makes this room worth
-// choosing — the four facts above it are that, and the list beside the plate is
-// where the five are compared.
-//
-// **Occupancy is the fourth fact, and it is the one the strip never had.** "Whom
-// does it sleep" is the first question asked of a hotel room and it was the one
-// fact on the row in the list that this plate did not repeat.
-//
-// **No dialog, still.** Everything is in the plate, in flow, with the photograph
-// behind it. The thing this composition was built to delete was a scrimmed box
-// over the room, and `check-booking-screen.mjs` asserts none exists.
-//
-// **There is a details control, and it hides nothing.** That is not a
-// contradiction of the paragraphs above, it is the shape they argued for: the
-// plate keeps every fact open, and the control is a way *to* them rather than a
-// way to reveal them. It takes the guest's focus to the facts column — the same
-// four facts and twelve lines that were already on screen before it was pressed
-// — so a keyboard reaching the plate has one step to what it came for instead of
-// tabbing past the prose. Nothing appears, nothing disappears, and there is no
-// state to be in: press it twice and the screen is identical both times.
-//
-// The distinction it must never lose is `data-stage-detail`, which the old
-// disclosure carried and which `check-booking-screen.mjs` still asserts is
-// absent. A control that hid something would take that attribute back.
-
 import {
   type RatePlanCode,
   type RoomTypeOffer,
@@ -97,6 +20,22 @@ import {
 } from "@/features/booking/lib/room-types";
 import { Money } from "../money";
 import styles from "./room-stage.module.css";
+
+// Decorative line icons follow the property's amenity order.
+const amenityPaths = [
+  "M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9 5l3 3 3-3M9 19l3-3 3 3",
+  "M5 12a7 7 0 0 1 14 0H5ZM12 2v3M7 16v2M12 16v4M17 16v2",
+  "M5 8h12v8a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V8ZM17 9h2a3 3 0 0 1 0 6h-2M8 3v2M12 3v2",
+  "M3 14h18M5 14v7M19 14v7M9 10h10l-3-7h-4l-3 7ZM14 10v4",
+  "M7 8h10l2 12H5L7 8ZM9 3h6v5M10 3V1h5",
+  "M9 3h6v4l2 3v11H7V10l2-3V3ZM7 13h10",
+  "M4 4h16v16H4V4ZM8 4v16M12 12a2 2 0 1 0 4 0 2 2 0 1 0-4 0M18 8v8",
+  "M4 5h10a4 4 0 0 1 0 8H9l2 8H7L5 13H4V5ZM18 7h3M18 11h3",
+  "M3 8a14 14 0 0 1 18 0M6 11a9 9 0 0 1 12 0M9 14a5 5 0 0 1 6 0M12 18h.01",
+  "M5 6l3-3 4 3 4-3 3 3-2 5 3 3-3 6H7l-3-6 3-3-2-5Z",
+  "M8 3l4 3 4-3 5 5-3 3-1 10H7L6 11 3 8l5-5ZM12 6v15M7 14h10",
+  "M3 4h18v13H3V4ZM8 21h8M12 17v4",
+];
 
 export function RoomStage({
   type,
@@ -211,7 +150,7 @@ export function RoomStage({
               strokeWidth="1.5"
               viewBox="0 0 16 16"
             >
-              <path d="M6 3.5 10.5 8 6 12.5" />
+              <path d="M2 8h12M9 3l5 5-5 5" />
             </svg>
           </button>
         </div>
@@ -270,18 +209,31 @@ export function RoomStage({
               difference, at no charge.
             </p>
           ) : null}
-
-          {/* What is in every room. The plainest thing on the plate on purpose —
-              see `room-types.ts` for why the list came back and why it is set
-              like this rather than as a feature grid. `ul` with no marker: the
-              rule above it and the three columns are what say it is a list. */}
-          <ul className={styles.amenities}>
-            {ROOM_AMENITIES.map((item) => (
-              <li className={styles.amenity} key={item}>
-                {item}
-              </li>
-            ))}
-          </ul>
+          <section
+            className={styles.amenitiesSection}
+            aria-label="Room amenities"
+          >
+            <h3 className={`${styles.amenitiesTitle} caps-label`}>Amenities</h3>
+            <ul className={styles.amenities}>
+              {ROOM_AMENITIES.map((item, index) => (
+                <li className={styles.amenity} key={item}>
+                  <svg
+                    aria-hidden="true"
+                    className={styles.amenityIcon}
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="1.25"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d={amenityPaths[index]} />
+                  </svg>
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
         </div>
       </section>
 

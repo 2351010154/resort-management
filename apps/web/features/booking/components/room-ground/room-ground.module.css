@@ -1,27 +1,12 @@
-/* The photograph under the whole room step, and the two controls that walk it.
- *
- * `--night` under the picture rather than ivory, for the same reason
- * `booking-hero.module.css` gives: the image is fetched, and for the frame or
- * two before it decodes the bar above it is already ivory. On ivory that is
- * white on cream — unreadable, and exactly the flash a guest on a slow
- * connection sees. On night it is the finished composition with the photograph
- * missing.
- */
-
 .ground {
   position: absolute;
   inset: 0;
-  /* Behind every plate. `booking-screen.module.css` puts the frame in a
-     stacking context of its own, so this is a local zero rather than a claim
-     about the page. */
+
   z-index: 0;
   overflow: hidden;
   background: var(--night);
 }
 
-/* Absolute, because two frames are in the layer during a dissolve: the outgoing
-   one is still mounted while the incoming one fades up, and in flow they would
-   stack and double the height of the ground. */
 .photo {
   position: absolute;
   inset: 0;
@@ -31,15 +16,6 @@
   object-fit: cover;
 }
 
-/* Top and bottom only, and the middle is left alone.
- *
- * The hero's wash is a diagonal, because there the type stands in one corner of
- * the band. Here the type is on opaque plates that need no help at all — the
- * only things standing on the picture itself are the bar at the top and the
- * counter at the bottom. So the wash is two short gradients at the two edges
- * that carry type, and the band across the middle of the frame — which is where
- * the room actually is — keeps its own light.
- */
 .scrim {
   position: absolute;
   inset: 0;
@@ -53,21 +29,6 @@
   );
 }
 
-/* The counter and the two arrows, in the right margin — beside the plates
- * rather than under them.
- *
- * **Their box is `--room-walk`, declared on the screen, because the plates have
- * to clear it.** They clear it sideways now: `--page-gutter-right` in
- * `booking-screen.module.css` is the strip this sits in, and its floor is
- * written from this group's own width plus the `--space-3` below. A control
- * only *nearly* clear of the price plate is a control the plate takes the
- * pointer for, so the clearance is stated in one place and read in the other
- * rather than nudged to match.
- *
- * Right and low: the plates come up from the left and the bottom, so this is the
- * one corner of the window that is photograph all the way out. A control in the
- * middle of the frame is a control over the room.
- */
 .walk {
   position: absolute;
   right: var(--space-3);
@@ -82,9 +43,7 @@
   font-size: var(--text-sm);
   line-height: 1;
   color: var(--ivory);
-  /* The one legibility guarantee on the frame: a figure over a photograph has
-     to hold against the worst pixel under it, which is white. A shadow costs
-     nothing and never darkens the room the way a plate would. */
+
   text-shadow: 0 1px 3px rgb(var(--night-rgb) / 0.65);
 }
 
@@ -97,10 +56,7 @@
   background: rgb(var(--night-rgb) / 0.3);
   border: 1px solid rgb(var(--ivory-rgb) / 0.45);
   border-radius: 50%;
-  /* The transform runs faster than the two colours above it, because it is the
-     press rather than the hover: a control that takes 0.4s to acknowledge a
-     click has not acknowledged it. 0.16s is short enough to read as the button
-     giving under the finger and long enough not to be a flicker. */
+
   transition:
     background-color 0.4s var(--ease-ui),
     border-color 0.4s var(--ease-ui),
@@ -112,20 +68,10 @@
   border-color: var(--ivory);
 }
 
-/* **The only thing on this step that is allowed to move under a press, and it
- * is furniture rather than the room.** A photograph does not shrink when you
- * press it, but the disc you press to change it may — the arrows are the one
- * pair of controls on the picture, they are round, and a round control giving a
- * little is the oldest press affordance there is. It also survives the wash
- * behind it being any colour a hotel photograph happens to be, which no change
- * of ground alone can promise. */
 .walkButton:active {
   transform: scale(0.92);
 }
 
-/* §9. The kill-switch would leave the scale in place with no duration on it,
-   which is a button that snaps smaller and snaps back — the press without the
-   give. The two colours already answer the press here. */
 @media (prefers-reduced-motion: reduce) {
   .walkButton:active {
     transform: none;
@@ -142,32 +88,69 @@
   height: 1.25rem;
 }
 
-/* ---- Narrow -------------------------------------------------------------- */
-
-/* Stacked, the picture stops being the ground and becomes the first band of a
- * page that scrolls. It is still the largest thing on the screen — the width of
- * the phone is the only width at which it is a room rather than a stamp — but
- * the plates are under it rather than on it, so it takes a stated ratio instead
- * of the window's height.
- */
+.ground {
+  pointer-events: none;
+}
+.ground .photo {
+  filter: blur(12px);
+  transform: scale(1.05);
+}
+.ground .scrim {
+  background: rgb(var(--night-rgb) / 0.38);
+}
+.gallery {
+  position: relative;
+  isolation: isolate;
+  width: 100%;
+  height: 100%;
+  min-height: 20rem;
+  overflow: hidden;
+  border: 4px solid rgb(var(--ivory-rgb) / 0.9);
+  border-radius: var(--plate-radius);
+  background: var(--night);
+  box-shadow: 0 1rem 2rem rgb(var(--night-rgb) / 0.18);
+}
+.gallery .scrim {
+  background:
+    linear-gradient(90deg, rgb(var(--night-rgb) / 0.48), transparent 38%),
+    linear-gradient(0deg, rgb(var(--night-rgb) / 0.42), transparent 30%);
+}
+.caption {
+  position: absolute;
+  top: 2rem;
+  left: 2rem;
+  color: var(--ivory);
+}
+.caption > p:first-child {
+  font-size: 0.8125rem;
+}
+.caption::after {
+  content: "";
+  display: block;
+  width: 2.25rem;
+  margin-top: 1rem;
+  border-bottom: 1px solid rgb(var(--ivory-rgb) / 0.7);
+}
+.aspect {
+  font-size: 1rem;
+  text-transform: capitalize;
+}
+.count {
+  min-width: 4rem;
+  font-size: 0.875rem;
+  letter-spacing: 0.15em;
+  text-align: center;
+}
 @media (max-width: 77.999rem) {
-  .ground {
-    position: relative;
-    inset: auto;
-    aspect-ratio: 3 / 2;
+  .gallery {
+    min-height: 0;
   }
-
-  /* Nothing stands on the picture here but the counter, and the bar has moved
-     off it onto ivory. So the top wash has no work left to do. */
-  .scrim {
-    background: linear-gradient(
-      to bottom,
-      rgb(var(--night-rgb) / 0) 60%,
-      rgb(var(--night-rgb) / 0.45) 100%
-    );
+  .caption {
+    top: 1rem;
+    left: 1rem;
   }
-
   .walk {
-    right: var(--space-2);
+    right: 1rem;
+    bottom: 1rem;
   }
 }
