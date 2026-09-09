@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { BEATS, KNOTS, MOBILE_LENGTH, RIBBON_LENGTH } from "./ribbon-beats";
 import { centre, edgeWave, ribbonPath } from "./ribbon-geometry";
-import { cameraAt, exitOpacity } from "./ribbon-pacing";
+import { CAMERA_STOPS, cameraAt, exitOpacity } from "./ribbon-pacing";
 
 describe("ribbon camera", () => {
   it("moves forward without jumps or reversing between holds", () => {
@@ -18,9 +18,20 @@ describe("ribbon camera", () => {
     }
   });
   it("spends more scroll inspecting a scene than crossing to the next", () => {
-    const roomHoldSpeed = (cameraAt(460) - cameraAt(300)) / 160;
-    const transitionSpeed = (cameraAt(590) - cameraAt(460)) / 130;
-    expect(transitionSpeed).toBeGreaterThan(roomHoldSpeed * 4);
+    // cameraAt reads scroll, not the authored stop positions: it stretches
+    // the authored curve over whatever length the act is given. Sampling a
+    // stop means converting back, or the windows slide off the segments they
+    // are meant to measure as soon as the act is retuned to a new length.
+    const authoredTravel = CAMERA_STOPS[CAMERA_STOPS.length - 1][0];
+    const scrollAt = (position: number) =>
+      (position * (RIBBON_LENGTH - 100)) / authoredTravel;
+    const speed = (from: number, to: number) =>
+      (cameraAt(scrollAt(to)) - cameraAt(scrollAt(from))) / (to - from);
+
+    const hold = CAMERA_STOPS[2][0];
+    const settled = CAMERA_STOPS[3][0];
+    const crossed = CAMERA_STOPS[4][0];
+    expect(speed(settled, crossed)).toBeGreaterThan(speed(hold, settled) * 4);
   });
   it("keeps the horizon visible until Act 3 is underneath, then clears it", () => {
     for (const length of [RIBBON_LENGTH, MOBILE_LENGTH]) {
