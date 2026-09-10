@@ -133,19 +133,58 @@ const FOOT_LINES = [FOOT_FIRST, FOOT_SECOND].map((line) => ({
  * comes up over it, and this movement's beats all have to wait for the sheet
  * to have closed before any of them starts.
  *
- * A tenth of the section is about a third of a screen of scroll: long enough
- * to read as a dissolve rather than a cut, short enough that the reader is not
- * scrolling through a blank frame waiting for the words to arrive.
+ * About a third of a screen of scroll: long enough to read as a dissolve
+ * rather than a cut, short enough that the reader is not scrolling through a
+ * blank frame waiting for the words to arrive.
+ *
+ * Quoted here against the *designed* sheet — the timeline the four beats were
+ * cut on, before the cards' ride was stretched — and re-quoted against the
+ * real section below, so the sheet keeps its length in scroll whatever the
+ * ride is set to.
  */
-export const FIELD_HANDOFF = 0.09;
+const HANDOFF_DESIGN = 0.09;
 
-/** Maps a beat window quoted against the whole section (0–1, the shape the
- *  four beats below were designed at) onto the span that is actually free to
- *  draw anything — after the hand-off sheet has closed. A linear map rather
- *  than an offset: it holds every beat's *proportion* of the remaining scroll
- *  exactly what it was of the whole, so the section still reads as the same
- *  four beats, only starting later. */
-const rebase = (v: number): number => FIELD_HANDOFF + v * (1 - FIELD_HANDOFF);
+/** Screens of scroll the designed sheet runs for (the section's height less
+ *  the one viewport that stays pinned). The beats before the cards hold
+ *  exactly this length; only the ride after them is stretched. */
+const DESIGN_SCROLL = { wide: 4.2, narrow: 3 } as const;
+
+/** Maps a beat window quoted against the designed sheet (0–1, the shape the
+ *  four beats below were cut at) onto the span that is actually free to draw
+ *  anything — after the hand-off sheet has closed. A linear map rather than an
+ *  offset: it holds every beat's *proportion* of the remaining scroll exactly
+ *  what it was of the whole, so the sheet still reads as the same four beats,
+ *  only starting later. */
+const design = (v: number): number => HANDOFF_DESIGN + v * (1 - HANDOFF_DESIGN);
+
+/** Where the cards start on the designed sheet. */
+const RIDE_FROM_DESIGN = design(0.52);
+
+/**
+ * How much longer the cards' ride is than it was designed at. The photographs
+ * now dissolve into the ground rather than standing on plates, and a softer
+ * card wants more air around it: the pairs are dealt further apart on the
+ * wheel — see `PAIR_STAGGER`, which this figure tracks — and the section grows
+ * by exactly the extra scroll that takes, so the
+ * words, the shatter and the sentence are scrolled through at the pace they
+ * were cut at.
+ */
+const RIDE_STRETCH = 2.36;
+
+/** The whole section, in units of the designed sheet: the sheet up to the
+ *  cards, then the ride stretched. */
+const SHEET = RIDE_FROM_DESIGN + (1 - RIDE_FROM_DESIGN) * RIDE_STRETCH;
+
+/** The section's height, in viewports: the pinned one plus the scroll. */
+const sectionHeight = (mobile: boolean) =>
+  `${((1 + DESIGN_SCROLL[mobile ? "narrow" : "wide"] * SHEET) * 100).toFixed(0)}vh`;
+
+/** The share of this movement's own scroll the hand-off takes. The corridor
+ *  imports it rather than holding its own opinion of how long that is. */
+export const FIELD_HANDOFF = HANDOFF_DESIGN / SHEET;
+
+/** A designed-sheet window, quoted against the real section. */
+const rebase = (v: number): number => design(v) / SHEET;
 
 // ---------------------------------------------------------------------------
 // The section's progress, cut into beats. Every window below is a span of that
@@ -173,12 +212,15 @@ const RESOLVE: [number, number] = [rebase(0.44), rebase(0.62)];
 const WHEELS: [number, number] = [rebase(0.48), rebase(0.6)];
 const CARDS_FROM = rebase(0.52);
 
-/** A pair's start on the card timeline, and the span one card spends crossing
- *  the frame. Four pairs at this stagger fill the timeline exactly: the last
- *  pair is still arriving as the section's final screen is reached, so the
- *  field is never finished and standing still. */
-const PAIR_STAGGER = 0.16;
-const CARD_SPAN = 0.52;
+/** Separate pairs by well over half a crossing, so a pair has left the middle
+ *  of the frame before the next one reaches it and the ground between the
+ *  images is clear rather than merely narrow. `RIDE_STRETCH` above carries the
+ *  extra scroll that takes, so widening the gap does not speed the cards up.
+ *  Normalize the full ride so every pair appears. */
+const PAIR_STAGGER = 0.3;
+const CARD_SPAN = 0.49;
+const CARD_TIMELINE =
+  (Math.ceil(EXPERIENCES.length / 2) - 1) * PAIR_STAGGER + CARD_SPAN;
 
 // --- The wheels ------------------------------------------------------------
 
@@ -388,7 +430,7 @@ export function experienceScrollTarget(index: number): number | null {
   if (!section) return null;
 
   const pair = Math.floor(index / 2);
-  const u = pair * PAIR_STAGGER + CARD_SPAN / 2;
+  const u = (pair * PAIR_STAGGER + CARD_SPAN / 2) / CARD_TIMELINE;
   const p = CARDS_FROM + u * (1 - CARDS_FROM);
   const top = section.getBoundingClientRect().top + window.scrollY;
   const scroll = Math.max(1, section.offsetHeight - window.innerHeight);
@@ -472,6 +514,12 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
           for (const property of SHARD_FONT) {
             el.style.setProperty(property, set.getPropertyValue(property));
           }
+          // Born invisible. A shard is only ever placed by `scatter`, and a
+          // rebuild past the end of the shatter — a refresh after a resize, or
+          // a jump straight to the cards — skips every letter whose ink is
+          // already gone rather than writing that zero; left at full ink, the
+          // whole block would stand un-placed in the corner of the frame.
+          el.style.opacity = "0";
           shardLayer.appendChild(el);
 
           const heading = (rand() * 2 - 1) * Math.PI;
@@ -686,7 +734,7 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
         beat(5, shatter > 0 ? 1 : 0);
         if (shatter > 0) scatter(shatter);
 
-        const u = clamp01((p - CARDS_FROM) / (1 - CARDS_FROM));
+        const u = clamp01((p - CARDS_FROM) / (1 - CARDS_FROM)) * CARD_TIMELINE;
         for (const card of cards) {
           place(card, clamp01((u - card.pair * PAIR_STAGGER) / CARD_SPAN));
         }
@@ -737,9 +785,10 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
       data-movement="experiences"
       className={styles.field}
       // What this height buys is the four beats. The shatter alone is a fifth
-      // of it, and a card crosses the whole frame in half of it; shorter, and
-      // the letters leave in the same screen the sentence arrives in.
-      style={{ height: mobile ? "400vh" : "520vh" }}
+      // of the designed sheet, and a card crosses the whole frame in half of
+      // the stretched ride; shorter, and the letters leave in the same screen
+      // the sentence arrives in.
+      style={{ height: sectionHeight(mobile) }}
       aria-label="Stay"
     >
       <div ref={stageRef} className={styles.stage}>
@@ -777,18 +826,11 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
                   <img
                     src={tierSrc(plate.src, 640)}
                     srcSet={tierSrcSet(plate)}
-                    sizes={mobile ? "44vw" : "18vw"}
+                    sizes={mobile ? "52vw" : "(min-width: 1876px) 544px, 29vw"}
                     alt={plate.alt}
                     loading={i < 2 ? undefined : "lazy"}
                   />
                 </div>
-                <div className={styles.cardFoot}>
-                  <span className={styles.cardName}>{experience.name}</span>
-                  <span className={styles.cardNote}>{experience.note}</span>
-                </div>
-                <span className={styles.cardMark} aria-hidden>
-                  →
-                </span>
               </article>
             );
           })}
@@ -905,13 +947,9 @@ export function ExperienceFieldStatic() {
                   src={tierSrc(plate.src, 640)}
                   srcSet={tierSrcSet(plate)}
                   sizes="(max-width: 767px) 92vw, 30vw"
-                  alt={plate.alt}
+                  alt={`${experience.name}: ${plate.alt}`}
                   loading="lazy"
                 />
-              </div>
-              <div className={styles.cardFoot}>
-                <span className={styles.cardName}>{experience.name}</span>
-                <span className={styles.cardNote}>{experience.note}</span>
               </div>
             </li>
           );
