@@ -148,16 +148,67 @@
   overflow-y: visible;
 }
 
-/* Scale the room composition, keeping the navbar and background at full size.
-   Keep the available width so scaling does not add a second outer margin. */
+/* The composition reads best a notch smaller than the browser draws it — the
+   room rows keep their meta on one line and the price bar stays above the fold,
+   which is what a guest at 90% browser zoom sees. `zoom` is the honest way to
+   say that: it shrinks the type and the controls together, exactly as the zoom
+   it reproduces does, rather than leaving rem text at full size inside a
+   narrowed frame.
+
+   The gutters are percentages rather than `vw` for the same reason. Viewport
+   units inside a zoomed subtree still resolve against the unzoomed viewport, so
+   `7.3vw` would come out 10% tighter than the margin it names; a percentage
+   resolves against the containing block, which zoom has already widened by the
+   same factor. `--room-gutter` is the column gap, measured against the padded
+   content box rather than the whole row, hence the larger figure for the same
+   printed width. */
 @media (min-width: 78rem) {
+  /* The step is one screen, not a short scroll. A composition an inch taller
+     than the window is the worst of both: it scrolls, and what the scroll
+     reveals is the page ground behind the photograph rather than more of the
+     step. Pinning the frame to the viewport and letting the photograph take
+     whatever height is left over — rather than claiming a fixed ratio and
+     pushing the price past the fold — keeps the whole step in view at any
+     window size. */
+  .screen[data-panel="rooms"] .frame {
+    height: 100dvh;
+  }
+
   .screen[data-panel="rooms"] .plates {
     width: 100%;
     justify-self: center;
+    align-self: stretch;
+    zoom: 0.9;
+    --plate-gutter: 7.3%;
+    --page-gutter-right: 7.3%;
+    --room-gutter: 2.46%;
+
+    grid-template-columns: minmax(21rem, 25.4%) minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+    padding-top: 3rem;
+  }
+
+  .screen[data-panel="rooms"] .gallery {
+    align-self: stretch;
+  }
+}
+
+/* Below this the window is too short to hold the step at a size worth looking
+   at, and the photograph would be a letterbox. There the composition goes back
+   to its own height and the page scrolls. */
+@media (min-width: 78rem) and (max-height: 54rem) {
+  .screen[data-panel="rooms"] .frame {
+    height: auto;
+  }
+
+  .screen[data-panel="rooms"] .plates {
     align-self: start;
-    grid-template-rows: minmax(24rem, auto) auto;
-    padding-top: 3.5rem;
-    zoom: 0.85;
+    grid-template-rows: auto auto;
+  }
+
+  .screen[data-panel="rooms"] .gallery {
+    aspect-ratio: 2.3;
+    align-self: start;
   }
 }
 
