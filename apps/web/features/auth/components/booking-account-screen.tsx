@@ -25,6 +25,7 @@
 // gives — this screen does not know which one happened, and must not.
 
 import { type FormEvent, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   ACCOUNT_LINK_PARAM,
   type AttachedStay,
@@ -34,7 +35,12 @@ import { usePresentedLink } from "@/lib/use-presented-link";
 import { MIN_PASSWORD_LENGTH } from "@/features/auth/lib/guest-auth";
 import { AuthShell, authStyles as styles } from "./auth-shell";
 
+/** Long enough for the confirmation sentence to be read before the profile
+ *  replaces it, short enough that it does not feel like a dead end. */
+const SETTLE_BEFORE_PROFILE_MS = 2200;
+
 export function BookingAccountScreen() {
+  const router = useRouter();
   const presented = usePresentedLink(ACCOUNT_LINK_PARAM);
   const link = presented.link;
 
@@ -48,11 +54,26 @@ export function BookingAccountScreen() {
   // focus with it. Moving it to the sentence that replaced the form is what
   // keeps a keyboard or screen reader in the place the screen has arrived at
   // rather than back at the top of the document.
+  //
+  // Then the screen carries them on. This page is spent — its link works once —
+  // so leaving a guest parked on it asks them to find their own way out of a
+  // dead end. The profile is where the account they just made lives, and the
+  // footnote below stays for anyone who wants their stay instead.
   useEffect(() => {
-    if (attached) {
-      done.current?.focus();
+    if (!attached) {
+      return;
     }
-  }, [attached]);
+
+    done.current?.focus();
+
+    const onward = window.setTimeout(() => {
+      // Replaced rather than pushed: back must not return to a link already
+      // spent, which would render the "open this from your email" state.
+      router.replace("/account");
+    }, SETTLE_BEFORE_PROFILE_MS);
+
+    return () => window.clearTimeout(onward);
+  }, [attached, router]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -111,7 +132,8 @@ export function BookingAccountScreen() {
             at their stay, the other at a page that offers them the log-in the
             older account needs. */}
         <p className={styles.notice} ref={done} role="status" tabIndex={-1}>
-          Your stay is yours to open from here whenever you like.
+          Taking you to your profile. Your stay is yours to open whenever you
+          like.
         </p>
       </AuthShell>
     );
