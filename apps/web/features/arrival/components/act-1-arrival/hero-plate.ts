@@ -20,17 +20,15 @@ export interface HeroPlate {
 /**
  * The photograph the whole act is one view of.
  *
- * It has to survive being both a pair of small windows and the whole viewport,
- * which is what ruled out most of the library: the act ends with this picture
- * scaled a little past the frame, so anything under about 1900px wide arrives
- * at the last beat visibly soft. This one is 1956 native and loses four pixels
- * to the even-height cut.
+ * An extended view of the original terrace gives the opening more garden and
+ * pool around the architecture. Both this act and the ribbon use this plate
+ * so their shared photograph stays in register through the transition.
  */
 export const HERO_PLATE: HeroPlate = {
-  src: "/images/act-1-arrival/terrace-canopy-1920.webp",
-  width: 1920,
-  height: 1104,
-  tiers: [1920, 1280, 640],
+  src: "/images/act-1-arrival/terrace-canopy-wide-1672.webp",
+  width: 1672,
+  height: 941,
+  tiers: [1672, 1280, 640],
   alt: "A terrace under a flowering canopy, with lounge seating, open glass doors and a lawn running down to the pool edge",
 };
 
