@@ -17,9 +17,12 @@ import type { Metadata } from "next";
 // downloads and each one has to earn itself. The Light is the document — the
 // body is set in it. The Regular is what a caps label and a form's error line
 // are set in, where Light at 12 or 13px goes thin enough to read as a rendering
-// fault. The Medium is the newest and is spent on one thing: the answer beside
-// the question, on screens dense enough that colour alone was not telling the
-// two apart — see the ramp on `.screen` in `details-screen.module.css`.
+// fault. The Medium is the newest and is spent on one thing: the account's own
+// profile form, where a saved value and the label over it sit at the same size
+// — see `profile-form.module.css`. The booking funnel asked for it too and no
+// longer does: at a whole screen's worth of dates, parties and rates the Medium
+// read as a different site beside the Light everything else is set in, so the
+// review screen separates its answers on size, case and colour instead.
 //
 // The role names --font-display and --font-ui are assigned from these in
 // globals.css, which is the only place the face and the role are joined.
