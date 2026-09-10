@@ -416,7 +416,9 @@ sold it, which is `is_active` doing the job a delete could not.
 ## 7. Loyalty and tiers
 
 The structure is the PRD's (`FR-GST-04`, `FR-GST-05`): tier derived nightly,
-points accrual-only, no redemption engine. The values below were ⚑ proposed and
+points accrual-only, no redemption engine *running* — the rule that will add
+one is `FR-GST-06`, written out below under *Points redemption*. The values
+below were ⚑ proposed and
 are **now implemented as data**: every one of them is a row an `ADMIN` edits
 without a deploy — like §8's inputs in storage, unlike them in ownership. These
 were the developer's call until the owner tunes them, and tuning one is a data
@@ -532,6 +534,80 @@ A delete is refused outright by the table's append-only trigger, so a future
 retention policy would have to disable that guard or truncate the table
 wholesale. Either is deliberate, which is the intent.
 
+### Points redemption — v1.1, written and not built
+
+`FR-GST-06` reverses a v1 non-goal: points will be spendable. Nothing here
+exists in the tree, and this subsection is the reason it can be built later
+without a design pass — the failure it prevents is a half-rule, a point value
+with no cap, no reversal and no answer to what a spent stay then earns, which
+the build would otherwise invent at the keyboard.
+
+**A point is worth money at booking, and nowhere else.** The guest spends in
+the funnel, against the room total, before the booking is committed. Not at the
+desk: honouring a spend at check-in needs a console screen this product does
+not have, and the same argument that defers the fixed perks defers that.
+
+| Value | v1.1 value | Stored as | Why this value |
+|---|---|---|---|
+| Point value | ⚑ **1,000 ₫ per point** | `system_config.loyalty_redeem_vnd_per_point` | With the ⚑ 1 point / 10,000 ₫ earn rate this returns 10% of net room revenue to a guest who spends everything — the same order as the Gold discount, so the two feel like one program rather than two |
+| Cap | ⚑ **30% of the room total** | `system_config.loyalty_redeem_cap_pct` | A stay must stay worth selling. The cap is on the room total only, for §7's existing reason: breakfast and the extra-person charge are not the loyalty program's to discount |
+| Minimum spend | ⚑ **100 points** | `system_config.loyalty_redeem_min_points` | A 3,000 ₫ redemption costs more in support than it returns; the floor also gives the account screen something to say to a guest who cannot yet spend |
+
+All three are ⚑ **data, not code** — `system_config` rows an `ADMIN` edits
+without a deploy, like the earn rate above and for the same reason. The numbers
+are a guess until the property has real stays; being config is what makes the
+guess cheap.
+
+**The ledger gains signed rows and keeps its shape.** `loyalty_ledger` stays
+append-only and the balance stays Σ rows — this is the one thing v1.1 must not
+trade. A redemption is a **negative row**, never an edit to an accrual, so the
+three changes are additive:
+
+- A `kind` column — `EARN` | `REDEEM` | `REVERSAL` — because a negative row's
+  meaning is not recoverable from its sign alone once reversals exist.
+- A nullable `booking_id`, the key a `REDEEM` row is idempotent on, exactly as
+  `folio_id` is the key an `EARN` row is idempotent on. The `folio_id` unique
+  constraint narrows to `EARN` rows (a partial index): a stay may hold one
+  accrual and one redemption without them fighting for the same key.
+- The `loyalty_ledger_accrues_only` check is dropped. It was the correct guard
+  for a table that could not be spent from, and it is the thing that stops v1.1
+  from existing.
+
+Expired points are already excluded by every read, so **the spend takes the
+oldest-expiring points first** — a guest spending 200 points does not leave
+behind the 200 that expire in three weeks. This is a rule about which rows the
+redemption is drawn against and is recorded on the `REDEEM` row's note; the
+balance itself never needed lots.
+
+**Redemption is a quote line, not a promotion row.** A `promotion` is what a
+tier discount rides on, and there is exactly one such slot per booking — see
+the floor rule above. Putting points in it would make a Gold guest choose
+between their tier and their balance, which is not a program, it is a puzzle.
+So the redemption is its own line on the quote, applied **after** the tier
+discount has moved the room rate, and the cap is evaluated against the room
+total the guest is actually being charged. The line freezes onto the booking
+with everything else §8 of [`booking-state-machine.md`](booking-state-machine.md)
+freezes — the points spent *and* the ₫ they took off — so an `ADMIN` retuning
+`loyalty_redeem_vnd_per_point` next quarter cannot reprice a stay already sold.
+
+**A spent stay earns on what was paid.** Accrual at folio close reads net room
+revenue after the redemption, not before it. The alternative pays a guest
+points for the points they just spent, which is a loop that mints balance out
+of nothing, and it is the sort of thing that is only ever found by the balance
+being wrong.
+
+**Cancellation returns the points, by writing rather than deleting.** A
+cancelled or no-show booking carrying a `REDEEM` row gets one `REVERSAL` row
+of the opposite sign, keyed to the same booking. The accrual side needs no
+equivalent — `FR-GST-05` posts at folio close, so a stay that never happened
+never earned. The returned points keep their original expiry: a reversal
+restores a balance, it does not extend the life of what was in it. Refund
+mechanics for money are §4's and unchanged; this is only the points half.
+
+What deliberately stays out of v1.1: no points catalogue, no desk-issued
+credit, no voucher codes, no transfer between accounts, and no breakage
+liability figure — the last belongs to whoever keeps the books, once there is
+a balance large enough to be a liability.
 ### Fixed perks — deferred
 
 `FR-GST-04` names three non-monetary perks: late checkout to 14:00 when the room
@@ -638,6 +714,7 @@ make: a reader cannot tell an unset value from an unbuilt one.
 | Extra-person and breakfast rates | mine, ⚑ proposed — now stored and editable, in `property_tariff` and `rate_plan` rather than in this file | §3, §6 |
 | Loyalty earn rate, tier thresholds and the two member discounts | mine, ⚑ proposed — **now stored and editable**, in `system_config` and in the two `LOYALTY_*` `promotion` rows rather than in this file. Open only as figures to tune | §7 |
 | The three fixed tier perks | mine — **deferred, not open**: late checkout, upgrade when available and a welcome amenity are specified and unbuilt, and each needs a desk screen to be honoured on. §7 records why | §7 |
+| The three redemption figures — point value, cap and minimum spend | mine, ⚑ proposed and unbuilt. `FR-GST-06` settles the *rules*; the three numbers are guesses until the property has real stays, and they are `system_config` rows rather than code precisely so tuning them costs nothing | §7 |
 | Expiry of loyalty points | settled — not a figure at all. §7 states one rule with no alternative, and the accrual computes each row's `expires_at` from the year it earned in | §7 |
 | Whether the Deluxe (2) and the Panorama Suite (4) are capped too low, now that the bed closing a gap is free | owner — a raised maximum is extra-person revenue with no bed charge against it, but a Deluxe holding three undercuts the Premier the mix positions for a family of three | §1; [#35](https://github.com/2351010154/resort-management/issues/35) |
 | Whether minimum-stay and closed-to-arrival are a **public** contract | mine — §3 lists them under admin **Rates** only, and the guest calendar's restricted-cell state depends on reading them from `/booking` | §3 |
