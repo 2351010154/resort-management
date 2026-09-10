@@ -134,9 +134,13 @@ password changes it in place by proving the current one. The sign-in email can
 be changed, but only through re-verification — the new address proves itself by
 link before it becomes the identifier, reusing the verification machinery the
 identity journey already has. A Google-only guest sees neither form: they have
-no password to change, and their address belongs to Google. VIP tier and loyalty points appear as display-only facts:
-no role can adjust them and no redemption path exists anywhere in the product,
-so the screen states them and promises nothing more.
+no password to change, and their address belongs to Google. VIP tier and
+loyalty points appear as **display-only facts until `FR-GST-06` lands in
+v1.1**: no role can adjust them, and no redemption path exists anywhere in the
+product yet, so the screen states the balance and promises nothing more. When
+redemption arrives it arrives in the booking funnel, where the price it moves
+is quoted — this screen shows what a guest holds and never becomes the place
+points are spent.
 
 `/account/stays` lists upcoming stays first — they are the ones a guest can
 still act on — then past stays in reverse order. The list only navigates:

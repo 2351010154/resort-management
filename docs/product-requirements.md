@@ -68,11 +68,14 @@ Written to shut down scope drift while the PRD's blank corners whisper.
   expensive deferral in the project.
 - **No PDF invoice engine.** The legal invoice is the e-invoice provider's
   output.
-- **No points redemption engine.** Loyalty points accrue (`FR-GST-05`) but are
-  spent nowhere in v1 — a reward is a manager-issued promotion (`FR-PRC-03`).
-  Redemption, breakage liability and reversal logic wait until real usage
-  earns them; the accrual ledger is already ledger-shaped, so adding them
-  later is an extension, not a rewrite.
+- **No points redemption engine in v1 — deferred to v1.1, and specified.**
+  Loyalty points accrue (`FR-GST-05`) and nothing in v1 spends them; a v1
+  reward is a manager-issued promotion (`FR-PRC-03`). What changed is that the
+  rule which will spend them is written rather than postponed: `FR-GST-06`
+  fixes the point value, the cap, the stacking order, the expiry order and the
+  reversal, so the later build implements a stated extension instead of
+  inventing one at the keyboard. The accrual ledger is already ledger-shaped;
+  no redemption endpoint, ledger row kind or quote line exists yet.
 - **Guests book a room *type*, never a numbered room.** Room 301 is chosen at
   check-in.
 - **No UI test-coverage target.** The test budget goes where defects cost
@@ -118,7 +121,8 @@ authority named in [`README.md`](README.md) and wins.
 | `FR-GST-02` | An identity document is **checked, transcribed and discarded**: staff read the CCCD to complete the lưu trú declaration and the particulars land on the registration record, and the image is never persisted. No bucket, no stored object, no view path, nothing to delete | No object-storage key, path column or signed-URL route for a scan exists anywhere in the tree; the registration record carries the particulars and nothing else. Nghị định 96/2016/NĐ-CP Điều 44 obliges checking the document and recording the information before room handover — never holding the card, and never holding a picture of it | M7 |
 | `FR-GST-03` | CCCD numbers are masked by default; unmasking is a distinct capability, audit-logged per call | Per [`architecture/rbac-matrix.md`](architecture/rbac-matrix.md) §3 Guest personal data | M4 |
 | `FR-GST-04` | VIP tier is a **derived value**, never hand-set: computed from rolling-12-month stay count or net room revenue against configured thresholds (`FR-IDN-03`-style config, editable without deploy; ⚑ defaults in [`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) §7), recomputed at business-date rollover; tier perks are fixed non-monetary benefits (late checkout, upgrade when available, welcome amenity) plus a member discount applied through the promotions path (`FR-PRC-03`) | Net room revenue **excludes VAT and service charge**, so a change to the `ASM-01` tax config cannot silently move tier boundaries; a tier change writes an audit row; tier matches recomputation from booking and folio history, asserted by test | M7/M9 |
-| `FR-GST-05` | Loyalty points are real and **accrual-only in v1**: one append-only ledger row per closed folio, earned per configured unit of net room revenue (⚑ defaults in [`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) §7), posted at **folio close** — never at booking or payment, so a cancelled or no-show booking structurally accrues nothing; points expire at a fixed configured calendar date; balance = Σ ledger rows, never a mutable counter | Accrual is idempotent per folio by unique constraint — the `FR-PAY-03` pattern; accrual reads the final settled folio total, so an early departure or discretionary refund cannot overstate points; no redemption endpoint exists (non-goal) | M7 |
+| `FR-GST-05` | Loyalty points are real and **accrual-only in v1**: one append-only ledger row per closed folio, earned per configured unit of net room revenue (⚑ defaults in [`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) §7), posted at **folio close** — never at booking or payment, so a cancelled or no-show booking structurally accrues nothing; points expire at a fixed configured calendar date; balance = Σ ledger rows, never a mutable counter | Accrual is idempotent per folio by unique constraint — the `FR-PAY-03` pattern; accrual reads the final settled folio total, so an early departure or discretionary refund cannot overstate points; no redemption endpoint exists in v1 — the rule that will add one is `FR-GST-06` | M7 |
+| `FR-GST-06` | **Points redemption — specified now, built in v1.1.** A guest spends points as a ₫ discount at the moment of booking, under seven rules: each point is worth a configured amount (⚑ 1,000 ₫); a spend is capped at a configured share of the room total (⚑ 30%); a configured minimum balance (⚑ 100 points) may be spent at all; the spend applies **after** any tier discount and as its own quote line, never as a competing `promotion` row (`FR-PRC-03`); points are consumed **oldest-expiring first**; the stay's own accrual (`FR-GST-05`) is computed on room revenue **net of the redemption**; and cancellation or no-show of a booking carrying a redemption writes one compensating ledger row that restores the balance | The ledger stays append-only and the balance stays Σ rows — a redemption is a negative row keyed to the booking, never an update to an accrual; the frozen quote records both the points spent and the ₫ taken off, so a later config edit cannot reprice a sold stay ([`architecture/booking-state-machine.md`](architecture/booking-state-machine.md) §8); config keys and ledger shape in [`architecture/property-and-tariff.md`](architecture/property-and-tariff.md) §7 | `v1.1` |
 
 ### 4.4 `inventory` — rooms and the correctness core
 
@@ -317,3 +321,4 @@ authority named in [`README.md`](README.md).
 | `M9.5` | Overbooking — only after real no-show data exists |
 | `M10` | Hardening |
 | `M11` | OTA channel manager — deferred |
+| `v1.1` | Post-v1 extensions, outside the v1 gate — loyalty point redemption (`FR-GST-06`) |
