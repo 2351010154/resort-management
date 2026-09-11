@@ -1,6 +1,7 @@
 packages:
   - "apps/*"
   - "packages/*"
+  - "tools/*"
 
 # pnpm blocks dependency install scripts by default; each one has to be named.
 allowBuilds:

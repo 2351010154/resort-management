@@ -9,6 +9,9 @@
   "scripts": {
     "prepare": "lefthook install",
     "backlog:view": "node scripts/backlog-view.mjs",
+    "demo:render": "node tools/demo/render.mjs",
+    "demo:seed": "node tools/demo/seed.mjs",
+    "demo:check": "node tools/demo/check.mjs",
     "dev": "turbo run dev",
     "build": "turbo run build",
     "lint": "biome lint --error-on-warnings . && pnpm --filter @mariva/web lint:css",

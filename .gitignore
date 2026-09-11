@@ -79,3 +79,7 @@ apps/web/scripts/prepare-room-images.mjs
 /output/
 /tmp/
 /work/
+
+# Tools & demo scratch
+tools/
+.recast-*
