@@ -37,8 +37,9 @@
   z-index: 10;
 }
 
-/* One window. Only `clip-path` is written here by the scrub; the mount entrance
-   owns this element's transform, and the two do not collide. */
+/* One window. Only `clip-path` is ever written on it, by the entry and by the
+   scrub together — see windowClip(), which is the one place the two are
+   combined rather than each tweening the property in turn. */
 .panel {
   position: absolute;
   inset: 0;
@@ -82,6 +83,18 @@
   z-index: 20;
   transform-origin: 50% 50%;
   will-change: transform;
+  pointer-events: none;
+}
+
+/* The holding curtain: the stage's own ground, laid over the stage. It is the
+   top layer of the act for one second and then it is gone, so it sits above the
+   branches at 20 and stays inside the stacking context the stage opens — the
+   concierge bar is not something this act is entitled to cover. */
+.curtain {
+  position: absolute;
+  inset: 0;
+  z-index: 30;
+  background: var(--ivory);
   pointer-events: none;
 }
 

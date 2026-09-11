@@ -3,7 +3,7 @@
    that rises to pin over that panel and takes the frame from it.
    z-scale: corridor stage 1 / experiences stage 2, and inside the experiences
    stage: hand-off sheet 0 / wheels 1 / words and shards 10 / frame furniture
-   20. The order is load-bearing at both scales — the experiences
+   20 / wipe 40. The order is load-bearing at both scales — the experiences
    stage has to sit in front of the corridor's own and behind Act 5, and inside
    it a card has to pass *behind* the sentence at the centre and in front of
    nothing. */
@@ -713,6 +713,33 @@
       (1 - clamp(0, calc((var(--foot) - 0.5 - var(--c) * 0.3) / 0.2), 1))
     )
   );
+}
+
+/* ============================== The hand-over ============================== */
+
+/* Five bands of the Invitation's own dark, each growing up out of its own foot,
+   the lowest first. What crosses the frame is a rising edge rather than a
+   curtain — and because the bands are Act 5's colour, the act it hands to is
+   already behind them when the last one closes. */
+.wipe {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  pointer-events: none;
+}
+
+.stripe {
+  flex: 1;
+  /* A hair of overlap, so no seam between two bands can show the ivory through
+     it at a fractional device pixel. */
+  margin-top: -0.5px;
+  padding-bottom: 0.5px;
+  background: var(--night);
+  transform: scaleY(0);
+  transform-origin: bottom;
+  will-change: transform;
 }
 
 /* ============================== Off-screen ============================== */

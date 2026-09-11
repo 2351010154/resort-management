@@ -3,6 +3,13 @@
 // Act 1 — "The Arrival". One pinned scene in three beats, all of them the same
 // photograph seen through a changing aperture:
 //
+//   the entry  the stage opens on its own ivory, held by a curtain of the
+//              page's ground. The curtain lifts and the four windows unseal:
+//              each was drawn as a hairline down its own centre and widens out
+//              into its slanted quad, from the middle pair outward. Nothing
+//              slides in and nothing fades up — the composition is cut open
+//              where it already stood, the way the old monogram was eroded
+//              open out of its wall.
 //   the morph  four skewed windows hold slices of the picture, pulled apart
 //              over ivory. Their edges straighten, their content slides back
 //              into register, and the panels become one rectangle.
@@ -37,8 +44,7 @@ import { tierSrcSet } from "@/features/arrival/lib/image-srcset";
 import { registerArrivalEases } from "@/features/arrival/lib/motion-eases";
 import { prefersReducedMotion } from "@/features/arrival/lib/webgl-support";
 import {
-  DUR_ENTER,
-  DUR_SCENE,
+  DUR_SCENE_SLOW,
   EASE_ENTER,
   EASE_UI,
   STAGGER_CASCADE,
@@ -144,6 +150,38 @@ const SPLIT_Y = 2.8;
 
 /** Below this the frame takes the narrow rest scale and the loops go still. */
 const NARROW = "(max-width: 700px)";
+
+/**
+ * Seconds the holding curtain takes to clear, and how much of that has to be
+ * gone before the windows start opening.
+ *
+ * The curtain is the page's own ivory over the whole stage — the branches as
+ * well as the windows — so the reader's first frame is a blank ground and not
+ * a composition that finished before they arrived. Its only job is to hold that
+ * ground for a beat; it is not a fade-in of the scene, which is why the scene
+ * behind it carries no opacity of its own.
+ */
+const CURTAIN_LIFT = 0.9;
+const CURTAIN_CLEAR = 0.75;
+
+/**
+ * Width a sealed window keeps, as a fraction of its open width.
+ *
+ * Half, and nowhere near a hairline. The reader's first frame is the one thing
+ * here that cannot be spent on a gesture: four slivers on an ivory field is a
+ * page that has failed to load, whatever it becomes a second later. At 0.5 the
+ * opening frame is already four legible panels of the photograph — the
+ * composition is readable from the start and the entry is it widening into its
+ * rest geometry, rather than a shape assembling out of nothing.
+ */
+const ENTRY_SEAL = 0.5;
+
+/**
+ * How long a window takes to unseal. The slow scene length, because this is one
+ * gesture over the whole stage rather than a piece of interface answering a
+ * click — the same reading that gave the monogram its two and a half seconds.
+ */
+const ENTRY_OPEN = DUR_SCENE_SLOW;
 
 /**
  * Magnification of the branches at the end of the push, where 1 is their rest
@@ -259,14 +297,33 @@ const RIGHT_JOINED: Quad = [49.95, 0, 90.05, 0, 90.05, 100, 49.95, 100];
 const OUTER_LEFT_JOINED: Quad = [0, 0, 10.05, 0, 10.05, 100, 0, 100];
 const OUTER_RIGHT_JOINED: Quad = [89.95, 0, 100, 0, 100, 100, 89.95, 100];
 
-/** Interpolate two quads into a `clip-path` polygon. */
-function quadPath(from: Quad, to: Quad, t: number): string {
-  const points: string[] = [];
+/**
+ * A window's `clip-path`: the rest quad carried `t` of the way to its joined
+ * strip, then sealed down to `open` of its width.
+ *
+ * The two live in one function because the entry and the scrub write the same
+ * property on the same element. Expressed as two tweens the later one simply
+ * erases the earlier, and a reader who starts scrolling while the windows are
+ * still opening gets four squares appearing out of nothing.
+ *
+ * The seal collapses x and leaves every corner's y where it is, so a sealed
+ * window is a slit lying along its own slant rather than a level line that
+ * acquires a slant on the way open. The geometry is stated before the picture
+ * is — which is what the monogram did when its outline was legible a beat
+ * before the mark was open.
+ */
+function windowClip(from: Quad, to: Quad, t: number, open: number): string {
+  const xs: number[] = [];
+  const ys: number[] = [];
   for (let i = 0; i < 8; i += 2) {
-    const x = from[i] + (to[i] - from[i]) * t;
-    const y = from[i + 1] + (to[i + 1] - from[i + 1]) * t;
-    points.push(`${x.toFixed(2)}% ${y.toFixed(2)}%`);
+    xs.push(from[i] + (to[i] - from[i]) * t);
+    ys.push(from[i + 1] + (to[i + 1] - from[i + 1]) * t);
   }
+  const centre = (xs[0] + xs[1] + xs[2] + xs[3]) / 4;
+  const points = xs.map((x, i) => {
+    const sealed = centre + (x - centre) * open;
+    return `${sealed.toFixed(2)}% ${ys[i].toFixed(2)}%`;
+  });
   return `polygon(${points.join(", ")})`;
 }
 
@@ -292,6 +349,7 @@ export function Act1Arrival() {
   const outerLeftMediaRef = useRef<HTMLDivElement>(null);
   const outerRightMediaRef = useRef<HTMLDivElement>(null);
   const foregroundRef = useRef<HTMLDivElement>(null);
+  const curtainRef = useRef<HTMLDivElement>(null);
   /** Whether this act currently holds the bar's dark claim. */
   const navDark = useRef(false);
   // null until the client capability probe has run, so the server and the first
@@ -344,32 +402,80 @@ export function Act1Arrival() {
     const outerLeftMedia = outerLeftMediaRef.current;
     const outerRightMedia = outerRightMediaRef.current;
     const foreground = foregroundRef.current;
+    const curtain = curtainRef.current;
     if (!section || !stage || !frame || !left || !right) return;
-    if (!leftMedia || !rightMedia || !foreground) return;
+    if (!leftMedia || !rightMedia || !foreground || !curtain) return;
     if (!outerLeft || !outerRight || !outerLeftMedia || !outerRightMedia)
       return;
     gsap.registerPlugin(ScrollTrigger);
     registerArrivalEases();
 
     const ctx = gsap.context(() => {
-      // The entrance. The windows arrive before anything is scrolled, so the
-      // first thing the reader meets is the pair separating out of the ivory
-      // rather than a composition that was already finished when they got here.
-      gsap.from([outerLeft, left, right, outerRight], {
+      // The four windows in the order the entry opens them: the pair the
+      // composition is built on, then the slivers at the edges. Opening the
+      // middle first is what makes the stage grow outward from its own subject
+      // rather than sweep across from one side.
+      const windows = [
+        {
+          el: left,
+          media: leftMedia,
+          side: -1 as const,
+          rest: LEFT_REST,
+          joined: LEFT_JOINED,
+        },
+        {
+          el: right,
+          media: rightMedia,
+          side: 1 as const,
+          rest: RIGHT_REST,
+          joined: RIGHT_JOINED,
+        },
+        {
+          el: outerLeft,
+          media: outerLeftMedia,
+          side: -1 as const,
+          rest: OUTER_LEFT_REST,
+          joined: OUTER_LEFT_JOINED,
+        },
+        {
+          el: outerRight,
+          media: outerRightMedia,
+          side: 1 as const,
+          rest: OUTER_RIGHT_REST,
+          joined: OUTER_RIGHT_JOINED,
+        },
+      ];
+      // The two inputs a window's clip is a function of. The entry owns one and
+      // the scrub the other, and either one changing repaints from both — so
+      // the two can overlap without one erasing the other's work.
+      const opens = windows.map(() => ({ v: ENTRY_SEAL }));
+      let morph = 0;
+      const paintWindows = () => {
+        windows.forEach((w, i) => {
+          w.el.style.clipPath = windowClip(w.rest, w.joined, morph, opens[i].v);
+          w.media.style.transform = mediaTransform(w.side, morph);
+        });
+      };
+
+      // The entrance, in two beats. The curtain goes first, uncovering a ground
+      // with the branches on it and four hairlines where the picture will be.
+      gsap.to(curtain, {
         autoAlpha: 0,
-        y: 34,
-        duration: DUR_ENTER,
+        duration: CURTAIN_LIFT,
+        ease: EASE_UI,
+      });
+      // Then the windows widen out of those hairlines. Held until the curtain
+      // is nearly gone: an opening that begins under an opaque sheet spends its
+      // better half unwatched, which is what turns a slow reveal into a flicker.
+      gsap.to(opens, {
+        v: 1,
+        duration: ENTRY_OPEN,
         ease: EASE_ENTER,
         stagger: STAGGER_CASCADE,
+        delay: CURTAIN_LIFT * CURTAIN_CLEAR,
+        onUpdate: paintWindows,
       });
-      // The branches only ever move once, here, arriving with the windows. From
-      // then on they are page furniture and the push leaves them where they are.
-      gsap.from(`.${styles.flower}`, {
-        autoAlpha: 0,
-        duration: DUR_SCENE,
-        ease: EASE_UI,
-        delay: 0.2,
-      });
+
       ScrollTrigger.create({
         trigger: section,
         start: "top top",
@@ -381,25 +487,9 @@ export function Act1Arrival() {
         // things that have to stay welded to each other.
         scrub: true,
         onUpdate: (self) => {
-          const morph = easeInOut(ramp(self.progress, 0, MORPH_END));
+          morph = easeInOut(ramp(self.progress, 0, MORPH_END));
           const push = easeIn(ramp(self.progress, PUSH_START, PUSH_END));
-
-          left.style.clipPath = quadPath(LEFT_REST, LEFT_JOINED, morph);
-          right.style.clipPath = quadPath(RIGHT_REST, RIGHT_JOINED, morph);
-          leftMedia.style.transform = mediaTransform(-1, morph);
-          rightMedia.style.transform = mediaTransform(1, morph);
-          outerLeft.style.clipPath = quadPath(
-            OUTER_LEFT_REST,
-            OUTER_LEFT_JOINED,
-            morph,
-          );
-          outerRight.style.clipPath = quadPath(
-            OUTER_RIGHT_REST,
-            OUTER_RIGHT_JOINED,
-            morph,
-          );
-          outerLeftMedia.style.transform = mediaTransform(-1, morph);
-          outerRightMedia.style.transform = mediaTransform(1, morph);
+          paintWindows();
 
           const rest = narrow ? FRAME_REST_NARROW : FRAME_REST;
           const scale = rest + (FRAME_END - rest) * push;
@@ -456,11 +546,16 @@ export function Act1Arrival() {
     ? `translateY(${FRAME_STILL_RISE}%) scale(${FRAME_STILL})`
     : `translateY(${FRAME_RISE}%) scale(${narrow ? FRAME_REST_NARROW : FRAME_REST})`;
 
+  // A reader who is given no motion is given no entry either: their windows
+  // are drawn open, since an unsealing they will never see would leave them on
+  // four hairlines.
+  const entryOpen = still ? 1 : ENTRY_SEAL;
+
   const panel = (side: -1 | 1) => {
     const rest = side === -1 ? LEFT_REST : RIGHT_REST;
     const joined = side === -1 ? LEFT_JOINED : RIGHT_JOINED;
     return {
-      clipPath: quadPath(rest, joined, still ? 1 : 0),
+      clipPath: windowClip(rest, joined, still ? 1 : 0, entryOpen),
       transform: mediaTransform(side, still ? 1 : 0),
     };
   };
@@ -514,10 +609,11 @@ export function Act1Arrival() {
                   ref={side === -1 ? outerLeftRef : outerRightRef}
                   className={styles.panel}
                   style={{
-                    clipPath: quadPath(
+                    clipPath: windowClip(
                       side === -1 ? OUTER_LEFT_REST : OUTER_RIGHT_REST,
                       side === -1 ? OUTER_LEFT_JOINED : OUTER_RIGHT_JOINED,
                       still ? 1 : 0,
+                      entryOpen,
                     ),
                   }}
                   aria-hidden
@@ -599,6 +695,14 @@ export function Act1Arrival() {
                 "Bougainvillea in flower",
               )}
             </div>
+
+            {/* Over everything on the stage and under the concierge bar, which
+                keeps its own stacking context. Painted in the markup rather
+                than tweened up from nothing, so the held ground is the very
+                first frame and never a flash of the finished scene. */}
+            {still ? null : (
+              <div ref={curtainRef} className={styles.curtain} aria-hidden />
+            )}
           </>
         )}
       </div>
