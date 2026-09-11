@@ -441,29 +441,38 @@ function IdentityNumber({
         </p>
       ) : revealed === undefined ? (
         <form
-          className="mt-2 flex flex-wrap items-end gap-2"
+          className="mt-2"
           onSubmit={(event) => {
             event.preventDefault();
             press();
           }}
         >
-          <Field
-            label="Reason"
-            value={reason}
-            hint="Optional. Every reveal is recorded."
-            onChange={(typed) => {
-              setReason(typed);
-              setProblem(null);
-            }}
-          />
-          <Button type="submit" disabled={reveal.isPending}>
-            Reveal number
-          </Button>
+          {/* The button lines up with the input, not with the bottom of a
+              column that also carries the note under it — so the note stays a
+              line of prose below the row rather than something the button sits
+              beside. */}
+          <div className="flex flex-wrap items-end gap-2">
+            <Field
+              label="Reason"
+              value={reason}
+              className="w-64"
+              onChange={(typed) => {
+                setReason(typed);
+                setProblem(null);
+              }}
+            />
+            <Button type="submit" disabled={reveal.isPending}>
+              Reveal number
+            </Button>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Optional. Every reveal is recorded.
+          </p>
         </form>
       ) : null}
 
       {problem === null ? null : (
-        <p className="border-destructive text-destructive mt-2 border-l-2 pl-3 text-sm">
+        <p className="mt-2 border-danger border-l-2 pl-3 text-sm text-danger">
           {problem}
         </p>
       )}
@@ -475,13 +484,13 @@ function IdentityNumber({
 function Field({
   label,
   value,
-  hint,
+  className,
   onChange,
   inputRef,
 }: {
   label: string;
   value: string;
-  hint?: string;
+  className?: string;
   onChange(value: string): void;
   inputRef?: React.Ref<HTMLInputElement>;
 }) {
@@ -490,7 +499,7 @@ function Field({
   const fieldId = useId();
 
   return (
-    <div>
+    <div className={className}>
       <label
         htmlFor={fieldId}
         className="block text-sm font-semibold text-muted-foreground"
@@ -507,9 +516,6 @@ function Field({
           onChange(event.target.value);
         }}
       />
-      {hint === undefined ? null : (
-        <p className="text-muted-foreground mt-1 max-w-64 text-sm">{hint}</p>
-      )}
     </div>
   );
 }
