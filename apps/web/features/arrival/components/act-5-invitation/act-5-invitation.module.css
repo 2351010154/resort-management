@@ -6,8 +6,8 @@
   /* Act 4 hands over on this exact value, so the seam has nothing to bridge. */
   background: var(--night);
   color: var(--ivory);
-  /* One screen for the photograph to enter, one for the reading to be held,
-     one for the hand-over into the footer. */
+  /* One screen for Act 4's veil to wipe off the frame, one for the reading to
+     be held, one for the hand-over into the footer. */
   height: 300vh;
 }
 

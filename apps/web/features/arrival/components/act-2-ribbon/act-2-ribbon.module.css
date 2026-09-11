@@ -307,6 +307,37 @@
 .beat[data-beat="table"] {
   width: 30vw;
 }
+
+/* The stay beat is the act's one commitment, so its address is a filled
+   button rather than another quiet arrow link. The arrow stays, inside the
+   fill; the circle .actionLink normally draws around it is unset here. */
+.beat[data-beat="stay"] .actionLink {
+  gap: 0.9rem;
+  min-height: 3.25rem;
+  padding: 0 1.75rem;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--ivory);
+  transition:
+    background 200ms var(--ease-ui, ease),
+    transform 200ms var(--ease-ui, ease);
+}
+.beat[data-beat="stay"] .actionLink::after {
+  width: auto;
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  font-size: 1rem;
+}
+.beat[data-beat="stay"] .actionLink:hover {
+  background: var(--umber);
+}
+.beat[data-beat="stay"] .actionLink:active {
+  transform: translateY(1px);
+}
+.beat[data-beat="stay"] .actionLink:focus-visible {
+  outline-color: var(--ink);
+}
 .beat[data-on-photo] {
   width: 44vw;
   color: var(--ivory);

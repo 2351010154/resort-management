@@ -48,8 +48,10 @@ for (const vp of VIEWPORTS) {
     viewport: { width: vp.width, height: vp.height },
   });
   await page.goto(BASE_URL, { waitUntil: "networkidle" });
-  // The entrance runs on mount and owns the first second and a half.
-  await page.waitForTimeout(2500);
+  // The entrance runs on mount: a curtain, then the windows unsealing under a
+  // stagger. It owns the first ~3.5s, and a beat shot inside it is a window
+  // caught half open rather than the rest geometry this is meant to record.
+  await page.waitForTimeout(4200);
 
   const act = await page.evaluate(() => {
     const el = document.querySelector('[data-act="1"]');
