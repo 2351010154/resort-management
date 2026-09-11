@@ -1,0 +1,151 @@
+/* The clip column — right edge, vertically centred, riding the stage rather
+   than the video shell so the swell's scale never touches the type.
+
+   It has to be legible on two completely different grounds. Early in the act
+   the frame is a small card in the middle of the page and the column sits on
+   bare ivory limestone; by the end the frame is the whole viewport and the
+   column sits on graded footage running down to night. One number carries it
+   across: `--frame-fill`, set on the stage by the act's timeline, 0 while the
+   column is over the page and 1 once the frame has swelled out past it. Every
+   value below that has to change between those two states is mixed off it, so
+   the type cannot end up ink on black or ivory on linen.
+
+   There is no panel behind it — the labels sit directly on whatever is there,
+   so the colour mix and the shadow below are the whole of what keeps them
+   readable. Anything added here that dims the picture is the plate coming
+   back. */
+
+.panel {
+  position: absolute;
+  right: var(--space-3);
+  z-index: 4;
+  /* Centred by auto margins between two pinned edges rather than by
+     `translateY(-50%)`, which is the obvious way and the wrong one here: the
+     act's timeline slides this panel in on `x`, and GSAP owning the transform
+     while the stylesheet also needs it for layout is a collision waiting for
+     the first reader who scrubs backwards. Nothing below writes `transform`.
+     Visible by default — GSAP owns the hidden start state, and no timeline is
+     built on the reduced-motion path or before the motion probe answers. */
+  top: 0;
+  bottom: 0;
+  height: fit-content;
+  margin-block: auto;
+
+  /* No plate — no tint, no backdrop-filter, no radius, no padding. The type
+     carries itself. A frosted panel is a second rectangle laid over a picture
+     that is already the whole page, and sitting beside the subject of these
+     clips it was furniture. Legibility is the type's own job now: see the
+     colour mix and the shadow on `.label`. */
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  /* A fieldset for the grouping semantics, with the chrome it ships with
+     removed — the panel above already draws the only frame this wants. */
+  border: 0;
+  min-inline-size: 0;
+}
+
+/* The group's name, for anyone who cannot see that these four sit on a picture
+   and switch it. Clipped rather than `display: none`, which would take it out
+   of the accessibility tree along with the layout. */
+.legend {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0;
+  cursor: pointer;
+  /* Ink on the page, ivory on the picture. Mixed rather than swapped at a
+     breakpoint, because the ground underneath it arrives gradually — the frame
+     grows out past this column over about a fifth of the act, and a hard flip
+     mid-swell would read as the label blinking. */
+  color: color-mix(
+    in oklab,
+    var(--ivory) calc(var(--frame-fill, 0) * 100%),
+    var(--ink)
+  );
+  /* With the plate gone this is the only thing standing between the type and
+     whatever frame happens to be under it — a blown sky, a sunlit wall — so it
+     is wider and deeper than it was when it only had to finish the job. Still
+     scaled by the fill: over the ivory it would be dirt under the type. */
+  text-shadow: 0 1px 14px rgb(0 0 0 / calc(0.6 * var(--frame-fill, 0)));
+  opacity: 0.55;
+  transition:
+    opacity 260ms var(--ease-ui),
+    color 260ms var(--ease-ui);
+}
+
+/* Hover is not styled separately from selection. Pointing at a label commits
+   to it, so by the time a hover state could show, this rule is already the one
+   applying — a distinct hover treatment would only ever flash. */
+.label[data-active] {
+  opacity: 1;
+}
+
+/* The mark that says which of the four is playing. It grows from nothing rather
+   than appearing, so moving down the column reads as one rule sliding rather
+   than four rules blinking in turn. */
+.rule {
+  width: 0;
+  height: 1px;
+  background: currentcolor;
+  transition: width 320ms var(--ease-ui);
+}
+
+.label[data-active] .rule {
+  width: 20px;
+}
+
+.text {
+  white-space: nowrap;
+}
+
+/* Keyboard focus already selects the clip, so the ring is confirming the same
+   thing the rule is. Keep it, and keep it visible on both grounds. */
+.label:focus-visible {
+  outline: 1px solid currentcolor;
+  outline-offset: 6px;
+}
+
+/* Narrow screens: the frame fills far more of the viewport far sooner, and a
+   right-edge column starts competing with the subject of every clip. Drop it to
+   the foot, in a row, where the tail fade is already darkening the ground.
+   The panel keeps its glass — down here it is over footage the whole time. */
+@media (max-width: 640px) {
+  .panel {
+    top: auto;
+    right: var(--space-2);
+    bottom: var(--space-2);
+    left: var(--space-2);
+    /* Both undo the vertical centring above; without them the auto margins
+       keep pulling the row back to the middle of the viewport. */
+    height: auto;
+    margin-block: 0;
+  }
+
+  .column {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--space-1) var(--space-2);
+  }
+
+  /* The rule would take horizontal room from four labels sharing one line, and
+     the row is short enough that opacity alone says which is playing. */
+  .rule {
+    display: none;
+  }
+}
