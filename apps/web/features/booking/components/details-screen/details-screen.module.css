@@ -1294,8 +1294,6 @@
   width: 100%;
   min-height: 3.125rem; /* 50px. 44 is the floor, and this is the button. */
   margin-top: var(--space-2);
-  /* Room at both ends for the lock, so a long label is centred on the button
-     rather than on the space left over beside the glyph. */
   padding: 0 2.5rem;
   font-size: 0.875rem;
   font-weight: 400;
@@ -1321,17 +1319,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* Out of the flow, so the label is centred on the button and not pushed off
-   centre by the glyph beside it. It takes the button's own colour through both
-   the hover inversion and the disabled state. */
-.complete .mark {
-  position: absolute;
-  right: 1rem;
-  width: 0.9375rem;
-  height: 0.9375rem;
-  color: inherit;
 }
 
 .complete:active:not(:disabled) {
@@ -1375,13 +1362,6 @@
   margin-top: 0;
   padding-left: 0;
   border-left: 0;
-}
-
-/* The lock is a caption rather than a fact, and sits at the size of the words it
-   punctuates. */
-.payTerm .mark {
-  width: 0.875rem;
-  height: 0.875rem;
 }
 
 /* §9. One pixel, snapped rather than travelled, is not worth the exception — the

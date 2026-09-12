@@ -86,16 +86,163 @@
   pointer-events: none;
 }
 
-/* The holding curtain: the stage's own ground, laid over the stage. It is the
-   top layer of the act for one second and then it is gone, so it sits above the
-   branches at 20 and stays inside the stacking context the stage opens — the
-   concierge bar is not something this act is entitled to cover. */
-.curtain {
+/* The greeting: the house's name and one line, over the arrived picture.
+ *
+ * Above the branches at 20 and inside the stacking context the stage opens, so
+ * it is over everything this act paints and under the concierge bar, which is
+ * not something this act is entitled to cover. The scrub writes only opacity
+ * and a transform on it, so the type itself is never laid out twice.
+ *
+ * The ink is the page's ivory rather than white, and it is carried on a soft
+ * dark wash under the type instead of a text-shadow: the photograph behind it
+ * is a sunlit terrace, and type that is legible over the lawn is type that has
+ * disappeared into the wall beside it.
+ *
+ * The wash fades out at both ends, and the lower one is the one that is easy to
+ * get wrong. A gradient that is simply strongest at 0% ends wherever its box
+ * does — at the foot of the stage, or at whatever clips the stage — and prints
+ * a level dark edge straight across the photograph there. So the band is a
+ * shadow floating in the picture rather than a scrim anchored to its foot: full
+ * strength behind the type and back to nothing above *and* below it, which
+ * leaves no edge anywhere for the box to cut. */
+.greeting {
   position: absolute;
-  inset: 0;
-  z-index: 30;
-  background: var(--ivory);
+  inset: auto 0 0 0;
+  z-index: 25;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+  padding: 0 1.5rem 12vh;
+  text-align: center;
+  color: var(--ivory);
+  will-change: opacity;
   pointer-events: none;
+}
+
+.greeting::before {
+  content: "";
+  position: absolute;
+  inset: -20vh 0 0 0;
+  z-index: -1;
+  background: linear-gradient(
+    to top,
+    rgb(var(--ink-rgb) / 0) 0%,
+    rgb(var(--ink-rgb) / 0.34) 12%,
+    rgb(var(--ink-rgb) / 0.5) 30%,
+    rgb(var(--ink-rgb) / 0.46) 52%,
+    rgb(var(--ink-rgb) / 0) 100%
+  );
+}
+
+.greetingMarker {
+  margin: 0;
+  opacity: 0.82;
+  /* The rise the scrub writes, carried by the type alone — see the note beside
+     `--rise` in the act. */
+  transform: translateY(var(--rise, 0));
+}
+
+.greetingLine {
+  margin: 0;
+  transform: translateY(var(--rise, 0));
+  font-size: var(--text-display-sm);
+  line-height: 1.04;
+  letter-spacing: -0.035em;
+}
+
+.greetingAction {
+  /* The layer is inert so the picture under it can still be dragged and
+     selected; the one control on it opts back in. */
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-height: 44px;
+  margin-top: 0.75rem;
+  padding: 0 1.4rem;
+  border-radius: 999px;
+  /* Light plate, dark type — the inverse of what the rest of this act is made
+     of, and the only value on the screen the photograph cannot swallow.
+     An ink pill here was ink on the ink wash the greeting already carries: two
+     dark shapes a few percent apart, so the control read as a stain on the
+     lawn rather than a thing to press. Ivory on that same wash is ~16:1 against
+     its own type and separates from every part of the picture behind it —
+     terrace, grass and water alike. */
+  background: var(--ivory);
+  color: var(--ink);
+  /* Seats the plate in the photograph instead of pasting it on: a short
+     contact shadow plus a wider, softer one at the depth the terrace furniture
+     casts. */
+  box-shadow:
+    0 2px 6px rgb(var(--ink-rgb) / 0.18),
+    0 14px 34px rgb(var(--ink-rgb) / 0.28);
+  font-family: var(--font-ui), ui-monospace, monospace;
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-caps);
+  font-size: var(--text-xs);
+  text-decoration: none;
+  transform: translateY(var(--rise, 0));
+  /* No transform in the transition: the scrub owns this element's transform
+     through --rise, and a hover that also wrote one would fight it mid-scroll. */
+  transition:
+    background-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+/* The direction of travel, set in the type's own colour and given the trailing
+   optical space the caps tracking leaves after the last letter. */
+.greetingActionArrow {
+  display: block;
+  width: 0.8rem;
+  height: auto;
+  margin-left: -0.25rem;
+  transition: transform 180ms var(--ease-ui, ease);
+}
+
+/* Off until the greeting is all but fully resolved — see the note in the act. */
+.greeting[data-reachable="false"] .greetingAction {
+  pointer-events: none;
+}
+
+/* Hover lifts the plate rather than tinting it: ivory is already the brightest
+   value the brand owns, so there is nowhere lighter to go without leaving the
+   palette. */
+.greetingAction:hover {
+  box-shadow:
+    0 2px 6px rgb(var(--ink-rgb) / 0.2),
+    0 18px 44px rgb(var(--ink-rgb) / 0.34);
+}
+
+.greetingAction:hover .greetingActionArrow {
+  transform: translateX(0.2rem);
+}
+
+.greetingAction:active {
+  background: var(--ivory-warm);
+  box-shadow:
+    0 1px 3px rgb(var(--ink-rgb) / 0.22),
+    0 8px 20px rgb(var(--ink-rgb) / 0.26);
+}
+
+/* The ring is drawn outside the plate, where the ground is the darkened
+   photograph — ivory there, not ink, which would vanish into it. */
+.greetingAction:focus-visible {
+  outline: 2px solid var(--ivory);
+  outline-offset: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .greetingActionArrow {
+    transition: none;
+  }
+}
+
+@media (max-width: 700px) {
+  .greeting {
+    gap: 1rem;
+    padding-bottom: 9vh;
+  }
 }
 
 .flower {
