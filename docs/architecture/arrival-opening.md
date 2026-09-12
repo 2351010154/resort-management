@@ -25,6 +25,35 @@ Two decisions were taken by the owner on 2026-09-06 and are not open:
   a display word up over its final frame; this one does not. The act's only copy
   is the statement it opens with, which leaves before the push.
 
+  Reversed by the owner on 2026-09-11: the push now lands on a greeting — the
+  house's name over one display line ("Stay a while.", the page's only `h1`)
+  and a black pill to `/booking`, the act's one action — which resolves over
+  the last of the travel, stands through a hold beat of its own — a bit
+  over half a screen of scroll with neither the picture nor the ribbon moving —
+  and dissolves across the last quarter-screen of that hold, landing exactly
+  where the ribbon starts. The exit is that short because the
+  ribbon's first opening looks back through at the same photograph in register:
+  its leading edge carries no visible sheet, so type still standing when the
+  edge climbs past is cut in half by an edge the reader cannot see, and the cut
+  reads as a hairline ruled across the picture. The pill takes clicks only while the
+  greeting is all but fully resolved, so it is never a target the reader cannot
+  see they are hitting. Both the reading time and the length of
+  the dissolve are therefore bought from the hold beat, never from the seam
+  hold: a fade that starts where the ribbon does has to be over before it
+  began. The reasoning for the reversal is that the final
+  frame of the push otherwise carries exactly what its first frame did, only
+  larger, so the travel arrives at nothing. It is still not the reference's
+  scaling wordmark: the type does not move with the picture, it resolves in
+  place once the picture has stopped.
+
+The entry carries no holding curtain. The sealed composition — four windows at
+half their open width — is in the server-rendered markup, so the first painted
+frame is already the scene and the windows start widening on the first frame the
+script owns rather than after an ivory sheet has lifted. Changed on 2026-09-11,
+when the previous opening (a 0.9s curtain, the windows held until it was three
+quarters gone, then a 2.4s cascade) was read as the page waiting to finish
+loading before anything moved.
+
 Since 2026-09-07 the act also holds its full photograph for one more viewport
 after the push, for the length Act 2's ribbon takes to be born over it — see
 [`arrival-ribbon.md`](arrival-ribbon.md).

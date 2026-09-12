@@ -3,13 +3,13 @@
 // Act 1 — "The Arrival". One pinned scene in three beats, all of them the same
 // photograph seen through a changing aperture:
 //
-//   the entry  the stage opens on its own ivory, held by a curtain of the
-//              page's ground. The curtain lifts and the four windows unseal:
-//              each was drawn as a hairline down its own centre and widens out
-//              into its slanted quad, from the middle pair outward. Nothing
-//              slides in and nothing fades up — the composition is cut open
-//              where it already stood, the way the old monogram was eroded
-//              open out of its wall.
+//   the entry  the stage is server-rendered with its four windows sealed to
+//              half their width, so the page's first painted frame is already
+//              the composition. They then widen out into their slanted quads,
+//              from the middle pair outward, starting on the first frame the
+//              script owns. Nothing slides in and nothing fades up — the
+//              composition is cut open where it already stood, the way the old
+//              monogram was eroded open out of its wall.
 //   the morph  four skewed windows hold slices of the picture, pulled apart
 //              over ivory. Their edges straighten, their content slides back
 //              into register, and the panels become one rectangle.
@@ -18,6 +18,11 @@
 //              bougainvillea in front of it — nearer the camera — swells
 //              faster and runs off the sides before the picture is full.
 //              Nothing fades.
+//   the greeting  the house's name and one line resolve over the picture as it
+//              lands, stand on it for a beat of their own with nothing else
+//              moving, and clear again as the ribbon starts to rise. It is what
+//              the push was toward: without it the last frame of the travel
+//              carries exactly what the first one did, only larger.
 //   the hold   the full photograph stays pinned for one more viewport while
 //              Act 2's ivory ribbon is born over it — a band of sheet rising
 //              from the foot, with its first opening looking back through at
@@ -43,12 +48,7 @@ import { useArrivalActStore } from "@/features/arrival/lib/act-store";
 import { tierSrcSet } from "@/features/arrival/lib/image-srcset";
 import { registerArrivalEases } from "@/features/arrival/lib/motion-eases";
 import { prefersReducedMotion } from "@/features/arrival/lib/webgl-support";
-import {
-  DUR_SCENE_SLOW,
-  EASE_ENTER,
-  EASE_UI,
-  STAGGER_CASCADE,
-} from "@/lib/motion-tokens";
+import { DUR_ENTER, EASE_ENTER, STAGGER_CHARS } from "@/lib/motion-tokens";
 import styles from "./act-1-arrival.module.css";
 import { FLOWER_LEFT, FLOWER_RIGHT, HERO_PLATE } from "./hero-plate";
 
@@ -72,9 +72,29 @@ import { FLOWER_LEFT, FLOWER_RIGHT, HERO_PLATE } from "./hero-plate";
 const MORPH_TRAVEL = 53;
 const JOIN_HOLD = 11;
 const PUSH_TRAVEL = 76;
+/**
+ * The greeting hold: the picture at full size with the type standing on it and
+ * nothing else moving.
+ *
+ * It is a beat of its own for the same reason the join hold is. The greeting
+ * cannot be given more time by fading it more slowly — it has to be gone before
+ * the ribbon's leading edge climbs past it, and that edge is invisible — so the
+ * only place the reading time can come from is scroll where neither the picture
+ * nor the ribbon is doing anything. Without it the type resolved, held for the
+ * last fifth of the push and was taken away, which is a line the reader sees
+ * rather than a line the reader reads.
+ *
+ * Over half a screen, and it carries the exit as well as the reading: the last
+ * GREETING_FADE of it is the type dissolving, finishing exactly where the
+ * ribbon starts. Long enough to stop on and short enough that a reader who has
+ * already read it is not scrolling through a still frame wondering whether the
+ * page has jammed.
+ */
+const GREETING_HOLD = 58;
 const SEAM_HOLD = ACT2_OVERHANG;
 
-const PIN_TRAVEL = MORPH_TRAVEL + JOIN_HOLD + PUSH_TRAVEL + SEAM_HOLD;
+const PIN_TRAVEL =
+  MORPH_TRAVEL + JOIN_HOLD + PUSH_TRAVEL + GREETING_HOLD + SEAM_HOLD;
 /** The section: the pinned travel plus the screen the stage occupies. */
 const ACT_HEIGHT = `${PIN_TRAVEL + 100}vh`;
 
@@ -82,8 +102,11 @@ const ACT_HEIGHT = `${PIN_TRAVEL + 100}vh`;
 const MORPH_END = MORPH_TRAVEL / PIN_TRAVEL;
 /** Progress at which the joined frame starts growing. */
 const PUSH_START = (MORPH_TRAVEL + JOIN_HOLD) / PIN_TRAVEL;
-/** Progress at which the push is done and the picture is held for the seam. */
+/** Progress at which the push is done and the greeting has the stage. */
 const PUSH_END = (MORPH_TRAVEL + JOIN_HOLD + PUSH_TRAVEL) / PIN_TRAVEL;
+/** Progress at which the greeting's hold ends and the ribbon starts rising. */
+const RIBBON_START =
+  (MORPH_TRAVEL + JOIN_HOLD + PUSH_TRAVEL + GREETING_HOLD) / PIN_TRAVEL;
 
 /**
  * Frame scale at rest, where 1 is exactly the viewport.
@@ -152,17 +175,17 @@ const SPLIT_Y = 2.8;
 const NARROW = "(max-width: 700px)";
 
 /**
- * Seconds the holding curtain takes to clear, and how much of that has to be
- * gone before the windows start opening.
+ * The entry carries no holding curtain, and that is the point of it.
  *
- * The curtain is the page's own ivory over the whole stage — the branches as
- * well as the windows — so the reader's first frame is a blank ground and not
- * a composition that finished before they arrived. Its only job is to hold that
- * ground for a beat; it is not a fade-in of the scene, which is why the scene
- * behind it carries no opacity of its own.
+ * A sheet of the page's own ivory over the stage buys a beat of empty ground,
+ * and it buys it with the reader's first second: the scene behind it cannot
+ * start until the sheet is most of the way gone, so the opening gesture began
+ * around two thirds of a second after the page painted and finished well past
+ * three. The composition is now server-rendered in its sealed geometry, so the
+ * first painted frame — before any script has run — is already four legible
+ * panels of the photograph, and the only thing the reader waits for is them
+ * widening.
  */
-const CURTAIN_LIFT = 0.9;
-const CURTAIN_CLEAR = 0.75;
 
 /**
  * Width a sealed window keeps, as a fraction of its open width.
@@ -177,11 +200,19 @@ const CURTAIN_CLEAR = 0.75;
 const ENTRY_SEAL = 0.5;
 
 /**
- * How long a window takes to unseal. The slow scene length, because this is one
- * gesture over the whole stage rather than a piece of interface answering a
- * click — the same reading that gave the monogram its two and a half seconds.
+ * How long a window takes to unseal, and the cascade between them.
+ *
+ * The entrance length rather than the slow scene length. The cinematic two and
+ * a half seconds was written for a gesture that began behind a curtain, where
+ * the opening had to be slow enough to still be happening once the sheet
+ * cleared. With nothing in front of it the same figure is simply a composition
+ * that takes three seconds to finish arranging itself while the reader waits to
+ * be allowed to scroll. At 1.2s with a half-cascade the four windows are open
+ * inside a second and a half of the first paint, and the gesture is still read
+ * as one opening rather than four.
  */
-const ENTRY_OPEN = DUR_SCENE_SLOW;
+const ENTRY_OPEN = DUR_ENTER;
+const ENTRY_CASCADE = STAGGER_CHARS;
 
 /**
  * Magnification of the branches at the end of the push, where 1 is their rest
@@ -220,6 +251,39 @@ const FLOWER_END = 12;
  * what it is standing on, never which act is on screen.
  */
 const NAV_COVER_SCALE = 0.84;
+
+/**
+ * The greeting's three numbers, as push progress and then as a share of the
+ * seam hold: where it starts resolving over the photograph, where it is fully
+ * resolved, and how far into the seam hold it is gone again.
+ *
+ * The act's last beat used to be a picture growing to full size and then simply
+ * standing there, which is a zoom rather than an arrival: past the point where
+ * the branches have left the viewport nothing new reaches the reader, and the
+ * final frame carries exactly the information the first one did. The greeting
+ * is what the travel was toward — it resolves only once the picture is nearly
+ * full, so it reads as something met at the end of the approach and not as a
+ * caption that was riding along on top of it. It is fully in before the push
+ * ends and then stands through GREETING_HOLD, which is the beat that exists to
+ * be the reading.
+ *
+ * The exit is written as a length of the hold rather than as a share of the
+ * seam hold that follows, and that is the whole reason it can be slow. The seam
+ * hold is Act 2's ribbon being born over this picture, and the ribbon's first
+ * opening looks back through at the same photograph in register — so its
+ * leading edge carries no visible sheet of its own as it climbs. Type still
+ * standing when that edge crosses it is cut clean in half by an edge the reader
+ * cannot see, which reads as a hairline drawn across the photograph. A fade
+ * that starts when the ribbon does therefore has to be over almost before it
+ * began. This one starts GREETING_FADE before the ribbon and lands exactly on
+ * it: nothing is ever in the edge's way, and the dissolve gets a quarter of a
+ * screen to happen in.
+ */
+const GREETING_IN = 0.42;
+const GREETING_FULL = 0.74;
+const GREETING_FADE = 26;
+/** Progress at which the greeting starts dissolving, one fade before the ribbon. */
+const GREETING_LEAVE = RIBBON_START - GREETING_FADE / PIN_TRAVEL;
 
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const ramp = (value: number, from: number, to: number) =>
@@ -349,12 +413,14 @@ export function Act1Arrival() {
   const outerLeftMediaRef = useRef<HTMLDivElement>(null);
   const outerRightMediaRef = useRef<HTMLDivElement>(null);
   const foregroundRef = useRef<HTMLDivElement>(null);
-  const curtainRef = useRef<HTMLDivElement>(null);
+  const greetingRef = useRef<HTMLDivElement>(null);
   /** Whether this act currently holds the bar's dark claim. */
   const navDark = useRef(false);
-  // null until the client capability probe has run, so the server and the first
-  // client render agree on which of the two scenes is in the tree
-  const [animate, setAnimate] = useState<boolean | null>(null);
+  // Starts true, so the sealed composition is in the server-rendered markup and
+  // the reader's first painted frame is the scene rather than an empty stage
+  // waiting on a capability probe. The probe only ever takes motion away — a
+  // reader who asked for none gets the windows drawn open on the next frame.
+  const [animate, setAnimate] = useState(true);
   // Posters render first and the loops swap in after mount, so the branches are
   // never a hole while two videos decode. Narrow screens keep the posters.
   const [playing, setPlaying] = useState(false);
@@ -402,9 +468,9 @@ export function Act1Arrival() {
     const outerLeftMedia = outerLeftMediaRef.current;
     const outerRightMedia = outerRightMediaRef.current;
     const foreground = foregroundRef.current;
-    const curtain = curtainRef.current;
+    const greeting = greetingRef.current;
     if (!section || !stage || !frame || !left || !right) return;
-    if (!leftMedia || !rightMedia || !foreground || !curtain) return;
+    if (!leftMedia || !rightMedia || !foreground || !greeting) return;
     if (!outerLeft || !outerRight || !outerLeftMedia || !outerRightMedia)
       return;
     gsap.registerPlugin(ScrollTrigger);
@@ -457,22 +523,15 @@ export function Act1Arrival() {
         });
       };
 
-      // The entrance, in two beats. The curtain goes first, uncovering a ground
-      // with the branches on it and four hairlines where the picture will be.
-      gsap.to(curtain, {
-        autoAlpha: 0,
-        duration: CURTAIN_LIFT,
-        ease: EASE_UI,
-      });
-      // Then the windows widen out of those hairlines. Held until the curtain
-      // is nearly gone: an opening that begins under an opaque sheet spends its
-      // better half unwatched, which is what turns a slow reveal into a flicker.
+      // The entrance: the windows widen out of the sealed panels the server
+      // already painted, from the middle pair outward, with no delay in front
+      // of them. This is the act's first frame of motion and it belongs on the
+      // page's first frame.
       gsap.to(opens, {
         v: 1,
         duration: ENTRY_OPEN,
         ease: EASE_ENTER,
-        stagger: STAGGER_CASCADE,
-        delay: CURTAIN_LIFT * CURTAIN_CLEAR,
+        stagger: ENTRY_CASCADE,
         onUpdate: paintWindows,
       });
 
@@ -504,6 +563,28 @@ export function Act1Arrival() {
           // leave the frame, they do not dissolve in it.
           const magnified = flowerMagnification(scale / rest, FRAME_END / rest);
           foreground.style.transform = `scale(${magnified.toFixed(4)})`;
+
+          // The greeting resolves over the last of the push and clears again as
+          // the ribbon starts rising. Written as opacity and a small rise on
+          // one element rather than as a tween of its own: it is a function of
+          // the same scroll the picture is, and a second timeline would lag the
+          // picture it is supposed to be arriving with.
+          const shown =
+            ramp(push, GREETING_IN, GREETING_FULL) *
+            (1 - ramp(self.progress, GREETING_LEAVE, RIBBON_START));
+          greeting.style.opacity = shown.toFixed(3);
+          // The rise is handed to the type as a custom property rather than
+          // written as a transform on the greeting itself: the wash is this
+          // element's own background, and moving the element moves the wash
+          // down past the foot of the stage, where the stage's overflow cuts
+          // the transparent end off the gradient and leaves the edge the wash
+          // exists to avoid.
+          greeting.style.setProperty(
+            "--rise",
+            `${(-(1 - shown) * 1.6).toFixed(3)}rem`,
+          );
+          greeting.style.visibility = shown > 0.001 ? "visible" : "hidden";
+          greeting.dataset.reachable = shown > 0.9 ? "true" : "false";
 
           // The bar is told what it is standing on. Guarded rather than
           // written every frame: the store's setter is idempotent, but a
@@ -596,115 +677,134 @@ export function Act1Arrival() {
       style={{ height: animate ? ACT_HEIGHT : "auto" }}
     >
       <div ref={stageRef} className={styles.stage}>
-        {animate === null ? null : (
-          <>
+        <div
+          ref={frameRef}
+          className={styles.frame}
+          style={{ transform: framePose }}
+        >
+          {([-1, 1] as const).map((side) => (
             <div
-              ref={frameRef}
-              className={styles.frame}
-              style={{ transform: framePose }}
+              key={side}
+              ref={side === -1 ? outerLeftRef : outerRightRef}
+              className={styles.panel}
+              style={{
+                clipPath: windowClip(
+                  side === -1 ? OUTER_LEFT_REST : OUTER_RIGHT_REST,
+                  side === -1 ? OUTER_LEFT_JOINED : OUTER_RIGHT_JOINED,
+                  still ? 1 : 0,
+                  entryOpen,
+                ),
+              }}
+              aria-hidden
             >
-              {([-1, 1] as const).map((side) => (
-                <div
-                  key={side}
-                  ref={side === -1 ? outerLeftRef : outerRightRef}
-                  className={styles.panel}
-                  style={{
-                    clipPath: windowClip(
-                      side === -1 ? OUTER_LEFT_REST : OUTER_RIGHT_REST,
-                      side === -1 ? OUTER_LEFT_JOINED : OUTER_RIGHT_JOINED,
-                      still ? 1 : 0,
-                      entryOpen,
-                    ),
-                  }}
-                  aria-hidden
-                >
-                  <div
-                    ref={side === -1 ? outerLeftMediaRef : outerRightMediaRef}
-                    className={styles.panelMedia}
-                    style={{ transform: mediaTransform(side, still ? 1 : 0) }}
-                  >
-                    <img
-                      src={HERO_PLATE.src}
-                      srcSet={tierSrcSet(HERO_PLATE)}
-                      sizes="100vw"
-                      width={HERO_PLATE.width}
-                      height={HERO_PLATE.height}
-                      alt=""
-                      decoding="async"
-                    />
-                  </div>
-                </div>
-              ))}
               <div
-                ref={leftRef}
-                className={styles.panel}
-                style={{ clipPath: leftPose.clipPath }}
+                ref={side === -1 ? outerLeftMediaRef : outerRightMediaRef}
+                className={styles.panelMedia}
+                style={{ transform: mediaTransform(side, still ? 1 : 0) }}
               >
-                <div
-                  ref={leftMediaRef}
-                  className={styles.panelMedia}
-                  style={{ transform: leftPose.transform }}
-                >
-                  <img
-                    src={HERO_PLATE.src}
-                    srcSet={tierSrcSet(HERO_PLATE)}
-                    sizes="100vw"
-                    width={HERO_PLATE.width}
-                    height={HERO_PLATE.height}
-                    alt={HERO_PLATE.alt}
-                    decoding="async"
-                  />
-                </div>
+                <img
+                  src={HERO_PLATE.src}
+                  srcSet={tierSrcSet(HERO_PLATE)}
+                  sizes="100vw"
+                  width={HERO_PLATE.width}
+                  height={HERO_PLATE.height}
+                  alt=""
+                  decoding="async"
+                />
               </div>
-              {/* The same photograph, and deliberately not described a second
+            </div>
+          ))}
+          <div
+            ref={leftRef}
+            className={styles.panel}
+            style={{ clipPath: leftPose.clipPath }}
+          >
+            <div
+              ref={leftMediaRef}
+              className={styles.panelMedia}
+              style={{ transform: leftPose.transform }}
+            >
+              <img
+                src={HERO_PLATE.src}
+                srcSet={tierSrcSet(HERO_PLATE)}
+                sizes="100vw"
+                width={HERO_PLATE.width}
+                height={HERO_PLATE.height}
+                alt={HERO_PLATE.alt}
+                decoding="async"
+              />
+            </div>
+          </div>
+          {/* The same photograph, and deliberately not described a second
                   time: the two windows are one picture, and a screen reader
                   that hears the terrace twice is being told there are two. */}
-              <div
-                ref={rightRef}
-                className={styles.panel}
-                style={{ clipPath: rightPose.clipPath }}
-                aria-hidden
-              >
-                <div
-                  ref={rightMediaRef}
-                  className={styles.panelMedia}
-                  style={{ transform: rightPose.transform }}
-                >
-                  <img
-                    src={HERO_PLATE.src}
-                    srcSet={tierSrcSet(HERO_PLATE)}
-                    sizes="100vw"
-                    width={HERO_PLATE.width}
-                    height={HERO_PLATE.height}
-                    alt=""
-                    decoding="async"
-                  />
-                </div>
-              </div>
+          <div
+            ref={rightRef}
+            className={styles.panel}
+            style={{ clipPath: rightPose.clipPath }}
+            aria-hidden
+          >
+            <div
+              ref={rightMediaRef}
+              className={styles.panelMedia}
+              style={{ transform: rightPose.transform }}
+            >
+              <img
+                src={HERO_PLATE.src}
+                srcSet={tierSrcSet(HERO_PLATE)}
+                sizes="100vw"
+                width={HERO_PLATE.width}
+                height={HERO_PLATE.height}
+                alt=""
+                decoding="async"
+              />
             </div>
+          </div>
+        </div>
 
-            <div ref={foregroundRef} className={styles.foreground}>
-              {flower(
-                FLOWER_LEFT,
-                styles.flowerLeft,
-                "Bougainvillea in flower",
-              )}
-              {flower(
-                FLOWER_RIGHT,
-                styles.flowerRight,
-                "Bougainvillea in flower",
-              )}
-            </div>
+        <div ref={foregroundRef} className={styles.foreground}>
+          {flower(FLOWER_LEFT, styles.flowerLeft, "Bougainvillea in flower")}
+          {flower(FLOWER_RIGHT, styles.flowerRight, "Bougainvillea in flower")}
+        </div>
 
-            {/* Over everything on the stage and under the concierge bar, which
-                keeps its own stacking context. Painted in the markup rather
-                than tweened up from nothing, so the held ground is the very
-                first frame and never a flash of the finished scene. */}
-            {still ? null : (
-              <div ref={curtainRef} className={styles.curtain} aria-hidden />
-            )}
-          </>
-        )}
+        {/* What the approach arrives at. Over the picture and over the
+                branches — by the time it is legible the branches have left the
+                viewport — and inside the stage's own stacking context, so it
+                never stands over the concierge bar. It carries the page's only
+                h1: the act was a photograph with no heading at all, which left
+                the document's first landmark to whatever came after it.
+
+                Always in the markup and never built by the scrub, so a reader
+                on a screen reader or with motion turned off is given the words
+                rather than an empty photograph. */}
+        <div
+          ref={greetingRef}
+          className={styles.greeting}
+          style={still ? undefined : { opacity: 0, visibility: "hidden" }}
+        >
+          <p className={`caps-label ${styles.greetingMarker}`}>Mariva</p>
+          <h1 className={`font-display ${styles.greetingLine}`}>
+            Stay a while.
+          </h1>
+          {/* The one thing on the arrived picture a reader can act on. It is
+              only clickable while the greeting is essentially full: the type
+              dissolves over a quarter of a screen, and a button that still
+              takes clicks at a tenth of its opacity is a target the reader
+              cannot see they are hitting. */}
+          <a className={styles.greetingAction} href="/booking">
+            Book your stay
+            <svg
+              className={styles.greetingActionArrow}
+              viewBox="0 0 24 12"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              aria-hidden="true"
+            >
+              <path d="M1 6h20M16 1.5 20.5 6 16 10.5" />
+            </svg>
+          </a>
+        </div>
       </div>
     </section>
   );

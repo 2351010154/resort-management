@@ -6,9 +6,15 @@
   /* Act 4 hands over on this exact value, so the seam has nothing to bridge. */
   background: var(--night);
   color: var(--ivory);
-  /* One screen for Act 4's veil to wipe off the frame, one for the reading to
-     be held, one for the hand-over into the footer. */
+  /* One screen for Act 4's bands to close over this one, one for the reading
+     to be held, one for the hand-over into the footer. The first is scrolled
+     through with the act already stuck to the top of the viewport and Act 4
+     still pinned in front of it — the section reaches up under that act by
+     `ACT4_OVERHANG`, written as a negative margin by the component, which is
+     what puts the Invitation behind the bands rather than below them. */
   height: 300vh;
+  /* Written by the component from `ACT4_OVERHANG`. */
+  margin-top: calc(-1 * var(--overhang));
 }
 
 .stage {
@@ -303,6 +309,9 @@
 @media (prefers-reduced-motion: reduce) {
   .section {
     height: auto;
+    /* Act 4 is a static screen here, not a pinned stage with a hand-over to
+       stand behind, so there is nothing to reach up under. */
+    margin-top: 0;
   }
 
   .stage {

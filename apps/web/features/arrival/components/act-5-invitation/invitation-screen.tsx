@@ -21,6 +21,7 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useEffect, useRef, useState } from "react";
 import { BorderGlowPill } from "@/features/arrival/components/act-5-invitation/border-glow-pill";
+import { ACT4_OVERHANG } from "@/features/arrival/lib/act-seams";
 import { arrivalImages } from "@/features/arrival/lib/image-manifest";
 import { tierSrc, tierSrcSet } from "@/features/arrival/lib/image-srcset";
 import { registerArrivalEases } from "@/features/arrival/lib/motion-eases";
@@ -149,7 +150,18 @@ export function InvitationScreen() {
   }, []);
 
   return (
-    <section ref={sectionRef} data-act={5} className={styles.section}>
+    <section
+      ref={sectionRef}
+      data-act={5}
+      className={styles.section}
+      // The act starts under Act 4's last screen rather than after it: the
+      // stage below is sticky, so from this section's own top the Invitation is
+      // held at the top of the viewport, behind Act 4's still-pinned stage,
+      // for exactly as long as that act's bands take to close over it. The
+      // stylesheet spends it as a negative margin, and drops it where there is
+      // no pinned stage to stand behind.
+      style={{ "--overhang": `${ACT4_OVERHANG}vh` } as React.CSSProperties}
+    >
       <div className={styles.stage} data-plate-ready={plateReady}>
         <div className={styles.plate}>
           <img

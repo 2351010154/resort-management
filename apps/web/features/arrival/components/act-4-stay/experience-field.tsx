@@ -32,6 +32,13 @@
 // is already loaded and settled behind them, so the last band closes on the
 // frame rather than on the dusk fallback.
 //
+// "Behind them" is a seam, not a figure of speech: Act 5's section reaches up
+// under this one by `ACT4_OVERHANG` and its stage is sticky, so it is stuck to
+// the top of the viewport, one screen deep into its own scroll, while this
+// stage is still pinned over it. Without that reach the two spans are the same
+// document position and the bands paint onto a stage already leaving — see the
+// constant, which carries what that looked like.
+//
 // The movement opens on somebody else's frame. The corridor's statement is
 // still standing when this stage pins over it, and the two sentences are meant
 // to be one held screen rather than two stacked ones — so this stage draws
@@ -46,6 +53,7 @@
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useEffect, useRef } from "react";
+import { ACT4_OVERHANG, ACT4_WIPE } from "@/features/arrival/lib/act-seams";
 import { useArrivalActStore } from "@/features/arrival/lib/act-store";
 import { tierSrc, tierSrcSet } from "@/features/arrival/lib/image-srcset";
 import styles from "./act-4-stay.module.css";
@@ -179,9 +187,23 @@ const RIDE_STRETCH = 2.36;
  *  cards, then the ride stretched. */
 const SHEET = RIDE_FROM_DESIGN + (1 - RIDE_FROM_DESIGN) * RIDE_STRETCH;
 
-/** The section's height, in viewports: the pinned one plus the scroll. */
+/**
+ * The section's height, in viewports: the one the stage stands in, the scroll
+ * the four beats are read at, and one more for the hand-over. The last is what
+ * keeps the stage pinned while the bands close — see `ACT4_OVERHANG`, of which
+ * this screen is the lower half and the standing screen above is the upper.
+ */
 const sectionHeight = (mobile: boolean) =>
-  `${((1 + DESIGN_SCROLL[mobile ? "narrow" : "wide"] * SHEET) * 100).toFixed(0)}vh`;
+  `${(100 + DESIGN_SCROLL[mobile ? "narrow" : "wide"] * SHEET * 100 + ACT4_WIPE).toFixed(0)}vh`;
+
+/**
+ * The scroll the beats are read at: the section less the two screens the seam
+ * owns. Every beat window below is a fraction of *this* rather than of the
+ * pin, so the hand-over cannot slow the reading down — and the last beat lands
+ * on the frame the first band starts growing on.
+ */
+const beatScroll = (section: HTMLElement) =>
+  section.offsetHeight - (ACT4_OVERHANG / 100) * window.innerHeight;
 
 /** The share of this movement's own scroll the hand-off takes. The corridor
  *  imports it rather than holding its own opinion of how long that is. */
@@ -756,13 +778,78 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
         ScrollTrigger.refresh();
       });
 
+      // The pin runs a screen past the reading, across the hand-over: the bands
+      // have to close on a stage that is still the whole frame, with Act 5
+      // stuck behind it.
+      //
+      // Taken off the page the moment it releases. A released `pinSpacing:
+      // false` stage is left standing where the pin ended, which is now inside
+      // Act 5's own section, and it carries its own z-index over an act that
+      // has none — so the closed hand-over would ride up off the Invitation
+      // like a curtain, and the ivory frame would stand over the held reading
+      // for anyone who arrived below the act rather than scrolling into it.
+      // Written on refresh as well as on the crossing, because a deep link or
+      // a resize lands past the end without ever crossing it.
+      const showStage = (visible: boolean) =>
+        gsap.set(stage, { autoAlpha: visible ? 1 : 0 });
+
       ScrollTrigger.create({
         trigger: section,
         start: "top top",
         end: "bottom bottom",
         pin: stage,
         pinSpacing: false,
+        onRefresh: (self) => showStage(self.progress < 1),
+        onLeave: () => showStage(false),
+        onEnterBack: () => showStage(true),
       });
+
+      // The hand-over into Act 5. Five bands of the Invitation's own dark, each
+      // growing up out of its own foot, the lowest first — so what crosses the
+      // frame is a rising edge rather than a curtain, and the act ends on a
+      // taken screen rather than a faded one.
+      const stripes = gsap.utils.toArray<HTMLElement>("[data-stripe]", stage);
+      const wipe = stripes.length ? gsap.timeline({ paused: true }) : null;
+      stripes.forEach((stripe, i) => {
+        const at = (0.3 * (stripes.length - 1 - i)) / (stripes.length - 1);
+        // The closed band is written here rather than read from the stylesheet.
+        // A `to` tween takes its start from whatever the element computes to
+        // the first time it renders, and this timeline is built on mount: read
+        // before the module's stylesheet has been applied, the band measures as
+        // identity and the tween becomes 1 → 1.
+        wipe?.fromTo(
+          stripe,
+          { scaleY: 0 },
+          { scaleY: 1, duration: 0.3, ease: "none" },
+          at,
+        );
+      });
+      // A held tail, so the last band has closed before the pin releases and
+      // the Invitation is never met through a gap.
+      wipe?.to({}, { duration: 0.1 });
+
+      // One trigger across the whole pin, cut into the reading and the seam.
+      //
+      // The bands are read off this act's own scroll rather than off Act 5's
+      // measured top. They are two spans of one pin — the reading, then the
+      // screen the stage is held for after it — and a second trigger measuring
+      // a sibling section has to agree with the pin about where that section
+      // is at the one moment ScrollTrigger is re-measuring the pin itself:
+      // roughly one load in three it did not, and every band came up closed on
+      // the first frame of the act.
+      const seam = (self: ScrollTrigger) => {
+        const scrolled = self.progress * (self.end - self.start);
+        const beats = beatScroll(section);
+        layout(clamp01(scrolled / beats));
+        if (!wipe) return;
+        const closing = clamp01(
+          (scrolled - beats) / (window.innerHeight * (ACT4_WIPE / 100)),
+        );
+        wipe.progress(closing);
+        // The bar is over this act's ivory until the bands have most of the
+        // frame, and over Act 5's dark after.
+        setNavDark(4, closing >= 0.55);
+      };
 
       ScrollTrigger.create({
         trigger: section,
@@ -771,41 +858,12 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
         invalidateOnRefresh: true,
         onRefresh: (self) => {
           measure();
-          layout(self.progress);
+          seam(self);
         },
-        onToggle: (self) => layout(self.progress),
-        onUpdate: (self) => layout(self.progress),
+        onToggle: (self) => seam(self),
+        onUpdate: (self) => seam(self),
+        onLeaveBack: () => setNavDark(4, false),
       });
-
-      // The hand-over into Act 5. Five bands of the Invitation's own dark, each
-      // growing up out of its own foot, the lowest first — so what crosses the
-      // frame is a rising edge rather than a curtain, and the act ends on a
-      // taken screen rather than a faded one.
-      const next = document.querySelector<HTMLElement>('[data-act="5"]');
-      const stripes = gsap.utils.toArray<HTMLElement>("[data-stripe]", stage);
-      if (next && stripes.length) {
-        const wipe = gsap.timeline({ paused: true });
-        stripes.forEach((stripe, i) => {
-          const at = (0.3 * (stripes.length - 1 - i)) / (stripes.length - 1);
-          wipe.to(stripe, { scaleY: 1, duration: 0.3, ease: "none" }, at);
-        });
-        // A held tail, so the last band has closed before the pin releases and
-        // the Invitation is never met through a gap.
-        wipe.to({}, { duration: 0.1 });
-
-        ScrollTrigger.create({
-          trigger: next,
-          start: "top bottom",
-          end: "top top",
-          onUpdate: (self) => {
-            wipe.progress(self.progress);
-            // The bar is over this act's ivory until the bands have most of the
-            // frame, and over Act 5's dark after.
-            setNavDark(4, self.progress >= 0.55);
-          },
-          onLeaveBack: () => setNavDark(4, false),
-        });
-      }
     }, section);
 
     return () => {
