@@ -4,8 +4,8 @@
 // note "GENERATED ... do not edit by hand" at its top. Its cutter reads a source
 // library outside the repository and is itself gitignored, so an entry added
 // there by hand is an entry the next run silently drops. These three assets were
-// cut once, by the commands recorded in `docs/architecture/arrival-opening.md`,
-// and they are the only images in the arrival that no manifest owns — so they
+// cut once, by hand, and they are the only images in the arrival that no
+// manifest owns — so they
 // are declared here, next to the act that is their only consumer.
 
 /** Shape `tierSrcSet` needs: the largest cut, and the widths that exist. */
