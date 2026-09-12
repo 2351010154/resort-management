@@ -201,8 +201,8 @@ export function varianceReading(shift: Shift): VarianceReading | null {
  * What `cashBookNet` is called on screen, in both languages the desk uses.
  *
  * *Thu chi* is what the property's own book is called — `FR-OPS-02` and
- * `rbac-matrix.md` both name the row in Vietnamese, and `docs/README.md` keeps a
- * commercial term in the language the people who use it use. On its own among
+ * `rbac-matrix.md` both name the row in Vietnamese, and a commercial term stays
+ * in the language the people who use it use. On its own among
  * `Trading day` and `Cash taken` it is a word an English-reading manager cannot
  * place, so it is glossed the way `features/finance/cash-book.ts` glosses every
  * category it prints: the English first, the term the accountant asks for after

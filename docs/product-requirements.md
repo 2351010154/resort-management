@@ -38,8 +38,7 @@ payment, issue the legal invoice, hand over the shift, read the numbers. One
 database, one set of rules, two front doors.
 
 The invariant everything protects: **two guests are never sold the same room
-for the same night** — enforced in the database, not in application code
-([`orientation.md`](orientation.md) §2).
+for the same night** — enforced in the database, not in application code.
 
 It is also a coursework deliverable. The professor's twelve requirements (§8)
 are a **subset** of what is built, never the target.

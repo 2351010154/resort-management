@@ -1,8 +1,8 @@
 // The four passages Act 3 can play, and the labels that switch between them.
 //
-// Each one is a short cut from a different master reel, slowed and encoded by
-// apps/web/scripts/encode-approach-clips.mjs — the ranges live in that script,
-// not here. This file only says what the page offers and in what order.
+// Each one is a short cut from a different master reel, slowed and encoded
+// outside the repository — the source ranges are not carried here. This file
+// only says what the page offers and in what order.
 //
 // Order is the argument the column makes, so it is not alphabetical and not the
 // order the masters happen to sit in: dawn, then the arrival itself, then the
