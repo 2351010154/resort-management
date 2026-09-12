@@ -17,8 +17,10 @@ packages/
   tokens/           The palette, type scale, spacing rhythm and easing curves all three surfaces share
 docs/               Architecture, generated diagrams, traceability, and the assets they embed
 plans/              Stable requirement IDs, acceptance criteria, handoff packages, and research records
-scripts/            Repo-wide helper scripts. A script serving one workspace stays in that workspace
 ```
+
+A script serving one workspace stays in that workspace: `apps/web/scripts/`
+holds the web app's, `apps/api/scripts/` the API's.
 
 One API, three consumers. Business logic exists once, in `apps/api`; the
 frontends render it and nothing else. No Next.js server action, route handler,
