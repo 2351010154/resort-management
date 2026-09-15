@@ -1,5 +1,15 @@
 import { expect, type Locator, type Page } from "@playwright/test";
 
+import {
+  CONSOLE_RAIL,
+  MISSING_CREDENTIALS,
+  PALETTE_PLACEHOLDER,
+  QUEUE_ROW,
+  refusalText,
+  STAFF_EMAIL,
+  STAFF_PASSWORD,
+} from "./console-surface.mjs";
+
 /* Getting around the console the way an operator does: with keys.
  *
  * Both requirement runs need the same three things — a session, a screen, and
@@ -12,24 +22,14 @@ import { expect, type Locator, type Page } from "@playwright/test";
  * token to seed and no local storage to restore. Every context signs in for
  * itself.
  *
- * Which account is a run's business, not this file's. It is read from the
- * environment so the same spec runs against a developer's own staff record and
- * against whatever CI provisions, and it refuses loudly rather than falling
- * back to a guess: a hardcoded password would be a credential in the
- * repository, and a silent skip would be a green run that proved nothing.
+ * Which account, what a queue row is called, what the shell's landmark is
+ * named: all of that comes from `console-surface.mjs`, which the thesis figure
+ * script reads too. What stays here is the half that only means anything inside
+ * the test runner — every `expect` below is an assertion the requirements are
+ * about, not a wait dressed up as one.
  */
 
-export const STAFF_EMAIL = process.env.ADMIN_E2E_EMAIL ?? "";
-export const STAFF_PASSWORD = process.env.ADMIN_E2E_PASSWORD ?? "";
-
-const MISSING_CREDENTIALS = [
-  "No staff account was given to the run.",
-  "Set ADMIN_E2E_EMAIL and ADMIN_E2E_PASSWORD to an active console account",
-  "(`pnpm --filter @mariva/api staff:create` makes one).",
-].join(" ");
-
-/** Any row of any of the console's queues. One Tab stop, arrows within it. */
-export const QUEUE_ROW = "tr[data-roving-item]";
+export { QUEUE_ROW, STAFF_EMAIL, STAFF_PASSWORD };
 
 /** Signs in and returns once the console's own shell is on screen. */
 export async function signIn(page: Page): Promise<void> {
@@ -48,28 +48,16 @@ export async function signIn(page: Page): Promise<void> {
   await page.keyboard.type(STAFF_PASSWORD);
   await page.keyboard.press("Enter");
 
-  const rail = page.getByRole("navigation", { name: "Console sections" });
+  const rail = page.getByRole("navigation", { name: CONSOLE_RAIL });
 
   try {
     await expect(rail).toBeVisible();
   } catch (failure) {
-    // Read after the wait, not before it. The refusal arrives from a round trip,
-    // so a message composed up front would report the empty screen that was
-    // there before the API answered.
     throw new Error(
       `Sign-in did not reach the console. ${await refusalText(page)}`,
       { cause: failure },
     );
   }
-}
-
-/** Whatever the login screen said about it, for the failure message. */
-async function refusalText(page: Page): Promise<string> {
-  const alert = page.getByRole("alert");
-
-  return (await alert.count()) === 0
-    ? "The login screen reported nothing."
-    : `The login screen said: ${await alert.first().innerText()}`;
 }
 
 /**
@@ -90,7 +78,7 @@ export async function goByPalette(
   // Playwright: one spelling, right on a Linux runner and on a Mac.
   await page.keyboard.press("ControlOrMeta+k");
 
-  const search = page.getByPlaceholder("Type a command…");
+  const search = page.getByPlaceholder(PALETTE_PLACEHOLDER);
 
   // The dialog focuses its own input. Waiting for that rather than clicking it
   // is the point — a palette that stopped doing it would drop the name on the
