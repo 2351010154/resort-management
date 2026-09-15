@@ -701,6 +701,34 @@ export const redeemedLinkSchema = z.object({
 });
 
 /**
+ * The same stay, plus the one thing a page that has just followed an account
+ * link has to know about itself: whether this browser came away holding a
+ * session.
+ *
+ * **It is not the branch the screen must never make.** Nothing here says
+ * whether the address already had an account; it says what happened to *this*
+ * request, which the browser is about to discover anyway the moment it asks for
+ * anything a session opens. And it is told only to whoever redeemed the link,
+ * which is whoever holds the mailbox it was delivered to — a hold created in a
+ * stranger's name mints a link that goes to the stranger, so nobody else ever
+ * reaches this answer at all.
+ *
+ * Without it the screen has to guess, and it guessed. `guest-attach.service.ts`
+ * signs the browser in on the path that creates the account and deliberately
+ * does not on the two that find one already there, so a page that sent every
+ * guest on to their profile sent those two to a door their browser cannot open
+ * — and took away the sentence offering them the log-in the older account is
+ * the only thing that speaks for.
+ *
+ * Named for what it means rather than for how it travels: the cookies are
+ * Better Auth's business, and a field naming them would put the transport on
+ * the wire.
+ */
+export const redeemedAccountLinkSchema = redeemedLinkSchema.extend({
+  signedIn: z.boolean(),
+});
+
+/**
  * What the desk is told after an account link has been sent again.
  *
  * The address, and it is an answer rather than an echo: the caller never sent
@@ -994,7 +1022,7 @@ export const booking = {
       successStatus: 201,
     })
     .input(accountFromLinkInput)
-    .output(redeemedLinkSchema),
+    .output(redeemedAccountLinkSchema),
 
   attachToAccount: oc
     // The registered guest's path, which needs no mail at all: the session

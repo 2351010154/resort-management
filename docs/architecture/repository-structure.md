@@ -17,6 +17,7 @@ packages/
   tokens/           The palette, type scale, spacing rhythm and easing curves all three surfaces share
 docs/               Architecture, generated diagrams, traceability, and the assets they embed
 plans/              Stable requirement IDs, acceptance criteria, handoff packages, and research records
+scripts/            Repo-wide helper scripts
 ```
 
 A script serving one workspace stays in that workspace: `apps/web/scripts/`

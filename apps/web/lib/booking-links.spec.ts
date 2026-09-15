@@ -98,6 +98,22 @@ const redeemed = {
   body: { bookingId: STAY, reference: REFERENCE },
 };
 
+/**
+ * The account link's answer — the same two names, and the one thing the stay
+ * link never says: this browser came away holding a session.
+ */
+const created = {
+  status: 201,
+  body: { bookingId: STAY, reference: REFERENCE, signedIn: true },
+};
+
+/** The same redemption on the rarer path, where the address already had an
+ *  account and only a sign-in speaks for it. */
+const attachedWithoutSession = {
+  status: 201,
+  body: { bookingId: STAY, reference: REFERENCE, signedIn: false },
+};
+
 /** What the API says about a link that is gone, in its own words. */
 const SPENT =
   "This link has already been used or has expired. Ask for a new one from your booking.";
@@ -131,7 +147,7 @@ describe("where the mailed credential travels", () => {
   });
 
   it("posts the account link the same way", async () => {
-    const sent = serving({ [ACCOUNT]: redeemed });
+    const sent = serving({ [ACCOUNT]: created });
 
     await createAccountFrom({ link: LINK, password: "a longer secret" });
 
@@ -425,13 +441,14 @@ describe("arriving at a stay once for the whole route", () => {
 
 describe("the account the second link offers", () => {
   it("creates one with the password the guest chose", async () => {
-    serving({ [ACCOUNT]: redeemed });
+    serving({ [ACCOUNT]: created });
 
     expect(
       await createAccountFrom({ link: LINK, password: "a longer secret" }),
     ).toEqual({
       ok: true,
       stay: { bookingId: STAY, reference: REFERENCE },
+      signedIn: true,
     });
   });
 
@@ -439,13 +456,14 @@ describe("the account the second link offers", () => {
   // address, so the account exists either way and the stay is attached to it —
   // what the guest declined is a way of signing in, not their booking.
   it("creates one without a password, and sends no empty one", async () => {
-    const sent = serving({ [ACCOUNT]: redeemed });
+    const sent = serving({ [ACCOUNT]: created });
 
     const outcome = await createAccountFrom({ link: LINK });
 
     expect(outcome).toEqual({
       ok: true,
       stay: { bookingId: STAY, reference: REFERENCE },
+      signedIn: true,
     });
     expect(await sent[0]!.json()).toEqual({ link: LINK });
   });
@@ -453,7 +471,7 @@ describe("the account the second link offers", () => {
   // The stay stays reachable when no password was set: what comes back names
   // the booking, which is the address the guest is sent on to.
   it("names the booking either way, so the stay is never behind the password", async () => {
-    serving({ [ACCOUNT]: redeemed });
+    serving({ [ACCOUNT]: created });
 
     const skipped = await createAccountFrom({ link: LINK });
     const chosen = await createAccountFrom({
@@ -462,6 +480,23 @@ describe("the account the second link offers", () => {
     });
 
     expect(skipped).toEqual(chosen);
+  });
+
+  // The rarer path, and the one the screen after this call has to be able to
+  // see: the address already had an account, so the stay attaches to it and no
+  // session is issued over it. A page that carried this guest on to their
+  // profile would be carrying a browser holding nothing to a door that refuses
+  // it, past the link to the booking that is the way on it does have.
+  it("says when the redemption left the browser with no session", async () => {
+    serving({ [ACCOUNT]: attachedWithoutSession });
+
+    const outcome = await createAccountFrom({ link: LINK });
+
+    expect(outcome).toEqual({
+      ok: true,
+      stay: { bookingId: STAY, reference: REFERENCE },
+      signedIn: false,
+    });
   });
 
   it("resolves a spent account link into a sentence rather than throwing", async () => {
@@ -477,16 +512,20 @@ describe("the account the second link offers", () => {
 /**
  * What any of this hands a screen to render.
  *
- * **Two fields, and neither of them can say whether an address has an account.**
- * That branch is the confirmation email's, because the email reaches the address
+ * **The stay it names says nothing about an address having an account.** That
+ * branch is the confirmation email's, because the email reaches the address
  * being asked about and nobody else; a hold is unauthenticated and only
  * rate-limited, so a page making the same branch would answer "does this person
  * stay here?" to anyone who created a hold naming them. This is that invariant
  * held to the answer these screens are built from.
+ *
+ * `signedIn` rides beside the stay rather than in it, and is about this browser
+ * rather than about the address — `contract/booking.ts` argues the difference,
+ * and the test below is what keeps the two apart in the shape a screen reads.
  */
 describe("what a redemption tells the page", () => {
   it("names the stay and nothing about an account", async () => {
-    serving({ [ACCOUNT]: redeemed });
+    serving({ [ACCOUNT]: created });
 
     const outcome = await createAccountFrom({ link: LINK });
 

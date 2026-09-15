@@ -21,8 +21,15 @@
 // stay readable straight away; the rarer guest whose address had gained an
 // account in the meantime arrives at the same page holding no session, and
 // `stay-screen.tsx` answers that with the booking's own sentence and a way to
-// log in. Neither outcome is named here, for the reason the paragraph above
-// gives — this screen does not know which one happened, and must not.
+// log in. Neither outcome is named on this page, for the reason the paragraph
+// above gives.
+//
+// **What the reply does tell it is whether this browser was signed in**, which
+// is not the same fact and is not a claim about the address —
+// `contract/booking.ts` argues the difference. It decides one thing: whether
+// the screen may carry the guest on to the profile after a beat. A browser with
+// no session would be carried to a page that refuses it, past the link to the
+// booking that is the only way on it actually has.
 
 import { type FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -45,6 +52,7 @@ export function BookingAccountScreen() {
   const link = presented.link;
 
   const [attached, setAttached] = useState<AttachedStay>();
+  const [signedIn, setSignedIn] = useState(false);
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState(false);
 
@@ -55,16 +63,23 @@ export function BookingAccountScreen() {
   // keeps a keyboard or screen reader in the place the screen has arrived at
   // rather than back at the top of the document.
   //
-  // Then the screen carries them on. This page is spent — its link works once —
-  // so leaving a guest parked on it asks them to find their own way out of a
-  // dead end. The profile is where the account they just made lives, and the
-  // footnote below stays for anyone who wants their stay instead.
+  // Then the screen carries them on — but only a guest whose browser came away
+  // with a session. This page is spent, its link works once, so leaving
+  // somebody parked on it asks them to find their own way out of a dead end;
+  // the profile is where the account they just made lives. A guest holding no
+  // session has no profile to be sent to, because `/account` would refuse them,
+  // so the screen stays exactly where it is and its footnote is what carries
+  // them on: the booking, and the log-in the older account needs.
   useEffect(() => {
     if (!attached) {
       return;
     }
 
     done.current?.focus();
+
+    if (!signedIn) {
+      return;
+    }
 
     const onward = window.setTimeout(() => {
       // Replaced rather than pushed: back must not return to a link already
@@ -73,7 +88,7 @@ export function BookingAccountScreen() {
     }, SETTLE_BEFORE_PROFILE_MS);
 
     return () => window.clearTimeout(onward);
-  }, [attached, router]);
+  }, [attached, signedIn, router]);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -99,6 +114,7 @@ export function BookingAccountScreen() {
 
     if (outcome.ok) {
       setAttached(outcome.stay);
+      setSignedIn(outcome.signedIn);
 
       // Left pending: the form is about to be replaced and the button must not
       // offer itself again for a link that has now been spent.
@@ -123,17 +139,21 @@ export function BookingAccountScreen() {
           </a>
         }
       >
-        {/* Says nothing about a password, and nothing about a session either.
-            An address that gained an account between the message and this press
-            is attached to that account instead — the password typed here is not
-            its password and no session is issued over it, which
-            `guest-attach.service.ts` is deliberate about. The sentence below is
-            true of both guests, and the link above works for both: one arrives
-            at their stay, the other at a page that offers them the log-in the
-            older account needs. */}
+        {/* Says nothing about a password, and names no account. An address that
+            gained one between the message and this press is attached to that
+            account instead — the password typed here is not its password and no
+            session is issued over it, which `guest-attach.service.ts` is
+            deliberate about. The second sentence is the same for both and so is
+            the link above: one guest arrives at their stay, the other at a page
+            that offers them the log-in the older account needs.
+
+            The first sentence is only promised where it is kept. A browser
+            holding no session cannot open the profile, so telling that guest
+            they are being taken to it would be a status message announcing a
+            navigation this screen has just decided not to make. */}
         <p className={styles.notice} ref={done} role="status" tabIndex={-1}>
-          Taking you to your profile. Your stay is yours to open whenever you
-          like.
+          {signedIn ? "Taking you to your profile. " : ""}Your stay is yours to
+          open whenever you like.
         </p>
       </AuthShell>
     );

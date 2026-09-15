@@ -256,6 +256,14 @@ export function DriftImage({
  * start, ScrollTrigger collapses the range, and the block pops from faint to
  * whole in one frame. A short block therefore finishes as its top nears the
  * top of the frame instead, which is the same gesture at the same pace.
+ *
+ * Both marks are held inside the page. The last block on it is the case that
+ * needs it: the footer's top never reaches 30% of a tall viewport, because the
+ * document stops scrolling before it gets there — so the start lay past the
+ * furthest the reader can go, the scrub never began, and the footer stayed at
+ * opacity 0 with its links still in the tab order. This is the bottom-of-page
+ * half of what `reveal.tsx` sweeps for at the top, where a start above the
+ * first screen is never crossed either.
  */
 export function useBlockArrival(
   ref: RefObject<HTMLElement | null>,
@@ -266,12 +274,19 @@ export function useBlockArrival(
     if (!el) return;
     gsap.registerPlugin(ScrollTrigger);
 
+    // A mark the reader cannot scroll to, brought back to the last one they
+    // can. `clamp()` below is ScrollTrigger's own form of this for the marks
+    // written as strings; the end this hook computes itself is a number, and a
+    // number is not something `clamp()` parses.
+    const reachable = (mark: number) =>
+      Math.min(mark, ScrollTrigger.maxScroll(window));
+
     const laterMark = () => {
       const rect = el.getBoundingClientRect();
       const y = window.scrollY;
       const bottomAtFold = y + rect.bottom - window.innerHeight;
       const topNearTop = y + rect.top - window.innerHeight * 0.05;
-      return Math.max(bottomAtFold, topNearTop);
+      return reachable(Math.max(bottomAtFold, topNearTop));
     };
 
     const mm = gsap.matchMedia();
@@ -285,8 +300,8 @@ export function useBlockArrival(
           ease: "none",
           scrollTrigger: {
             trigger: el,
-            start,
-            end: end ?? laterMark,
+            start: `clamp(${start})`,
+            end: end === undefined ? laterMark : `clamp(${end})`,
             scrub: SCRUB_DRIFT,
             invalidateOnRefresh: true,
           },
