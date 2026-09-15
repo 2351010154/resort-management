@@ -21,21 +21,56 @@ import {
 import { Money } from "../money";
 import styles from "./room-stage.module.css";
 
-// Decorative line icons follow the property's amenity order.
-const amenityPaths = [
-  "M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9 5l3 3 3-3M9 19l3-3 3 3",
-  "M5 12a7 7 0 0 1 14 0H5ZM12 2v3M7 16v2M12 16v4M17 16v2",
-  "M5 8h12v8a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V8ZM17 9h2a3 3 0 0 1 0 6h-2M8 3v2M12 3v2",
-  "M3 14h18M5 14v7M19 14v7M9 10h10l-3-7h-4l-3 7ZM14 10v4",
-  "M7 8h10l2 12H5L7 8ZM9 3h6v5M10 3V1h5",
-  "M9 3h6v4l2 3v11H7V10l2-3V3ZM7 13h10",
-  "M4 4h16v16H4V4ZM8 4v16M12 12a2 2 0 1 0 4 0 2 2 0 1 0-4 0M18 8v8",
-  "M4 5h10a4 4 0 0 1 0 8H9l2 8H7L5 13H4V5ZM18 7h3M18 11h3",
-  "M3 8a14 14 0 0 1 18 0M6 11a9 9 0 0 1 12 0M9 14a5 5 0 0 1 6 0M12 18h.01",
-  "M5 6l3-3 4 3 4-3 3 3-2 5 3 3-3 6H7l-3-6 3-3-2-5Z",
-  "M8 3l4 3 4-3 5 5-3 3-1 10H7L6 11 3 8l5-5ZM12 6v15M7 14h10",
-  "M3 4h18v13H3V4ZM8 21h8M12 17v4",
-];
+// Decorative line icons, keyed by the property file's own wording for the
+// amenity each one draws.
+//
+// **Keyed rather than positional**, which is what this was: twelve paths read
+// by the index of the label in `ROOM_AMENITIES`. That made two files agree by
+// counting. A thirteenth line in the property file rendered a `<path>` with no
+// `d` at all and a reordered one drew the wrong picture, neither of which
+// anything said out loud.
+//
+// A label the set has no drawing of falls to the neutral mark below — the same
+// fail-closed direction `room-icons.ts` takes for an aspect it has no picture
+// of.
+const AMENITY_PATHS = new Map<string, string>([
+  [
+    "Air conditioning",
+    "M12 3v18M4.2 7.5l15.6 9M4.2 16.5l15.6-9M9 5l3 3 3-3M9 19l3-3 3 3",
+  ],
+  ["Rain shower", "M5 12a7 7 0 0 1 14 0H5ZM12 2v3M7 16v2M12 16v4M17 16v2"],
+  [
+    "Kettle, tea and coffee",
+    "M5 8h12v8a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4V8ZM17 9h2a3 3 0 0 1 0 6h-2M8 3v2M12 3v2",
+  ],
+  [
+    "Desk and reading light",
+    "M3 14h18M5 14v7M19 14v7M9 10h10l-3-7h-4l-3 7ZM14 10v4",
+  ],
+  ["Premium toiletries", "M7 8h10l2 12H5L7 8ZM9 3h6v5M10 3V1h5"],
+  ["Still water", "M9 3h6v4l2 3v11H7V10l2-3V3ZM7 13h10"],
+  [
+    "In-room safe",
+    "M4 4h16v16H4V4ZM8 4v16M12 12a2 2 0 1 0 4 0 2 2 0 1 0-4 0M18 8v8",
+  ],
+  ["Hairdryer", "M4 5h10a4 4 0 0 1 0 8H9l2 8H7L5 13H4V5ZM18 7h3M18 11h3"],
+  [
+    "Wi-Fi",
+    "M3 8a14 14 0 0 1 18 0M6 11a9 9 0 0 1 12 0M9 14a5 5 0 0 1 6 0M12 18h.01",
+  ],
+  ["Daily housekeeping", "M5 6l3-3 4 3 4-3 3 3-2 5 3 3-3 6H7l-3-6 3-3-2-5Z"],
+  [
+    "Robes and slippers",
+    "M8 3l4 3 4-3 5 5-3 3-1 10H7L6 11 3 8l5-5ZM12 6v15M7 14h10",
+  ],
+  ["Smart TV", "M3 4h18v13H3V4ZM8 21h8M12 17v4"],
+]);
+
+/** The mark for an amenity the set has no drawing of: a plain ring, which says
+ *  "another line in this list" and claims nothing about what the line says. The
+ *  glyph is `aria-hidden` and the label beside it carries the fact, so a
+ *  neutral mark costs a guest nothing where a missing one breaks the row. */
+const AMENITY_MARK = "M12 4a8 8 0 1 0 0 16 8 8 0 0 0 0-16";
 
 export function RoomStage({
   type,
@@ -215,7 +250,7 @@ export function RoomStage({
           >
             <h3 className={`${styles.amenitiesTitle} caps-label`}>Amenities</h3>
             <ul className={styles.amenities}>
-              {ROOM_AMENITIES.map((item, index) => (
+              {ROOM_AMENITIES.map((item) => (
                 <li className={styles.amenity} key={item}>
                   <svg
                     aria-hidden="true"
@@ -227,7 +262,7 @@ export function RoomStage({
                     strokeLinecap="round"
                     strokeLinejoin="round"
                   >
-                    <path d={amenityPaths[index]} />
+                    <path d={AMENITY_PATHS.get(item) ?? AMENITY_MARK} />
                   </svg>
                   <span>{item}</span>
                 </li>
