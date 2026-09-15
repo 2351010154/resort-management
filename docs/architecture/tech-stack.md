@@ -2,7 +2,7 @@
 
 The decided parts list. One row per concern, one line of reasoning each. Full
 rationale, alternatives and evidence:
-[`plans/reports/archive/advise-260726-1119-stack-selection.md`](../../plans/reports/archive/advise-260726-1119-stack-selection.md)
+`plans/reports/archive/advise-260726-1119-stack-selection.md`
 (R2), frozen 2026-07-26.
 
 Three principles decide most of the table. Correctness invariants must be

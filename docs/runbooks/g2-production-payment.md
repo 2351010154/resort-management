@@ -6,7 +6,7 @@ runbooks do not repeat each other.
 
 The commit that switches VNPay from sandbox to live credentials is gate `G2`.
 Its six items and the reasoning behind them are stated once, in
-[`../architecture/infrastructure.md`](../architecture/infrastructure.md)
+[`../architecture/infrastructure.md#payments`](../architecture/infrastructure.md#payments)
 §Payments, at the paragraph beginning "The trigger". Read that paragraph before
 working through this file; this runbook is the order of operations, not a second
 copy of the gate.
