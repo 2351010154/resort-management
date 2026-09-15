@@ -314,6 +314,10 @@ describe("the door that creates an account from a mailed link", () => {
     expect(redeemed.body).toEqual({
       bookingId: stay.id,
       reference: stay.reference,
+      // The session this same response set the cookies for, named in the body
+      // so the page that follows the link knows whether it may carry the guest
+      // on to a profile only a session opens.
+      signedIn: true,
     });
 
     // The account it created can sign in at once, which is the whole of what
@@ -391,6 +395,13 @@ describe("the door that creates an account from a mailed link", () => {
       "A mailed link has signed a browser into an account that existed before " +
         "it. Only a sign-in speaks for what that account already holds.",
     ).toBeUndefined();
+
+    expect(
+      redeemed.body.signedIn,
+      "And the reply has to say so. A page told nothing sends this guest on " +
+        "to a profile their browser cannot open, past the sentence offering " +
+        "them the log-in the older account needs.",
+    ).toBe(false);
   });
 
   it("refuses the cookie that used to open the stay it just attached", async () => {

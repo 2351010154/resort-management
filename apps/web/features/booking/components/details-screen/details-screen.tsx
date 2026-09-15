@@ -865,7 +865,6 @@ function Review({
               <div className={styles.payHead}>
                 <p className={`${styles.payTerm} caps-label`}>
                   Payment information
-                  <Mark slug="lock" />
                 </p>
 
                 {/* Two radios drawn as a segmented control, not two buttons. A
@@ -1090,10 +1089,6 @@ function Review({
                 ) : null}
               </div>
 
-              {/* The label is centred and the lock stands at the far end of the
-                  button rather than beside the words. It is not part of the
-                  sentence — it says the same thing the caption over the payment
-                  panel says, at the moment the guest is about to act on it. */}
               <button
                 className={styles.complete}
                 data-complete-booking
@@ -1103,7 +1098,6 @@ function Review({
                 <span className={styles.completeLabel}>
                   {leaving ? "Opening the payment page…" : "Complete booking"}
                 </span>
-                <Mark slug="lock" />
               </button>
 
               {/* Empty until something is refused, and present the whole time so

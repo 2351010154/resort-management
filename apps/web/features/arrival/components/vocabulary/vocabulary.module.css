@@ -1,0 +1,105 @@
+/* The arrival's motion vocabulary: the styles the reveal and drift devices
+   need, and nothing else. Every rule here exists to stop a flash or to give a
+   tween something it can move; none of it paints. */
+
+/* ---- reveal ------------------------------------------------------------ */
+
+/* The from-states, in CSS rather than only in the effect that animates them.
+ *
+ * An element hidden by JavaScript is visible for the frame between paint and
+ * `useEffect`, which on a page with forty of them is a flash of the whole act
+ * arriving at once and then hiding itself. Declared here they are correct on
+ * the first paint, and the tween writes over them.
+ *
+ * Behind `no-preference` so that a reader who has asked for less motion never
+ * meets the hidden state at all — nothing mounts to reveal them, so anything
+ * hidden here would stay hidden. */
+@media (prefers-reduced-motion: no-preference) {
+  .reveal[data-reveal="clip"] {
+    clip-path: inset(0% 0% 100% 0%);
+  }
+
+  /* Parked fully clipped; the effect swaps in the slanted polygon it wipes
+     open from. */
+  .reveal[data-reveal="wipe"] {
+    clip-path: inset(100% 0% 0% 0%);
+  }
+
+  /* `transform`, not the standalone `translate` property. The batch animates
+     these with GSAP, which writes `transform` — and the two compose rather
+     than override, so a `translate` here would be added to the tween's offset
+     and never taken back off. The length is `RISE_DISTANCE` in motion-tokens;
+     the tween owns the value from its first frame, this only stops the flash. */
+  .reveal[data-reveal="rise"] {
+    opacity: 0;
+    transform: translateY(3.333rem);
+  }
+
+  .reveal[data-reveal="fade"] {
+    opacity: 0;
+  }
+
+  /* The whole block, until the effect has parked its characters — an unsplit
+     line visible for the frame before `useEffect` is the flash the split is
+     there to prevent. */
+  .reveal[data-reveal="chars"] {
+    opacity: 0;
+  }
+
+  .revealLine {
+    transform: translateY(115%);
+  }
+}
+
+.revealLineClip {
+  display: block;
+  /* The clip is the device: the line rides up out of an edge rather than
+     fading where it stands. */
+  overflow: hidden;
+}
+
+.revealLine {
+  display: block;
+}
+
+/* A word of a `chars` reveal. Inline-block so the browser still breaks the
+   line between words and never inside one; the perspective is on the word so
+   that each character's `rotateY` has a vanishing point of its own rather than
+   the whole line's. */
+.revealWord {
+  display: inline-block;
+  white-space: nowrap;
+  perspective: 40rem;
+}
+
+.revealChar {
+  display: inline-block;
+  backface-visibility: hidden;
+}
+
+/* ---- drift ------------------------------------------------------------- */
+
+.drift {
+  display: block;
+}
+
+.driftFrame {
+  position: relative;
+  overflow: hidden;
+}
+
+/* The bleed is the travel. `--drift-bleed` is written by the component from
+   the mode's own amplitude, so the picture is oversized by exactly as much as
+   it moves and not a pixel more — a bigger bleed is a softer picture for no
+   reason. */
+.driftMedia {
+  position: absolute;
+  inset: calc(var(--drift-bleed, 15%) * -1) 0;
+}
+
+.driftMedia > img,
+.driftMedia > video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}

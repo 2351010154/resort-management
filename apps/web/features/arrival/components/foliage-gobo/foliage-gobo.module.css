@@ -1,0 +1,45 @@
+/* The foliage gobo's mount: a layer the size of the act it lights, holding a
+   canvas that sticks to the viewport for the act's length. The act that mounts
+   it decides where in its own paint order the shadow falls; this file only
+   holds the shadow up. */
+
+/* The shadow multiplies onto whatever is under it, so the blend has to live on
+   this wrapper and not on the canvas: anything that makes its own stacking
+   context — a z-index, a transform — isolates the blend, and an isolated
+   multiply has no backdrop to darken and paints its own white instead. The
+   wrapper takes a z-index from the act that mounts it and blends with
+   everything the act has painted below that. */
+.goboWrap {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+}
+
+/* Pinned to the viewport for the length of the act: the window throwing the
+   light doesn't move because the page did. Has to be its own element — R3F sets
+   position/height inline on the canvas container, which a class can't win. */
+.gobo {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+
+/* No WebGL: the corner still darkens, it just doesn't have leaves in it. */
+.goboFallback {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  background:
+    radial-gradient(
+      68% 52% at 96% 4%,
+      rgb(var(--stone-deep-rgb) / 0.16) 0%,
+      rgb(var(--stone-deep-rgb) / 0.06) 46%,
+      rgb(var(--stone-deep-rgb) / 0) 74%
+    ),
+    radial-gradient(
+      40% 46% at 2% 42%,
+      rgb(var(--stone-deep-rgb) / 0.07) 0%,
+      rgb(var(--stone-deep-rgb) / 0) 72%
+    );
+}

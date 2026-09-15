@@ -6,9 +6,15 @@
   /* Act 4 hands over on this exact value, so the seam has nothing to bridge. */
   background: var(--night);
   color: var(--ivory);
-  /* One screen for Act 4's veil to wipe off the frame, one for the reading to be
-     held, one for the hand-over into the footer. */
+  /* One screen for Act 4's bands to close over this one, one for the reading
+     to be held, one for the hand-over into the footer. The first is scrolled
+     through with the act already stuck to the top of the viewport and Act 4
+     still pinned in front of it — the section reaches up under that act by
+     `ACT4_OVERHANG`, written as a negative margin by the component, which is
+     what puts the Invitation behind the bands rather than below them. */
   height: 300vh;
+  /* Written by the component from `ACT4_OVERHANG`. */
+  margin-top: calc(-1 * var(--overhang));
 }
 
 .stage {
@@ -16,6 +22,15 @@
   top: 0;
   height: 100vh;
   overflow: hidden;
+  /* A visible dusk fallback for a direct jump or a failed image request. The
+     scrim stays off until the photograph is ready, so this can never collapse
+     into the old near-black empty frame. */
+  background: linear-gradient(
+    145deg,
+    var(--dusk-amber) 0%,
+    var(--stone-deep) 58%,
+    var(--umber) 100%
+  );
 }
 
 /* The frame lives in its own clip so the breath never shows an edge. */
@@ -32,7 +47,13 @@
   /* Matches the settled beat in the component, so the first paint is the frame
      as it will be read rather than a jump at the first scroll event. */
   transform: scale(1.14);
+  opacity: 0;
   will-change: transform;
+  transition: opacity 0.4s var(--ease-ui);
+}
+
+.stage[data-plate-ready="true"] .plateImage {
+  opacity: 1;
 }
 
 /* Scrim instead of text-shadow: keeps the serif hairlines clean. Weighted to
@@ -54,6 +75,12 @@
       transparent 40%,
       rgb(var(--night-rgb) / 0.45) 100%
     );
+  opacity: 0;
+  transition: opacity 0.4s var(--ease-ui);
+}
+
+.stage[data-plate-ready="true"] .scrim {
+  opacity: 1;
 }
 
 .copy {
@@ -282,6 +309,9 @@
 @media (prefers-reduced-motion: reduce) {
   .section {
     height: auto;
+    /* Act 4 is a static screen here, not a pinned stage with a hand-over to
+       stand behind, so there is nothing to reach up under. */
+    margin-top: 0;
   }
 
   .stage {

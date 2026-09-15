@@ -19,6 +19,13 @@
       // drawing, which is not a thing anyone can act on.
       "!docs",
 
+      // Static assets the server hands out byte for byte. The mask .svg files
+      // under it are read the same way as the ones in docs — a drawing
+      // reported as an untitled image — and none of them is ever parsed as
+      // markup by the app, so the accessibility family has nothing to say
+      // about them.
+      "!apps/web/public",
+
       // Committed PNG fixtures, and the drizzle-generated migration ledger:
       // reformatting a snapshot drizzle-kit writes and reads back would
       // desync the two without anything reporting it.

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <!-- The feather. Wide enough that no run of the silhouette below reads as a
+         drawn edge, and the path is inset far enough from the viewBox that three
+         standard deviations of it still land inside — a mask is clipped at its
+         own viewport, and a blur that reaches the edge is turned back into the
+         hard straight line it was there to remove. -->
+    <filter id="soft-edge" x="-25%" y="-25%" width="150%" height="150%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="24" />
+    </filter>
+  </defs>
+  <!-- Irregular on every side, and on the top especially: the previous outline
+       crossed the head of the frame in one long shallow arc, which at any feather
+       reads as a horizon rather than as a photograph dissolving into the ground. -->
+  <path fill="white" filter="url(#soft-edge)" d="M 132 176 C 150 128 196 108 244 112 C 292 116 318 92 356 118 C 396 146 386 190 400 232 C 414 274 404 306 396 342 C 386 382 344 404 300 400 C 258 396 232 414 194 396 C 152 376 130 344 124 302 C 118 262 106 232 118 200 C 122 188 126 182 132 176 Z" />
+</svg>

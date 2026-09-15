@@ -253,7 +253,6 @@ Run from the repo root.
 | `pnpm format` | Biome, writing in place |
 | `pnpm typecheck` | Every workspace that owns a `tsc` pass |
 | `pnpm test` | Vitest across the workspaces |
-| `pnpm backlog:view` | Generates `plans/backlog.html` from the Markdown planning record |
 
 The API's own commands — migrations, the Nest watch loop, the first-admin script — are in
 [`apps/api/README.md`](apps/api/README.md#commands).
@@ -307,8 +306,7 @@ Written as the system is built, not assembled at the end.
 
 | Start here | For |
 | --- | --- |
-| [`docs/orientation.md`](docs/orientation.md) | What the system is, the invariant, and where to resume work |
-| [`docs/README.md`](docs/README.md) | The **authority map** — which document owns which fact, and the precedence order when two disagree |
+| [`docs/product-requirements.md`](docs/product-requirements.md) | What the system is, the invariant it protects, and the requirements it answers to |
 | [`docs/screens.md`](docs/screens.md) | Intended screen and route map; issues own delivery state |
 
 | Design fact | Owner |
@@ -329,8 +327,7 @@ stored copy earns nothing but the chance to disagree with them.
 
 > [!TIP]
 > Markdown under `plans/` is versionable stateful evidence, not the live tracker.
-> `pnpm backlog:view` generates an ignored HTML view. Use
-> [GitHub issues](https://github.com/2351010154/resort-management/issues)
+> Use [GitHub issues](https://github.com/2351010154/resort-management/issues)
 > for current execution state.
 
 ### Vocabulary

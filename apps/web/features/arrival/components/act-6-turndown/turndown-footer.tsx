@@ -6,6 +6,11 @@
 // it; the panel then rides up off the house name, which was behind it the whole
 // time — see wordmark-reveal.
 
+import {
+  CHECK_IN_TIME,
+  CHECK_OUT_TIME,
+  PROPERTY_ADDRESS_LINES,
+} from "@mariva/shared";
 import { useRef } from "react";
 import {
   useLenis,
@@ -15,15 +20,27 @@ import {
   scrollToAct,
   scrollToExperience,
 } from "@/features/arrival/components/navigation/nav-hover-link";
+import { useBlockArrival } from "@/features/arrival/components/vocabulary/drift";
+import {
+  Reveal,
+  useRevealBatch,
+} from "@/features/arrival/components/vocabulary/reveal";
 import { EmbossedMonogram, type EmbossIntensity } from "./embossed-monogram";
 import { LettersFromMariva } from "./letters-from-mariva-form";
 import { WordmarkReveal } from "./wordmark-reveal";
 import styles from "./act-6-turndown.module.css";
 
 // Entries with an `act` or an `experience` ride the same lenis scroll as the
-// nav; the rest are decorative (concept piece, no destinations) and render as
-// plain text — no dead href, no focus stop. Dine and Restore are experiences
-// inside Act 4, not acts of their own; Stay is that act itself.
+// nav; the rest are the house's own facts — where it stands and when its doors
+// open — and render as plain text: no dead href, no focus stop. Dine and
+// Restore are experiences inside Act 4, not acts of their own; Stay is that act
+// itself.
+//
+// The facts are read from `@mariva/shared` rather than typed here, so the
+// footer, the review screen and the pre-arrival mail cannot disagree about the
+// address or the clock. They are what the end of the page is for: the last
+// beat above is a mood, and a reader who scrolled all the way down came here
+// for where the house is and when it opens its doors.
 //
 // The destinations are buttons, not links. There is no `#act-5` on the page to
 // link to — the acts are found by `[data-act]` and scrolled to by lenis — so an
@@ -40,12 +57,12 @@ const COLUMNS = [
     ],
   },
   {
-    title: "The house",
+    title: "Find us",
     links: [
-      { label: "Contact" },
-      { label: "Press" },
-      { label: "Careers" },
-      { label: "Journal" },
+      { label: PROPERTY_ADDRESS_LINES[0] },
+      { label: PROPERTY_ADDRESS_LINES[1] },
+      { label: `Check-in from ${CHECK_IN_TIME}` },
+      { label: `Check-out by ${CHECK_OUT_TIME}` },
     ],
   },
 ] as const;
@@ -56,6 +73,7 @@ export function TurndownFooter({
   embossIntensity?: EmbossIntensity;
 }) {
   const sectionRef = useRef<HTMLElement>(null);
+  const bodyRef = useRef<HTMLDivElement>(null);
   const lenis = useLenis();
 
   // Columns, a form, and a wordmark: the one screen of the ride that is a page.
@@ -63,15 +81,23 @@ export function TurndownFooter({
   // for a link.
   useScrollWeight(sectionRef, "light");
 
+  // The footer grows into place rather than simply being under the last act:
+  // the reading block scales up out of three quarters across its own arrival,
+  // scrubbed at the drift lag so it is still settling after the page has
+  // stopped. Its columns then rise inside it, so the end of the ride arrives in
+  // two moves instead of appearing whole.
+  useBlockArrival(bodyRef);
+  useRevealBatch(sectionRef);
+
   return (
     <footer ref={sectionRef} data-act={6} className={styles.section}>
       <div className={styles.inner}>
         <EmbossedMonogram intensity={embossIntensity} triggerRef={sectionRef} />
 
-        <div className={styles.body}>
+        <div ref={bodyRef} className={styles.body}>
           <nav className={styles.columns} aria-label="Footer">
             {COLUMNS.map(({ title, links }) => (
-              <div key={title} className={styles.column}>
+              <Reveal mode="rise" key={title} className={styles.column}>
                 <span className={`caps-label ${styles.columnTitle}`}>
                   {title}
                 </span>
@@ -100,16 +126,16 @@ export function TurndownFooter({
                     </span>
                   ),
                 )}
-              </div>
+              </Reveal>
             ))}
           </nav>
 
           <LettersFromMariva />
         </div>
 
-        <p className={styles.smallPrint}>
+        <Reveal mode="fade" as="p" className={styles.smallPrint}>
           MARIVA — a concept study. Imagery: Aman Resorts.
-        </p>
+        </Reveal>
       </div>
 
       <WordmarkReveal />

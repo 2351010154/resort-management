@@ -84,6 +84,22 @@ export type LinkOutcome =
   | { readonly ok: false; readonly message: string };
 
 /**
+ * A followed account link, settled — the stay, and whether this browser now
+ * holds a session over the account the stay was attached to.
+ *
+ * Its own type rather than a field on `LinkOutcome`, because the other two
+ * calls cannot answer it: a stay link issues no session at all, and an attach
+ * is made by a browser that already had one.
+ */
+export type AccountOutcome =
+  | {
+      readonly ok: true;
+      readonly stay: AttachedStay;
+      readonly signedIn: boolean;
+    }
+  | { readonly ok: false; readonly message: string };
+
+/**
  * The sentences this app writes itself, for the failures that carry none.
  *
  * Reached by what never got to a handler — a network that was not there, an API
@@ -129,20 +145,24 @@ export async function exchangeStayLink(link: string): Promise<LinkOutcome> {
  * No address is sent and none can be. `guest-attach.service.ts` reads it off the
  * booking, so the account is made for the address the message went to — a caller
  * naming one would be naming which account this creates.
+ *
+ * **`signedIn` travels beside the stay rather than inside it.** The stay is the
+ * two names a page prints; whether a session came back is a fact about this
+ * browser, and the screen needs it to decide whether it may carry the guest on
+ * to a page that only a session opens.
  */
 export async function createAccountFrom(presented: {
   readonly link: string;
   readonly password?: string;
-}): Promise<LinkOutcome> {
+}): Promise<AccountOutcome> {
   try {
-    return {
-      ok: true,
-      stay: await api.booking.createAccountFromLink(
-        presented.password === undefined
-          ? { link: presented.link }
-          : { link: presented.link, password: presented.password },
-      ),
-    };
+    const { signedIn, ...stay } = await api.booking.createAccountFromLink(
+      presented.password === undefined
+        ? { link: presented.link }
+        : { link: presented.link, password: presented.password },
+    );
+
+    return { ok: true, stay, signedIn };
   } catch (error) {
     return { ok: false, message: apiMessage(error, MESSAGES.account) };
   }

@@ -19,15 +19,18 @@
 
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BorderGlowPill } from "@/features/arrival/components/act-5-invitation/border-glow-pill";
+import { ACT4_OVERHANG } from "@/features/arrival/lib/act-seams";
 import { arrivalImages } from "@/features/arrival/lib/image-manifest";
 import { tierSrc, tierSrcSet } from "@/features/arrival/lib/image-srcset";
+import { registerArrivalEases } from "@/features/arrival/lib/motion-eases";
 import { prefersReducedMotion } from "@/features/arrival/lib/webgl-support";
 import {
-  DUR_SCENE,
-  EASE_SCENE,
-  EASE_UI,
+  DUR_ENTER,
+  DUR_EXIT,
+  EASE_ENTER,
+  SCRUB_DRIFT,
   STAGGER_CASCADE,
 } from "@/lib/motion-tokens";
 import styles from "./act-5-invitation.module.css";
@@ -53,11 +56,22 @@ const PLATE_SCALE = [1.14, 1.02, 1.1] as const;
 
 export function InvitationScreen() {
   const sectionRef = useRef<HTMLElement>(null);
+  const plateRef = useRef<HTMLImageElement>(null);
+  const [plateReady, setPlateReady] = useState(false);
+
+  // An eager image can finish between the server paint and hydration, before
+  // React has attached onLoad. Read the element once on mount as well as
+  // listening below, so a cached frame cannot remain on its fallback forever.
+  useEffect(() => {
+    const image = plateRef.current;
+    setPlateReady(Boolean(image?.complete && image.naturalWidth > 0));
+  }, []);
 
   useEffect(() => {
     const section = sectionRef.current;
     if (!section || prefersReducedMotion()) return;
     gsap.registerPlugin(ScrollTrigger);
+    registerArrivalEases();
 
     const ctx = gsap.context(() => {
       const lines = section.querySelectorAll("[data-invite-line]");
@@ -67,17 +81,19 @@ export function InvitationScreen() {
       // several screens below the fold, so there is nothing to flash.
       gsap.set(lines, { yPercent: 115 });
 
-      // The address, once the veil is off it (Act 4's deck holds its pin to this
-      // act's top and its tail fade then wipes up over the first screen — see
-      // room-deck). Anything revealed before that plays behind the wipe.
-      gsap
-        .timeline({
-          scrollTrigger: { trigger: section, start: "top -100%", once: true },
-        })
+      // Let the photograph enter and settle for one screen before the address
+      // arrives. The frame itself is already fully visible during that entry.
+      //
+      // Paused and played rather than fired by the trigger, so the address can
+      // also leave: scrolling back up over the mark empties the corner and
+      // coming down writes it again, at three times the speed going out. The
+      // one-screen wait is the composition's, not the vocabulary's, which is
+      // why this keeps its own mark instead of joining the reveal batch.
+      const address = gsap
+        .timeline({ paused: true, defaults: { ease: EASE_ENTER } })
         .to(lines, {
           yPercent: 0,
-          duration: DUR_SCENE,
-          ease: EASE_SCENE,
+          duration: DUR_ENTER,
           stagger: STAGGER_CASCADE,
         })
         .fromTo(
@@ -86,15 +102,28 @@ export function InvitationScreen() {
           {
             autoAlpha: 1,
             y: 0,
-            duration: 0.9,
-            ease: EASE_UI,
+            duration: DUR_ENTER * 0.75,
             stagger: STAGGER_CASCADE,
           },
           0.35,
         );
 
-      // The breath, across the held screen — relaxing out of the wipe, settled
-      // while the reading is on it, swelling again as the footer takes over.
+      ScrollTrigger.create({
+        trigger: section,
+        start: "top -100%",
+        onEnter: () => address.timeScale(1).play(),
+        onEnterBack: () => address.timeScale(1).play(),
+        onLeaveBack: () => address.timeScale(DUR_ENTER / DUR_EXIT).reverse(),
+      });
+
+      // The breath across the held screen: settling while the reading is on it,
+      // then swelling again as the footer takes over.
+      //
+      // The drift scrub, not the hard one. The plate shares no edge with
+      // anything — it is a photograph changing size inside its own frame — so
+      // it takes the second smoothing and goes on breathing for half a second
+      // after the reader's hand has stopped, which is the difference between a
+      // frame answering the reader and a frame tracking the scrollbar.
       gsap
         .timeline({
           defaults: { ease: "none" },
@@ -102,7 +131,7 @@ export function InvitationScreen() {
             trigger: section,
             start: "top top",
             end: "bottom bottom",
-            scrub: true,
+            scrub: SCRUB_DRIFT,
           },
         })
         .fromTo(
@@ -115,26 +144,28 @@ export function InvitationScreen() {
           `.${styles.plateImage}`,
           { scale: PLATE_SCALE[2], duration: 0.38 },
           0.62,
-        )
-        // The frame comes up with the veil, not after it: the wipe's edge would
-        // otherwise cut a lit photograph in half for a whole screen of scroll.
-        // Half the range is exactly the veil's travel (one viewport of the
-        // three this act is long).
-        .fromTo(
-          `.${styles.plate}`,
-          { opacity: 0.18 },
-          { opacity: 1, duration: 0.5, ease: "power2.in" },
-          0,
         );
     }, section);
     return () => ctx.revert();
   }, []);
 
   return (
-    <section ref={sectionRef} data-act={5} className={styles.section}>
-      <div className={styles.stage}>
+    <section
+      ref={sectionRef}
+      data-act={5}
+      className={styles.section}
+      // The act starts under Act 4's last screen rather than after it: the
+      // stage below is sticky, so from this section's own top the Invitation is
+      // held at the top of the viewport, behind Act 4's still-pinned stage,
+      // for exactly as long as that act's bands take to close over it. The
+      // stylesheet spends it as a negative margin, and drops it where there is
+      // no pinned stage to stand behind.
+      style={{ "--overhang": `${ACT4_OVERHANG}vh` } as React.CSSProperties}
+    >
+      <div className={styles.stage} data-plate-ready={plateReady}>
         <div className={styles.plate}>
           <img
+            ref={plateRef}
             className={styles.plateImage}
             src={tierSrc(PLATE.src, 1920)}
             srcSet={tierSrcSet(PLATE)}
@@ -142,8 +173,11 @@ export function InvitationScreen() {
             width={PLATE.width}
             height={PLATE.height}
             alt={PLATE.alt}
-            loading="lazy"
+            loading="eager"
+            fetchPriority="high"
             decoding="async"
+            onLoad={() => setPlateReady(true)}
+            onError={() => setPlateReady(false)}
           />
         </div>
         <div className={styles.scrim} aria-hidden />

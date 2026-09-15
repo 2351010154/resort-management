@@ -1,0 +1,563 @@
+.section {
+  --paper: var(--ivory-warm);
+  --headline: clamp(2.75rem, 4.4vw, 4.75rem);
+  --label: 0.6875rem;
+  --body: 0.875rem;
+  --image-bleed: 2.25;
+  position: relative;
+  height: calc(var(--length) * 1vh);
+}
+.stage {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  z-index: 2;
+}
+.viewport {
+  position: absolute;
+  top: -100vh;
+  width: 100%;
+  height: 200vh;
+  overflow: hidden;
+}
+.backdrop {
+  background: var(--paper);
+  position: absolute;
+  top: 100vh;
+  width: 100%;
+  height: 100vh;
+}
+.backdrop img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* Keep the scene intact and feather only the stone at the page join. */
+.horizonImage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.horizonImage::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: clamp(64px, 12vh, 132px);
+  pointer-events: none;
+  /* Introduce the continuation's actual grain, instead of a flat color band. */
+  mask-image: linear-gradient(to bottom, transparent, var(--ink) 90%);
+  background-color: rgb(231 216 198);
+  background-image:
+    linear-gradient(
+      to bottom,
+      rgb(231 216 198 / 0.6),
+      rgb(231 216 198 / 0.8) 58%
+    ),
+    url("/images/act-2-ribbon/limestone-extended.webp");
+  background-size: 100vw 100vh;
+  background-position: center var(--stone-offset, 0px);
+  background-attachment: scroll;
+  background-repeat: no-repeat;
+}
+.horizonImage img {
+  object-position: center bottom;
+}
+.heroBackdrop,
+.waterBackdrop {
+  position: absolute;
+  inset: 0;
+}
+.heroBackdrop img {
+  /* Match Act 1's final frame crop so the shared photograph never snaps. */
+  transform: scale(1.06);
+}
+.waterBackdrop {
+  overflow: hidden;
+}
+.waterBackdrop img {
+  transform: scale(1.45);
+  object-position: 35% 70%;
+  filter: brightness(0.48) saturate(0.8);
+}
+.world,
+.copyWorld {
+  position: absolute;
+  top: 100vh;
+  left: 0;
+  width: 100%;
+  will-change: transform;
+}
+.world {
+  z-index: 3;
+}
+.copyWorld {
+  z-index: 4;
+}
+.plate {
+  position: absolute;
+  left: calc(var(--x) * 1vw);
+  top: calc(var(--y) * 1vh);
+  width: calc(var(--r) * var(--image-bleed) * var(--stretch) * 1vh);
+  height: calc(var(--r) * var(--image-bleed) * 1vh);
+  margin-top: calc(var(--r) * var(--image-bleed) * -0.5vh);
+  margin-left: calc(var(--r) * var(--image-bleed) * var(--stretch) * -0.5vh);
+  overflow: visible;
+  will-change: transform;
+}
+.clipDefinitions {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+.photoDrift {
+  position: absolute;
+  inset: -5% 0;
+  will-change: transform;
+}
+.photoDrift img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.nextImage {
+  position: absolute;
+  inset: 0;
+  clip-path: inset(100% 0 0);
+}
+.ribbon {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  pointer-events: none;
+}
+.sheet {
+  fill: var(--paper);
+}
+.chapterTrail {
+  color: var(--ink);
+  opacity: 0.3;
+}
+/* Props rest on the sheet. The scroll drop is on the wrapper so the hover
+   lift on the image never fights it; all share one light with the gobo. */
+.prop {
+  position: absolute;
+  top: calc(var(--y) * 1vh);
+  left: calc(var(--x) * 1vw);
+  width: calc(var(--size) * 1vw);
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+.prop img {
+  display: block;
+  width: 100%;
+  height: auto;
+  pointer-events: auto;
+  transform: rotate(var(--tilt));
+  transition: transform 350ms ease;
+  filter: drop-shadow(0 8px 10px rgb(var(--ink-rgb) / 0.12));
+}
+@media (hover: hover) and (pointer: fine) {
+  .prop img:hover {
+    transform: translateY(-8px) rotate(calc(var(--tilt) + 5deg)) scale(1.12);
+  }
+}
+.gobo {
+  z-index: 3;
+  opacity: calc(0.55 * var(--scene-opacity, 1));
+}
+.beat {
+  position: absolute;
+  top: calc(var(--y) * 1vh);
+  left: calc(var(--x) * 1vw);
+  width: 27vw;
+  color: var(--ink);
+  will-change: transform, opacity;
+}
+.marker {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  font-family: var(--font-mono), monospace;
+  font-size: var(--label);
+  line-height: 1.5;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+.index {
+  display: inline-flex;
+  align-items: center;
+  gap: 1rem;
+}
+.index::after {
+  content: "";
+  width: 2.5rem;
+  height: 1px;
+  background: currentcolor;
+  opacity: 0.45;
+}
+.display {
+  font-family: var(--font-display), serif;
+  font-weight: 400;
+  font-size: var(--headline);
+  line-height: 1.04;
+  letter-spacing: -0.035em;
+}
+.display > span {
+  display: block;
+}
+.note {
+  max-width: 23ch;
+  margin-top: 1.5rem;
+  font-size: var(--body);
+  line-height: 1.7;
+  color: var(--stone-deep);
+}
+.facts {
+  margin: 1.5rem 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.5rem;
+  font-size: var(--body);
+  color: var(--stone-deep);
+}
+.actionLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.25rem;
+  min-height: 44px;
+  margin-top: 1.5rem;
+  font-size: var(--label);
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  color: var(--ink);
+}
+.actionLink::after {
+  content: "→";
+  display: grid;
+  place-items: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid currentcolor;
+  border-radius: 50%;
+  font-size: 1.25rem;
+  transition: transform 180ms ease;
+}
+.actionLink:hover::after {
+  transform: translateX(4px);
+}
+.actionLink:active::after {
+  transform: translateX(2px);
+}
+.actionLink:focus-visible {
+  outline: 2px solid currentcolor;
+  outline-offset: 4px;
+}
+.beat[data-beat="light"] {
+  width: 19vw;
+}
+.beat[data-beat="light"] .display {
+  font-size: clamp(2.25rem, 3.2625vw, 3.375rem);
+  line-height: 1;
+}
+.beat[data-beat="light"] .marker {
+  position: relative;
+  margin-bottom: 2rem;
+}
+.beat[data-beat="light"] .index::after {
+  position: absolute;
+  left: -2.8vw;
+  top: -2rem;
+  width: 1px;
+  height: 3.625rem;
+}
+.beat[data-beat="light"] .index::before {
+  content: "";
+  position: absolute;
+  left: calc(-2.8vw - 3px);
+  top: 1.375rem;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentcolor;
+}
+.beat[data-beat="light"] .note {
+  margin-top: 2.25rem;
+  margin-left: 0;
+  max-width: 19ch;
+  font-size: 0.75rem;
+  line-height: 1.9;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.beat[data-beat="light"] .actionLink {
+  margin-left: 0;
+  gap: 2.25rem;
+}
+.beat[data-beat="light"] .actionLink::after {
+  width: 2.25rem;
+  height: 2.25rem;
+}
+.beat[data-beat="rooms"] {
+  width: 25vw;
+}
+.beat[data-beat="table"] {
+  width: 30vw;
+}
+
+/* The stay beat is the act's one commitment, so its address is a filled
+   button rather than another quiet arrow link. The arrow stays, inside the
+   fill; the circle .actionLink normally draws around it is unset here. */
+.beat[data-beat="stay"] .actionLink {
+  gap: 0.9rem;
+  min-height: 3.25rem;
+  padding: 0 1.75rem;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--ivory);
+  transition:
+    background 200ms var(--ease-ui, ease),
+    transform 200ms var(--ease-ui, ease);
+}
+.beat[data-beat="stay"] .actionLink::after {
+  width: auto;
+  height: auto;
+  border: 0;
+  border-radius: 0;
+  font-size: 1rem;
+}
+.beat[data-beat="stay"] .actionLink:hover {
+  background: var(--umber);
+}
+.beat[data-beat="stay"] .actionLink:active {
+  transform: translateY(1px);
+}
+.beat[data-beat="stay"] .actionLink:focus-visible {
+  outline-color: var(--ink);
+}
+.beat[data-on-photo] {
+  width: 44vw;
+  color: var(--ivory);
+  text-shadow: 0 2px 16px rgb(var(--ink-rgb) / 0.2);
+}
+.beat[data-on-photo] .display {
+  font-size: clamp(4rem, 7.2vw, 7.5rem);
+}
+.beat[data-on-photo] .note {
+  color: var(--ivory);
+}
+.beat[data-beat="horizon"] {
+  margin-top: 1rem;
+  width: 31vw;
+}
+.beat[data-beat="horizon"] .display {
+  font-size: clamp(2.5rem, 3.8vw, 4rem);
+}
+@media (max-width: 700px) {
+  .section {
+    --headline: clamp(2.25rem, 9vw, 3rem);
+    --body: 0.8125rem;
+  }
+  .beat,
+  .beat[data-beat],
+  .beat[data-on-photo] {
+    width: 76vw;
+  }
+  .marker {
+    margin-bottom: 1rem;
+    font-size: 0.625rem;
+  }
+  .beat[data-beat="light"] .display,
+  .beat[data-beat="horizon"] .display {
+    font-size: var(--headline);
+  }
+  .beat[data-on-photo] {
+    color: var(--ink);
+    text-shadow: none;
+  }
+  .beat[data-on-photo] .display {
+    font-size: clamp(3.5rem, 16vw, 5rem);
+  }
+  .beat[data-on-photo] .note {
+    color: var(--stone-deep);
+  }
+  .note,
+  .facts,
+  .actionLink {
+    margin-top: 1rem;
+  }
+  .note {
+    max-width: 32ch;
+  }
+  .beat[data-beat="horizon"] {
+    background: rgb(var(--ivory-rgb) / 0.88);
+    padding: 1.5rem;
+  }
+}
+.section[data-still="true"] .stage {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+}
+.section[data-still="true"] .viewport {
+  top: 0;
+  height: 100%;
+  overflow: clip;
+}
+.section[data-still="true"] .backdrop {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+}
+.section[data-still="true"] .heroBackdrop,
+.section[data-still="true"] .waterBackdrop {
+  display: none;
+}
+.section[data-still="true"] .world,
+.section[data-still="true"] .copyWorld {
+  will-change: auto;
+}
+@media (prefers-reduced-motion: reduce) {
+  .prop img {
+    transition: none;
+  }
+  .prop img:hover {
+    transform: rotate(var(--tilt));
+  }
+  .actionLink::after {
+    transition: none;
+  }
+  .photoDrift,
+  .plate,
+  .beat,
+  .prop {
+    will-change: auto;
+  }
+}
+
+.photoCrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+/* Layers share a fixed crop; the diagonal reveal is animated independently. */
+.sliderTrack {
+  position: relative;
+  height: 100%;
+  overflow: hidden;
+}
+.sliderFrame {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.sliderFrame img {
+  will-change: transform;
+}
+.sliderNodes {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+  position: absolute;
+  right: 9%;
+  bottom: 0;
+  display: flex;
+  width: 140px;
+  height: 44px;
+  color: var(--ink);
+}
+.sliderNodes::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 22px;
+  right: 22px;
+  height: 1px;
+  background: currentcolor;
+  opacity: 0.3;
+}
+.sliderNodes::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 22px;
+  width: 14px;
+  height: 14px;
+  border: 1px solid currentcolor;
+  border-radius: 50%;
+  transform: translate(calc(-50% + var(--slide) * 48px), -50%);
+  transition-property: transform;
+  transition-duration: var(--slide-duration);
+  transition-timing-function: var(--ease-wipe);
+  pointer-events: none;
+}
+.sliderNodes button {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.sliderNodes button + button {
+  margin-left: 4px;
+}
+.sliderNodes button::before {
+  content: "";
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: currentcolor;
+}
+.sliderNodes button:focus-visible {
+  outline: 1px solid currentcolor;
+  outline-offset: -4px;
+  border-radius: 50%;
+}
+
+.gobo,
+.gobo * {
+  /* R3F sets pointer events inline on its decorative canvas wrapper. */
+  pointer-events: none !important;
+}
+
+.sliderProgress {
+  position: absolute;
+  top: 50%;
+  left: 22px;
+  width: 96px;
+  height: 1px;
+  background: currentcolor;
+  transform: scaleX(0);
+  transform-origin: left center;
+  pointer-events: none;
+}
+
+.sauceStack {
+  position: relative;
+  aspect-ratio: 640 / 584;
+}
+.sauceStack img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  pointer-events: none;
+  transition: opacity 650ms var(--ease-ui);
+}
+@media (prefers-reduced-motion: reduce) {
+  .sauceStack img {
+    transition: none;
+  }
+}

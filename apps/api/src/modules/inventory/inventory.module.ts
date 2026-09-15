@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { GuestModule } from "../guest/guest.module.js";
 import { AvailabilityController } from "./availability.controller.js";
 import { AvailabilityService } from "./availability.service.js";
 import { ClosureController } from "./closure.controller.js";
@@ -18,6 +19,15 @@ import { InventoryService } from "./inventory.service.js";
 // `DatabaseModule` is global, so nothing is imported here for the Drizzle
 // client the services inject.
 //
+// `GuestModule` is imported for `TierDerivationService`, and it is imported
+// rather than the service being provided a second time — the reasoning
+// `guest.module.ts` gives for providing its own stateless readers runs the other
+// way here. That class holds two collaborators of its own and reads four
+// configuration rows to answer, so a second instance is a second ladder a guest
+// could be measured against; `availability.service.ts` says why a search asks it
+// at all. The dependency runs one way: nothing in the guest realm reads
+// inventory.
+//
 // `InventoryService` has no controller and is exported anyway. It is the write
 // primitive a booking ends in, and `booking-state-machine.md` §3 puts every
 // caller of it inside a transition — so the endpoint that reaches it belongs to
@@ -25,6 +35,7 @@ import { InventoryService } from "./inventory.service.js";
 // would be a way to consume a room without a booking behind it, which is the
 // one thing the two-layer design exists to prevent.
 @Module({
+  imports: [GuestModule],
   controllers: [AvailabilityController, ClosureController],
   providers: [AvailabilityService, ClosureService, InventoryService],
   exports: [AvailabilityService, InventoryService],

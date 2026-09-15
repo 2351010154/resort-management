@@ -69,6 +69,13 @@ export class GuestAttachController {
    * has committed, so a browser is never handed a session for an attach that
    * rolled back. The path that found an account already registered hands back
    * none, and this loop then does nothing at all.
+   *
+   * **`signedIn` is read off that same list and is the only thing the reply
+   * says about it.** Whether cookies were written is a fact about this browser
+   * rather than about the address, and the page that follows the link has to
+   * have it: without it every guest is sent on to a profile, and the two paths
+   * that issue no session send theirs to a page their browser cannot open.
+   * `contract/booking.ts` argues why stating it discloses nothing.
    */
   @UseGuards(JsonRequestGuard, AccountLinkRateLimitGuard)
   @Unguarded("the link out of a confirmation email is itself the credential")
@@ -85,7 +92,10 @@ export class GuestAttachController {
           response.append("set-cookie", cookie);
         }
 
-        return redeemed.stay;
+        return {
+          ...redeemed.stay,
+          signedIn: redeemed.sessionCookies.length > 0,
+        };
       },
     );
   }

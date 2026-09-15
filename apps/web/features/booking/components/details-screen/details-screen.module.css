@@ -92,12 +92,19 @@
        --detail-term   11px caps, --stone-deep, 400 — the question
        --detail-note   11px,      --stone-deep, 300 — what qualifies the answer
        --detail-body   12px,      varies,       300 — prose, and a button's label
-       --detail-value  14px,      --ink,        500 — the answer itself
+       --detail-value  14px,      --ink,        400 — the answer itself
 
-     A term and the value under it are two sizes, two weights and two greys
-     apart, which is what makes a stack of four of them scannable. The display
-     face carries the three headings and the total, and is left at its Light: it
-     is already separated from everything around it by face and by size, and a
+     A term and the value under it are two sizes, one case and two greys apart,
+     which is what makes a stack of four of them scannable. **The answer is set
+     in the Regular, not the Medium**, and that is a correction: the rest of the
+     site runs on Plex Light with the Regular for caps runs and error lines, so
+     a screen that reached for the Medium for every date, party and rate read
+     heavier than the funnel around it — the same words on the room step and on
+     this one drawn in two different voices. Separation here is carried by size,
+     case and colour, all three of which the ramp already spends; weight was the
+     fourth axis and the one the house does not have to give. The display face
+     carries the three headings and the total, and is left at its Light: it is
+     already separated from everything around it by face and by size, and a
      heavier Cormorant on this ground reads as a different hotel.
 
      **The whole ramp came down a step and the measure went out to meet it**,
@@ -116,6 +123,13 @@
 
   --plate-pad: clamp(var(--space-2), 3vw, 3rem);
   --aside-pad: clamp(0.875rem, 1.3vw, 1.5rem);
+  /* The summary plate's own vertical rhythm, one notch above `--space-2`.
+     Every group in it — the heading under the photograph, the rail, the rows,
+     the deadline — is separated by this and by nothing else, so the plate reads
+     as four bands of the same pitch rather than as a list that tightens as it
+     goes. It is stated once because it was four separate `--space-2`s, and four
+     of anything is what drifts. */
+  --aside-gap: 1.25rem;
   --plate-edge: 1px solid rgb(var(--umber-rgb) / 0.09);
   /* Every hairline inside a plate, stated once: the rule under the room's name,
      the seam above the total, and the rail the two dates hang on. They were
@@ -127,6 +141,13 @@
   --plate-lift:
     0 1px 2px rgb(var(--umber-rgb) / 0.04),
     0 0.75rem 2rem rgb(var(--umber-rgb) / 0.05);
+  /* And the same cast, one step nearer, for the two plates in the summary
+     column. They are the only blocks on the page that stay put while the rest
+     of it scrolls under them, and a sticky plate at the same elevation as the
+     ones travelling past reads as a piece of the page that failed to move. */
+  --aside-lift:
+    0 1px 2px rgb(var(--umber-rgb) / 0.05),
+    0 1.25rem 2.5rem rgb(var(--umber-rgb) / 0.07);
 
   min-height: 100dvh;
   background: var(--ivory-warm);
@@ -301,7 +322,7 @@
    that it is not doing it on colour alone. */
 .factValue {
   font-size: var(--detail-value);
-  font-weight: 500;
+  font-weight: 400;
   line-height: 1.4;
   color: var(--ink);
 }
@@ -411,7 +432,7 @@
 
 .shotName {
   font-size: var(--detail-body);
-  font-weight: 500;
+  font-weight: 400;
   color: var(--ivory);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -582,7 +603,7 @@
   padding: 0 0.875rem;
   font: inherit;
   font-size: 1rem;
-  font-weight: 500;
+  font-weight: 400;
   color: var(--ink);
   background: transparent;
   border: 1px solid rgb(var(--umber-rgb) / 0.18);
@@ -772,7 +793,7 @@
   padding: 0;
   font: inherit;
   font-size: 1rem;
-  font-weight: 500;
+  font-weight: 400;
   color: var(--ink);
   background: transparent;
   border: 0;
@@ -882,7 +903,7 @@
 
 .providerName {
   font-size: var(--detail-body);
-  font-weight: 500;
+  font-weight: 400;
   color: inherit;
 }
 
@@ -933,6 +954,15 @@
 .asidePlate {
   min-height: 0;
   overflow-y: auto;
+  /* And no bar drawn for it. The covers and shadows described above are the
+     whole affordance: they say which edge has more behind it, they travel with
+     the content, and they are ivory and umber. A platform scrollbar beside them
+     is a grey channel with arrow buttons standing inside a plate that has spent
+     four background layers on not looking cut — the one element on the screen
+     the house did not draw. Hiding it costs nothing a guest can reach: the
+     wheel, the trackpad, the arrow keys and the focus ring all still scroll
+     this box, and below the stacking width it does not scroll at all. */
+  scrollbar-width: none;
   padding: var(--aside-pad);
   background:
     linear-gradient(var(--ivory) 30%, transparent) top / 100% 1.5rem no-repeat
@@ -954,19 +984,33 @@
     var(--ivory);
   border: var(--plate-edge);
   border-radius: var(--plate-radius);
-  box-shadow: var(--plate-lift);
+  box-shadow: var(--aside-lift);
 }
 
+.asidePlate::-webkit-scrollbar {
+  display: none;
+}
+
+/* The photograph is the only thing on this plate that is not type, and it is
+   given an edge of its own rather than being allowed to end where its pixels
+   do. A 16:9 frame of a lit room laid flat on ivory has corners that fade into
+   the ground; the ring is the plate saying the picture is a thing set down on
+   it, and the shadow under it is the only real depth in the column. Both are
+   drawn in umber at the alphas the plate's own edge uses — nothing here is
+   darker than a hairline. */
 .asideShot {
   width: 100%;
   height: auto; /* See `.roomShot` — the `height` attribute is a hint that wins. */
   aspect-ratio: 16 / 9;
   object-fit: cover;
   border-radius: var(--row-radius);
+  box-shadow:
+    0 0 0 1px rgb(var(--umber-rgb) / 0.08),
+    0 0.375rem 1rem rgb(var(--umber-rgb) / 0.08);
 }
 
 .asideTitle {
-  margin-top: var(--space-2);
+  margin-top: var(--aside-gap);
   font-size: clamp(1.2rem, 1.3vw, 1.55rem);
   font-weight: 300;
   line-height: 1.2;
@@ -985,8 +1029,8 @@
 .rail {
   display: flex;
   flex-direction: column;
-  margin-top: var(--space-2);
-  padding-top: var(--space-2);
+  margin-top: var(--aside-gap);
+  padding-top: var(--aside-gap);
   border-top: 1px solid var(--hair);
 }
 
@@ -1055,7 +1099,7 @@
    the total. It is what the guest came to check. */
 .stopDate {
   font-size: var(--detail-value);
-  font-weight: 500;
+  font-weight: 400;
   line-height: 1.4;
   color: var(--ink);
   font-variant-numeric: lining-nums tabular-nums;
@@ -1104,9 +1148,9 @@
 .stayRows {
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
-  margin-top: var(--space-2);
-  padding-top: var(--space-2);
+  gap: var(--aside-gap);
+  margin-top: var(--aside-gap);
+  padding-top: var(--aside-gap);
   border-top: 1px solid var(--hair);
 }
 
@@ -1138,7 +1182,7 @@
 
 .stayValue {
   font-size: var(--detail-value);
-  font-weight: 500;
+  font-weight: 400;
   line-height: 1.4;
   color: var(--ink);
 }
@@ -1171,13 +1215,13 @@
   grid-template-columns: 1.25rem minmax(0, 1fr);
   align-items: start;
   gap: 0.875rem;
-  margin-top: var(--space-2);
-  padding-top: var(--space-2);
+  margin-top: var(--aside-gap);
+  padding-top: var(--aside-gap);
   border-top: 1px solid var(--hair);
   /* `hold-timer.module.css` reads these three and falls back to its own
      measured defaults where nothing sets them. */
   --hold-line-size: var(--detail-value);
-  --hold-line-weight: 500;
+  --hold-line-weight: 400;
   --hold-line-ink: var(--ink);
   --hold-note-size: var(--detail-note);
 }
@@ -1194,7 +1238,7 @@
   background: var(--ivory);
   border: var(--plate-edge);
   border-radius: var(--plate-radius);
-  box-shadow: var(--plate-lift);
+  box-shadow: var(--aside-lift);
 }
 
 .totalBlock {
@@ -1250,11 +1294,9 @@
   width: 100%;
   min-height: 3.125rem; /* 50px. 44 is the floor, and this is the button. */
   margin-top: var(--space-2);
-  /* Room at both ends for the lock, so a long label is centred on the button
-     rather than on the space left over beside the glyph. */
   padding: 0 2.5rem;
   font-size: 0.875rem;
-  font-weight: 500;
+  font-weight: 400;
   color: var(--ivory);
   background: var(--dusk-amber-ink);
   border: 1px solid var(--dusk-amber-ink);
@@ -1277,17 +1319,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* Out of the flow, so the label is centred on the button and not pushed off
-   centre by the glyph beside it. It takes the button's own colour through both
-   the hover inversion and the disabled state. */
-.complete .mark {
-  position: absolute;
-  right: 1rem;
-  width: 0.9375rem;
-  height: 0.9375rem;
-  color: inherit;
 }
 
 .complete:active:not(:disabled) {
@@ -1331,13 +1362,6 @@
   margin-top: 0;
   padding-left: 0;
   border-left: 0;
-}
-
-/* The lock is a caption rather than a fact, and sits at the size of the words it
-   punctuates. */
-.payTerm .mark {
-  width: 0.875rem;
-  height: 0.875rem;
 }
 
 /* §9. One pixel, snapped rather than travelled, is not worth the exception — the

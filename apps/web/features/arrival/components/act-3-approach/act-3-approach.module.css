@@ -4,23 +4,57 @@
    caption 4 (the nav owns 100). */
 
 .section {
+  margin-top: 35vh;
   position: relative;
-  /* Same wall Act 2 settles on, so the two acts read as one surface. Plain
-     ivory here cut a hard line across the frame at the seam, and this act has
-     no reason to go back to it — its foot dissolves into Act 4's dark. The
-     ground stays light because for three quarters of the pin it is genuinely
-     the page the card is sitting on; the dark this act hands over is made by
-     the grade on the frame, not by repainting the section under it. */
-  background: var(--ivory-warm);
+  /* Match the terrace seam; the texture adds grain without changing its tone. */
+  background: rgb(231 216 198);
+}
+
+.section::before {
+  content: "";
+  position: absolute;
+  inset: -35vh 0 100%;
+  background: rgb(231 216 198);
+}
+
+/* All three stone layers share viewport registration: their grain meets
+   exactly at the joins and stays stationary during the video swell. */
+.section::before,
+.stage::before {
+  background-color: rgb(231 216 198);
+  background-image:
+    linear-gradient(
+      to bottom,
+      rgb(231 216 198 / 0.6),
+      rgb(231 216 198 / 0.8) 58%
+    ),
+    url("/images/act-2-ribbon/limestone-extended.webp");
+  background-size: 100vw 100vh;
+  background-position: center var(--stone-offset, 0px);
+  background-attachment: scroll;
+  background-repeat: no-repeat;
+}
+.stage::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
 }
 
 .stage {
+  background: rgb(231 216 198);
   /* The hour, and the single number every layer of the grade is written off.
      0 is the light the loop was shot in; 1 is nightfall. It lives on the stage
      rather than on the shell so the scrub, the footage filter, the sky overlay
      and the reduced-motion still below all read one value and none of them can
      hold a different idea of what dusk looks like. */
   --dusk: 0;
+  /* The other number the stage owns, and the clip column's whole ground story:
+     0 while the column is over the ivory page, 1 once the swelling frame has
+     grown out past it. Same reasoning as `--dusk` — one value, read by the
+     panel's tint, its blur and its type colour, so none of them can disagree
+     about what the label is currently sitting on. */
+  --frame-fill: 0;
 
   position: relative;
   height: 100vh;
@@ -41,10 +75,25 @@
   will-change: transform, border-radius;
 }
 
-.videoShell video {
+/* The two passage layers, stacked. Both carry the grade, so a dissolve that
+   lands mid-act crosses between two frames of the same hour rather than
+   revealing an ungraded one underneath.
+
+   `object-fit: cover` on both: these four clips come off four different reels
+   and only agree on their aspect ratio at the source, not on where their
+   subject sits, so each is cropped to the frame on its own terms. */
+.layer {
+  position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  opacity: 0;
+  /* Linear, and that is the right curve rather than a missing one: a dissolve
+     between two moving pictures is a cross-mix, and easing one holds both
+     frames at partial opacity through the middle, which reads as the picture
+     briefly greying out. Film dissolves straight across for the same reason. */
+  transition: opacity var(--crossfade, 450ms) linear;
   /* The light going, rather than a sheet laid over it. A scrim alone cannot do
      this: dropped over the blown sky this footage opens on it returns grey,
      where an actual exposure drop with the saturation drained out from under
@@ -53,6 +102,13 @@
   filter: brightness(calc(1 - 0.54 * var(--dusk)))
     saturate(calc(1 - 0.28 * var(--dusk)))
     contrast(calc(1 + 0.06 * var(--dusk)));
+}
+
+/* Which passage is showing. One attribute, and the transition above does the
+   dissolve — the outgoing layer loses the attribute in the same commit, so the
+   pair cross rather than one waiting on the other. */
+.layer[data-front] {
+  opacity: 1;
 }
 
 /* Nightfall, built as a sky and not as a scrim. Darkest at the head, because
@@ -140,6 +196,9 @@
    hour unambiguous. */
 .stage[data-still="true"] {
   --dusk: 0.72;
+  /* The frame is fullscreen for the whole act on this path, so the column is
+     never over the page and the glass is earned from the first frame. */
+  --frame-fill: 1;
 }
 
 /* The tail fade is normally opened by the timeline, which does not run here,

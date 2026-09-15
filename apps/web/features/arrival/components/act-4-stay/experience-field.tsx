@@ -28,7 +28,16 @@
 //
 // The act ends the way trionn.com's does: five bands of Act 5's own dark climb
 // the frame from the foot, the lowest first, and the Invitation is behind them
-// when the last one closes. Nothing fades; the screen is taken.
+// when the last one closes. Nothing fades; the screen is taken. The photograph
+// is already loaded and settled behind them, so the last band closes on the
+// frame rather than on the dusk fallback.
+//
+// "Behind them" is a seam, not a figure of speech: Act 5's section reaches up
+// under this one by `ACT4_OVERHANG` and its stage is sticky, so it is stuck to
+// the top of the viewport, one screen deep into its own scroll, while this
+// stage is still pinned over it. Without that reach the two spans are the same
+// document position and the bands paint onto a stage already leaving — see the
+// constant, which carries what that looked like.
 //
 // The movement opens on somebody else's frame. The corridor's statement is
 // still standing when this stage pins over it, and the two sentences are meant
@@ -44,6 +53,7 @@
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useEffect, useRef } from "react";
+import { ACT4_OVERHANG, ACT4_WIPE } from "@/features/arrival/lib/act-seams";
 import { useArrivalActStore } from "@/features/arrival/lib/act-store";
 import { tierSrc, tierSrcSet } from "@/features/arrival/lib/image-srcset";
 import styles from "./act-4-stay.module.css";
@@ -61,7 +71,7 @@ const WORDS = ["STAY", "REST", "BATHE", "DINE"];
 const GLYPH_SPAN = Math.max(...WORDS.map((w) => w.length));
 
 /** The sentence that stands where the block stood. */
-const HEADLINE = "Experience\nbeyond stay.";
+const HEADLINE = "Beyond\nthe room.";
 const LEAD =
   "A collection of hours arranged around you — to wake in, to bathe in, to sit down to, and to remember.";
 /**
@@ -70,7 +80,7 @@ const LEAD =
  * the second arriving the same way — rather than as one line recoloured.
  */
 const FOOT_FIRST = "One house. Many ways to spend a day.";
-const FOOT_SECOND = "Hospitality. Reimagined for you.";
+const FOOT_SECOND = "Forty rooms, one kitchen, a bath house open at six.";
 
 /**
  * Both the block and the foot are drawn letter by letter, and every letter
@@ -85,11 +95,39 @@ const cut = (text: string, beat: (i: number) => number) =>
     beat: beat(i).toFixed(3),
   }));
 
+/**
+ * The share of `--reveal` one letter spends resolving, and the number the
+ * stylesheet divides the letter's own beat by. Written onto the block as a
+ * custom property rather than typed out a second time in the CSS: the run of
+ * beats below is cut to land the last letter's window exactly on `--reveal`
+ * = 1, and a stylesheet holding its own opinion of how wide a window is would
+ * break that agreement by an amount nobody could see until the bottom line of
+ * the block never came into focus.
+ */
+const GLYPH_WINDOW = 0.45;
+
+/** A letter's place in the run, before it is quoted against anything: its
+ *  line, plus how far along that line it stands — measured against the longest
+ *  word rather than against its own, so the four lines arrive together instead
+ *  of in proportion to how long they are. */
+const glyphPlace = (w: number, g: number) => w + g / GLYPH_SPAN;
+
+/** The last letter's place, which is what the run is normalised against. */
+const LAST_PLACE = Math.max(
+  ...WORDS.map((word, w) => glyphPlace(w, word.length - 1)),
+);
+
 const WORD_LINES = WORDS.map((word, w) => ({
   word,
-  // Quoted against the longest word rather than against the run, so the four
-  // lines arrive together instead of in proportion to how long they are.
-  glyphs: cut(word, (g) => (w + g / GLYPH_SPAN) / (WORDS.length + 1)),
+  // Normalised to end at `1 - GLYPH_WINDOW`, so the last letter of DINE opens
+  // its window in time to close it on the same frame the beat does. Cut any
+  // longer and the beat saturates while the bottom of the block is still
+  // resolving, which leaves it soft and grey for the whole of the rest of the
+  // screen — until the shatter swaps it for sharp debris.
+  glyphs: cut(
+    word,
+    (g) => (glyphPlace(w, g) / LAST_PLACE) * (1 - GLYPH_WINDOW),
+  ),
 }));
 
 const FOOT_LINES = [FOOT_FIRST, FOOT_SECOND].map((line) => ({
@@ -107,19 +145,72 @@ const FOOT_LINES = [FOOT_FIRST, FOOT_SECOND].map((line) => ({
  * comes up over it, and this movement's beats all have to wait for the sheet
  * to have closed before any of them starts.
  *
- * A tenth of the section is about a third of a screen of scroll: long enough
- * to read as a dissolve rather than a cut, short enough that the reader is not
- * scrolling through a blank frame waiting for the words to arrive.
+ * About a third of a screen of scroll: long enough to read as a dissolve
+ * rather than a cut, short enough that the reader is not scrolling through a
+ * blank frame waiting for the words to arrive.
+ *
+ * Quoted here against the *designed* sheet — the timeline the four beats were
+ * cut on, before the cards' ride was stretched — and re-quoted against the
+ * real section below, so the sheet keeps its length in scroll whatever the
+ * ride is set to.
  */
-export const FIELD_HANDOFF = 0.09;
+const HANDOFF_DESIGN = 0.09;
 
-/** Maps a beat window quoted against the whole section (0–1, the shape the
- *  four beats below were designed at) onto the span that is actually free to
- *  draw anything — after the hand-off sheet has closed. A linear map rather
- *  than an offset: it holds every beat's *proportion* of the remaining scroll
- *  exactly what it was of the whole, so the section still reads as the same
- *  four beats, only starting later. */
-const rebase = (v: number): number => FIELD_HANDOFF + v * (1 - FIELD_HANDOFF);
+/** Screens of scroll the designed sheet runs for (the section's height less
+ *  the one viewport that stays pinned). The beats before the cards hold
+ *  exactly this length; only the ride after them is stretched. */
+const DESIGN_SCROLL = { wide: 4.2, narrow: 3 } as const;
+
+/** Maps a beat window quoted against the designed sheet (0–1, the shape the
+ *  four beats below were cut at) onto the span that is actually free to draw
+ *  anything — after the hand-off sheet has closed. A linear map rather than an
+ *  offset: it holds every beat's *proportion* of the remaining scroll exactly
+ *  what it was of the whole, so the sheet still reads as the same four beats,
+ *  only starting later. */
+const design = (v: number): number => HANDOFF_DESIGN + v * (1 - HANDOFF_DESIGN);
+
+/** Where the cards start on the designed sheet. */
+const RIDE_FROM_DESIGN = design(0.52);
+
+/**
+ * How much longer the cards' ride is than it was designed at. The photographs
+ * now dissolve into the ground rather than standing on plates, and a softer
+ * card wants more air around it: the pairs are dealt further apart on the
+ * wheel — see `PAIR_STAGGER`, which this figure tracks — and the section grows
+ * by exactly the extra scroll that takes, so the
+ * words, the shatter and the sentence are scrolled through at the pace they
+ * were cut at.
+ */
+const RIDE_STRETCH = 2.36;
+
+/** The whole section, in units of the designed sheet: the sheet up to the
+ *  cards, then the ride stretched. */
+const SHEET = RIDE_FROM_DESIGN + (1 - RIDE_FROM_DESIGN) * RIDE_STRETCH;
+
+/**
+ * The section's height, in viewports: the one the stage stands in, the scroll
+ * the four beats are read at, and one more for the hand-over. The last is what
+ * keeps the stage pinned while the bands close — see `ACT4_OVERHANG`, of which
+ * this screen is the lower half and the standing screen above is the upper.
+ */
+const sectionHeight = (mobile: boolean) =>
+  `${(100 + DESIGN_SCROLL[mobile ? "narrow" : "wide"] * SHEET * 100 + ACT4_WIPE).toFixed(0)}vh`;
+
+/**
+ * The scroll the beats are read at: the section less the two screens the seam
+ * owns. Every beat window below is a fraction of *this* rather than of the
+ * pin, so the hand-over cannot slow the reading down — and the last beat lands
+ * on the frame the first band starts growing on.
+ */
+const beatScroll = (section: HTMLElement) =>
+  section.offsetHeight - (ACT4_OVERHANG / 100) * window.innerHeight;
+
+/** The share of this movement's own scroll the hand-off takes. The corridor
+ *  imports it rather than holding its own opinion of how long that is. */
+export const FIELD_HANDOFF = HANDOFF_DESIGN / SHEET;
+
+/** A designed-sheet window, quoted against the real section. */
+const rebase = (v: number): number => design(v) / SHEET;
 
 // ---------------------------------------------------------------------------
 // The section's progress, cut into beats. Every window below is a span of that
@@ -147,12 +238,15 @@ const RESOLVE: [number, number] = [rebase(0.44), rebase(0.62)];
 const WHEELS: [number, number] = [rebase(0.48), rebase(0.6)];
 const CARDS_FROM = rebase(0.52);
 
-/** A pair's start on the card timeline, and the span one card spends crossing
- *  the frame. Four pairs at this stagger fill the timeline exactly: the last
- *  pair is still arriving as the section's final screen is reached, so the
- *  field is never finished and standing still. */
-const PAIR_STAGGER = 0.16;
-const CARD_SPAN = 0.52;
+/** Separate pairs by well over half a crossing, so a pair has left the middle
+ *  of the frame before the next one reaches it and the ground between the
+ *  images is clear rather than merely narrow. `RIDE_STRETCH` above carries the
+ *  extra scroll that takes, so widening the gap does not speed the cards up.
+ *  Normalize the full ride so every pair appears. */
+const PAIR_STAGGER = 0.3;
+const CARD_SPAN = 0.49;
+const CARD_TIMELINE =
+  (Math.ceil(EXPERIENCES.length / 2) - 1) * PAIR_STAGGER + CARD_SPAN;
 
 // --- The wheels ------------------------------------------------------------
 
@@ -196,6 +290,86 @@ const HERO_MAX = 3;
  *  that scale is most of the frame painted black; held here it passes over the
  *  arriving sentence as a shadow of the word that was just there. */
 const HERO_ALPHA = 0.5;
+
+/**
+ * The viewing distance a tumbling letter is drawn at, as a multiple of its own
+ * rendered height.
+ *
+ * This is the number that makes the shatter a room rather than a sheet. A
+ * letter turned about its own axes is foreshortened by exactly this ratio: at
+ * infinity it is an axis scale and the letter reads as a flat card being
+ * squashed, and the nearer the eye is put the harder the near edge grows
+ * against the far one. Three and a bit is close enough that a letter caught
+ * mid-turn is visibly a solid in a space, and far enough that it does not
+ * distort into a wedge.
+ *
+ * Quoted against the letter's own size rather than fixed in pixels: a hero at
+ * eight times its size is eight times further away, and so tumbles in the same
+ * proportion the small ones do instead of tearing itself apart.
+ */
+const SHARD_VIEW = 3.4;
+
+/**
+ * How much of its flight an ordinary letter keeps its full ink for.
+ *
+ * Nearly all of it. Letters used to start dissolving half way across, which
+ * left the middle of the frame holding a field of grey smoke that had to be
+ * scrolled through — the block did not shatter so much as evaporate. A letter
+ * leaves the frame; what fades is only the tail of the few that are slow
+ * enough to still be on it when the beat closes.
+ */
+const FLIGHT_INK = 0.82;
+
+/**
+ * The size an ordinary letter ends its flight at, as a span the field is dealt
+ * across. Not one number: a letter thrown toward the eye grows and one thrown
+ * away shrinks, and a field where every piece stays the size it was is a field
+ * with no depth in it at all — which is what the tumble alone could never fix.
+ * The heroes are still the act's one moment of *real* scale; this is the depth
+ * they need to be read against.
+ */
+const DEPTH_NEAR = 2.1;
+const DEPTH_FAR = 0.42;
+
+/**
+ * How far past the centre of the frame a hero letter's mark stands, as a share
+ * of the longer side of it.
+ *
+ * The mark used to be the centre itself, give or take a seventh, and that is a
+ * letter that grows to eight times its size *and stays where the sentence is
+ * about to be set*. Three of them at once left the middle of the screen under a
+ * stack of enormous type for the whole of the resolve. Aimed off the frame
+ * instead, the letter crosses the middle early — while it is still growing,
+ * which is the moment worth seeing — and by the end only an edge of it is on
+ * the screen at all, which is also how the reference draws its near letters.
+ */
+const HERO_EXIT = 0.72;
+/**
+ * What a shard has to be told to be drawn in the same type as the letter it
+ * replaces, longhand by longhand.
+ *
+ * Longhand rather than the `font` shorthand, which is what this used to copy.
+ * A computed `font` serialises to the empty string as soon as any longhand
+ * outside the shorthand's own grammar is non-initial — and the block is set in
+ * a variable face, so `font-variation-settings` is always non-initial and the
+ * shorthand is always empty. Every shard was therefore handed nothing and drawn
+ * at the 16px it inherited instead of the 152px it stood at: the block shattered
+ * into letters a ninth of their size, which is most of the reason the beat had
+ * no weight to it.
+ *
+ * `letter-spacing` is in the list because the block is tracked tight and the
+ * glyph box the shard is centred on was measured with that tracking in it.
+ */
+const SHARD_FONT = [
+  "font-family",
+  "font-size",
+  "font-weight",
+  "font-style",
+  "font-variation-settings",
+  "font-optical-sizing",
+  "letter-spacing",
+] as const;
+
 /** The seed. The field has to be identical on the way back up — a reader who
  *  scrolls up through the shatter and down again must see the same letters go
  *  the same ways — so nothing here is drawn from Math.random. */
@@ -225,8 +399,6 @@ const seeded = (seed: number) => {
   };
 };
 
-const DEG = Math.PI / 180;
-
 interface Shard {
   el: HTMLElement;
   /** Where the letter stood in the block, as the centre of its own box. */
@@ -239,10 +411,12 @@ interface Shard {
   tx: number;
   ty: number;
   grow: number;
-  /** How an ordinary letter leaves: a unit vector, a distance, and a tumble. */
+  /** How an ordinary letter leaves: a unit vector, a distance, a tumble, and
+   *  the size it arrives at — which is how near the eye it was thrown. */
   dirX: number;
   dirY: number;
   speed: number;
+  depth: number;
   rotX: number;
   rotY: number;
   rotZ: number;
@@ -282,7 +456,7 @@ export function experienceScrollTarget(index: number): number | null {
   if (!section) return null;
 
   const pair = Math.floor(index / 2);
-  const u = pair * PAIR_STAGGER + CARD_SPAN / 2;
+  const u = (pair * PAIR_STAGGER + CARD_SPAN / 2) / CARD_TIMELINE;
   const p = CARDS_FROM + u * (1 - CARDS_FROM);
   const top = section.getBoundingClientRect().top + window.scrollY;
   const scroll = Math.max(1, section.offsetHeight - window.innerHeight);
@@ -348,7 +522,8 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
         // Which letters go through the centre instead of off the frame. Drawn
         // from the same seeded stream as everything else, so the choice is part
         // of the composition rather than a property of this page load.
-        const heroCount = HERO_MIN + Math.floor(rand() * (HERO_MAX - HERO_MIN));
+        const heroCount =
+          HERO_MIN + Math.floor(rand() * (HERO_MAX - HERO_MIN + 1));
         const heroes = new Set<number>();
         while (heroes.size < Math.min(heroCount, glyphs.length)) {
           heroes.add(Math.floor(rand() * glyphs.length));
@@ -362,7 +537,16 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
           el.className = hero
             ? `${styles.shard} ${styles.shardHero}`
             : styles.shard;
-          el.style.font = getComputedStyle(glyph).font;
+          const set = getComputedStyle(glyph);
+          for (const property of SHARD_FONT) {
+            el.style.setProperty(property, set.getPropertyValue(property));
+          }
+          // Born invisible. A shard is only ever placed by `scatter`, and a
+          // rebuild past the end of the shatter — a refresh after a resize, or
+          // a jump straight to the cards — skips every letter whose ink is
+          // already gone rather than writing that zero; left at full ink, the
+          // whole block would stand un-placed in the corner of the frame.
+          el.style.opacity = "0";
           shardLayer.appendChild(el);
 
           const heading = (rand() * 2 - 1) * Math.PI;
@@ -373,17 +557,23 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
             w: box.width,
             h: box.height,
             hero,
-            tx: vw / 2 + (rand() * 2 - 1) * 0.15 * vw,
-            ty: vh / 2 + (rand() * 2 - 1) * 0.15 * vh,
+            tx: vw / 2 + Math.cos(heading) * HERO_EXIT * reachOut,
+            ty: vh / 2 + Math.sin(heading) * HERO_EXIT * reachOut,
             grow: 6 + rand() * 4,
             dirX: Math.cos(heading),
             // Biased upward: letters thrown off a page mostly go up, and a
             // field that leaves evenly in all directions reads as an explosion
             // diagram rather than as paper caught by a draught.
             dirY: Math.sin(heading) * (rand() * 1.18 - 1),
-            speed: (0.4 + rand() * 0.5) * reachOut,
-            rotX: (rand() * 2 - 1) * 360,
-            rotY: (rand() * 2 - 1) * 360,
+            // Far enough to clear the frame. They used to be thrown barely
+            // half a viewport and then faded where they stopped, which is why
+            // the middle of the shatter was a cloud rather than an exit.
+            speed: (0.78 + rand() * 0.72) * reachOut,
+            depth: DEPTH_FAR + rand() * (DEPTH_NEAR - DEPTH_FAR),
+            // A hero is readable type crossing the frame, not debris: it turns
+            // enough to have a near edge and a far one and no further.
+            rotX: (rand() * 2 - 1) * (hero ? 34 : 360),
+            rotY: (rand() * 2 - 1) * (hero ? 42 : 360),
             rotZ: hero ? (rand() * 2 - 1) * 15 : (rand() * 2 - 1) * 180,
             hold: rand() * 0.3,
             alpha: -1,
@@ -457,6 +647,10 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
           let alpha: number;
 
           if (shard.hero) {
+            // It leaves the frame rather than swelling to a stop in the
+            // middle of it: the mark is already outside the screen, so the
+            // letter crosses the centre early — while it is still growing —
+            // and ends the beat cropped by an edge.
             x = shard.ox + (shard.tx - shard.ox) * t;
             y = shard.oy + (shard.ty - shard.oy) * t;
             // Full size by half way, so the letter is enormous for the second
@@ -464,22 +658,22 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
             scale = 1 + (shard.grow - 1) * Math.min(1, t / 0.5);
             alpha =
               HERO_ALPHA *
-              (t < 0.15 ? t / 0.15 : t > 0.7 ? 1 - (t - 0.7) / 0.3 : 1);
+              (t < 0.12
+                ? t / 0.12
+                : t > FLIGHT_INK
+                  ? 1 - (t - FLIGHT_INK) / (1 - FLIGHT_INK)
+                  : 1);
           } else {
             x = shard.ox + shard.dirX * shard.speed * t;
             y = shard.oy + shard.dirY * shard.speed * t;
-            scale = 1;
+            // Toward the eye or away from it. The letter carries its throw all
+            // the way out rather than holding the size it was set at, which is
+            // what puts the field in a volume instead of on a pane.
+            scale = 1 + (shard.depth - 1) * t;
             alpha =
-              t < shard.hold + 0.3 ? 1 : 1 - (t - shard.hold - 0.3) / 0.35;
+              t < FLIGHT_INK ? 1 : 1 - (t - FLIGHT_INK) / (1 - FLIGHT_INK);
           }
           alpha = clamp01(alpha);
-
-          // The tumble, as two axis scales rather than as a rotation in space.
-          // A letter is a flat thing; turning one about its own horizontal and
-          // vertical is exactly the foreshortening a cosine gives, and it costs
-          // the compositor nothing.
-          const sx = Math.cos(shard.rotY * t * DEG);
-          const sy = shard.hero ? 1 : Math.cos(shard.rotX * t * DEG);
 
           if (alpha <= 0 && shard.alpha <= 0) {
             shard.alpha = 0;
@@ -489,10 +683,28 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
             shard.alpha = alpha;
             shard.el.style.opacity = alpha.toFixed(3);
           }
+
+          // The tumble, as a turn in a space with an eye in it.
+          //
+          // It used to be two axis scales — a cosine on each of the letter's
+          // own axes, which is the foreshortening a camera at infinity would
+          // give and costs the compositor nothing. What it also gives is a
+          // letter with no near edge and no far one: it squashes symmetrically
+          // and reads as a card being flattened rather than as a solid turning.
+          // `perspective()` before the rotations is the whole difference, and
+          // it is still one composited matrix.
+          //
+          // The distance is quoted off the letter's own drawn height, so a
+          // hero at eight times its size is looked at from eight times as far
+          // and turns in the same proportion the small ones do.
+          const view = shard.h * scale * SHARD_VIEW;
           shard.el.style.transform =
             `translate3d(${(x - shard.w / 2).toFixed(1)}px, ${(y - shard.h / 2).toFixed(1)}px, 0)` +
-            ` rotate(${(shard.rotZ * t).toFixed(2)}deg)` +
-            ` scale(${(scale * sx).toFixed(4)}, ${(scale * sy).toFixed(4)})`;
+            ` perspective(${view.toFixed(1)}px)` +
+            ` rotateX(${(shard.rotX * t).toFixed(2)}deg)` +
+            ` rotateY(${(shard.rotY * t).toFixed(2)}deg)` +
+            ` rotateZ(${(shard.rotZ * t).toFixed(2)}deg)` +
+            ` scale(${scale.toFixed(4)})`;
         }
       };
 
@@ -549,7 +761,7 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
         beat(5, shatter > 0 ? 1 : 0);
         if (shatter > 0) scatter(shatter);
 
-        const u = clamp01((p - CARDS_FROM) / (1 - CARDS_FROM));
+        const u = clamp01((p - CARDS_FROM) / (1 - CARDS_FROM)) * CARD_TIMELINE;
         for (const card of cards) {
           place(card, clamp01((u - card.pair * PAIR_STAGGER) / CARD_SPAN));
         }
@@ -566,13 +778,78 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
         ScrollTrigger.refresh();
       });
 
+      // The pin runs a screen past the reading, across the hand-over: the bands
+      // have to close on a stage that is still the whole frame, with Act 5
+      // stuck behind it.
+      //
+      // Taken off the page the moment it releases. A released `pinSpacing:
+      // false` stage is left standing where the pin ended, which is now inside
+      // Act 5's own section, and it carries its own z-index over an act that
+      // has none — so the closed hand-over would ride up off the Invitation
+      // like a curtain, and the ivory frame would stand over the held reading
+      // for anyone who arrived below the act rather than scrolling into it.
+      // Written on refresh as well as on the crossing, because a deep link or
+      // a resize lands past the end without ever crossing it.
+      const showStage = (visible: boolean) =>
+        gsap.set(stage, { autoAlpha: visible ? 1 : 0 });
+
       ScrollTrigger.create({
         trigger: section,
         start: "top top",
         end: "bottom bottom",
         pin: stage,
         pinSpacing: false,
+        onRefresh: (self) => showStage(self.progress < 1),
+        onLeave: () => showStage(false),
+        onEnterBack: () => showStage(true),
       });
+
+      // The hand-over into Act 5. Five bands of the Invitation's own dark, each
+      // growing up out of its own foot, the lowest first — so what crosses the
+      // frame is a rising edge rather than a curtain, and the act ends on a
+      // taken screen rather than a faded one.
+      const stripes = gsap.utils.toArray<HTMLElement>("[data-stripe]", stage);
+      const wipe = stripes.length ? gsap.timeline({ paused: true }) : null;
+      stripes.forEach((stripe, i) => {
+        const at = (0.3 * (stripes.length - 1 - i)) / (stripes.length - 1);
+        // The closed band is written here rather than read from the stylesheet.
+        // A `to` tween takes its start from whatever the element computes to
+        // the first time it renders, and this timeline is built on mount: read
+        // before the module's stylesheet has been applied, the band measures as
+        // identity and the tween becomes 1 → 1.
+        wipe?.fromTo(
+          stripe,
+          { scaleY: 0 },
+          { scaleY: 1, duration: 0.3, ease: "none" },
+          at,
+        );
+      });
+      // A held tail, so the last band has closed before the pin releases and
+      // the Invitation is never met through a gap.
+      wipe?.to({}, { duration: 0.1 });
+
+      // One trigger across the whole pin, cut into the reading and the seam.
+      //
+      // The bands are read off this act's own scroll rather than off Act 5's
+      // measured top. They are two spans of one pin — the reading, then the
+      // screen the stage is held for after it — and a second trigger measuring
+      // a sibling section has to agree with the pin about where that section
+      // is at the one moment ScrollTrigger is re-measuring the pin itself:
+      // roughly one load in three it did not, and every band came up closed on
+      // the first frame of the act.
+      const seam = (self: ScrollTrigger) => {
+        const scrolled = self.progress * (self.end - self.start);
+        const beats = beatScroll(section);
+        layout(clamp01(scrolled / beats));
+        if (!wipe) return;
+        const closing = clamp01(
+          (scrolled - beats) / (window.innerHeight * (ACT4_WIPE / 100)),
+        );
+        wipe.progress(closing);
+        // The bar is over this act's ivory until the bands have most of the
+        // frame, and over Act 5's dark after.
+        setNavDark(4, closing >= 0.55);
+      };
 
       ScrollTrigger.create({
         trigger: section,
@@ -581,41 +858,12 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
         invalidateOnRefresh: true,
         onRefresh: (self) => {
           measure();
-          layout(self.progress);
+          seam(self);
         },
-        onToggle: (self) => layout(self.progress),
-        onUpdate: (self) => layout(self.progress),
+        onToggle: (self) => seam(self),
+        onUpdate: (self) => seam(self),
+        onLeaveBack: () => setNavDark(4, false),
       });
-
-      // The hand-over into Act 5. Five bands of the Invitation's own dark, each
-      // growing up out of its own foot, the lowest first — so what crosses the
-      // frame is a rising edge rather than a curtain, and the act ends on a
-      // taken screen rather than a faded one.
-      const next = document.querySelector<HTMLElement>('[data-act="5"]');
-      const stripes = gsap.utils.toArray<HTMLElement>("[data-stripe]", stage);
-      if (next && stripes.length) {
-        const wipe = gsap.timeline({ paused: true });
-        stripes.forEach((stripe, i) => {
-          const at = (0.3 * (stripes.length - 1 - i)) / (stripes.length - 1);
-          wipe.to(stripe, { scaleY: 1, duration: 0.3, ease: "none" }, at);
-        });
-        // A held tail, so the last band has closed before the pin releases and
-        // the Invitation is never met through a gap.
-        wipe.to({}, { duration: 0.1 });
-
-        ScrollTrigger.create({
-          trigger: next,
-          start: "top bottom",
-          end: "top top",
-          onUpdate: (self) => {
-            wipe.progress(self.progress);
-            // The bar is over this act's ivory until the bands have most of the
-            // frame, and over Act 5's dark after.
-            setNavDark(4, self.progress >= 0.55);
-          },
-          onLeaveBack: () => setNavDark(4, false),
-        });
-      }
     }, section);
 
     return () => {
@@ -631,9 +879,10 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
       data-movement="experiences"
       className={styles.field}
       // What this height buys is the four beats. The shatter alone is a fifth
-      // of it, and a card crosses the whole frame in half of it; shorter, and
-      // the letters leave in the same screen the sentence arrives in.
-      style={{ height: mobile ? "400vh" : "520vh" }}
+      // of the designed sheet, and a card crosses the whole frame in half of
+      // the stretched ride; shorter, and the letters leave in the same screen
+      // the sentence arrives in.
+      style={{ height: sectionHeight(mobile) }}
       aria-label="Stay"
     >
       <div ref={stageRef} className={styles.stage}>
@@ -671,18 +920,11 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
                   <img
                     src={tierSrc(plate.src, 640)}
                     srcSet={tierSrcSet(plate)}
-                    sizes={mobile ? "44vw" : "18vw"}
+                    sizes={mobile ? "52vw" : "(min-width: 1876px) 544px, 29vw"}
                     alt={plate.alt}
                     loading={i < 2 ? undefined : "lazy"}
                   />
                 </div>
-                <div className={styles.cardFoot}>
-                  <span className={styles.cardName}>{experience.name}</span>
-                  <span className={styles.cardNote}>{experience.note}</span>
-                </div>
-                <span className={styles.cardMark} aria-hidden>
-                  →
-                </span>
               </article>
             );
           })}
@@ -694,10 +936,17 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
         <div
           ref={wordsRef}
           className={`font-display ${styles.words}`}
+          style={{ "--glyph-window": GLYPH_WINDOW } as React.CSSProperties}
           aria-hidden
         >
           {WORD_LINES.map(({ word, glyphs }) => (
             <span key={word} className={styles.word}>
+              {/* Two boxes per letter, and the split is what lets the letter
+                  move at all: the outer one is its place in the line and never
+                  moves, because the shatter reads every one of them to decide
+                  where its debris starts and reads them at whatever point in
+                  the reveal the layout was last measured. The inner one is the
+                  letter's own arrival. */}
               {glyphs.map(({ key, ch, beat }) => (
                 <span
                   key={key}
@@ -705,7 +954,7 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
                   className={styles.glyph}
                   style={{ "--c": beat } as React.CSSProperties}
                 >
-                  {ch}
+                  <span className={styles.glyphInk}>{ch}</span>
                 </span>
               ))}
             </span>
@@ -725,11 +974,13 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
           <div className={styles.centre}>
             <h2 className={`font-display ${styles.headline}`}>{HEADLINE}</h2>
             <p className={styles.lead}>{LEAD}</p>
-            <a className={`caps-label ${styles.centreLink}`} href="/rooms">
+            {/* The one way into the funnel on this screen, and the only one
+                between the welcome line and the invitation four screens on. */}
+            <a className={`caps-label ${styles.centreLink}`} href="/booking">
               <span className={styles.centreLinkMark} aria-hidden>
                 →
               </span>
-              View all experiences
+              See rooms and rates
             </a>
           </div>
 
@@ -796,13 +1047,9 @@ export function ExperienceFieldStatic() {
                   src={tierSrc(plate.src, 640)}
                   srcSet={tierSrcSet(plate)}
                   sizes="(max-width: 767px) 92vw, 30vw"
-                  alt={plate.alt}
+                  alt={`${experience.name}: ${plate.alt}`}
                   loading="lazy"
                 />
-              </div>
-              <div className={styles.cardFoot}>
-                <span className={styles.cardName}>{experience.name}</span>
-                <span className={styles.cardNote}>{experience.note}</span>
               </div>
             </li>
           );

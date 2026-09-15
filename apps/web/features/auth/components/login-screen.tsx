@@ -3,11 +3,12 @@
 // The login screen. One form, always whole; the plates either side of it are
 // the only thing that moves.
 //
-// The pane the strip is showing follows focus and nothing else. There is no
-// blur handler on purpose: releasing to a default when focus leaves the form
-// would pan the whole frame every time a guest reaches for a password manager
-// or tabs out to the browser chrome, which reads as the screen flinching. Focus
-// landing on a field is a decision; focus leaving one is not.
+// The strip pans once and stays there. Reaching the password carries the frame
+// onto the second plate, and nothing carries it back — not blur, not returning
+// to the email field. A guest correcting a typo, reaching for a password
+// manager, or tabbing between the two fields would otherwise ride the whole
+// frame back and forth for every keystroke's worth of second thoughts, which
+// reads as the screen flinching. The pan is a one-time arrival, not a cursor.
 //
 // **It is also where an anonymous stay gains an owner.** A guest whose address
 // already had an account is invited by their confirmation email to sign in
@@ -32,9 +33,6 @@ import {
   attachStay,
 } from "@/lib/booking-links";
 import styles from "./login-screen.module.css";
-
-/** Which field the strip is framed on. */
-type Pane = "email" | "password";
 
 // Google is wired; Apple is not, and says so rather than doing nothing when
 // pressed. The row's composition was settled before either had an OAuth client
@@ -63,7 +61,8 @@ export function LoginScreen({
   readonly afterSignIn?: string;
 }) {
   const router = useRouter();
-  const [pane, setPane] = useState<Pane>("email");
+  // One-way: set when the password is first reached, never cleared.
+  const [panned, setPanned] = useState(false);
   const [revealed, setRevealed] = useState(false);
   const [error, setError] = useState<string | null>(
     googleError ? googleErrorMessage(googleError) : null,
@@ -180,7 +179,7 @@ export function LoginScreen({
 
   return (
     <main className={styles.screen}>
-      <div className={styles.track} data-pane={pane}>
+      <div className={styles.track} data-panned={panned || undefined}>
         {/* Both plates are atmosphere the copy does not depend on, so both are
             decorative and neither is in the accessibility tree —
             design-foundations.md §7. */}
@@ -197,14 +196,9 @@ export function LoginScreen({
           <div className={styles.plateScrim} />
           <div className={styles.plateBody}>
             <span className={styles.monogram} />
-            <div>
-              <p className={`${styles.statement} font-display`}>
-                An experience worth returning to.
-              </p>
-              <p className={styles.statementNote}>
-                Sign in to continue your journey.
-              </p>
-            </div>
+            <p className={styles.statementNote}>
+              Sign in to continue your journey.
+            </p>
           </div>
         </aside>
 
@@ -239,7 +233,6 @@ export function LoginScreen({
                   placeholder="name@email.com"
                   autoComplete="email"
                   required
-                  onFocus={() => setPane("email")}
                 />
               </div>
 
@@ -258,7 +251,7 @@ export function LoginScreen({
                   placeholder="••••••••••••"
                   autoComplete="current-password"
                   required
-                  onFocus={() => setPane("password")}
+                  onFocus={() => setPanned(true)}
                 />
                 <button
                   className={styles.reveal}

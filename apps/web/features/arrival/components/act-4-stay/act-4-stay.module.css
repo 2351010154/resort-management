@@ -354,20 +354,70 @@
   display: block;
 }
 
-/* One letter of the block. It arrives out of a blur rather than out of the
-   ground: this is type resolving, and a letter that slid in would be a letter
-   that came from somewhere, which is a claim the composition does not make.
+/* The letter's own share of the beat, eased.
+ *
+ * `--c` is where the letter stands in the run and `--glyph-window` how much of
+ * `--reveal` one letter spends resolving; the component writes both, and cuts
+ * the run so the last letter's window closes exactly as `--reveal` reaches 1.
+ * Nothing here holds a second opinion about either number — a stylesheet that
+ * did is what left the bottom line of the block permanently soft.
+ *
+ * Registered so the smoothstep below is evaluated once per letter per frame
+ * rather than three times over in every place it is read. The curve is the
+ * same `t·t·(3−2t)` the scrub uses on the beats themselves: linear in, and the
+ * letter spends the same number of frames in every state between absent and
+ * present — including the grey one in the middle, which is the one state it
+ * should be passing through rather than sitting in. */
+@property --glyph-ease {
+  syntax: "<number>";
+  inherits: true;
+  initial-value: 0;
+}
 
-   `--c` is the letter's beat. The window is 0.45 wide and the beats fill the
-   first 0.55, so the last letter starts as the first is finishing — the block
-   sets itself in one continuous pass instead of in four visible lines. */
+/* One letter of the block, as the box it occupies in the line. It holds the
+   beat and nothing else: the shatter measures these to decide where every
+   piece of debris starts, and it measures them at whatever point in the reveal
+   the layout was last taken — so this box has to stand exactly where the type
+   is set, at every value of `--reveal`. */
 .glyph {
   display: inline-block;
-  opacity: clamp(0, calc((var(--reveal) - var(--c)) / 0.45), 1);
-  filter: blur(
-    calc(14px * (1 - clamp(0, calc((var(--reveal) - var(--c)) / 0.45), 1)))
+  --glyph-in: clamp(
+    0,
+    calc((var(--reveal) - var(--c)) / var(--glyph-window, 0.45)),
+    1
   );
-  will-change: opacity, filter;
+  --glyph-ease: calc(
+    var(--glyph-in) *
+    var(--glyph-in) *
+    (3 - 2 * var(--glyph-in))
+  );
+}
+
+/* The letter itself. It arrives out of a blur rather than out of the ground:
+   this is type resolving, and a letter that slid in would be a letter that came
+   from somewhere, which is a claim the composition does not make. The one thing
+   that moves is its size, and that is not travel — a letter still out of focus
+   is a letter off the plane the block is set on, and it is drawn slightly
+   larger for the same reason it is drawn soft.
+
+   Ink and sharpness run on different lengths of the letter's window. They used
+   to share one, which put every letter through a long middle where it was both
+   half-transparent and half-dissolved — ink spread over a wider area at a lower
+   alpha is grey twice over, and grey is what the block was caught in. The ink
+   now commits over the first two fifths and the focus resolves over the whole,
+   so what the reader watches is black type coming into focus rather than a grey
+   ghost fading up.
+
+   The radius is proportional to the type rather than a fixed length:
+   `--text-display-lg` runs from 3.5rem to 7.5rem, and the 14px that was a soft
+   edge on the widest frame was a quarter of an em — an unreadable smear — on a
+   phone. */
+.glyphInk {
+  display: inline-block;
+  opacity: clamp(0, calc(var(--glyph-ease) / 0.42), 1);
+  filter: blur(calc(0.105em * (1 - var(--glyph-ease))));
+  transform: scale(calc(1 + (1 - var(--glyph-ease)) * 0.06));
+  will-change: opacity, filter, transform;
 }
 
 /* The debris. One layer, the size of the frame, holding one absolutely placed
@@ -453,76 +503,64 @@
   pointer-events: none;
 }
 
-/* ============================== One card ==============================
-
-   A photograph laid on a plate, with the name under it and the mark at the
-   corner — a print set down on the ground rather than a window cut into it.
-
-   The shadow is in two layers doing two jobs. The near one is the contact a
-   print laid on a table makes and stays light; a heavy drop is what makes a
-   card look pasted on. The far one is the ambient, and it is what lifts the
-   card off an ivory ground that would otherwise swallow its edges. */
+/* Four generated silhouettes occupy the quadrants of one luminance atlas.
+   Reflections vary their orientation without mirroring the photograph. */
 .card {
+  --mask-position: 0% 0%;
+  --mask-x: 1;
+  --mask-y: 1;
+  --photo-ratio: 1 / 1;
+
   position: absolute;
   top: 0;
   left: 0;
-  width: clamp(11rem, 15vw, 16rem);
-  padding: 0.5rem 0.5rem 0.75rem;
-  border-radius: 0.75rem;
-  /* One step lighter than the ground it is laid on — see `.stage::before`. */
-  background: var(--ivory);
+  width: clamp(18rem, 29vw, 34rem);
   will-change: transform, opacity;
-  box-shadow:
-    0 0.2rem 0.5rem rgb(var(--ink-rgb) / 0.06),
-    0 1.5rem 3rem rgb(var(--ink-rgb) / 0.09);
 }
 
 .cardPlate {
-  overflow: hidden;
-  border-radius: 0.5rem;
-  background: var(--sand);
+  position: relative;
+  aspect-ratio: var(--photo-ratio);
+  mask-image: url("/images/act-4-masks/generated-soft-shapes.png");
+  mask-mode: luminance;
+  mask-size: 200% 200%;
+  mask-position: var(--mask-position);
+  mask-repeat: no-repeat;
+  transform: scale(var(--mask-x), var(--mask-y));
+}
+
+.card:nth-of-type(even) {
+  --mask-x: -1;
+}
+
+.card:nth-of-type(4n + 2) {
+  --mask-position: 100% 0%;
+  --photo-ratio: 11 / 10;
+}
+
+.card:nth-of-type(4n + 3) {
+  --mask-position: 0% 100%;
+  --photo-ratio: 10 / 11;
+}
+
+.card:nth-of-type(4n) {
+  --mask-position: 100% 100%;
+  --photo-ratio: 11 / 12;
+}
+
+.card:nth-of-type(n + 5) {
+  --mask-y: -1;
 }
 
 .cardPlate img {
-  width: 100%;
-  aspect-ratio: 4 / 3;
-  object-fit: cover;
-}
-
-.cardFoot {
-  display: flex;
-  flex-direction: column;
-  gap: 0.1rem;
-  /* Cleared past the mark, so a long name wraps above it rather than under it. */
-  padding: 0.6rem 2rem 0 0.35rem;
-}
-
-.cardName {
-  font-size: var(--text-sm);
-  color: var(--ink);
-}
-
-.cardNote {
-  font-size: var(--text-xs);
-  color: var(--stone);
-}
-
-/* The affordance, and it is only ever an affordance: the field is `aria-hidden`
-   and the register below carries the reading. */
-.cardMark {
+  display: block;
   position: absolute;
-  right: 0.6rem;
-  bottom: 0.7rem;
-  display: grid;
-  place-items: center;
-  width: 1.55rem;
-  height: 1.55rem;
-  border: 1px solid rgb(var(--ink-rgb) / 0.18);
-  border-radius: 50%;
-  font-size: 0.7rem;
-  color: var(--ink);
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(var(--mask-x), var(--mask-y));
 }
-
 /* ============================ The furniture ============================ */
 
 /* Everything that is read, on one layer above the wheels: the label at the
@@ -788,7 +826,7 @@
 
 .staticGrid {
   display: grid;
-  gap: var(--space-2);
+  gap: var(--space-4);
   grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
   width: 100%;
   margin-top: var(--space-3);
@@ -858,19 +896,7 @@
   }
 
   .card {
-    width: clamp(8.5rem, 42vw, 12rem);
-    padding: 0.4rem 0.4rem 0.6rem;
-  }
-
-  .cardFoot {
-    padding-right: 1.6rem;
-  }
-
-  .cardMark {
-    width: 1.3rem;
-    height: 1.3rem;
-    right: 0.45rem;
-    bottom: 0.55rem;
+    width: clamp(11rem, 52vw, 15rem);
   }
 
   /* There is no clear ground between the streams at this width — the wheels

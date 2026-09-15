@@ -3,6 +3,8 @@ import { fileURLToPath } from "node:url";
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Keep development-only framework chrome out of visual reviews and captures.
+  devIndicators: false,
   turbopack: {
     // The workspace root, not the app. Left unset, Turbopack walks up looking
     // for a lockfile and can settle far outside the repo — on a stray one in
