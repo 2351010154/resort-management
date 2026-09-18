@@ -15,6 +15,12 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { RECORD_TABLES } from "@/features/audit/record-history";
+/* The history link, from the module that owns it rather than written out here:
+ * it carries the matrix's own gate, so a record cannot offer the log to a role
+ * that holds no grant for it. Imported by its own path and not through the
+ * family's barrel, which would pull the whole audit screen into this bundle. */
+import { RecordHistoryLink } from "@/features/audit/record-history-link";
 import {
   enterSubmissionGate,
   leaveSubmissionGate,
@@ -202,31 +208,47 @@ export function StayActionSheet({
         </SheetHeader>
         <SheetBody>
           {action === null ? (
-            <div className="grid gap-2">
-              {offered.map((item) => (
-                <Button
-                  key={item}
-                  type="button"
-                  variant="outline"
-                  className="justify-start"
-                  ref={(node) => {
-                    actionRefs.current[item] = node ?? undefined;
-                  }}
-                  onClick={() => {
-                    setProblem(null);
-                    setInvalidField(null);
-                    setAction(item);
-                  }}
-                >
-                  {LABELS[item]}
-                </Button>
-              ))}
-              {offered.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  There are no staff actions available for this stay.
-                </p>
-              ) : null}
-            </div>
+            <>
+              <div className="grid gap-2">
+                {offered.map((item) => (
+                  <Button
+                    key={item}
+                    type="button"
+                    variant="outline"
+                    className="justify-start"
+                    ref={(node) => {
+                      actionRefs.current[item] = node ?? undefined;
+                    }}
+                    onClick={() => {
+                      setProblem(null);
+                      setInvalidField(null);
+                      setAction(item);
+                    }}
+                  >
+                    {LABELS[item]}
+                  </Button>
+                ))}
+                {offered.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    There are no staff actions available for this stay.
+                  </p>
+                ) : null}
+              </div>
+
+              {/* The record's door into the change log — `screens.md` asks
+                  every booking to carry one, and this sheet is where the
+                  booking is worked rather than listed. Under the acts and not
+                  among them: the buttons above change the stay and this one
+                  only reads what has already been done to it. It draws for
+                  nobody the matrix does not grant the log to. */}
+              <RecordHistoryLink
+                role={role}
+                tableName={RECORD_TABLES.booking}
+                rowId={stay.id}
+                label="Read this stay's history"
+                className="mt-4 inline-block"
+              />
+            </>
           ) : (
             <form
               onSubmit={(event) => {

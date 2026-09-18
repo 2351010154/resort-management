@@ -16,9 +16,27 @@
 // whether the reads are made at all, a cache the two of them are keyed into, and
 // a row that opens the record behind it when pressed. The screen is a client
 // component and this file is the boundary between the two.
+//
+// The one thing this file does besides naming the screen is read the query
+// string, because `screens.md` gives the log two doors: the menu, and a history
+// link on a booking, a folio or a guest that opens the view "pre-filtered to
+// that record". Read here rather than with `useSearchParams` in the screen, for
+// the reason `app/(auth)/login/page.tsx` states about the destination it was
+// interrupted with: the hook opts the whole screen into a Suspense boundary to
+// answer a question the route already has the answer to, and a screen that
+// suspends on its own url paints nothing on the first frame.
+//
+// `recordHistoryFilters` is what stands between an arbitrary url and the
+// filters below. It has no failure to report: a parameter that is not a record
+// is no filter at all, and what the reader gets is the sweep screen rather than
+// an error about a link they did not write.
 
-import { AuditScreen } from "@/features/audit";
+import { AuditScreen, recordHistoryFilters } from "@/features/audit";
 
-export default function AuditPage() {
-  return <AuditScreen />;
+export default async function AuditPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  return <AuditScreen filters={recordHistoryFilters(await searchParams)} />;
 }

@@ -24,8 +24,16 @@ export {
   type LoggedChange,
   type LoggedChangeDetail,
   type LogScope,
+  isRecordId,
   mayReadTheLog,
   NOTHING,
   SCOPE_NOTES,
   valueLabel,
 } from "./change-log";
+export {
+  RECORD_TABLES,
+  type RecordTable,
+  recordHistoryFilters,
+  recordHistoryHref,
+} from "./record-history";
+export { RecordHistoryLink } from "./record-history-link";
