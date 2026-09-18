@@ -186,7 +186,10 @@ export function ArrivalsScreen() {
               spreads the props it does not name onto its own container, and a
               `ref` passed through would replace the one its arrow handling
               reads the list from. */}
-          <DataTableFrame ref={queueRef} className="mt-3 overflow-x-auto">
+          <DataTableFrame
+            ref={queueRef}
+            className="mt-3 scrollbar-visible overflow-x-auto"
+          >
             <RovingFocusGroup
               // The table already says what it is, so the group claims nothing over
               // it — `roving-focus.tsx`'s own note about a queue of rows.

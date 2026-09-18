@@ -244,7 +244,7 @@ function Reading({
         <RoomStatusChart bars={bars} />
       </section>
 
-      <DataTableFrame className="mt-6 overflow-x-auto p-4">
+      <DataTableFrame className="mt-6 scrollbar-visible overflow-x-auto p-4">
         <table className="w-full min-w-[800px] border-collapse text-sm">
           <caption className="text-muted-foreground mb-2 text-left text-sm">
             Every room type the property operates, in the order it prices them.

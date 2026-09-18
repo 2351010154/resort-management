@@ -329,7 +329,7 @@ function Reading({
         <PerformanceChart report={report} />
       </section>
 
-      <DataTableFrame className="mt-6 overflow-x-auto p-4">
+      <DataTableFrame className="mt-6 scrollbar-visible overflow-x-auto p-4">
         <table className="w-full min-w-[900px] border-collapse text-sm">
           <caption className="text-muted-foreground mb-2 text-left text-sm">
             What each room type came to over the whole range. These are the

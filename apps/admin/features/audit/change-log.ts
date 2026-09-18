@@ -172,6 +172,20 @@ export type FilterAttempt =
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
+ * Whether a string is an id a record could be addressed by.
+ *
+ * Exported because the filters are reached two ways and both have to apply the
+ * same test: an operator types one into the field below, and a history link
+ * arrives carrying one in the query string, where there is nobody to read a
+ * sentence about it. One predicate rather than two spellings of the same
+ * pattern, which is how the form and the url cannot come to disagree about what
+ * a record id looks like.
+ */
+export function isRecordId(value: string): boolean {
+  return UUID.test(value);
+}
+
+/**
  * The half-open window a picked day means, as two instants.
  *
  * **The property's zone and not the browser's.** A console open on a laptop
@@ -250,11 +264,11 @@ export function auditFilters(
     };
   }
 
-  if (rowId !== "" && !UUID.test(rowId)) {
+  if (rowId !== "" && !isRecordId(rowId)) {
     return { problem: "That is not a record id." };
   }
 
-  if (actorId !== "" && !UUID.test(actorId)) {
+  if (actorId !== "" && !isRecordId(actorId)) {
     return { problem: "That is not a staff id." };
   }
 
