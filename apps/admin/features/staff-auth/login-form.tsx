@@ -105,9 +105,6 @@ export function LoginForm({
     <main className="grid min-h-svh bg-background lg:grid-cols-[minmax(320px,0.8fr)_1.2fr]">
       <aside className="hidden flex-col justify-between bg-nav p-10 text-nav-text lg:flex">
         <div className="flex items-center gap-3">
-          <span className="grid size-10 place-items-center rounded-lg bg-accent-soft font-semibold text-accent-strong">
-            M
-          </span>
           <span>
             <span className="block text-sm font-semibold tracking-[0.18em]">
               MARIVA
@@ -138,9 +135,6 @@ export function LoginForm({
       <div className="flex items-center justify-center p-4 sm:p-8">
         <Card className="w-full max-w-md p-6 sm:p-8">
           <div className="mb-6 flex items-center gap-3 lg:hidden">
-            <span className="grid size-9 place-items-center rounded-lg bg-primary font-semibold text-primary-foreground">
-              M
-            </span>
             <span className="text-sm font-semibold tracking-[0.18em]">
               MARIVA
             </span>
