@@ -50,6 +50,7 @@ import {
   ilike,
   inArray,
   isNotNull,
+  lte,
   sql,
   type SQL,
 } from "drizzle-orm";
@@ -84,6 +85,8 @@ export interface SearchFilters {
   readonly guestPhone?: string;
   readonly state?: BookingState;
   readonly reference?: string;
+  /** Stays departing on or before this day — see the contract's note. */
+  readonly dueOutBy?: StayDate;
 }
 
 /** One stay a search found. Carries no amount — see this file's header. */
@@ -414,6 +417,10 @@ function bookingConditions(filters: SearchFilters): SQL[] {
     conditions.push(
       overlaps(booking.checkInDate, booking.checkOutDate, filters.range),
     );
+  }
+
+  if (filters.dueOutBy !== undefined) {
+    conditions.push(lte(booking.checkOutDate, filters.dueOutBy.toString()));
   }
 
   if (filters.roomNumber !== undefined) {

@@ -5,15 +5,17 @@
 // fullscreen hold beat; Act 4 emerges from the (now viewport-centered) video
 // center — the handoff is simply the stable fullscreen end state.
 //
-// Two things ride that hold beat. The hour goes: once the frame has filled the
-// viewport the footage grades down toward dusk, so the flip out of the ivory
-// acts into Act 4's dark interior is caused by the light going rather than by
-// a section boundary. And the caption arrives, because a label on a picture
-// only means anything once the picture is the whole page.
+// The footage is at dusk from the first frame and the evening deepens with the
+// swell: the card is already a half-graded picture while it is small, and the
+// grade reaches nightfall on the frame it fills the viewport, which is what it
+// hands Act 4's dark interior. The caption arrives on the hold beat, because a
+// label on a picture only means anything once the picture is the whole page.
 //
-// The grade is one number — a `--dusk` custom property on the stage, 0 for the
-// light the loop was shot in and 1 for nightfall. Every layer of it is derived
-// in the stylesheet; this file only decides when that number moves.
+// The grade is two numbers on the stage: `--dusk`, the footage's exposure (0
+// for the light the loop was shot in, 1 for nightfall), and `--sky`, the
+// gradient laid over it. They are split because the gradient's ink head and
+// foot are drawn for a full screen and read as a black box on the small card.
+// Every layer is derived in the stylesheet; this file only moves the numbers.
 
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
@@ -41,20 +43,7 @@ import selectorStyles from "./clip-selector.module.css";
 // which is progress 0.6. Handing over slightly early lets the 0.5s tone fade
 // settle before the video is actually behind the bar.
 //
-// Unmoved by the dusk grade below: the grade only starts well after this point
-// and only ever subtracts light, so every frame the ivory bar stands on from
-// here is darker than the one this threshold was tuned against.
 const NAV_HANDOVER = 0.56;
-
-// When the evening starts, as a fraction of the pin. The swell owns the first
-// 75%, and the frame has to arrive in the light it was shot in for the swell
-// to be worth watching, so nothing touches the grade until the card is already
-// most of the way up. Starting a hair before it lands rather than exactly on
-// it keeps the darkening off the same frame as the scale settling — the reader
-// should see the light going, not a switch being thrown. The remaining ~80% of
-// nightfall then falls across the fullscreen hold, which is what leaves Act 4
-// a page that is already night to open its corridor on.
-const DUSK_START = 0.68;
 
 // When the clip column stops sitting on the page and starts sitting on the
 // picture. The column's ink-to-ivory mix rides this span rather than a
@@ -291,16 +280,15 @@ export function VideoSwell() {
           { scale: 1, borderRadius: 0, duration: 0.75 },
           0,
         )
-        // The hour, held at the loop's own light until the frame is nearly
-        // fullscreen and then run down to nightfall at the pin's end. Linear,
-        // and deliberately so: under a scrub the reader is the clock, and any
-        // curve here shows up as the page disagreeing with the hand about how
-        // fast the sun is going down.
+        // The hour, riding the swell: the footage goes from the half-graded
+        // card to nightfall, and the sky layer from nothing to whole, landing
+        // together on the frame the picture fills the screen. Linear, because
+        // under a scrub the reader is the clock.
         .fromTo(
           stage,
-          { "--dusk": 0 },
-          { "--dusk": 1, duration: 1 - DUSK_START },
-          DUSK_START,
+          { "--dusk": 0.5, "--sky": 0 },
+          { "--dusk": 1, "--sky": 1, duration: 0.75 },
+          0,
         )
         // The clip column crossing from the page onto the picture, over the
         // span where the growing frame actually passes underneath it. Linear

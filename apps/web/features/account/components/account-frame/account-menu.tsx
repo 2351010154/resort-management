@@ -9,7 +9,7 @@
 // beside them reads as a fourth — so the chip is the initial, and the name is
 // inside the panel where it is the heading of the thing it names.
 //
-// **The session is read here rather than passed in.** `AccountShell` frames two
+// **The session is read here rather than passed in.** `AccountFrame` frames two
 // screens and neither of them holds an identity the bar could borrow: the stays
 // list never reads a profile, and the profile itself is still fetching one when
 // the bar first paints. Better Auth's session is the smaller read and the one
@@ -33,7 +33,7 @@ import {
   readGuestSession,
 } from "@/features/auth/lib/guest-session";
 import { loginHref } from "@/features/auth/lib/sign-in";
-import styles from "./account-shell.module.css";
+import styles from "./account-bar.module.css";
 
 /** `--space-1` in the root token set, used to place the top-layer popover. */
 const PANEL_GAP_PX = 8;

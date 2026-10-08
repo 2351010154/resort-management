@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { BEATS, KNOTS, MOBILE_LENGTH, RIBBON_LENGTH } from "./ribbon-beats";
+import {
+  ACT2_CREST_RISE,
+  ACT2_OVERHANG,
+} from "@/features/arrival/lib/act-seams";
+import {
+  BEATS,
+  KNOTS,
+  KNOTS_NARROW,
+  MOBILE_LENGTH,
+  RIBBON_LENGTH,
+} from "./ribbon-beats";
 import { centre, edgeWave, ribbonPath } from "./ribbon-geometry";
 import { CAMERA_STOPS, cameraAt, exitOpacity } from "./ribbon-pacing";
 
@@ -72,6 +82,31 @@ describe("ribbon edge motion", () => {
         centre(KNOTS, BEATS[0].y, phase) -
         centre(KNOTS, BEATS[0].y, 0, false);
       expect(photoLeft).toBeGreaterThan(textRight);
+    }
+  });
+  it("never draws the crest above the rise Act 1 holds its photograph for", () => {
+    // Act 1 releases its pin after exactly ACT2_CREST_RISE of hold. Paper drawn
+    // any higher would reach the frame while the photograph is still pinned —
+    // or, if the hold were longer than the crest, leave scroll where nothing
+    // moves. Every y in the path, apertures included, sits below the rise.
+    for (const narrow of [false, true]) {
+      for (let time = 0; time <= 30; time += 0.75) {
+        const d = ribbonPath({
+          knots: narrow ? KNOTS_NARROW : KNOTS,
+          narrow,
+          from: -ACT2_OVERHANG,
+          to: 124,
+          s: time * 8,
+          time,
+          swaying: !narrow,
+          edgeMotion: true,
+          aspect: 0.625,
+          apertures: [],
+        });
+        const numbers = d.match(/-?\d+(?:\.\d+)?/g)!.map(Number);
+        const ys = numbers.filter((_, i) => i % 2 === 1);
+        expect(Math.min(...ys)).toBeGreaterThanOrEqual(-ACT2_CREST_RISE);
+      }
     }
   });
   it("freezes completely for reduced motion", () => {

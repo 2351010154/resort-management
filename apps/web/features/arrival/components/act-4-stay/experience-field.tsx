@@ -26,11 +26,11 @@
 //      right coming down from above, each card tilted with the rim it rides and
 //      level at the height it is read at.
 //
-// The act ends the way trionn.com's does: five bands of Act 5's own dark climb
-// the frame from the foot, the lowest first, and the Invitation is behind them
-// when the last one closes. Nothing fades; the screen is taken. The photograph
-// is already loaded and settled behind them, so the last band closes on the
-// frame rather than on the dusk fallback.
+// The act ends the way trionn.com's does, in five bands climbing the frame from
+// the foot, the lowest first: each band of this frame opens from its own foot
+// and the Invitation's photograph is what shows through it. Nothing fades; the
+// screen is taken. The photograph is already loaded and settled behind them, so
+// the last band opens on the frame rather than on the dusk fallback.
 //
 // "Behind them" is a seam, not a figure of speech: Act 5's section reaches up
 // under this one by `ACT4_OVERHANG` and its stage is sticky, so it is stuck to
@@ -53,11 +53,15 @@
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { useEffect, useRef } from "react";
-import { ACT4_OVERHANG, ACT4_WIPE } from "@/features/arrival/lib/act-seams";
+import {
+  ACT4_FIELD_REACH,
+  ACT4_OVERHANG,
+  ACT4_WIPE,
+} from "@/features/arrival/lib/act-seams";
 import { useArrivalActStore } from "@/features/arrival/lib/act-store";
 import { tierSrc, tierSrcSet } from "@/features/arrival/lib/image-srcset";
 import styles from "./act-4-stay.module.css";
-import { EXPERIENCES, experiencePlate } from "./experiences";
+import { EXPERIENCES, type Experience, experiencePlate } from "./experiences";
 
 /**
  * The four words, and the whole reason the stack is set in one size: STAY and
@@ -159,7 +163,7 @@ const HANDOFF_DESIGN = 0.09;
 /** Screens of scroll the designed sheet runs for (the section's height less
  *  the one viewport that stays pinned). The beats before the cards hold
  *  exactly this length; only the ride after them is stretched. */
-const DESIGN_SCROLL = { wide: 4.2, narrow: 3 } as const;
+const DESIGN_SCROLL = { wide: 3.4, narrow: 2.5 } as const;
 
 /** Maps a beat window quoted against the designed sheet (0–1, the shape the
  *  four beats below were cut at) onto the span that is actually free to draw
@@ -170,18 +174,21 @@ const DESIGN_SCROLL = { wide: 4.2, narrow: 3 } as const;
 const design = (v: number): number => HANDOFF_DESIGN + v * (1 - HANDOFF_DESIGN);
 
 /** Where the cards start on the designed sheet. */
-const RIDE_FROM_DESIGN = design(0.52);
+const RIDE_FROM_DESIGN = design(0.47);
 
 /**
- * How much longer the cards' ride is than it was designed at. The photographs
- * now dissolve into the ground rather than standing on plates, and a softer
- * card wants more air around it: the pairs are dealt further apart on the
- * wheel — see `PAIR_STAGGER`, which this figure tracks — and the section grows
- * by exactly the extra scroll that takes, so the
- * words, the shatter and the sentence are scrolled through at the pace they
- * were cut at.
+ * How much longer the cards' ride is than it was designed at. The pairs are
+ * dealt well apart on the wheel — see `PAIR_STAGGER`, which this figure tracks
+ * — and the section grows by the extra scroll that takes, so the words, the
+ * shatter and the sentence keep the pace they were cut at.
+ *
+ * Not as long as air alone would ask for: at 2.36 a stone took a screen and a
+ * half of scroll to cross the frame and eight of them took four screens, which
+ * reads as the page having slowed down rather than as the cards being given
+ * room. At this figure a stone crosses in about a screen, a little faster than
+ * the scroll itself, which is what makes a wheel look like it is turning.
  */
-const RIDE_STRETCH = 2.36;
+const RIDE_STRETCH = 1.9;
 
 /** The whole section, in units of the designed sheet: the sheet up to the
  *  cards, then the ride stretched. */
@@ -226,17 +233,17 @@ const rebase = (v: number): number => design(v) / SHEET;
 const REVEAL: [number, number] = [rebase(0), rebase(0.13)];
 /** The foot's exchange, held clear of the shatter so the two changes at the
  *  bottom and the middle of the frame are not read as one event. */
-const FOOT_TURN: [number, number] = [rebase(0.18), rebase(0.42)];
+const FOOT_TURN: [number, number] = [rebase(0.16), rebase(0.37)];
 /** The shatter. A fifth of the section: long enough for a letter to cross the
  *  frame and be gone, short enough that the reader is never scrolling through
  *  a field of debris. */
-const SHATTER: [number, number] = [rebase(0.32), rebase(0.52)];
+const SHATTER: [number, number] = [rebase(0.27), rebase(0.47)];
 /** The sentence sets itself. Starts before the last letters have left, so the
  *  centre is never bare. */
-const RESOLVE: [number, number] = [rebase(0.44), rebase(0.62)];
+const RESOLVE: [number, number] = [rebase(0.39), rebase(0.57)];
 /** The wheels turn in, then carry the whole of the rest of the section. */
-const WHEELS: [number, number] = [rebase(0.48), rebase(0.6)];
-const CARDS_FROM = rebase(0.52);
+const WHEELS: [number, number] = [rebase(0.43), rebase(0.55)];
+const CARDS_FROM = rebase(0.47);
 
 /** Separate pairs by well over half a crossing, so a pair has left the middle
  *  of the frame before the next one reaches it and the ground between the
@@ -278,6 +285,31 @@ const OVERSHOOT = 96;
  * it is actually read.
  */
 const TILT = 0.26;
+
+/** Degrees a stone turns across the whole of its crossing, half before the
+ *  middle and half after. Enough that the outline is visibly a different
+ *  stone at either edge of the frame; not so much it reads as spinning. */
+const STONE_TURN = 16;
+/** The size a stone enters and leaves at, against 1 at mid-height. */
+const STONE_SETTLE = 0.9;
+/** How far the photograph lags the stone across a crossing, in % of its own
+ *  height, and how much larger than the stone it is drawn — enough to cover
+ *  the turn and the lag together, so the stone's ground never shows. Kept in
+ *  step with `.cardPlate img` in the stylesheet. */
+const PHOTO_LAG = 10;
+const PHOTO_BLEED = 1.25;
+
+// --- The hand-over ---------------------------------------------------------
+
+/** How many bands the frame opens in. */
+const WIPE_BANDS = 5;
+/** The span one band takes to open, and how much later the top band starts
+ *  than the lowest, both in the same units as `WIPE_LENGTH`. */
+const WIPE_BAND = 0.3;
+const WIPE_LEAD = 0.3;
+/** The whole hand-over: every band open, then a held tail of a tenth, so the
+ *  last band has opened before the pin releases. */
+const WIPE_LENGTH = WIPE_LEAD + WIPE_BAND + 0.1;
 
 // --- The shatter -----------------------------------------------------------
 
@@ -428,6 +460,9 @@ interface Shard {
 
 interface Card {
   el: HTMLElement;
+  /** The stone, and the photograph counter-turned inside it. */
+  plate: HTMLElement | null;
+  img: HTMLElement | null;
   index: number;
   /** 1 for the left wheel (cards rise), −1 for the right (cards fall). Also
    *  the mirror: the right wheel's centre stands off the other side. */
@@ -490,6 +525,8 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
           const index = Number(el.dataset.card);
           return {
             el,
+            plate: el.querySelector<HTMLElement>("[data-card-plate]"),
+            img: el.querySelector<HTMLElement>("img"),
             index,
             dir: index % 2 === 0 ? 1 : -1,
             pair: Math.floor(index / 2),
@@ -736,6 +773,26 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
         card.el.style.transform =
           `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)` +
           ` translate(-50%, -50%) rotate(${tilt.toFixed(2)}deg)`;
+
+        // The stone turns a few degrees across its crossing and settles to
+        // full size at the middle, where it is read; the photograph is
+        // counter-turned so it stays level, and lags the ride a little, so
+        // the stone reads as a window moving over a picture rather than a
+        // print being carried.
+        const mid = a - 0.5;
+        const spin = card.dir * mid * STONE_TURN;
+        const settle =
+          STONE_SETTLE + (1 - STONE_SETTLE) * Math.sin(Math.PI * clamp01(a));
+        card.plate?.style.setProperty(
+          "transform",
+          `rotate(${spin.toFixed(2)}deg) scale(${settle.toFixed(4)})`,
+        );
+        card.img?.style.setProperty(
+          "transform",
+          `rotate(${(-spin).toFixed(2)}deg)` +
+            ` translate3d(0, ${(card.dir * mid * PHOTO_LAG).toFixed(2)}%, 0)` +
+            ` scale(${PHOTO_BLEED})`,
+        );
       };
 
       // The whole act, as a function of where the scrollbar stands. A jump
@@ -804,29 +861,40 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
         onEnterBack: () => showStage(true),
       });
 
-      // The hand-over into Act 5. Five bands of the Invitation's own dark, each
-      // growing up out of its own foot, the lowest first — so what crosses the
-      // frame is a rising edge rather than a curtain, and the act ends on a
-      // taken screen rather than a faded one.
-      const stripes = gsap.utils.toArray<HTMLElement>("[data-stripe]", stage);
-      const wipe = stripes.length ? gsap.timeline({ paused: true }) : null;
-      stripes.forEach((stripe, i) => {
-        const at = (0.3 * (stripes.length - 1 - i)) / (stripes.length - 1);
-        // The closed band is written here rather than read from the stylesheet.
-        // A `to` tween takes its start from whatever the element computes to
-        // the first time it renders, and this timeline is built on mount: read
-        // before the module's stylesheet has been applied, the band measures as
-        // identity and the tween becomes 1 → 1.
-        wipe?.fromTo(
-          stripe,
-          { scaleY: 0 },
-          { scaleY: 1, duration: 0.3, ease: "none" },
-          at,
-        );
-      });
-      // A held tail, so the last band has closed before the pin releases and
-      // the Invitation is never met through a gap.
-      wipe?.to({}, { duration: 0.1 });
+      // The hand-over into Act 5. Five bands of the frame open, each from its
+      // own foot, the lowest first, and what shows through them is the
+      // Invitation's photograph, already stuck behind this stage. The bands
+      // used to be painted in Act 5's dark, which the Invitation is not: the
+      // screen closed to black and the photograph was then cut in on the one
+      // frame the stage was taken off the page. Opening onto the photograph
+      // itself, the last band leaves the reader on the next act's own frame.
+      const wipe = (closing: number) => {
+        if (closing <= 0) {
+          stage.style.clipPath = "";
+          return;
+        }
+        // Each band's own opening, 0 → 1. The lowest starts first and each one
+        // above it a little later; all five are open before the held tail, so
+        // the pin never releases on a band still half open.
+        const t = closing * WIPE_LENGTH;
+        const points: string[] = [];
+        for (let i = 0; i < WIPE_BANDS; i++) {
+          const at = (WIPE_LEAD * (WIPE_BANDS - 1 - i)) / (WIPE_BANDS - 1);
+          const open = clamp01((t - at) / WIPE_BAND);
+          const top = (i * 100) / WIPE_BANDS;
+          // What is left of the frame in this band: its top, above the edge
+          // rising from its foot. The polygon walks down the left edge from
+          // band to band, which draws nothing between them.
+          const bottom = top + (100 / WIPE_BANDS) * (1 - open);
+          points.push(
+            `0 ${top.toFixed(3)}%`,
+            `100% ${top.toFixed(3)}%`,
+            `100% ${bottom.toFixed(3)}%`,
+            `0 ${bottom.toFixed(3)}%`,
+          );
+        }
+        stage.style.clipPath = `polygon(${points.join(", ")})`;
+      };
 
       // One trigger across the whole pin, cut into the reading and the seam.
       //
@@ -841,13 +909,12 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
         const scrolled = self.progress * (self.end - self.start);
         const beats = beatScroll(section);
         layout(clamp01(scrolled / beats));
-        if (!wipe) return;
         const closing = clamp01(
           (scrolled - beats) / (window.innerHeight * (ACT4_WIPE / 100)),
         );
-        wipe.progress(closing);
-        // The bar is over this act's ivory until the bands have most of the
-        // frame, and over Act 5's dark after.
+        wipe(closing);
+        // The bar is over this act's ivory until the bands have opened most of
+        // the frame, and over the Invitation's darkened top after.
         setNavDark(4, closing >= 0.55);
       };
 
@@ -882,7 +949,10 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
       // of the designed sheet, and a card crosses the whole frame in half of
       // the stretched ride; shorter, and the letters leave in the same screen
       // the sentence arrives in.
-      style={{ height: sectionHeight(mobile) }}
+      style={{
+        height: sectionHeight(mobile),
+        marginTop: `-${ACT4_FIELD_REACH}vh`,
+      }}
       aria-label="Stay"
     >
       <div ref={stageRef} className={styles.stage}>
@@ -916,7 +986,7 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
                 className={styles.card}
                 style={{ opacity: 0 }}
               >
-                <div className={styles.cardPlate}>
+                <div data-card-plate className={styles.cardPlate}>
                   <img
                     src={tierSrc(plate.src, 640)}
                     srcSet={tierSrcSet(plate)}
@@ -925,6 +995,7 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
                     loading={i < 2 ? undefined : "lazy"}
                   />
                 </div>
+                <CardCaption experience={experience} />
               </article>
             );
           })}
@@ -1017,14 +1088,18 @@ export function ExperienceField({ mobile }: { mobile: boolean }) {
             </li>
           ))}
         </ul>
-
-        <div className={styles.wipe} aria-hidden>
-          {[0, 1, 2, 3, 4].map((i) => (
-            <span key={i} data-stripe className={styles.stripe} />
-          ))}
-        </div>
       </div>
     </section>
+  );
+}
+
+/** The name and the one line under a stone. */
+function CardCaption({ experience }: { experience: Experience }) {
+  return (
+    <p className={styles.cardCaption}>
+      <span className={`caps-label ${styles.cardName}`}>{experience.name}</span>
+      <span className={styles.cardNote}>{experience.note}</span>
+    </p>
   );
 }
 
@@ -1047,10 +1122,11 @@ export function ExperienceFieldStatic() {
                   src={tierSrc(plate.src, 640)}
                   srcSet={tierSrcSet(plate)}
                   sizes="(max-width: 767px) 92vw, 30vw"
-                  alt={`${experience.name}: ${plate.alt}`}
+                  alt={plate.alt}
                   loading="lazy"
                 />
               </div>
+              <CardCaption experience={experience} />
             </li>
           );
         })}

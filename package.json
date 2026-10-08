@@ -7,7 +7,7 @@
     "node": ">=24.0.0"
   },
   "scripts": {
-    "dev": "turbo run dev",
+    "dev": "node scripts/start-dev-database.mjs && turbo run dev",
     "build": "turbo run build",
     "lint": "biome lint --error-on-warnings . && pnpm --filter @mariva/web lint:css",
     "format": "biome format --write .",

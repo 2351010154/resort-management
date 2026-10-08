@@ -258,6 +258,15 @@ export const listFoliosInput = z
   .object({
     state: folioStateSchema.optional(),
     balance: z.enum(["ANY", "OUTSTANDING", "OVERPAID"]).default("ANY"),
+    /**
+     * Whether accounts on stays not yet begun — `HELD` or `CONFIRMED` — are in
+     * the answer. A deposit taken ahead of arrival leaves the account in credit
+     * by design, and `OUTSTANDING` alone would list every prepaid booking as a
+     * guest owed money. An enum for `balance`'s reason: a query-string boolean
+     * reads "false" as true. A cancelled or no-show stay is not upcoming, so a
+     * deposit it still holds stays in the answer — that one is owed back.
+     */
+    upcoming: z.enum(["INCLUDE", "EXCLUDE"]).default("INCLUDE"),
     from: stayDateSchema.optional(),
     to: stayDateSchema.optional(),
     limit: z.coerce

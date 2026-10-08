@@ -1,7 +1,7 @@
 /* The feedback panel under a finished stay.
  *
  * The field, the button and the message treatments are the guest realm's —
- * `profile-form.module.css` and `auth-shell.module.css` set them, and a form
+ * `profile-screen.module.css` and `auth-shell.module.css` set them, and a form
  * that boxed its inputs while the account screen underlined them would be two
  * design systems one press apart. The column matches the stay panel above it
  * (34rem), so the two read as one page rather than as two things that happen to

@@ -11,20 +11,24 @@ export const ramp = (value: number, from: number, to: number) =>
 
 // Arrival, slow inspection, then travel to the next composition. Every hold
 // still advances gently, so the scene never feels like a locked scrollbar.
+// The first and last holds are the shortest the reading allows: the first
+// is the ribbon's birth, already watched rising out of Act 1, and the last is
+// one line over the horizon. Longer, each was most of a screen of scroll in
+// which nothing on the frame visibly changed.
 export const CAMERA_STOPS = [
   [0, -36],
-  [170, -22],
-  [300, 86],
-  [460, 104],
-  [590, 179],
-  [730, 202],
-  [850, 279],
-  [1010, 297],
-  [1130, 382],
-  [1190, 396],
-  [1250, 492],
-  [1340, 504],
-  [1380, 534],
+  [130, -22],
+  [260, 86],
+  [420, 104],
+  [550, 179],
+  [690, 202],
+  [810, 279],
+  [970, 297],
+  [1090, 382],
+  [1150, 396],
+  [1210, 492],
+  [1260, 504],
+  [1300, 534],
 ] as const;
 
 const CAMERA_TANGENTS = CAMERA_STOPS.map(([x, y], index) => {

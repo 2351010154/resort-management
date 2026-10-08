@@ -1,0 +1,122 @@
+/* The arch: a semicircle over straight jambs, standing on its sill.
+ *
+ * The head's radius is half the frame's width across and the same distance
+ * down — on a 3:4 frame that is 37.5% of its height, on 4:5 it is 40% — so the
+ * head stays a true semicircle at every size the frame is drawn at.
+ */
+
+.arch {
+  --arch-head: 37.5%;
+
+  position: relative;
+  z-index: 4;
+  aspect-ratio: 3 / 4;
+  margin: 0;
+}
+
+.arch[data-setting="paper"] {
+  --arch-head: 40%;
+
+  aspect-ratio: 4 / 5;
+}
+
+.opening {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 50% 50% 0 0 / var(--arch-head) var(--arch-head) 0 0;
+  background: var(--sand);
+}
+
+.picture {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  scale: 1.04;
+  transition:
+    opacity 0.9s var(--ease-scene),
+    scale 1.6s var(--ease-scene),
+    filter 0.9s var(--ease-scene);
+}
+
+.picture[data-showing] {
+  opacity: 1;
+  scale: 1;
+}
+
+.arch[data-muted] .picture {
+  filter: grayscale(0.75) brightness(1.04);
+}
+
+/* ---- On paper: a framed photograph --------------------------------------- */
+
+/* The inset keyline, in ivory inside the photograph: the frame's own edge,
+   drawn the way the landing draws the ring inside its framed pictures. */
+.arch[data-setting="paper"] .opening::after {
+  content: "";
+  position: absolute;
+  inset: 0.75rem 0.75rem 0;
+  z-index: 1;
+  border: 1px solid rgb(var(--ivory-rgb) / 0.62);
+  border-bottom: none;
+  border-radius: 50% 50% 0 0 / var(--arch-head) var(--arch-head) 0 0;
+  pointer-events: none;
+}
+
+/* ---- On stone: an opening cut through it --------------------------------- */
+
+/* The wall's thickness, seen around the room beyond: the reveal is the stone
+ * itself, shaded deeper at the head and the left jamb (the light is from the
+ * upper left, so they face away from it) and lit along the sill. The room is
+ * set back inside it by the depth of the reveal. */
+.arch[data-setting="stone"] .opening {
+  background:
+    linear-gradient(
+      150deg,
+      rgb(var(--ink-rgb) / 0.42),
+      rgb(var(--umber-rgb) / 0.18) 46%,
+      rgb(var(--ivory-rgb) / 0.12) 100%
+    ),
+    url("/images/account/limestone-pillar-640.webp") 30% 40% / 36rem auto;
+}
+
+.arch[data-setting="stone"] .picture {
+  inset: 0.875rem 0.875rem 0;
+  width: calc(100% - 1.75rem);
+  height: calc(100% - 0.875rem);
+  border-radius: 50% 50% 0 0 / var(--arch-head) var(--arch-head) 0 0;
+}
+
+/* Depth on the room itself: the wall's shadow falling into the opening from
+   the head and the left jamb. */
+.arch[data-setting="stone"] .opening::after {
+  content: "";
+  position: absolute;
+  inset: 0.875rem 0.875rem 0;
+  z-index: 1;
+  border-radius: 50% 50% 0 0 / var(--arch-head) var(--arch-head) 0 0;
+  box-shadow:
+    inset 0.75rem 1rem 1.5rem -0.5rem rgb(var(--ink-rgb) / 0.42),
+    inset 0 0 0 1px rgb(var(--ink-rgb) / 0.18);
+  pointer-events: none;
+}
+
+/* The cut's outer lip, catching the light along its edge. */
+.arch[data-setting="stone"]::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: 50% 50% 0 0 / var(--arch-head) var(--arch-head) 0 0;
+  border: 1px solid rgb(var(--ivory-rgb) / 0.4);
+  border-bottom: none;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .picture {
+    transition: none;
+  }
+}

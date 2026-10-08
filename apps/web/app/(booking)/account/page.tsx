@@ -16,7 +16,7 @@
 // Better Auth's own routes on the API's origin.
 
 import type { Metadata } from "next";
-import { ProfileForm } from "@/features/account/components/profile-form/profile-form";
+import { ProfileScreen } from "@/features/account/components/profile-screen/profile-screen";
 
 export const metadata: Metadata = {
   title: "Your profile | Mariva",
@@ -25,5 +25,5 @@ export const metadata: Metadata = {
 };
 
 export default function AccountPage() {
-  return <ProfileForm />;
+  return <ProfileScreen />;
 }

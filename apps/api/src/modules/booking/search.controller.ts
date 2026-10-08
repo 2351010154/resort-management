@@ -58,6 +58,7 @@ interface SearchQuery {
   readonly guestPhone?: string;
   readonly state?: BookingState;
   readonly reference?: string;
+  readonly dueOutBy?: StayDate;
 }
 
 @Controller()
@@ -159,6 +160,7 @@ function asFilters(input: SearchQuery): SearchFilters {
     guestPhone: input.guestPhone,
     state: input.state,
     reference: input.reference,
+    dueOutBy: input.dueOutBy,
   };
 }
 

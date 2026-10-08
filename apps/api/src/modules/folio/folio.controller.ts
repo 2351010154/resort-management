@@ -166,6 +166,7 @@ export class FolioController {
         this.folios.list(exec, {
           state: input.state,
           balance: input.balance,
+          upcoming: input.upcoming,
           from: input.from,
           to: input.to,
           limit: input.limit,

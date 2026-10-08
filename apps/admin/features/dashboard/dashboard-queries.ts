@@ -67,7 +67,7 @@ export function useArrivalsAwaitingCheckIn(businessDate: string | undefined) {
   );
 }
 
-/** Stays due out today, as the search answers them. */
+/** Stays due out today or overdue, as the search answers them. */
 export function useDeparturesAwaitingCheckout(
   businessDate: string | undefined,
 ) {
@@ -97,11 +97,19 @@ export function useDeparturesAwaitingCheckout(
  *
  * No `state` filter. An account only closes once it settles, so a closed folio
  * with a balance is a discrepancy rather than a category to leave out.
+ *
+ * Upcoming stays are left out. A deposit taken on a booking that has not
+ * arrived leaves its account in credit by design, and counting it would put
+ * every prepaid reservation on a card about money the desk has to chase.
  */
 export function useUnsettledFolios() {
   return useQuery(
     orpc.folio.list.queryOptions({
-      input: { balance: "OUTSTANDING", limit: 1 } satisfies FolioListQuery,
+      input: {
+        balance: "OUTSTANDING",
+        upcoming: "EXCLUDE",
+        limit: 1,
+      } satisfies FolioListQuery,
       meta: {
         errorMessage: "The unsettled folios could not be counted.",
       } satisfies ConsoleMeta,

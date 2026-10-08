@@ -85,9 +85,11 @@ export function TurndownFooter({
   // the reading block scales up out of three quarters across its own arrival,
   // scrubbed at the drift lag so it is still settling after the page has
   // stopped. Its columns then rise inside it, so the end of the ride arrives in
-  // two moves instead of appearing whole.
-  useBlockArrival(bodyRef);
-  useRevealBatch(sectionRef);
+  // two moves instead of appearing whole. Both happen once: the footer is the
+  // page's facts and links, and it stays put when the reader scrolls back up
+  // rather than shrinking and fading away again.
+  useBlockArrival(bodyRef, { once: true });
+  useRevealBatch(sectionRef, { once: true });
 
   return (
     <footer ref={sectionRef} data-act={6} className={styles.section}>
