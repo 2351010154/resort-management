@@ -16,6 +16,7 @@ import {
   EmptyState,
   KeyHint,
   PageHeader,
+  StatusChip,
 } from "@/components/console";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatLongDate, formatShortDate } from "@/lib/business-date";
@@ -23,7 +24,7 @@ import { RovingFocusGroup, useRovingFocusItem } from "@/lib/keyboard";
 import { cn } from "@/lib/utils";
 
 import { CheckoutSequence } from "./checkout-sequence";
-import { type Departure, departureAfter } from "./departure-queue";
+import { type Departure, departureAfter, isOverdue } from "./departure-queue";
 import { useDepartureQueue } from "./departures-queries";
 
 /* Today's departures, as a queue somebody works rather than a report they read.
@@ -108,7 +109,7 @@ export function DeparturesScreen() {
     setFocusId(null);
   }, [focusId]);
 
-  const columns = useMemo(() => departureColumns(), []);
+  const columns = useMemo(() => departureColumns(businessDate), [businessDate]);
 
   const table = useReactTable({
     data: departures,
@@ -139,7 +140,7 @@ export function DeparturesScreen() {
         description={
           businessDate === null
             ? "Reading the hotel day."
-            : `In-house stays due out on ${formatLongDate(businessDate)}.`
+            : `In-house stays due out on ${formatLongDate(businessDate)}, and any still here past their date.`
         }
       />
 
@@ -170,7 +171,7 @@ export function DeparturesScreen() {
         <EmptyState
           className="mt-6"
           title="No departures waiting"
-          description="No in-house stay is due to check out today."
+          description="No in-house stay is due to check out today or overdue."
         />
       ) : null}
 
@@ -207,8 +208,8 @@ export function DeparturesScreen() {
             >
               <table className="w-full min-w-[760px] border-collapse text-sm">
                 <caption className="sr-only">
-                  Today's departures. Arrow keys move between stays, Enter opens
-                  the checkout.
+                  Today's departures and overdue stays. Arrow keys move between
+                  stays, Enter opens the checkout.
                 </caption>
                 <thead>
                   {table.getHeaderGroups().map((group) => (
@@ -357,9 +358,10 @@ function DepartureRow({
  * The room leads, because a departing guest identifies themselves by it — which
  * is the same reason the queue is ordered by it. What the stay comes to is
  * absent for the reason the module header gives: a balance per row is a folio
- * per row.
+ * per row. A stay past its departure date says so beside its dates, because an
+ * overstay is a different conversation at the desk from an ordinary departure.
  */
-function departureColumns(): ColumnDef<Departure>[] {
+function departureColumns(businessDate: string | null): ColumnDef<Departure>[] {
   return [
     {
       id: "room",
@@ -399,6 +401,15 @@ function departureColumns(): ColumnDef<Departure>[] {
       header: "Dates",
       accessorFn: (departure) =>
         `${formatShortDate(departure.checkIn)} to ${formatShortDate(departure.checkOut)}`,
+      cell: (context) => (
+        <span className="inline-flex items-center gap-2">
+          {context.getValue<string>()}
+          {businessDate !== null &&
+          isOverdue(context.row.original, businessDate) ? (
+            <StatusChip tone="warning">Overdue</StatusChip>
+          ) : null}
+        </span>
+      ),
     },
     {
       /* That the row opens, said in the place a list says it: a marker on the

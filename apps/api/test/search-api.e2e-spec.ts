@@ -559,6 +559,36 @@ describe("the dimensions FR-BOOK-05 lists", () => {
     expect(referencesOf(checkedIn.body.bookings)).toEqual([inHouse.reference]);
   });
 
+  it("finds the stays due out on or before a day, however long ago", async () => {
+    // The departure day itself is in, and a day long after it still finds the
+    // stay: an overstay does not age out of the answer the way it does out of
+    // an overlap window.
+    const onTheDay = await search(
+      "RECEPTIONIST",
+      `dueOutBy=${DEPARTURE}`,
+    ).expect(200);
+
+    expect(referencesOf(onTheDay.body.bookings)).toEqual([inHouse.reference]);
+
+    const weeksLater = await search(
+      "RECEPTIONIST",
+      `state=CHECKED_IN&dueOutBy=${UPCOMING_ARRIVAL}`,
+    ).expect(200);
+
+    expect(referencesOf(weeksLater.body.bookings)).toEqual([inHouse.reference]);
+  });
+
+  it("leaves out a stay due out after the day, and every room", async () => {
+    const response = await search(
+      "RECEPTIONIST",
+      `dueOutBy=${WINDOW_CLOSES}`,
+    ).expect(200);
+
+    // A fact about a stay, so it narrows bookings and answers no rooms at all.
+    expect(response.body.bookings).toEqual([]);
+    expect(response.body.rooms).toEqual([]);
+  });
+
   it("finds a stay by its reference", async () => {
     const response = await search(
       "RECEPTIONIST",

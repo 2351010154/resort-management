@@ -111,7 +111,7 @@ export function DashboardScreen() {
           label="Departures awaiting"
           title="Checkout"
           href="/departures"
-          description="Guests in house whose last night was last night."
+          description="Guests in house whose last night has passed, overdue ones included."
           action="View departures"
           icon={LogOutIcon}
           reading={counts.departures}
@@ -129,7 +129,7 @@ export function DashboardScreen() {
           label="Folios still"
           title="Unsettled"
           href="/folios"
-          description="Accounts that do not balance, over or short."
+          description="Accounts that do not balance, over or short, on stays already begun."
           action="View folios"
           icon={WalletCardsIcon}
           reading={counts.unsettledFolios}
@@ -162,8 +162,8 @@ export function DashboardScreen() {
               reading={counts.dueIn}
             />
             <StaysPreview
-              heading="Due out today"
-              subject="leaving today"
+              heading="Due out"
+              subject="due out today or overdue"
               href="/departures"
               action="Open the departures queue"
               reading={counts.dueOut}

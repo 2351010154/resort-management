@@ -81,6 +81,16 @@ export const operationalSearchQuery = z
     guestPhone: z.string().trim().min(1).max(30).optional(),
     state: bookingStateSchema.optional(),
     reference: z.string().trim().min(1).max(40).optional(),
+    /**
+     * Stays whose departure date falls on or before this day.
+     *
+     * Its own dimension rather than a wider `from`/`to`, because the question
+     * is one-sided: a stay still checked in two weeks after it was due out is
+     * the departure the desk most needs to see, and no overlap window catches
+     * it without also reaching back over every stay that ever left. A fact
+     * about a stay and nothing about a room, so it narrows bookings alone.
+     */
+    dueOutBy: stayDateSchema.optional(),
   })
   .refine(
     (query) => Object.values(query).some((value) => value !== undefined),

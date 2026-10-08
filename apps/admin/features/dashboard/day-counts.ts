@@ -161,22 +161,30 @@ export function arrivalCriteria(businessDate: string): SearchCriteria {
 }
 
 /**
- * The search that finds the stays due out today.
+ * The search that finds the stays due out today, and the ones overdue.
  *
- * The window is *yesterday*, and that is the half-open convention rather than
- * an off-by-one: a stay departing today owns nights up to but not including
- * today, so `[today, tomorrow)` — the window arrivals use — excludes exactly
- * the stays this card is about. `[yesterday, today)` catches every one of them,
- * because a checked-in stay leaving today slept last night, and it is the
- * narrowest window that does, which is what keeps the answer clear of the
- * search's cap.
+ * `dueOutBy` and not an overlap window. A window of `[yesterday, today)` finds
+ * every stay leaving today, but a stay still checked in a fortnight after its
+ * departure date overlaps no recent window at all — it dropped off the queue
+ * while its account went on counting as unsettled, and nothing on the console
+ * offered to check it out. Every checked-in stay due out on or before today is
+ * one the desk has to close, and the overdue ones most of all.
  */
 export function departureCriteria(businessDate: string): SearchCriteria {
   return {
     state: "CHECKED_IN",
-    from: shiftDate(businessDate, -1),
-    to: businessDate,
+    dueOutBy: businessDate,
   };
+}
+
+/**
+ * Whether a checked-in stay is due to leave by this day.
+ *
+ * ISO dates compare as strings, so `<=` here is the calendar order. A stay past
+ * its date is still a departure — an overdue one — rather than an occupant.
+ */
+export function isDueOut(checkOut: string, businessDate: string): boolean {
+  return checkOut <= businessDate;
 }
 
 /** Stays arriving today that nobody has checked in yet. */
@@ -187,12 +195,12 @@ export function arrivalsAwaitingCheckIn(
   return countStays(results, (stay) => stay.checkIn === businessDate);
 }
 
-/** Stays due out today that nobody has checked out yet. */
+/** Stays due out today, or overdue, that nobody has checked out yet. */
 export function departuresAwaitingCheckout(
   results: SearchResults,
   businessDate: string,
 ): DayCount | null {
-  return countStays(results, (stay) => stay.checkOut === businessDate);
+  return countStays(results, (stay) => isDueOut(stay.checkOut, businessDate));
 }
 
 function countStays(
@@ -362,7 +370,7 @@ export function staysDueOut(
   results: SearchResults,
   businessDate: string,
 ): StaySample | null {
-  return sampleStays(results, (stay) => stay.checkOut === businessDate);
+  return sampleStays(results, (stay) => isDueOut(stay.checkOut, businessDate));
 }
 
 function sampleStays(

@@ -9,6 +9,7 @@ import {
   departureAfter,
   type Folio,
   isClosed,
+  isOverdue,
   overpayment,
   refusalSentence,
   refusalStep,
@@ -82,6 +83,34 @@ describe("cutting today's queue out of the search", () => {
     );
 
     expect(queue?.departures.map((one) => one.reference)).toEqual(["BK-1001"]);
+  });
+
+  it("keeps a checked-in stay whose departure date has already passed", () => {
+    // An overstay is still in the building and still has to be checked out.
+    // Off the queue, its account would go on counting as unsettled with no
+    // control anywhere on the console to close it.
+    const queue = todaysDepartures(
+      answer([
+        stay({ reference: "BK-1001", roomNumber: "201" }),
+        stay({
+          reference: "BK-1002",
+          roomNumber: "202",
+          checkIn: "2026-08-10",
+          checkOut: "2026-08-12",
+        }),
+      ]),
+      TODAY,
+    );
+
+    expect(queue?.departures.map((one) => one.reference)).toEqual([
+      "BK-1001",
+      "BK-1002",
+    ]);
+  });
+
+  it("marks only a stay past its date as overdue", () => {
+    expect(isOverdue(stay({ checkOut: "2026-08-12" }), TODAY)).toBe(true);
+    expect(isOverdue(stay({ checkOut: TODAY }), TODAY)).toBe(false);
   });
 
   it("drops a stay somebody has already checked out", () => {

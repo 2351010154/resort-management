@@ -400,6 +400,8 @@ export interface ClosedFolio {
 export interface FolioListQuery {
   readonly state?: (typeof folio.$inferSelect)["state"];
   readonly balance: "ANY" | "OUTSTANDING" | "OVERPAID";
+  /** `EXCLUDE` leaves out accounts on `HELD` or `CONFIRMED` stays. */
+  readonly upcoming: "INCLUDE" | "EXCLUDE";
   readonly from?: StayDate;
   readonly to?: StayDate;
   readonly limit: number;
@@ -591,9 +593,27 @@ export class FolioService implements FolioPort {
    * controller opens it — so the page and the figure over it are one moment.
    */
   async list(exec: DbExecutor, query: FolioListQuery): Promise<FolioPage> {
-    // The one dimension that is a fact about the folio row itself, so the one
-    // that narrows before anything is added up.
-    const where = query.state ? eq(folio.state, query.state) : undefined;
+    // The dimensions that are facts about the account row or its stay, so the
+    // ones that narrow before anything is added up.
+    const narrowed: SQL[] = [];
+
+    if (query.state) {
+      narrowed.push(eq(folio.state, query.state));
+    }
+
+    if (query.upcoming === "EXCLUDE") {
+      // A fact about the stay rather than the account, asked of the booking row
+      // the folio belongs to. `exists` and not a join, so the `group by` below
+      // stays keyed on the folio alone.
+      narrowed.push(sql`not exists (
+        select 1
+          from ${booking}
+         where ${booking.id} = ${folio.bookingId}
+           and ${inArray(booking.state, ["HELD", "CONFIRMED"])}
+      )`);
+    }
+
+    const where = narrowed.length > 0 ? and(...narrowed) : undefined;
 
     const matched: SQL[] = [];
 
