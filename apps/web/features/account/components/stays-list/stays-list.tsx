@@ -1,57 +1,66 @@
 "use client";
 
-// `/account/stays` — every stay this account has taken.
+// `/account/stays` — every stay this account has taken, as a register beside
+// the stone.
 //
 // **The list only navigates.** `screens.md` §Account is explicit: cancelling an
 // upcoming stay and leaving post-stay feedback both happen on
 // `/bookings/<reference>`, the one surface that owns a stay's full context and
-// knows which of those its state allows. A card that offered a
-// cancel button here would be a second place for that decision to be made, kept
-// in step with the first by hand. The rail is held to the same rule: it states
-// what the two groups add up to and offers the way back into the funnel, and
-// nothing in it acts on a stay either.
+// knows which of those its state allows. A line that offered a cancel button
+// here would be a second place for that decision to be made, kept in step with
+// the first by hand. So every line is a link and nothing else
+// (`stay-row.tsx`).
 //
-// So every card is a link and nothing else, and the whole card is the link
-// rather than a word inside it: the target is one stay, and a guest reaching for
-// it on a phone should not have to find the four characters that were
-// underlined.
+// **The stone holds the page's name and one room.** An arch cut through it
+// shows the room of whichever stay the guest is reading
+// (`stays-inscription.tsx`); nothing else is cut there, because the stone is
+// the heavy half of the page. Nothing is fetched for it and nothing on it is a
+// control over a stay.
 //
-// **The card says what the payload already knows.** `plan`, `adults`,
-// `childAges` and `stayTotalGross` all arrive with every stay and were being
-// dropped on the floor — a guest scanning six bookings for the one that was the
-// week with the children, or the expensive one, had to open each in turn. What
-// is *not* here is the room number, because a guest books a room type and the
-// number is assigned at check-in, and any breakdown of the total, because
-// `listOwn` answers one gross figure and components of it would be arithmetic
-// the API never sent.
-//
-// The two groups and their order are `stay-history.ts`'s, and argued there. What
-// this file adds is today — the property's own date rather than the browser's,
-// because a guest reading this in Auckland must see the same two groups as one
-// reading it in Lisbon.
+// **The register runs the way a guest looks.** The two groups and their order
+// are `stay-history.ts`'s — what is coming, forwards, then what has been,
+// backwards — and the history is broken by year, because "the one in 2025" is
+// how a person remembers a holiday. Today is the property's own date rather
+// than the browser's, because a guest reading this in Auckland must see the
+// same two groups as one reading it in Lisbon.
 
 import { parseDate, today } from "@internationalized/date";
-import {
-  nightCount,
-  PROPERTY_TIME_ZONE,
-  roundVndForDisplay,
-} from "@mariva/shared";
+import { PROPERTY_TIME_ZONE } from "@mariva/shared";
 import { useEffect, useState } from "react";
-import { AccountShell } from "@/features/account/components/account-shell/account-shell";
+import { AccountFrame } from "@/features/account/components/account-frame/account-frame";
+import type { ArchPicture } from "@/features/account/components/account-frame/arch-frame";
+import { Chapter } from "@/features/account/components/account-frame/chapter";
+import { CircleLink } from "@/features/account/components/account-frame/circle-link";
 import { standingOf, stayHistory } from "@/features/account/lib/stay-history";
 import { type OwnStay, readStays } from "@/features/account/lib/stays";
-import { Money } from "@/features/booking/components/money";
-import { planName } from "@/features/booking/lib/rate-plans";
-import { roomType } from "@/features/booking/lib/room-types";
+import { BOOKING_HERO } from "@/features/booking/lib/booking-hero";
+import {
+  roomLead,
+  tierSrc,
+  tierSrcSet,
+} from "@/features/booking/lib/room-images";
+import { StayRow } from "./stay-row";
+import { StaysInscription } from "./stays-inscription";
 import styles from "./stays-list.module.css";
 
-const SUBTITLE =
-  "What is coming, and what has been. Each one opens the stay it belongs to.";
+/** The property at dusk, for an account with nothing to show in the arch. */
+const DUSK: ArchPicture = {
+  key: "dusk",
+  src: tierSrc(BOOKING_HERO.src, 1280),
+  srcSet: tierSrcSet(BOOKING_HERO),
+  width: BOOKING_HERO.width,
+  height: BOOKING_HERO.height,
+  alt: BOOKING_HERO.alt,
+  // The open door of the court, which is what an arch-shaped crop of a wide
+  // dusk photograph should be standing on.
+  position: "56% 50%",
+};
 
 export function StaysList() {
   const [stays, setStays] = useState<readonly OwnStay[]>();
   const [refusal, setRefusal] = useState<string>();
   const [loading, setLoading] = useState(true);
+  const [shown, setShown] = useState<OwnStay["id"]>();
 
   useEffect(() => {
     let live = true;
@@ -75,18 +84,14 @@ export function StaysList() {
     };
   }, []);
 
-  // The three states below pass no `aside` and so keep the measure: a rail that
-  // counts stays has nothing to count until they have been read, and an empty
-  // frame beside a sentence is worse than no frame at all.
   if (loading) {
     return (
-      <AccountShell
+      <AccountFrame
         here="stays"
-        subtitle="One moment while the property reads your bookings."
-        title="Your stays"
+        stone={<StaysInscription active={undefined} pictures={[]} />}
       >
         <p className={styles.notice}>Reading your stays.</p>
-      </AccountShell>
+      </AccountFrame>
     );
   }
 
@@ -95,38 +100,46 @@ export function StaysList() {
   // entirely, and it is below.
   if (!stays) {
     return (
-      <AccountShell
+      <AccountFrame
         here="stays"
-        subtitle="The property could not read your bookings."
-        title="Your stays"
+        stone={<StaysInscription active={undefined} pictures={[]} />}
       >
-        <p className={styles.error} role="alert">
-          {refusal}
-        </p>
-        <p className={styles.footnote}>
-          <a className={styles.footnoteLink} href="/login">
-            Log in
-          </a>{" "}
-          and your stays are here waiting.
-        </p>
-      </AccountShell>
+        <div className={styles.close}>
+          <p className={`${styles.closeLine} font-display`}>
+            The property could not read your bookings.
+          </p>
+          <p className={styles.error} role="alert">
+            {refusal}
+          </p>
+          <p className={styles.footnote}>
+            <a className={styles.footnoteLink} href="/login">
+              Log in
+            </a>{" "}
+            and your stays are here waiting.
+          </p>
+        </div>
+      </AccountFrame>
     );
   }
 
   if (stays.length === 0) {
     return (
-      <AccountShell here="stays" subtitle={SUBTITLE} title="Your stays">
-        <div className={styles.empty}>
-          <p className={styles.notice}>
-            Nothing under this account yet. A stay you booked before you had one
-            is kept with the link in its confirmation email. Open that link and
-            the stay comes with you.
+      <AccountFrame
+        here="stays"
+        stone={<StaysInscription active="dusk" pictures={[DUSK]} />}
+      >
+        <div className={styles.close}>
+          <p className={`${styles.closeLine} font-display`}>
+            Until you arrive.
           </p>
-          <a className={`${styles.book} caps-label`} href="/booking">
-            Book a stay
-          </a>
+          <p className={styles.hint}>
+            Nothing is under this account yet. A stay you booked before you had
+            one is kept with the link in its confirmation email. Open that link
+            and the stay comes with you.
+          </p>
+          <CircleLink href="/booking">Choose your dates</CircleLink>
         </div>
-      </AccountShell>
+      </AccountFrame>
     );
   }
 
@@ -134,185 +147,106 @@ export function StaysList() {
     stays,
     today(PROPERTY_TIME_ZONE).toString(),
   );
+  // The first line of the register until the guest points at another.
+  const showing =
+    stays.find((stay) => stay.id === shown) ?? upcoming[0] ?? past[0];
+  const years = byYear(past);
+  const first = upcoming.length > 0 ? 2 : 1;
 
   return (
-    <AccountShell
+    <AccountFrame
       here="stays"
-      leftRail={<StaysRail ahead={upcoming.length} taken={past.length} />}
-      leftRailLabel="Stay overview"
-      subtitle={SUBTITLE}
-      title="Your stays"
+      stone={
+        <StaysInscription
+          active={showing?.roomType}
+          muted={showing ? standingOf(showing.state).tone === "off" : false}
+          pictures={roomsOf(stays)}
+        />
+      }
     >
       {upcoming.length > 0 ? (
-        <section className={styles.group}>
-          <h2 className={`${styles.groupTitle} caps-label`}>Coming up</h2>
+        <Chapter line="What is ahead of you." name="Coming up" number="01">
           <ul className={styles.list}>
             {upcoming.map((stay) => (
-              <StayCard key={stay.id} stay={stay} />
+              <StayRow key={stay.id} onShow={setShown} stay={stay} />
             ))}
           </ul>
-        </section>
+        </Chapter>
       ) : null}
 
       {past.length > 0 ? (
-        <section className={styles.group}>
-          <h2 className={`${styles.groupTitle} caps-label`}>Before this</h2>
-          <ul className={styles.list}>
-            {past.map((stay) => (
-              <StayCard key={stay.id} stay={stay} />
-            ))}
-          </ul>
-        </section>
+        <Chapter
+          line="Where you have been."
+          name="Before this"
+          number={String(first).padStart(2, "0")}
+        >
+          {years.map(([year, group]) => (
+            <section
+              aria-label={String(year)}
+              className={styles.year}
+              key={year}
+            >
+              <p
+                aria-hidden="true"
+                className={`${styles.yearMark} font-display`}
+              >
+                {year}
+              </p>
+              <ul className={styles.list}>
+                {group.map((stay) => (
+                  <StayRow key={stay.id} onShow={setShown} stay={stay} />
+                ))}
+              </ul>
+            </section>
+          ))}
+        </Chapter>
       ) : null}
-    </AccountShell>
-  );
-}
 
-/**
- * The rail: what the list adds up to, and the way back into the funnel.
- *
- * Both figures are the two groups the page has already made, counted — nothing
- * is fetched for the rail and nothing in it is a control over a stay. It is the
- * `Options` panel of the reference screens with the only option this screen is
- * allowed to offer.
- */
-function StaysRail({
-  ahead,
-  taken,
-}: {
-  readonly ahead: number;
-  readonly taken: number;
-}) {
-  return (
-    <div className={styles.rail}>
-      <p className={styles.railSummary}>
-        {aheadClause(ahead)}. {historyClause(taken)}.
-      </p>
-
-      <div className={styles.railFoot}>
-        <a className={`${styles.book} caps-label`} href="/booking">
-          Book a stay
-        </a>
+      <div className={styles.close}>
+        <p className={`${styles.closeLine} font-display`}>
+          The calendar is open.
+        </p>
+        <CircleLink href="/booking">Choose your dates</CircleLink>
       </div>
-    </div>
+    </AccountFrame>
   );
 }
 
-/** "Two stays are coming up" — the first half of the rail's sentence. */
-function aheadClause(count: number): string {
-  if (count === 0) {
-    return "Nothing is coming up";
+/** One picture per room type the account has stayed in, for the arch. */
+function roomsOf(stays: readonly OwnStay[]): readonly ArchPicture[] {
+  const codes = [...new Set(stays.map((stay) => stay.roomType))];
+
+  return codes.map((code) => {
+    const frame = roomLead(code);
+
+    return {
+      key: code,
+      src: tierSrc(frame.src, 1280),
+      srcSet: tierSrcSet(frame),
+      width: frame.width,
+      height: frame.height,
+      alt: frame.alt,
+    };
+  });
+}
+
+/** The past stays in their years, most recent year first — the order they
+ *  already come in, broken where the arrival year changes. */
+function byYear(
+  stays: readonly OwnStay[],
+): readonly (readonly [number, readonly OwnStay[]])[] {
+  const groups: [number, OwnStay[]][] = [];
+
+  for (const stay of stays) {
+    const year = parseDate(stay.checkIn).year;
+    const last = groups.at(-1);
+
+    if (last && last[0] === year) {
+      last[1].push(stay);
+    } else {
+      groups.push([year, [stay]]);
+    }
   }
 
-  return count === 1 ? "One stay is coming up" : `${count} stays are coming up`;
+  return groups;
 }
-
-/** "Three stays are in your history" — includes completed and cancelled stays. */
-function historyClause(count: number): string {
-  if (count === 0) {
-    return "Nothing is in your history yet";
-  }
-
-  return count === 1
-    ? "One stay is in your history"
-    : `${count} stays are in your history`;
-}
-
-/**
- * One stay, as a link to the surface that owns it.
- *
- * The reference is encoded because it is composed into an address — it is the
- * property's own string and not a credential, and `/bookings/<reference>` is
- * where the guest's confirmation already sent them.
- */
-function StayCard({ stay }: { readonly stay: OwnStay }) {
-  const checkIn = parseDate(stay.checkIn);
-  const checkOut = parseDate(stay.checkOut);
-  const nights = nightCount({ checkIn, checkOut });
-  const standing = standingOf(stay.state);
-
-  return (
-    <li className={styles.item}>
-      <a
-        className={styles.card}
-        href={`/bookings/${encodeURIComponent(stay.reference)}`}
-      >
-        <span className={styles.head}>
-          <span className={`${styles.room} font-display`}>
-            {roomType(stay.roomType).name}
-          </span>
-          <span className={styles.badge} data-tone={standing.tone}>
-            {standing.label}
-          </span>
-        </span>
-
-        <span className={styles.dates}>
-          {longDate(checkIn)} – {longDate(checkOut)}
-        </span>
-
-        <span className={styles.tags}>
-          <span className={styles.tag}>{planName(stay.plan)}</span>
-        </span>
-
-        <span className={styles.foot}>
-          <span className={styles.specs}>
-            {occupancySpecs(nights, stay.adults, stay.childAges.length).map(
-              (spec) => (
-                <span className={styles.spec} key={spec}>
-                  {spec}
-                </span>
-              ),
-            )}
-            <span className={`${styles.spec} ${styles.reference}`}>
-              {stay.reference}
-            </span>
-          </span>
-
-          {/* `lining-nums` travels with `.font-display` — see `.price`. */}
-          <span className={`${styles.price} font-display`}>
-            <Money amount={roundVndForDisplay(stay.stayTotalGross)} />
-          </span>
-        </span>
-      </a>
-    </li>
-  );
-}
-
-/**
- * "3 nights", "2 adults", "1 child" — the spec row, in reading order.
- *
- * Children are omitted rather than printed as a zero: "0 children" is a fact
- * about a form field and not about a stay, and most stays have none.
- */
-function occupancySpecs(
-  nights: number,
-  adults: number,
-  children: number,
-): readonly string[] {
-  const specs = [
-    nights === 1 ? "1 night" : `${nights} nights`,
-    adults === 1 ? "1 adult" : `${adults} adults`,
-  ];
-
-  if (children > 0) {
-    specs.push(children === 1 ? "1 child" : `${children} children`);
-  }
-
-  return specs;
-}
-
-/** "19 August 2026" — the property's own date, never the browser's instant. */
-function longDate(date: ReturnType<typeof parseDate>): string {
-  // "UTC" is safe here and only here: a `CalendarDate` converted at UTC midnight
-  // formats as itself, which is the point. A browser at UTC+9 parsing the ISO
-  // text and formatting locally renders the day before, silently, for exactly
-  // the guests most likely to book a resort in Vietnam.
-  return DAY.format(date.toDate("UTC"));
-}
-
-const DAY = new Intl.DateTimeFormat("en-GB", {
-  day: "numeric",
-  month: "long",
-  year: "numeric",
-  timeZone: "UTC",
-});
