@@ -6,8 +6,10 @@ import type { ApertureGeometry, Knot } from "./ribbon-geometry";
 // Scene distance and scroll distance are deliberately different. Long holds
 // belong to the camera, not to empty ivory between the photographs.
 export const SCENE_LENGTH = 650;
-export const RIBBON_LENGTH = 1370;
-export const MOBILE_LENGTH = 965;
+// Retuned together with the camera's authored travel, so one unit of it still
+// costs the same scroll: (length − 100) / last stop stays ~0.92 and ~0.63.
+export const RIBBON_LENGTH = 1296;
+export const MOBILE_LENGTH = 915;
 
 export interface RibbonImage {
   src: string;

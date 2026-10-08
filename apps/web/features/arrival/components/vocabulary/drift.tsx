@@ -264,10 +264,17 @@ export function DriftImage({
  * opacity 0 with its links still in the tab order. This is the bottom-of-page
  * half of what `reveal.tsx` sweeps for at the top, where a start above the
  * first screen is never crossed either.
+ *
+ * `once` keeps the block once it has fully arrived: the scrub is let go on the
+ * frame it reaches its end, so scrolling back up no longer shrinks and fades it.
  */
 export function useBlockArrival(
   ref: RefObject<HTMLElement | null>,
-  { start = "top 30%", end }: { start?: string; end?: string } = {},
+  {
+    start = "top 30%",
+    end,
+    once = false,
+  }: { start?: string; end?: string; once?: boolean } = {},
 ) {
   useEffect(() => {
     const el = ref.current;
@@ -291,6 +298,20 @@ export function useBlockArrival(
 
     const mm = gsap.matchMedia();
     mm.add(NO_PREFERENCE, () => {
+      // Progress rather than `onLeave`: the footer's end is held at the last
+      // scroll position the page has, and a trigger ending there is reached
+      // but never left. Checked on refresh too, for a load or a resize that
+      // lands past the end without scrolling through it.
+      // The tween is read off the trigger, not a local: the trigger can refresh
+      // while the tween that owns it is still being built.
+      const keepOnceArrived = (self: ScrollTrigger) => {
+        if (!once || self.progress < 1) return;
+        const arrival = self.animation;
+        // Keep the tween alive, drop the trigger and its scrub lag, and land
+        // the block whole.
+        self.kill(false, true);
+        arrival?.progress(1);
+      };
       gsap.fromTo(
         el,
         { opacity: 0, scale: BLOCK_ARRIVAL_SCALE },
@@ -304,11 +325,13 @@ export function useBlockArrival(
             end: end === undefined ? laterMark : `clamp(${end})`,
             scrub: SCRUB_DRIFT,
             invalidateOnRefresh: true,
+            onUpdate: keepOnceArrived,
+            onRefresh: keepOnceArrived,
           },
         },
       );
     });
 
     return () => mm.revert();
-  }, [ref, start, end]);
+  }, [ref, start, end, once]);
 }

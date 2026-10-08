@@ -42,8 +42,11 @@
 
 import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { useEffect, useRef, useState } from "react";
-import { ACT2_OVERHANG } from "@/features/arrival/lib/act-seams";
+import { type ReactNode, useEffect, useRef, useState } from "react";
+import {
+  ACT1_HANDOVER_LEAD,
+  ACT2_CREST_RISE,
+} from "@/features/arrival/lib/act-seams";
 import { useArrivalActStore } from "@/features/arrival/lib/act-store";
 import { tierSrcSet } from "@/features/arrival/lib/image-srcset";
 import { registerArrivalEases } from "@/features/arrival/lib/motion-eases";
@@ -65,9 +68,9 @@ import { FLOWER_LEFT, FLOWER_RIGHT, HERO_PLATE } from "./hero-plate";
  * coming at them. Cut it and the join is never actually witnessed; it is
  * simply overtaken.
  *
- * The seam hold is Act 2's number, not this act's: it is how long the ribbon
- * takes to be born over the held picture, and the picture holds for exactly
- * that.
+ * The seam hold is Act 2's number, not this act's: it is how far above its own
+ * top the ribbon's crest is drawn, so the paper reaches the foot of the frame
+ * on the scroll the pin releases on, and the picture holds for exactly that.
  */
 const MORPH_TRAVEL = 53;
 const JOIN_HOLD = 11;
@@ -84,14 +87,14 @@ const PUSH_TRAVEL = 76;
  * last fifth of the push and was taken away, which is a line the reader sees
  * rather than a line the reader reads.
  *
- * Over half a screen, and it carries the exit as well as the reading: the last
- * GREETING_FADE of it is the type dissolving, finishing exactly where the
- * ribbon starts. Long enough to stop on and short enough that a reader who has
- * already read it is not scrolling through a still frame wondering whether the
- * page has jammed.
+ * Most of a screen, and never a still one: the letters are still landing
+ * through its first stretch and start lifting off before it ends, so the type
+ * is only ever fully standing for about a third of a screen. Both of those
+ * moves need room — a letter crossing its mask in a tenth of a screen is a
+ * flicker, not a gesture.
  */
-const GREETING_HOLD = 58;
-const SEAM_HOLD = ACT2_OVERHANG;
+const GREETING_HOLD = 80;
+const SEAM_HOLD = ACT2_CREST_RISE;
 
 const PIN_TRAVEL =
   MORPH_TRAVEL + JOIN_HOLD + PUSH_TRAVEL + GREETING_HOLD + SEAM_HOLD;
@@ -104,9 +107,6 @@ const MORPH_END = MORPH_TRAVEL / PIN_TRAVEL;
 const PUSH_START = (MORPH_TRAVEL + JOIN_HOLD) / PIN_TRAVEL;
 /** Progress at which the push is done and the greeting has the stage. */
 const PUSH_END = (MORPH_TRAVEL + JOIN_HOLD + PUSH_TRAVEL) / PIN_TRAVEL;
-/** Progress at which the greeting's hold ends and the ribbon starts rising. */
-const RIBBON_START =
-  (MORPH_TRAVEL + JOIN_HOLD + PUSH_TRAVEL + GREETING_HOLD) / PIN_TRAVEL;
 
 /**
  * Frame scale at rest, where 1 is exactly the viewport.
@@ -253,9 +253,9 @@ const FLOWER_END = 12;
 const NAV_COVER_SCALE = 0.84;
 
 /**
- * The greeting's three numbers, as push progress and then as a share of the
- * seam hold: where it starts resolving over the photograph, where it is fully
- * resolved, and how far into the seam hold it is gone again.
+ * The greeting's numbers: where in the push its letters start rising into
+ * place, where the last of them has landed, and how long the lift that takes
+ * them off the picture again is given.
  *
  * The act's last beat used to be a picture growing to full size and then simply
  * standing there, which is a zoom rather than an arrival: past the point where
@@ -264,38 +264,89 @@ const NAV_COVER_SCALE = 0.84;
  * is what the travel was toward — it resolves only once the picture is nearly
  * full, so it reads as something met at the end of the approach and not as a
  * caption that was riding along on top of it. It is fully in before the push
- * ends and then stands through GREETING_HOLD, which is the beat that exists to
+ * ends and settles and then stands through GREETING_HOLD, which is the beat that exists to
  * be the reading.
  *
- * The exit is written as a length of the hold rather than as a share of the
- * seam hold that follows, and that is the whole reason it can be slow. The seam
- * hold is Act 2's ribbon being born over this picture, and the ribbon's first
- * opening looks back through at the same photograph in register — so its
- * leading edge carries no visible sheet of its own as it climbs. Type still
- * standing when that edge crosses it is cut clean in half by an edge the reader
- * cannot see, which reads as a hairline drawn across the photograph. A fade
- * that starts when the ribbon does therefore has to be over almost before it
- * began. This one starts GREETING_FADE before the ribbon and lands exactly on
- * it: nothing is ever in the edge's way, and the dissolve gets a quarter of a
- * screen to happen in.
+ * Nothing in it fades. Each letter stands in a mask the height of its line
+ * and travels through it — up into place as the picture lands, and on up and
+ * out as the paper arrives — so the type behaves like something set on the
+ * picture rather than a layer whose opacity is being turned. The lift runs
+ * from the bottom of the block to the top, the plate first and the house's
+ * name last: the ribbon climbs from the foot of the frame, and the type
+ * leaving ahead of it in that order reads as the paper lifting it off.
+ *
+ * The lift ends ACT1_HANDOVER_LEAD before the pin releases, because that is
+ * where Act 2's copy of the photograph takes over, and it carries no greeting.
+ * It starts early enough that the ribbon's crest, rising once GREETING_HOLD ends,
+ * arrives under a block that is already on its way out.
  */
-const GREETING_IN = 0.42;
-const GREETING_FULL = 0.74;
-const GREETING_FADE = 26;
-/** Progress at which the greeting starts dissolving, one fade before the ribbon. */
-const GREETING_LEAVE = RIBBON_START - GREETING_FADE / PIN_TRAVEL;
+/**
+ * The arrival, in viewport heights of scroll: it starts ARRIVE_LEAD before the
+ * push ends and runs ARRIVE_TRAVEL. Written as scroll rather than as push
+ * progress because the push accelerates into its last frames, and a cascade
+ * keyed to it would be spent in a flick of the wheel.
+ */
+const ARRIVE_LEAD = 14;
+const ARRIVE_TRAVEL = 38;
+const ARRIVE_START = PUSH_END - ARRIVE_LEAD / PIN_TRAVEL;
+const ARRIVE_END = ARRIVE_START + ARRIVE_TRAVEL / PIN_TRAVEL;
+const GREETING_LIFT = 38;
+/** Progress at which the lift begins and ends. */
+const LIFT_END = (PIN_TRAVEL - ACT1_HANDOVER_LEAD) / PIN_TRAVEL;
+const LIFT_START = LIFT_END - GREETING_LIFT / PIN_TRAVEL;
+/**
+ * The share of a cascade's window each piece spends moving. The rest is the
+ * stagger, so with ~20 pieces each letter starts a small step behind its
+ * neighbour and most of the line is travelling at once — a slow wave through
+ * it rather than letters popping one by one, or a line moving as one.
+ */
+const GLYPH_SPAN = 0.6;
+/** How far past its mask a letter stands when hidden, in its own height. */
+const GLYPH_DROP = 112;
+/** The small turn a letter makes on its way through the mask, in degrees. */
+const GLYPH_TURN = 4;
 
 const clamp01 = (v: number) => (v < 0 ? 0 : v > 1 ? 1 : v);
 const ramp = (value: number, from: number, to: number) =>
   clamp01((value - from) / (to - from));
 
 /**
- * The morph's curve. Eased at both ends because this beat is a shape settling
- * into another shape, and a linear polygon interpolation lands on its final
- * geometry with the same speed it left the first — the windows snap square.
+ * The morph's curve: it answers the first notch of the wheel and spends its
+ * length on the landing.
+ *
+ * It used to be a cubic in-out, which is right for a tween and wrong for a
+ * scrub. Eased in, the first tenth of a screen moved the windows by under 3%,
+ * so the reader's opening scroll was met with a page that did not seem to
+ * hear it, and the whole join was then spent in the next fifth of a screen.
+ * Out-eased, the stage moves the moment it is asked to and the windows still
+ * decelerate into their joined geometry rather than snapping square. A sine
+ * rather than a steeper power: anything harder finishes the join a fifth of a
+ * screen early and leaves a still stretch in front of the join hold.
  */
-const easeInOut = (t: number) =>
-  t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+const easeMorph = (t: number) => Math.sin((t * Math.PI) / 2);
+
+/**
+ * The morph's two phases, as shares of one window's morph. The slant levels
+ * first and the gap closes after, overlapping in the middle — the reader sees
+ * four panes squaring up and only then drawing together, which is what the
+ * join is: a view assembling, not four shapes being tweened to one.
+ */
+const STRAIGHTEN_END = 0.72;
+const CLOSE_START = 0.2;
+/**
+ * The share of the morph the outer pair trails the middle one by. The join
+ * cascades outward from the picture's subject, the same order the entry opens
+ * the windows in, so the last seam to close is at the edge of the picture and
+ * not through the middle of the terrace.
+ */
+const OUTER_LAG = 0.16;
+/**
+ * How far the branches have drifted toward the camera by the end of the join,
+ * where 1 is their rest size. The near plane moving while the far one holds is
+ * parallax — the stage has depth before the push ever starts, and the push
+ * picks the branches up already travelling rather than from a standstill.
+ */
+const FLOWER_DRIFT = 1.035;
 
 /**
  * The push's curve, and it eases *in* rather than out. A plane approaching a
@@ -319,6 +370,61 @@ const easeIn = (t: number) => t * t;
 function flowerMagnification(picture: number, pictureEnd: number): number {
   const nearer = (1 - 1 / FLOWER_END) / (1 - 1 / pictureEnd);
   return 1 / (1 - nearer * (1 - 1 / picture));
+}
+
+/** A letter settling into place: fast off the mark, long landing. */
+const easeOut = (t: number) => 1 - (1 - t) ** 3;
+
+/**
+ * How far piece `index` of `count` has travelled when a cascade over all of
+ * them is `t` of the way through. Each piece moves for GLYPH_SPAN of the
+ * window and the rest is spread as the stagger between them.
+ */
+function cascade(t: number, index: number, count: number): number {
+  if (count < 2) return t;
+  const step = (1 - GLYPH_SPAN) / (count - 1);
+  return clamp01((t - index * step) / GLYPH_SPAN);
+}
+
+/**
+ * The greeting's pieces, in the order they arrive (reading order) and the
+ * order they are lifted off (bottom of the block first, each line still read
+ * left to right). Lines are the `data-glyph` values the markup gives them.
+ */
+const GREETING_LINES = ["marker", "line", "plate"] as const;
+
+/**
+ * Split display type into masked words of letters, at render time so the
+ * server sends the spans and React owns them. Whitespace stays text between
+ * the words, so the line still breaks where it would have.
+ */
+function glyphs(text: string, line: (typeof GREETING_LINES)[number]) {
+  // Letters repeat, so a letter's offset in the text is its identity; the
+  // text is a constant, so the offsets never move.
+  const nodes: ReactNode[] = [];
+  let offset = 0;
+  for (const word of text.split(" ")) {
+    if (offset > 0) nodes.push(" ");
+    const letters: ReactNode[] = [];
+    for (const char of word) {
+      letters.push(
+        <span
+          key={offset + letters.length}
+          className={styles.greetingGlyph}
+          data-glyph={line}
+        >
+          {char}
+        </span>,
+      );
+    }
+    nodes.push(
+      <span key={`word-${offset}`} className={styles.greetingWord}>
+        {letters}
+      </span>,
+    );
+    offset += word.length + 1;
+  }
+  return nodes;
 }
 
 /** A window, as the four corners of its clip polygon in percent. */
@@ -361,9 +467,19 @@ const RIGHT_JOINED: Quad = [49.95, 0, 90.05, 0, 90.05, 100, 49.95, 100];
 const OUTER_LEFT_JOINED: Quad = [0, 0, 10.05, 0, 10.05, 100, 0, 100];
 const OUTER_RIGHT_JOINED: Quad = [89.95, 0, 100, 0, 100, 100, 89.95, 100];
 
+/** A window's own morph phases, from the act's morph progress `t` (0–1). */
+function windowMorph(t: number, lag: number) {
+  const own = ramp(t, lag, lag + 1 - OUTER_LAG);
+  return {
+    level: easeMorph(ramp(own, 0, STRAIGHTEN_END)),
+    close: easeMorph(ramp(own, CLOSE_START, 1)),
+  };
+}
+
 /**
- * A window's `clip-path`: the rest quad carried `t` of the way to its joined
- * strip, then sealed down to `open` of its width.
+ * A window's `clip-path`: the rest quad carried toward its joined strip — its
+ * x corners `close` of the way and its y corners `level` of the way — then
+ * sealed down to `open` of its width.
  *
  * The two live in one function because the entry and the scrub write the same
  * property on the same element. Expressed as two tweens the later one simply
@@ -376,12 +492,18 @@ const OUTER_RIGHT_JOINED: Quad = [89.95, 0, 100, 0, 100, 100, 89.95, 100];
  * is — which is what the monogram did when its outline was legible a beat
  * before the mark was open.
  */
-function windowClip(from: Quad, to: Quad, t: number, open: number): string {
+function windowClip(
+  from: Quad,
+  to: Quad,
+  close: number,
+  level: number,
+  open: number,
+): string {
   const xs: number[] = [];
   const ys: number[] = [];
   for (let i = 0; i < 8; i += 2) {
-    xs.push(from[i] + (to[i] - from[i]) * t);
-    ys.push(from[i + 1] + (to[i + 1] - from[i + 1]) * t);
+    xs.push(from[i] + (to[i] - from[i]) * close);
+    ys.push(from[i + 1] + (to[i + 1] - from[i + 1]) * level);
   }
   const centre = (xs[0] + xs[1] + xs[2] + xs[3]) / 4;
   const points = xs.map((x, i) => {
@@ -391,12 +513,17 @@ function windowClip(from: Quad, to: Quad, t: number, open: number): string {
   return `polygon(${points.join(", ")})`;
 }
 
-/** The transform a window's content carries at morph progress `t`. */
-function mediaTransform(side: -1 | 1, t: number): string {
-  const held = 1 - t;
+/**
+ * The transform a window's content carries. The slide back into register is
+ * keyed to the gap closing, so the halves line up exactly as their edges meet
+ * rather than arriving in register across a gap that is still open; the crop
+ * relaxes with the slant, as the view opening out.
+ */
+function mediaTransform(side: -1 | 1, close: number, level: number): string {
+  const held = 1 - close;
   const x = side * SPLIT_X * held;
   const y = -side * SPLIT_Y * held;
-  const scale = MEDIA_REST + (1 - MEDIA_REST) * t;
+  const scale = MEDIA_REST + (1 - MEDIA_REST) * level;
   return `translate(${x.toFixed(3)}%, ${y.toFixed(3)}%) scale(${scale.toFixed(4)})`;
 }
 
@@ -488,6 +615,7 @@ export function Act1Arrival() {
           side: -1 as const,
           rest: LEFT_REST,
           joined: LEFT_JOINED,
+          lag: 0,
         },
         {
           el: right,
@@ -495,6 +623,7 @@ export function Act1Arrival() {
           side: 1 as const,
           rest: RIGHT_REST,
           joined: RIGHT_JOINED,
+          lag: 0,
         },
         {
           el: outerLeft,
@@ -502,6 +631,7 @@ export function Act1Arrival() {
           side: -1 as const,
           rest: OUTER_LEFT_REST,
           joined: OUTER_LEFT_JOINED,
+          lag: OUTER_LAG,
         },
         {
           el: outerRight,
@@ -509,6 +639,7 @@ export function Act1Arrival() {
           side: 1 as const,
           rest: OUTER_RIGHT_REST,
           joined: OUTER_RIGHT_JOINED,
+          lag: OUTER_LAG,
         },
       ];
       // The two inputs a window's clip is a function of. The entry owns one and
@@ -518,9 +649,57 @@ export function Act1Arrival() {
       let morph = 0;
       const paintWindows = () => {
         windows.forEach((w, i) => {
-          w.el.style.clipPath = windowClip(w.rest, w.joined, morph, opens[i].v);
-          w.media.style.transform = mediaTransform(w.side, morph);
+          const { close, level } = windowMorph(morph, w.lag);
+          w.el.style.clipPath = windowClip(
+            w.rest,
+            w.joined,
+            close,
+            level,
+            opens[i].v,
+          );
+          w.media.style.transform = mediaTransform(w.side, close, level);
         });
+      };
+
+      // The greeting's pieces in arrival order, and the lift order built from
+      // it: the lines reversed so the plate nearest the rising paper goes
+      // first, each line's letters still left to right.
+      const arriving = Array.from(
+        greeting.querySelectorAll<HTMLElement>("[data-glyph]"),
+      );
+      const lifting = [...GREETING_LINES]
+        .reverse()
+        .flatMap((line) => arriving.filter((el) => el.dataset.glyph === line));
+      const liftIndex = new Map(lifting.map((el, i) => [el, i]));
+      const paintGreeting = (arrival: number, lift: number) => {
+        const count = arriving.length;
+        arriving.forEach((el, i) => {
+          const up = easeOut(cascade(arrival, i, count));
+          const off = easeIn(cascade(lift, liftIndex.get(el) ?? i, count));
+          if (el.dataset.glyph === "plate") {
+            // The plate is cut open from its foot and closed from its foot
+            // again, riding up a little as it goes — the same travel as the
+            // letters, stated as an edge because a pill has no line to sit in.
+            // Unclipped at rest so its shadow is not cut off with it.
+            const top = (1 - up) * 100;
+            const bottom = off * 100;
+            el.style.clipPath =
+              top + bottom > 0.05
+                ? `inset(${top.toFixed(2)}% 0 ${bottom.toFixed(2)}% 0 round 999px)`
+                : "none";
+            el.style.transform = `translateY(${((1 - up - off) * 0.9).toFixed(3)}rem)`;
+            return;
+          }
+          const y = (1 - up - off) * GLYPH_DROP;
+          const turn = (1 - up - off) * GLYPH_TURN;
+          el.style.transform = `translateY(${y.toFixed(2)}%) rotate(${turn.toFixed(2)}deg)`;
+        });
+        // The wash is light on the picture, not a thing on it: it deepens
+        // with the type standing there and lifts with it.
+        greeting.style.setProperty(
+          "--wash",
+          (easeOut(arrival) * (1 - easeIn(lift))).toFixed(3),
+        );
       };
 
       // The entrance: the windows widen out of the sealed panels the server
@@ -546,7 +725,8 @@ export function Act1Arrival() {
         // things that have to stay welded to each other.
         scrub: true,
         onUpdate: (self) => {
-          morph = easeInOut(ramp(self.progress, 0, MORPH_END));
+          // Linear here: each window eases its own phases in windowMorph().
+          morph = ramp(self.progress, 0, MORPH_END);
           const push = easeIn(ramp(self.progress, PUSH_START, PUSH_END));
           paintWindows();
 
@@ -561,30 +741,22 @@ export function Act1Arrival() {
           // fly outward from the same centre the picture grows from, and the
           // one nearer a corner leaves sooner. No opacity is written: they
           // leave the frame, they do not dissolve in it.
-          const magnified = flowerMagnification(scale / rest, FRAME_END / rest);
+          const magnified =
+            flowerMagnification(scale / rest, FRAME_END / rest) *
+            (1 + (FLOWER_DRIFT - 1) * easeMorph(morph));
           foreground.style.transform = `scale(${magnified.toFixed(4)})`;
 
-          // The greeting resolves over the last of the push and clears again as
-          // the ribbon starts rising. Written as opacity and a small rise on
-          // one element rather than as a tween of its own: it is a function of
-          // the same scroll the picture is, and a second timeline would lag the
-          // picture it is supposed to be arriving with.
-          const shown =
-            ramp(push, GREETING_IN, GREETING_FULL) *
-            (1 - ramp(self.progress, GREETING_LEAVE, RIBBON_START));
-          greeting.style.opacity = shown.toFixed(3);
-          // The rise is handed to the type as a custom property rather than
-          // written as a transform on the greeting itself: the wash is this
-          // element's own background, and moving the element moves the wash
-          // down past the foot of the stage, where the stage's overflow cuts
-          // the transparent end off the gradient and leaves the edge the wash
-          // exists to avoid.
-          greeting.style.setProperty(
-            "--rise",
-            `${(-(1 - shown) * 1.6).toFixed(3)}rem`,
-          );
-          greeting.style.visibility = shown > 0.001 ? "visible" : "hidden";
-          greeting.dataset.reachable = shown > 0.9 ? "true" : "false";
+          // The greeting's letters rise into place over the last of the push
+          // and are lifted off again as the paper arrives. A function of the
+          // same scroll the picture is rather than a tween of its own: a second
+          // timeline would lag the picture it is supposed to be arriving with.
+          const arrival = ramp(self.progress, ARRIVE_START, ARRIVE_END);
+          const lift = ramp(self.progress, LIFT_START, LIFT_END);
+          paintGreeting(arrival, lift);
+          greeting.style.visibility =
+            arrival > 0 && lift < 1 ? "visible" : "hidden";
+          greeting.dataset.reachable =
+            arrival >= 1 && lift <= 0 ? "true" : "false";
 
           // The bar is told what it is standing on. Guarded rather than
           // written every frame: the store's setter is idempotent, but a
@@ -631,13 +803,15 @@ export function Act1Arrival() {
   // are drawn open, since an unsealing they will never see would leave them on
   // four hairlines.
   const entryOpen = still ? 1 : ENTRY_SEAL;
+  /** Every morph phase at once: joined when still, at rest otherwise. */
+  const pose = still ? 1 : 0;
 
   const panel = (side: -1 | 1) => {
     const rest = side === -1 ? LEFT_REST : RIGHT_REST;
     const joined = side === -1 ? LEFT_JOINED : RIGHT_JOINED;
     return {
-      clipPath: windowClip(rest, joined, still ? 1 : 0, entryOpen),
-      transform: mediaTransform(side, still ? 1 : 0),
+      clipPath: windowClip(rest, joined, pose, pose, entryOpen),
+      transform: mediaTransform(side, pose, pose),
     };
   };
 
@@ -691,7 +865,8 @@ export function Act1Arrival() {
                 clipPath: windowClip(
                   side === -1 ? OUTER_LEFT_REST : OUTER_RIGHT_REST,
                   side === -1 ? OUTER_LEFT_JOINED : OUTER_RIGHT_JOINED,
-                  still ? 1 : 0,
+                  pose,
+                  pose,
                   entryOpen,
                 ),
               }}
@@ -700,7 +875,7 @@ export function Act1Arrival() {
               <div
                 ref={side === -1 ? outerLeftMediaRef : outerRightMediaRef}
                 className={styles.panelMedia}
-                style={{ transform: mediaTransform(side, still ? 1 : 0) }}
+                style={{ transform: mediaTransform(side, pose, pose) }}
               >
                 <img
                   src={HERO_PLATE.src}
@@ -780,18 +955,26 @@ export function Act1Arrival() {
         <div
           ref={greetingRef}
           className={styles.greeting}
-          style={still ? undefined : { opacity: 0, visibility: "hidden" }}
+          style={still ? undefined : { visibility: "hidden" }}
         >
-          <p className={`caps-label ${styles.greetingMarker}`}>Mariva</p>
+          {/* The words are said once, whole, to assistive technology; the
+              split letters are what the eye gets and nothing else. */}
+          <p className={`caps-label ${styles.greetingMarker}`}>
+            <span className={styles.srOnly}>Mariva</span>
+            <span aria-hidden>{glyphs("Mariva", "marker")}</span>
+          </p>
           <h1 className={`font-display ${styles.greetingLine}`}>
-            Stay a while.
+            <span className={styles.srOnly}>Stay a while.</span>
+            <span aria-hidden>{glyphs("Stay a while.", "line")}</span>
           </h1>
           {/* The one thing on the arrived picture a reader can act on. It is
-              only clickable while the greeting is essentially full: the type
-              dissolves over a quarter of a screen, and a button that still
-              takes clicks at a tenth of its opacity is a target the reader
-              cannot see they are hitting. */}
-          <a className={styles.greetingAction} href="/booking">
+              only clickable while every piece of the greeting is in place: a
+              plate half cut away is a target the reader cannot fully see. */}
+          <a
+            className={styles.greetingAction}
+            href="/booking"
+            data-glyph="plate"
+          >
             Book your stay
             <svg
               className={styles.greetingActionArrow}

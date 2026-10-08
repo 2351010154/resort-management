@@ -47,8 +47,15 @@
      0 is the light the loop was shot in; 1 is nightfall. It lives on the stage
      rather than on the shell so the scrub, the footage filter, the sky overlay
      and the reduced-motion still below all read one value and none of them can
-     hold a different idea of what dusk looks like. */
-  --dusk: 0;
+     hold a different idea of what dusk looks like. The card starts halfway
+     there, so it is already an evening picture while it is small, and the
+     swell carries it the rest of the way. */
+  --dusk: 0.5;
+  /* The sky layer's own share, separate from the footage's exposure because
+     its heavy ink head and foot are a full screen's edges: on a small card on
+     ivory they read as a black box. It rises with the swell, from nothing on
+     the card to whole at fullscreen, where those edges meet Act 4's dark. */
+  --sky: 0;
   /* The other number the stage owns, and the clip column's whole ground story:
      0 while the column is over the ivory page, 1 once the swelling frame has
      grown out past it. Same reasoning as `--dusk` — one value, read by the
@@ -123,7 +130,7 @@
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  opacity: var(--dusk);
+  opacity: var(--sky);
   background: linear-gradient(
     to bottom,
     rgb(var(--ink-rgb) / 0.9) 0%,
@@ -196,6 +203,7 @@
    hour unambiguous. */
 .stage[data-still="true"] {
   --dusk: 0.72;
+  --sky: 0.72;
   /* The frame is fullscreen for the whole act on this path, so the column is
      never over the page and the glass is earned from the first frame. */
   --frame-fill: 1;
