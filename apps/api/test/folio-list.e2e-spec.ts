@@ -656,6 +656,54 @@ describe("the state filter", () => {
   });
 });
 
+describe("the upcoming-stay filter", () => {
+  // Every stay above was taken through the booking route and none has arrived,
+  // so two are moved on by hand: one into the house and one marked a no-show. The
+  // states are put back afterwards because no other claim here is about them.
+  const before = new Map<string, string>();
+
+  beforeAll(async () => {
+    for (const [id, state] of [
+      [owing, "CHECKED_IN"],
+      [overpaid, "NO_SHOW"],
+    ] as const) {
+      const found = await db.execute<{ state: string }>(
+        sql`select state from booking where id = ${id}`,
+      );
+      before.set(id, found.rows[0]!.state);
+      await db.execute(
+        sql`update booking set state = ${state} where id = ${id}`,
+      );
+    }
+  });
+
+  afterAll(async () => {
+    for (const [id, state] of before) {
+      await db.execute(
+        sql`update booking set state = ${state} where id = ${id}`,
+      );
+    }
+  });
+
+  it("leaves out the accounts on stays that have not begun", async () => {
+    const page = await list({ balance: "OUTSTANDING", upcoming: "EXCLUDE" });
+
+    // The straddling stay is still only booked, so its short account is a
+    // deposit question rather than money to chase. The no-show's credit
+    // is a refund owed, which is exactly what the card is for.
+    expect(staysOn(page).sort()).toEqual([overpaid, owing].sort());
+    expect(page.total).toBe(2);
+  });
+
+  it("includes them when the caller does not ask", async () => {
+    expect((await list({ balance: "OUTSTANDING" })).total).toBe(3);
+  });
+
+  it("refuses a member that is not one of the two", async () => {
+    await as("RECEPTIONIST", "get", LIST_PATH, { upcoming: "NO" }).expect(400);
+  });
+});
+
 describe("the trading-day window", () => {
   it("answers the accounts that moved on the day named", async () => {
     const page = await list({

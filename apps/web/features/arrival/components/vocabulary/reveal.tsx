@@ -404,8 +404,14 @@ function park(mode: RevealMode, targets: Element[]) {
  * Exported as a hook as well as the component below because an act that already
  * has a root ref and an effect of its own should not have to grow a wrapper
  * element to get its reveals.
+ *
+ * `once` drops the exit: a block that has arrived stays when the reader
+ * scrolls back up past it.
  */
-export function useRevealBatch(root: RefObject<HTMLElement | null>) {
+export function useRevealBatch(
+  root: RefObject<HTMLElement | null>,
+  { once = false }: { once?: boolean } = {},
+) {
   useEffect(() => {
     const el = root.current;
     if (!el) return;
@@ -455,7 +461,7 @@ export function useRevealBatch(root: RefObject<HTMLElement | null>) {
         for (const trigger of ScrollTrigger.batch(targets, {
           start: ARRIVE_AT,
           onEnter: reveal,
-          onLeaveBack: hide,
+          onLeaveBack: once ? undefined : hide,
         })) {
           armed.push({ trigger, reveal });
         }
@@ -477,7 +483,7 @@ export function useRevealBatch(root: RefObject<HTMLElement | null>) {
     });
 
     return () => mm.revert();
-  }, [root]);
+  }, [root, once]);
 }
 
 /**

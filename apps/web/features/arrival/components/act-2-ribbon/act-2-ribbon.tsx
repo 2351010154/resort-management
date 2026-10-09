@@ -6,7 +6,10 @@ import { type CSSProperties, useEffect, useId, useRef, useState } from "react";
 import { HERO_PLATE } from "@/features/arrival/components/act-1-arrival/hero-plate";
 import { ChooseDatesLink } from "@/features/arrival/components/booking/choose-dates-link";
 import { FoliageGobo } from "@/features/arrival/components/foliage-gobo/foliage-gobo";
-import { ACT2_OVERHANG } from "@/features/arrival/lib/act-seams";
+import {
+  ACT1_HANDOVER_LEAD,
+  ACT2_OVERHANG,
+} from "@/features/arrival/lib/act-seams";
 import { useArrivalActStore } from "@/features/arrival/lib/act-store";
 import { tierSrcSet } from "@/features/arrival/lib/image-srcset";
 import styles from "./act-2-ribbon.module.css";
@@ -141,6 +144,7 @@ export function Act2Ribbon() {
     if (!section || !scene || !svg || !world || !copyWorld) return;
     if (reduced) {
       backdropRef.current?.style.removeProperty("transform");
+      backdropRef.current?.style.removeProperty("visibility");
       scene.style.opacity = "1";
       section.style.setProperty("--scene-opacity", "1");
       world.style.transform = "none";
@@ -243,9 +247,18 @@ export function Act2Ribbon() {
       const camera = cameraAt(travel, narrow) * approach + (narrow ? 18 : 0);
       // Keep the shared hero registered to the viewport while this stage
       // approaches its sticky position, avoiding a second photo scrolling in.
-      if (backdropRef.current)
-        backdropRef.current.style.transform =
+      // The stage box that clips it rises from the foot of the screen over
+      // the last viewport of Act 1's pin, so drawn from the start its edge
+      // wipes up across the push and the greeting. Act 1's photograph is the
+      // ground until its greeting has been lifted off; from there the two
+      // frames are the same pixels and the hand-over cannot be seen.
+      const backdrop = backdropRef.current;
+      if (backdrop) {
+        backdrop.style.transform =
           travel < 0 ? `translate3d(0,${travel * vh}px,0)` : "none";
+        backdrop.style.visibility =
+          travel < -ACT2_OVERHANG - ACT1_HANDOVER_LEAD ? "hidden" : "visible";
+      }
       // The small centre drift carries the photographs. The stronger edge
       // wave is independent, so the paper moves without shaking the reading.
       const phase = travel * 0.38 + time * 8;

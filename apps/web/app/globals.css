@@ -102,3 +102,16 @@ button {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* The site scrolls without drawing a scrollbar anywhere: the document and every
+   inner overflow container. Scrolling itself is untouched — only the platform's
+   rendering of the bar is suppressed. */
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+*::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}

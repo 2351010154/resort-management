@@ -3,7 +3,7 @@
    that rises to pin over that panel and takes the frame from it.
    z-scale: corridor stage 1 / experiences stage 2, and inside the experiences
    stage: hand-off sheet 0 / wheels 1 / words and shards 10 / frame furniture
-   20 / wipe 40. The order is load-bearing at both scales — the experiences
+   20. The order is load-bearing at both scales — the experiences
    stage has to sit in front of the corridor's own and behind Act 5, and inside
    it a card has to pass *behind* the sentence at the centre and in front of
    nothing. */
@@ -503,13 +503,15 @@
   pointer-events: none;
 }
 
-/* Four generated silhouettes occupy the quadrants of one luminance atlas.
-   Reflections vary their orientation without mirroring the photograph. */
+/* Each photograph stands in a river stone: a convex, slightly uneven oval the
+   picture fills to its edge, the same family as the ribbon's openings in Act 2.
+   Four stones, dealt in turn, so no two neighbours on a wheel share a shape.
+   Every corner radius is near half the side it sits on, which is what keeps
+   the outline convex and slack — the pinched, feathered silhouettes these
+   replaced read as a photograph straining against its frame. */
 .card {
-  --mask-position: 0% 0%;
-  --mask-x: 1;
-  --mask-y: 1;
   --photo-ratio: 1 / 1;
+  --stone: 58% 42% 47% 53% / 60% 52% 48% 40%;
 
   position: absolute;
   top: 0;
@@ -518,40 +520,36 @@
   will-change: transform, opacity;
 }
 
-.cardPlate {
-  position: relative;
-  aspect-ratio: var(--photo-ratio);
-  mask-image: url("/images/act-4-masks/generated-soft-shapes.png");
-  mask-mode: luminance;
-  mask-size: 200% 200%;
-  mask-position: var(--mask-position);
-  mask-repeat: no-repeat;
-  transform: scale(var(--mask-x), var(--mask-y));
-}
-
-.card:nth-of-type(even) {
-  --mask-x: -1;
-}
-
 .card:nth-of-type(4n + 2) {
-  --mask-position: 100% 0%;
   --photo-ratio: 11 / 10;
+  --stone: 40% 60% 57% 43% / 47% 40% 60% 53%;
 }
 
 .card:nth-of-type(4n + 3) {
-  --mask-position: 0% 100%;
   --photo-ratio: 10 / 11;
+  --stone: 52% 48% 44% 56% / 62% 58% 42% 38%;
 }
 
 .card:nth-of-type(4n) {
-  --mask-position: 100% 100%;
   --photo-ratio: 11 / 12;
+  --stone: 60% 40% 53% 47% / 45% 57% 43% 55%;
 }
 
-.card:nth-of-type(n + 5) {
-  --mask-y: -1;
+/* The stone turns a few degrees as it rides and the photograph inside it is
+   counter-turned, so the outline changes while the picture stays upright.
+   Both are written by the movement; the resting values are the static
+   layout's. */
+.cardPlate {
+  position: relative;
+  aspect-ratio: var(--photo-ratio);
+  overflow: hidden;
+  border-radius: var(--stone);
+  background: rgb(var(--ink-rgb) / 0.06);
+  will-change: transform;
 }
 
+/* Drawn larger than the stone so that no turn of it and no parallax offset
+   ever shows the stone's own ground at an edge. */
 .cardPlate img {
   display: block;
   position: absolute;
@@ -559,7 +557,27 @@
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transform: scale(var(--mask-x), var(--mask-y));
+  transform: scale(1.25);
+  will-change: transform;
+}
+
+/* What the stone holds, set under it. Small and quiet: the sentence at the
+   centre is the screen's reading, and these are its footnotes. */
+.cardCaption {
+  display: grid;
+  gap: 0.4rem;
+  margin: var(--space-2) 0 0;
+  text-align: center;
+}
+
+.cardName {
+  color: var(--ink);
+}
+
+.cardNote {
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--stone-deep);
 }
 /* ============================ The furniture ============================ */
 
@@ -713,33 +731,6 @@
       (1 - clamp(0, calc((var(--foot) - 0.5 - var(--c) * 0.3) / 0.2), 1))
     )
   );
-}
-
-/* ============================== The hand-over ============================== */
-
-/* Five bands of the Invitation's own dark, each growing up out of its own foot,
-   the lowest first. What crosses the frame is a rising edge rather than a
-   curtain — and because the bands are Act 5's colour, the act it hands to is
-   already behind them when the last one closes. */
-.wipe {
-  position: absolute;
-  inset: 0;
-  z-index: 40;
-  display: flex;
-  flex-direction: column;
-  pointer-events: none;
-}
-
-.stripe {
-  flex: 1;
-  /* A hair of overlap, so no seam between two bands can show the ivory through
-     it at a fractional device pixel. */
-  margin-top: -0.5px;
-  padding-bottom: 0.5px;
-  background: var(--night);
-  transform: scaleY(0);
-  transform-origin: bottom;
-  will-change: transform;
 }
 
 /* ============================== Off-screen ============================== */
@@ -897,6 +888,13 @@
 
   .card {
     width: clamp(11rem, 52vw, 15rem);
+  }
+
+  /* The wheels ride half off a phone's edges, so a caption under a stone is
+     cut off mid-word and crosses the foot. The stones carry the field alone
+     here; the reduced-motion grid still sets every caption. */
+  .wheels .cardCaption {
+    display: none;
   }
 
   /* There is no clear ground between the streams at this width — the wheels

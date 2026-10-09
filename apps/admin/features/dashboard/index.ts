@@ -18,6 +18,7 @@ export {
   departuresAwaitingCheckout,
   type HouseTally,
   houseTally,
+  isDueOut,
   type Reading,
   reading,
   roomsNotReady,

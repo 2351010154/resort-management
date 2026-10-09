@@ -95,13 +95,12 @@ describe("arrivalCriteria", () => {
 });
 
 describe("departureCriteria", () => {
-  it("asks for yesterday, which is the window a departure is visible in", () => {
-    // A stay leaving today owns nights up to but not including today, so
-    // today's own window would exclude exactly the stays the card counts.
+  it("asks for every checked-in stay due out by today, overdue ones included", () => {
+    // An overlap window only reaches stays that slept last night, so a stay
+    // still checked in past its date would fall out of the queue entirely.
     expect(departureCriteria(TODAY)).toEqual({
       state: "CHECKED_IN",
-      from: "2026-08-15",
-      to: TODAY,
+      dueOutBy: TODAY,
     });
   });
 });
@@ -153,15 +152,16 @@ describe("arrivalsAwaitingCheckIn", () => {
 });
 
 describe("departuresAwaitingCheckout", () => {
-  it("counts the stays whose last night was last night", () => {
+  it("counts the stays due out today and the ones overdue", () => {
     const results = found([
       stay({ checkIn: "2026-08-14", checkOut: TODAY }),
       stay({ checkIn: "2026-08-14", checkOut: "2026-08-18" }),
       stay({ checkIn: "2026-08-15", checkOut: TODAY }),
+      stay({ checkIn: "2026-08-10", checkOut: "2026-08-12" }),
     ]);
 
     expect(departuresAwaitingCheckout(results, TODAY)).toEqual({
-      count: 2,
+      count: 3,
       truncated: false,
     });
   });
@@ -326,7 +326,7 @@ describe("staysDueIn", () => {
 });
 
 describe("staysDueOut", () => {
-  it("takes the stays whose last night was last night", () => {
+  it("takes the stays due out today and the ones overdue", () => {
     const sample = staysDueOut(
       found([
         stay({ checkIn: "2026-08-14", checkOut: TODAY, reference: "BK-01" }),
@@ -335,12 +335,20 @@ describe("staysDueOut", () => {
           checkOut: "2026-08-17",
           reference: "BK-02",
         }),
+        stay({
+          checkIn: "2026-08-10",
+          checkOut: "2026-08-12",
+          reference: "BK-03",
+        }),
       ]),
       TODAY,
     );
 
-    expect(sample?.stays.map((found) => found.reference)).toEqual(["BK-01"]);
-    expect(sample?.total).toBe(1);
+    expect(sample?.stays.map((found) => found.reference)).toEqual([
+      "BK-01",
+      "BK-03",
+    ]);
+    expect(sample?.total).toBe(2);
   });
 
   it("marks the sample short when the search itself was capped", () => {

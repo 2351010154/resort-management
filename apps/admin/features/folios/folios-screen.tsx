@@ -19,6 +19,12 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { RECORD_TABLES } from "@/features/audit/record-history";
+/* The history link, from the module that owns it rather than written out here:
+ * it carries the matrix's own gate, so a record cannot offer the log to a role
+ * that holds no grant for it. Imported by its own path and not through the
+ * family's barrel, which would pull the whole audit screen into this bundle. */
+import { RecordHistoryLink } from "@/features/audit/record-history-link";
 import type { FolioListQuery } from "@/features/dashboard/day-counts";
 import type { Folio } from "@/features/departures/departure-queue";
 /* The console's one rendering of an instant in the property's zone — the same
@@ -681,10 +687,30 @@ function FolioDetail({
             </table>
           </div>
 
-          <p className="border-border border-t px-5 py-3 text-sm text-muted-foreground">
-            New charges and corrections are appended to the account. Existing
-            postings are never edited or deleted.
-          </p>
+          <div className="border-border flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-t px-5 py-3">
+            <p className="text-sm text-muted-foreground">
+              New charges and corrections are appended to the account. Existing
+              postings are never edited or deleted.
+            </p>
+            {/* The account's door into the change log, which `screens.md` asks
+                the folio and the invoice both to carry. One link answers both
+                because they are one row: `schema/folio.ts` writes the
+                provider's number into `folio.invoice_reference` when the
+                account is agreed, so every change either of them has ever seen
+                is a change to this id. Beside the append-only note rather than
+                inside the ledger, because it reads the account's history and
+                not a posting's. */}
+            <RecordHistoryLink
+              role={role}
+              tableName={RECORD_TABLES.folio}
+              rowId={account.id}
+              label={
+                folio.closedAt === null
+                  ? "Read this account's history"
+                  : "Read this account's and invoice's history"
+              }
+            />
+          </div>
         </>
       )}
     </Card>

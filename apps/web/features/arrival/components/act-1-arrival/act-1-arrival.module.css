@@ -116,7 +116,6 @@
   padding: 0 1.5rem 12vh;
   text-align: center;
   color: var(--ivory);
-  will-change: opacity;
   pointer-events: none;
 }
 
@@ -125,6 +124,9 @@
   position: absolute;
   inset: -20vh 0 0 0;
   z-index: -1;
+  /* Written by the scrub as the type stands up and is lifted off; full when
+     nothing drives it, which is the reduced-motion path. */
+  opacity: var(--wash, 1);
   background: linear-gradient(
     to top,
     rgb(var(--ink-rgb) / 0) 0%,
@@ -138,17 +140,48 @@
 .greetingMarker {
   margin: 0;
   opacity: 0.82;
-  /* The rise the scrub writes, carried by the type alone — see the note beside
-     `--rise` in the act. */
-  transform: translateY(var(--rise, 0));
 }
 
 .greetingLine {
   margin: 0;
-  transform: translateY(var(--rise, 0));
   font-size: var(--text-display-sm);
   line-height: 1.04;
   letter-spacing: -0.035em;
+}
+
+/* A word of the greeting, and the mask its letters travel through.
+ *
+ * The clip is the whole device: a letter below or above its word's box is
+ * simply not drawn, so it rises into place out of an edge and leaves through
+ * the one above rather than appearing or dissolving. The box is let out past
+ * the line by padding (and taken back by margin, so the layout is unmoved)
+ * far enough that ascenders and the tail of the y are inside it at rest, and
+ * the clip is open sideways so a letter's own overhang and its small turn in
+ * transit are never trimmed. Inline-block, so the line still breaks between
+ * words and never inside one. */
+.greetingWord {
+  display: inline-block;
+  padding: 0.12em 0 0.2em;
+  margin: -0.12em 0 -0.2em;
+  clip-path: inset(0 -0.4em);
+}
+
+.greetingGlyph {
+  display: inline-block;
+  transform-origin: 0 100%;
+  will-change: transform;
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .greetingAction {
@@ -182,9 +215,9 @@
   letter-spacing: var(--tracking-caps);
   font-size: var(--text-xs);
   text-decoration: none;
-  transform: translateY(var(--rise, 0));
+  will-change: transform, clip-path;
   /* No transform in the transition: the scrub owns this element's transform
-     through --rise, and a hover that also wrote one would fight it mid-scroll. */
+     and clip, and a hover that also wrote one would fight it mid-scroll. */
   transition:
     background-color 180ms ease,
     box-shadow 180ms ease;

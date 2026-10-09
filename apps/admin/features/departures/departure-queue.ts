@@ -37,6 +37,7 @@ import {
   type CheckOutRefusal,
   SEARCH_RESULT_LIMIT,
 } from "@mariva/shared";
+import { isDueOut } from "@/features/dashboard/day-counts";
 
 /* The shapes, read off the client rather than restated — the argument
  * `day-counts.ts` and `arrival-queue.ts` both make: `@mariva/shared` types the
@@ -70,7 +71,7 @@ export interface DepartureQueue {
 }
 
 /**
- * Today's checked-in stays due out, in the order the desk works them.
+ * Checked-in stays due out today or before, in the order the desk works them.
  *
  * The state is filtered again here even though `departureCriteria` already asks
  * for `CHECKED_IN` only, for the reason the arrivals queue re-filters its own:
@@ -78,13 +79,12 @@ export interface DepartureQueue {
  * refetch is in flight, and a stay a colleague checked out a minute ago must
  * not be offered to a second receptionist as still in the building.
  *
- * `checkOut === businessDate` is what separates a departure from an occupant.
- * The window the search runs over is `[yesterday, today)` — `day-counts.ts`
- * carries the reason, and it is the half-open convention rather than an
- * off-by-one: a stay leaving today owns nights up to but not including today,
- * so today's own window is exactly the one that excludes it. Every stay that
- * slept last night comes back from that search, and the ones leaving *today*
- * are the subset picked out here.
+ * `checkOut <= businessDate` is what separates a departure from an occupant,
+ * and it is re-applied here for the same cached-answer reason as the state. A
+ * stay past its date is an overdue departure, not an occupant: it is still in
+ * the building and still has to be checked out, and leaving it off this queue
+ * is how an account goes on reading as unsettled with no way to close it —
+ * {@link isOverdue} marks it so the row says which kind it is.
  *
  * Ordered by room, which is where this screen departs from arrivals and
  * deliberately: a departing guest arrives at the desk saying a room number,
@@ -106,7 +106,8 @@ export function todaysDepartures(
 
   const departures = results.bookings
     .filter(
-      (stay) => stay.state === "CHECKED_IN" && stay.checkOut === businessDate,
+      (stay) =>
+        stay.state === "CHECKED_IN" && isDueOut(stay.checkOut, businessDate),
     )
     .sort(byRoomThenReference);
 
@@ -114,6 +115,11 @@ export function todaysDepartures(
     departures,
     truncated: results.bookings.length >= SEARCH_RESULT_LIMIT,
   };
+}
+
+/** A departure whose date has already passed — the guest overstayed it. */
+export function isOverdue(departure: Departure, businessDate: string): boolean {
+  return departure.checkOut < businessDate;
 }
 
 function byRoomThenReference(left: Departure, right: Departure): number {

@@ -373,7 +373,7 @@ function RateBoard({
               // type sticks to. Vertical padding only: a horizontal one would
               // leave a gutter for the cells to scroll through beside the
               // sticky column, so the nights carry their own trailing space.
-              className="overflow-x-auto py-4"
+              className="scrollbar-visible overflow-x-auto py-4"
             >
               <table
                 ref={table}

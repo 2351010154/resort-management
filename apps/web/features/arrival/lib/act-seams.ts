@@ -9,16 +9,42 @@
 // the wrong direction; both reading this file is a contract.
 
 /**
- * How far above Act 2's own top the ribbon starts, and therefore how long Act
- * 1 keeps its photograph pinned after the push has finished.
+ * How far above Act 2's own top the ribbon's stage reaches, in viewport
+ * heights: the room the sheet is allowed to draw in over Act 1's photograph.
  *
- * The ribbon is born as a band rising over the held picture, and the band and
- * the lobe under it have to be entirely on screen — the first aperture looking
- * back through at the photograph — before the picture is allowed to scroll
- * away. A whole viewport is what that takes: at the moment the pin releases,
- * Act 2's top is at the fold and everything above it is ribbon.
+ * A whole viewport, so that at the moment Act 1's pin releases — Act 2's top
+ * at the fold — the ribbon's stage already covers the entire screen, and the
+ * photograph it keeps registered behind the sheet is the one the reader sees.
  */
 export const ACT2_OVERHANG = 100;
+
+/**
+ * How far above Act 2's own top the ribbon's crest is actually drawn, and
+ * therefore how long Act 1 keeps its photograph pinned after the greeting.
+ *
+ * The overhang is room, not ink: the crest's highest point stands about 13vh
+ * above Act 2's top and nothing is drawn over the photograph higher than that.
+ * Holding Act 1 for the whole overhang used to leave most of a screen of scroll
+ * in which the picture stood untouched while an invisible part of the stage
+ * went past. Held for exactly the crest's rise, the paper starts climbing the
+ * frame on the first scroll after the greeting has gone. The ribbon's spec
+ * guards the crest against drawing any higher than this.
+ */
+export const ACT2_CREST_RISE = 14;
+
+/**
+ * How long before Act 1's pin releases Act 2 takes over the photograph, in
+ * viewport heights.
+ *
+ * Both acts paint the same picture, and Act 2's copy sits in a stage box that
+ * rises from the foot of the screen over the last viewport of Act 1's pin —
+ * drawn any earlier, its edge wipes up across whatever Act 1 still has on it.
+ * So Act 2 keeps its copy hidden until this point, and Act 1 has to have lifted
+ * every letter of its greeting off the picture by then. The margin is only
+ * there so the two never disagree by a rounding step on the frame the pin lets
+ * go: from here to the release both frames are the same pixels.
+ */
+export const ACT1_HANDOVER_LEAD = 2;
 
 /**
  * How far Act 3's section reaches up under Act 2's, so that its pinned frame
@@ -51,6 +77,18 @@ export const ACT2_ACT3_OVERLAP = 100 + ACT2_LENS_TRAVEL;
  * reader reads then is the STAY screen going black, not a hand-over.
  */
 export const ACT4_OVERHANG = 200;
+
+/**
+ * How far Act 4's experience field reaches up under the corridor, in viewport
+ * heights.
+ *
+ * The corridor's statement is held on its pin until the field pins over it,
+ * and the field draws nothing while it travels up into place. Laid end to end,
+ * that travel was a whole screen of scroll with the sentence standing still
+ * and nothing else moving. Reaching up by most of it leaves the statement a
+ * short dwell to be read in, and the field's hand-off sheet starts soon after.
+ */
+export const ACT4_FIELD_REACH = 75;
 
 /** The share of the overhang the bands themselves run across: the last screen
  *  of the field's pin, which is the whole of the time the Invitation is behind
