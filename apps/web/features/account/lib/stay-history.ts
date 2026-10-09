@@ -20,7 +20,8 @@
 // browser's, which is the caller's to supply: a guest reading this in Auckland
 // must see the same two groups as one reading it in Lisbon.
 
-import type { BookingState } from "@mariva/shared";
+import { parseDate } from "@internationalized/date";
+import { type BookingState, nightCount } from "@mariva/shared";
 
 /** The three facts this file reads off a stay. Anything else travels with it. */
 export interface StayFacts {
@@ -116,6 +117,38 @@ export function stayHistory<
   past.sort((a, b) => order(b, a));
 
   return { upcoming, past };
+}
+
+/** What the account has behind it: the stays taken, and their nights. */
+export interface StaysTaken {
+  readonly stays: number;
+  readonly nights: number;
+}
+
+/**
+ * The stays this account has completed, and the nights in them.
+ *
+ * Only `CHECKED_OUT` counts. A cancelled stay or a no-show was never slept in,
+ * and a guest in the middle of a stay has not taken it yet — the tally moves
+ * when they leave, which is also when the desk closes the bill. The nights are
+ * the stay's own calendar nights (`nightCount`), so a stay that crossed a
+ * month or a year counts the same as one that did not.
+ */
+export function staysTaken(stays: readonly StayFacts[]): StaysTaken {
+  let count = 0;
+  let nights = 0;
+
+  for (const stay of stays) {
+    if (stay.state === "CHECKED_OUT") {
+      count += 1;
+      nights += nightCount({
+        checkIn: parseDate(stay.checkIn),
+        checkOut: parseDate(stay.checkOut),
+      });
+    }
+  }
+
+  return { stays: count, nights };
 }
 
 /** Ascending by arrival, then departure, then reference. */

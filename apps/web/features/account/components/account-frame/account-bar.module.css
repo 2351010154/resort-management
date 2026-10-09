@@ -1,24 +1,17 @@
-/* The account area's bar: the two destinations, the way back into the funnel,
- * and the guest's chip — plus the mark, on the screens where the stone does not
- * carry it.
+/* The account area's bar: the house's name, the two destinations, the way
+ * back into the funnel, and the guest's chip.
  *
- * **It is type on a ground, never a band.** No fill and no foot: on a wide
- * screen it stands at the head of the ivory book, beside a stone that has the
- * house's name cut into it, and on a phone it stands on the stone itself. A
- * hairline drawn across either would be the one ruled edge on a page made of
- * two materials meeting.
- *
- * **Its palette is the ground's to hand down.** `--bar-quiet` is the ink of the
- * resting links and the chip; the fallback is the ivory value. The phone's
- * stone hands umber in, because stone-deep on limestone measures under 4.5:1
- * at the 12px a caps label is set at.
+ * **It is type on the ground, never a band.** No fill and no foot: it stands
+ * at the head of the page's measure, the house's name on the vertical every
+ * panel below starts on. A hairline drawn under it would be a ruled edge on a
+ * page that separates its parts by the sheets they are written on.
  *
  * The panel is the dark object `funnel-nav.module.css` opens from the funnel's
  * own bar, so a guest crossing between the two meets one account menu.
  */
 
 .bar {
-  --bar-gap: clamp(var(--space-2), 2.6vw, 2.75rem);
+  --bar-gap: clamp(0.25rem, 1.4vw, 1.25rem);
   --bar-chip-gap: clamp(var(--space-2), 2.8vw, 3rem);
 }
 
@@ -27,16 +20,14 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-  min-height: var(--bar-height, 4.5rem);
+  min-height: 5rem;
 }
 
-/* The mark is the stone's on a wide screen — cut into the top of the pillar —
-   so the bar only carries it where the stone is a band under it. */
 .brand {
   display: flex;
   align-items: center;
   flex: 0 0 auto;
-  color: var(--bar-quiet, var(--umber));
+  color: var(--umber);
   transition:
     color 0.25s var(--ease-ui),
     transform 0.1s var(--ease-ui);
@@ -44,8 +35,8 @@
 
 .wordmark {
   display: block;
-  width: 106px;
-  height: 17px;
+  width: 124px;
+  height: 20px;
   background: currentcolor;
   mask: url("/brand/mariva-wordmark.svg") left center / contain no-repeat;
   -webkit-mask:
@@ -81,31 +72,37 @@
 }
 
 /* `nowrap` at every width: "BOOK A / STAY" broken over two lines is two
-   labels, and the honest answer to a narrow window is a row of their own. */
+   labels, and the honest answer to a narrow window is a row of their own.
+   The pill's padding is drawn on every link, so ringing one moves nothing. */
 .navLink {
   position: relative;
   display: flex;
   align-items: center;
   min-height: 2.75rem; /* 44px — the tap floor the funnel is set to. */
-  color: var(--bar-quiet, var(--stone-deep));
+  padding: 0 1em;
+  color: var(--stone-deep);
   white-space: nowrap;
-  transition: color 0.4s var(--ease-ui);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  transition:
+    color 0.4s var(--ease-ui),
+    border-color 0.4s var(--ease-ui);
 }
 
 .navLink:hover {
   color: var(--ink);
 }
 
-/* The page the guest is on is named to a screen reader by `aria-current` and
-   to everyone else by its ink: the other two links rest in stone-deep, and no
-   stroke is drawn under any of them. */
+/* The page the guest is on: named to a screen reader by `aria-current`, and
+   to everyone else by its ink and the ring the landing draws round its act. */
 .navLink[aria-current="page"] {
   color: var(--ink);
+  border-color: rgb(var(--ink-rgb) / 0.7);
 }
 
 .navLink:focus-visible {
   outline: 2px solid var(--dusk-amber-ink);
-  outline-offset: 4px;
+  outline-offset: 2px;
 }
 
 .navLink:active {
@@ -120,7 +117,7 @@
   gap: 0.5rem;
   min-height: 2.75rem;
   padding: 0;
-  color: var(--bar-quiet, var(--stone-deep));
+  color: var(--stone-deep);
   background: none;
   border: 0;
   cursor: pointer;
@@ -287,15 +284,7 @@
   line-height: 1.5;
 }
 
-/* ---- Wide: the bar at the head of the book ------------------------------- */
-
-@media (width >= 64rem) {
-  .brand {
-    display: none;
-  }
-}
-
-/* ---- Narrow: two rows on the stone --------------------------------------- */
+/* ---- Narrow: two rows ---------------------------------------------------- */
 
 /* The mark and the chip on the first row, the three destinations on a row of
  * their own under both. `display: contents` hands `.barEnd`'s two children up
@@ -319,7 +308,7 @@
   .nav {
     order: 1;
     flex-basis: 100%;
-    gap: clamp(var(--space-2), 6vw, var(--space-3));
+    gap: 0.25rem;
   }
 
   .navLink {

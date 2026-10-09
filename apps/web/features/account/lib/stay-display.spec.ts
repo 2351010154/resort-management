@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   longDate,
   longDateRange,
-  occupancySpecs,
+  partyLine,
   untilArrival,
 } from "./stay-display";
 
@@ -57,22 +57,18 @@ describe("longDateRange", () => {
   });
 });
 
-describe("occupancySpecs", () => {
-  it("counts nights and adults, singular and plural", () => {
-    expect(occupancySpecs(1, 1, 0)).toEqual(["1 night", "1 adult"]);
-    expect(occupancySpecs(4, 2, 0)).toEqual(["4 nights", "2 adults"]);
+describe("partyLine", () => {
+  it("counts adults, singular and plural", () => {
+    expect(partyLine(1, 0)).toBe("1 adult");
+    expect(partyLine(2, 0)).toBe("2 adults");
   });
 
-  it("names children only when there are some", () => {
-    expect(occupancySpecs(3, 2, 1)).toEqual([
-      "3 nights",
-      "2 adults",
-      "1 child",
-    ]);
-    expect(occupancySpecs(3, 2, 2)).toEqual([
-      "3 nights",
-      "2 adults",
-      "2 children",
-    ]);
+  it("names children only when there are some, joined with a word", () => {
+    expect(partyLine(2, 1)).toBe("2 adults and 1 child");
+    expect(partyLine(1, 2)).toBe("1 adult and 2 children");
+  });
+
+  it("never runs the party together with a separator glyph", () => {
+    expect(partyLine(2, 2)).not.toMatch(/[·•|,]/);
   });
 });

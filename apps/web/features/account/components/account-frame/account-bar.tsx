@@ -1,15 +1,15 @@
-// The account area's bar: the two destinations, the way back into the funnel
-// and the guest, with the mark at the other end where the stone does not cut
-// it.
+// The account area's bar: the house's name, the two destinations, the way back
+// into the funnel, and the guest.
 //
 // **One component because both screens draw it.** `/account` and
 // `/account/stays` are two halves of one area — each links to the other — and a
 // bar written into each screen would be two menus that drift. `account-frame`
 // places it once for both.
 //
-// **The ground hands the bar its palette, not a prop.** The links and the chip
-// read `--bar-quiet`, with the ivory value as the fallback, so the stone a
-// phone shows it on declares one property and the bar has no `tone` switch.
+// **The page the guest is on is ringed, as the arrival's bar rings its act.**
+// The landing marks the part of the ride a reader is in with a pill drawn
+// round its name; the account marks its page the same way. No stroke is drawn
+// under any link.
 //
 // Plain anchors rather than `next/link`, on `funnel-nav.tsx`'s reasoning: these
 // are two documents in the same route group, and nothing here is worth
@@ -31,8 +31,6 @@ export function AccountBar({ here }: { readonly here: AccountPlace }) {
   return (
     <header className={styles.bar}>
       <div className={styles.barInner}>
-        {/* Hidden on a wide screen, where the same link is the house's name
-            cut into the top of the stone. */}
         <a aria-label="Mariva home" className={styles.brand} href="/">
           <span className={styles.wordmark} />
         </a>

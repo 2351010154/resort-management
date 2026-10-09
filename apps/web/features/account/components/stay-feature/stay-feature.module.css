@@ -1,0 +1,133 @@
+/* A stay set large: the arch beside the words in a wide panel, over them in a
+ * narrow one. Measured against the panel's own width (`container: panel`), so
+ * the frame moves when the panel is narrow, whatever the window is doing.
+ *
+ * The house's own setting: the display face at its Light (`.font-display`),
+ * the labels and the countdown from `.caps-label`. Sizes and colours only. */
+
+.feature {
+  display: grid;
+  grid-template-columns: minmax(0, 15rem) minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3) clamp(var(--space-3), 4.5vw, 4rem);
+}
+
+/* Two stays ahead in one panel are two entries, divided the way the rows of
+   a register are. */
+.feature + .feature {
+  padding-top: var(--space-3);
+  border-top: 1px solid rgb(var(--umber-rgb) / 0.1);
+}
+
+.arch {
+  width: 100%;
+}
+
+.text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1.5rem;
+  min-width: 0;
+}
+
+/* How far off it is, in the accent and in a ring of its own. */
+.when {
+  padding: 0.5em 1.1em;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  color: var(--dusk-amber-ink);
+  background: rgb(var(--dusk-amber-ink-rgb) / 0.06);
+  border: 1px solid rgb(var(--dusk-amber-ink-rgb) / 0.32);
+  border-radius: 999px;
+}
+
+.names {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.room {
+  font-size: clamp(2.5rem, 4.2vw, 3.75rem);
+  line-height: 1;
+  color: var(--ink);
+  text-wrap: balance;
+}
+
+.dates {
+  font-size: clamp(1.5rem, 2.1vw, 1.875rem);
+  line-height: 1.2;
+  color: var(--umber);
+}
+
+/* The one line an invitation may carry, in the body's own voice. */
+.note {
+  max-width: 30rem;
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--stone-deep);
+}
+
+/* The facts as pairs that wrap whole, never splitting a label from its
+   value. */
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem clamp(var(--space-3), 3.4vw, 3rem);
+}
+
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.factLabel {
+  color: var(--stone-deep);
+}
+
+/* `lining-nums` beside `tabular-nums`: one property, so naming the second
+   alone hands Cormorant's oldstyle figures back. */
+.factValue {
+  font-size: 1.5rem;
+  line-height: 1.15;
+  font-variant-numeric: lining-nums tabular-nums;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem 2rem;
+}
+
+/* ---- Narrower panels ----------------------------------------------------- */
+
+/* The frame shrinks first; once the words would be squeezed beside it, it
+ * goes over them — the picture is what tells a guest which stay this is
+ * before they have read a word of it. */
+@container panel (width < 44rem) {
+  .feature {
+    grid-template-columns: minmax(0, 11rem) minmax(0, 1fr);
+    gap: var(--space-3);
+  }
+}
+
+@container panel (width < 32rem) {
+  .feature {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .arch {
+    width: min(100%, 15rem);
+  }
+
+  .factValue {
+    white-space: normal;
+  }
+}

@@ -6,43 +6,42 @@
 // explicit: `/account` is personal data, VIP tier and loyalty, and
 // `/account/stays` is the history beside it.
 //
-// **The stone and the book.** The screen stands in `AccountFrame`: the guest's
-// name cut into a limestone pillar (`profile-inscription.tsx`) and nothing
-// else, and beside it an ivory book of five numbered chapters — the next stay,
-// the guest's standing, the details the next stay will use, how they sign in,
-// and what the desk keeps on file. The two meet at a seam; nothing on the page is laid over
-// anything else.
-//
-// **What a guest cannot change is stated beside the thing it belongs to.** The
-// address sits with the credential rows, the masked document in its own
-// chapter, and the derived tier and points in the standing chapter, with the
-// sentence that says how they are worked out.
+// **A centred page in three parts, and no copy that explains it.** The head
+// greets the guest by name with the three figures a member reads at a glance —
+// their standing, their points and the month the account began — and their
+// member card opposite. Under it the next stay, set large. Then the two things
+// a guest keeps up here, side by side: the details the next stay will use,
+// with the identity document the desk keeps, and how they sign in. Every part
+// states facts; none of them carries a paragraph about itself.
 //
 // **Nothing here is a permission.** The tier and the points are read-only
 // because no route exists to write them — `FR-GST-04` derives one from the
 // trailing twelve months and `FR-GST-05` sums the other off an append-only
-// ledger. The document number is masked because `guestProfileSchema` carries no
-// field an unmasked one could travel in, and there is no reveal control because
-// `FR-GST-03` makes unmasking an audited staff capability. The two credential
-// forms are hidden from a Google-only account rather than disabled, because
-// `guest-auth.factory.ts` refuses both at the API — a page that omits a control
-// is a page, and the request it omits can still be sent.
+// ledger — so they are stated as facts in the head and never offered as a
+// control. The two credential forms are hidden from a Google-only account
+// rather than disabled, because `guest-auth.factory.ts` refuses both at the
+// API — a page that omits a control is a page, and the request it omits can
+// still be sent.
 
 import { useEffect, useState } from "react";
 import { AccountFrame } from "@/features/account/components/account-frame/account-frame";
-import { Chapter } from "@/features/account/components/account-frame/chapter";
+import {
+  AccountHeading,
+  type HeadingFact,
+} from "@/features/account/components/account-frame/account-heading";
+import { CircleLink } from "@/features/account/components/account-frame/circle-link";
+import { Panel } from "@/features/account/components/account-frame/panel";
 import {
   type Profile,
   hasPassword as readHasPassword,
   readProfile,
 } from "@/features/account/lib/profile";
 import { type OwnStay, readStays } from "@/features/account/lib/stays";
-import { DetailsChapter } from "./details-form";
+import { tierName } from "@/features/account/lib/tiers";
+import { DetailsPanel } from "./details-form";
 import { NextStay } from "./next-stay";
-import { ProfileInscription } from "./profile-inscription";
 import styles from "./profile-screen.module.css";
 import { SignInSettings } from "./sign-in-settings";
-import { StandingLadder } from "./standing-ladder";
 
 /** Points are a count rather than an amount, so they are grouped and not
  *  formatted as money — there is no currency and nothing to redeem them for. */
@@ -101,15 +100,16 @@ export function ProfileScreen() {
     };
   }, []);
 
-  // Nothing read yet: the wall is up and uncut, so the name is carved once,
-  // when it is known, rather than "Your profile" first and a name after it.
+  // Nothing read yet: the card is on the page and uncut, and the name is set
+  // once, when it is known, rather than "Your profile" first and a name after.
   if (loading) {
     return (
       <AccountFrame
+        card={undefined}
+        heading={<AccountHeading hiddenTitle="Your profile" />}
         here="profile"
-        stone={<ProfileInscription name={undefined} />}
       >
-        <p className={styles.notice}>Reading your account.</p>
+        <p className={styles.waiting}>Reading your account.</p>
       </AccountFrame>
     );
   }
@@ -120,106 +120,70 @@ export function ProfileScreen() {
   if (!profile) {
     return (
       <AccountFrame
+        card={undefined}
+        heading={<AccountHeading title="Your profile" />}
         here="profile"
-        stone={<ProfileInscription name="Your profile" />}
       >
-        <div className={styles.away}>
-          <p className={`${styles.awayLine} font-display`}>
-            The property could not read your details.
-          </p>
-          <p className={styles.error} role="alert">
+        <Panel title="Your details">
+          <p className={`${styles.awayLine} font-display`} role="alert">
             {refusal}
           </p>
-          <p className={styles.footnote}>
-            <a className={styles.footnoteLink} href="/login">
-              Log in
-            </a>{" "}
-            and your details are here waiting.
-          </p>
-        </div>
+          <div className={styles.actions}>
+            <CircleLink href="/login">Log in</CircleLink>
+          </div>
+        </Panel>
       </AccountFrame>
     );
   }
 
-  const since = memberSince(profile.createdAt);
-  // `BigInt` accepts the integer and the decimal text alike, so this reads the
-  // same figure whichever the transport hands back — `stay-funnel.ts` makes
-  // the same crossing for a stay's total.
-  const points = POINTS.format(BigInt(profile.loyaltyPoints));
-  // The chapters are numbered in the order they stand, and the next stay is
-  // only there when the stays could be read.
-  const first = stays ? 2 : 1;
-
   return (
     <AccountFrame
-      here="profile"
-      stone={<ProfileInscription name={profile.fullName} />}
-    >
-      {stays ? <NextStay number="01" stays={stays} /> : null}
-
-      {/* Second, so the guest's standing — once cut into the stone — is
-          still the first thing the book says about them after their stay. */}
-      <Chapter
-        lede="Your standing is worked out from the stays of the last twelve months, and nobody at the property can set it by hand. Silver and Gold are quoted a member rate when they book signed in."
-        line="Earned by staying."
-        name="Your standing"
-        number={chapterNumber(first)}
-      >
-        <StandingLadder
-          memberSince={since}
-          points={points}
-          tier={profile.vipTier}
+      card={{ name: profile.fullName, tier: profile.vipTier }}
+      heading={
+        <AccountHeading
+          facts={headingFacts(profile)}
+          greeting="Welcome back,"
+          title={profile.fullName}
         />
-      </Chapter>
+      }
+      here="profile"
+    >
+      {stays ? <NextStay stays={stays} /> : null}
 
-      <DetailsChapter
-        number={chapterNumber(first + 1)}
-        onSaved={setProfile}
-        profile={profile}
-      />
+      <div className={styles.grid}>
+        <DetailsPanel onSaved={setProfile} profile={profile} />
 
-      <Chapter
-        lede={
-          hasPassword
-            ? "The address you sign in with, and your password."
-            : "The address this account answers to."
-        }
-        line="Your key to the house."
-        name="Signing in"
-        number={chapterNumber(first + 2)}
-      >
-        <SignInSettings email={profile.email} hasPassword={hasPassword} />
-      </Chapter>
-
-      <Chapter
-        lede="The desk records this from the physical document at check-in. It cannot be added, changed or revealed from your account."
-        line="What the desk keeps."
-        name="On file"
-        number={chapterNumber(first + 3)}
-      >
-        {/* Read-only and masked. There is deliberately no add, edit, upload or
-            reveal control on the guest surface. */}
-        <dl className={styles.rows}>
-          <div className={styles.row}>
-            <dt className={`${styles.rowLabel} caps-label`}>
-              Identity document
-            </dt>
-            <dd
-              className={`${styles.rowValue} ${styles.figures} font-display`}
-              data-empty={profile.cccdMasked ? undefined : ""}
-            >
-              {profile.cccdMasked ?? "None recorded"}
-            </dd>
-          </div>
-        </dl>
-      </Chapter>
+        <Panel title="Signing in">
+          <SignInSettings email={profile.email} hasPassword={hasPassword} />
+        </Panel>
+      </div>
     </AccountFrame>
   );
 }
 
-/** "02" — the book's chapters are numbered in two digits, as the landing's are. */
-function chapterNumber(index: number): string {
-  return String(index).padStart(2, "0");
+/**
+ * The three figures the head states: where the guest stands, their points,
+ * and the month the account began when it can be read.
+ *
+ * `BigInt` accepts the integer and the decimal text alike, so this reads the
+ * same figure whichever the transport hands back — `stay-funnel.ts` makes the
+ * same crossing for a stay's total.
+ */
+function headingFacts(profile: Profile): readonly HeadingFact[] {
+  const facts: HeadingFact[] = [
+    { label: "Standing", value: tierName(profile.vipTier) },
+    {
+      label: "Loyalty points",
+      value: POINTS.format(BigInt(profile.loyaltyPoints)),
+    },
+  ];
+  const since = memberSince(profile.createdAt);
+
+  if (since) {
+    facts.push({ label: "Member since", value: since });
+  }
+
+  return facts;
 }
 
 /**
@@ -227,8 +191,8 @@ function chapterNumber(index: number): string {
  *
  * `createdAt` is declared `z.iso.datetime()` and arrives validated, so the
  * `NaN` branch is not a case the API can produce today. It is here because the
- * alternative when it is wrong is the words "Invalid Date" over the guest's own
- * name, and a provenance line that cannot be trusted is better absent than
+ * alternative when it is wrong is the words "Invalid Date" beside the guest's
+ * own name, and a provenance line that cannot be trusted is better absent than
  * wrong.
  */
 function memberSince(createdAt: string): string | undefined {

@@ -1,6 +1,6 @@
 import type { BookingState } from "@mariva/shared";
 import { describe, expect, it } from "vitest";
-import { isAhead, standingOf, stayHistory } from "./stay-history";
+import { isAhead, standingOf, stayHistory, staysTaken } from "./stay-history";
 
 const TODAY = "2026-08-17";
 
@@ -93,6 +93,24 @@ describe("isAhead", () => {
 
   it("reads the state before the dates", () => {
     expect(isAhead(CALLED_OFF, TODAY)).toBe(false);
+  });
+});
+
+describe("staysTaken", () => {
+  it("counts only the stays that were checked out, and their nights", () => {
+    expect(
+      staysTaken([LAST_MONTH, LAST_YEAR, CALLED_OFF, MISSED, IN_HOUSE]),
+    ).toEqual({ stays: 2, nights: 6 });
+  });
+
+  it("counts the nights of a stay that crosses a year", () => {
+    expect(
+      staysTaken([stay("MAR-2012", "CHECKED_OUT", "2025-12-30", "2026-01-02")]),
+    ).toEqual({ stays: 1, nights: 3 });
+  });
+
+  it("answers zero for an account with nothing behind it", () => {
+    expect(staysTaken([TOMORROW, CALLED_OFF])).toEqual({ stays: 0, nights: 0 });
   });
 });
 

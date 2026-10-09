@@ -92,24 +92,20 @@ export function untilArrival(
 }
 
 /**
- * "3 nights", "2 adults", "1 child" — a stay's specs, in reading order.
+ * "2 adults", "2 adults and 1 child" — who a stay is for, as a phrase.
  *
- * Children are omitted rather than printed as a zero: "0 children" is a fact
- * about a form field and not about a stay, and most stays have none.
+ * It is the value beside a "Guests" label, so it is said the way a person says
+ * a party, joined with "and" — never run together with the nights and the plan
+ * behind a separator glyph. Children are left out rather than printed as a
+ * zero: "0 children" is a fact about a form field and not about a stay, and
+ * most stays have none.
  */
-export function occupancySpecs(
-  nights: number,
-  adults: number,
-  children: number,
-): readonly string[] {
-  const specs = [
-    nights === 1 ? "1 night" : `${nights} nights`,
-    adults === 1 ? "1 adult" : `${adults} adults`,
-  ];
+export function partyLine(adults: number, children: number): string {
+  const grown = adults === 1 ? "1 adult" : `${adults} adults`;
 
-  if (children > 0) {
-    specs.push(children === 1 ? "1 child" : `${children} children`);
+  if (children === 0) {
+    return grown;
   }
 
-  return specs;
+  return `${grown} and ${children === 1 ? "1 child" : `${children} children`}`;
 }

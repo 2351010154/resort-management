@@ -33,18 +33,3 @@ export function CircleLink({
     </a>
   );
 }
-
-/** The quieter of the two: a caps label in the accent and nothing else. */
-export function QuietLink({
-  href,
-  children,
-}: {
-  readonly href: string;
-  readonly children: string;
-}) {
-  return (
-    <a className={`${styles.quietLink} caps-label`} href={href}>
-      {children}
-    </a>
-  );
-}

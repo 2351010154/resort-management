@@ -1,0 +1,369 @@
+/* The member card: limestone at the proportion of a card (85.6 by 54mm), the
+ * light on it, and what is cut into it.
+ *
+ * **Sized from its own width.** The card is an inline-size container and
+ * everything on it is set in `cqi`, so the mark, the standing and the name
+ * keep their places at every width the card is drawn at — the way a printed
+ * card is the same card in any hand.
+ *
+ * **Only the honed field shows.** In the generated pillar the flutes begin
+ * 62.6% of the way across the image. Set at 175% of the card's width the
+ * image shows its left 57% through the card, so the flutes are never on it:
+ * a card is a flat piece of stone, and reeds on it would read as a wall again.
+ *
+ * Measured against the honed field (it averages rgb(202 182 158)): umber on
+ * it is 6.3:1 in daylight and 3.9:1 under the densest core of the leaf
+ * shadow, so the carved name (display type, 3:1) clears everywhere; the
+ * engraved standing is placed where the shadow does not reach in any light.
+ */
+
+.card {
+  position: relative;
+  width: 100%;
+  margin: 0;
+  container: card / inline-size;
+  animation: settle 1.1s var(--ease-scene) 0.1s both;
+}
+
+/* The card itself: the stone and everything on it, clipped to the card's
+   corners. It holds still under the pointer — the card is not a control. */
+.body {
+  position: relative;
+  aspect-ratio: 1.586;
+  overflow: hidden;
+  /* Its own stacking context: the stone, the washes, the carvings, the
+     multiplied light and the edge are ordered among themselves. */
+  isolation: isolate;
+  border-radius: 3.6cqi;
+  /* Under the stone for the frame or two before it decodes — the stone's
+     own tone, so nothing cut into it is ever drawn on ivory. */
+  background: var(--sand);
+  color: var(--ink);
+  box-shadow:
+    0 1px 2px rgb(var(--umber-rgb) / 0.18),
+    0 0.75rem 1.5rem -0.75rem rgb(var(--umber-rgb) / 0.28),
+    0 2rem 3.5rem -2rem rgb(var(--umber-rgb) / 0.42);
+}
+
+.stone {
+  position: absolute;
+  top: -62%;
+  left: -3%;
+  z-index: -2;
+  width: 175%;
+  max-width: none;
+  height: auto;
+  user-select: none;
+}
+
+/* The stone's own modelling, whatever the hour: a breath of shade toward the
+   foot, so the card reads as a slab with a top and a bottom edge. */
+.body::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    to bottom,
+    rgb(var(--ivory-rgb) / 0.08) 0%,
+    rgb(var(--umber-rgb) / 0) 45%,
+    rgb(var(--umber-rgb) / 0.12) 100%
+  );
+}
+
+/* The cut edge: a lip of light along the top, the slab's thickness in shade
+   along the foot, and a hairline all round where the stone meets the page. */
+.edge {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  border-radius: inherit;
+  box-shadow:
+    inset 0 1px 0 rgb(var(--ivory-rgb) / 0.6),
+    inset 0 -1px 0 rgb(var(--umber-rgb) / 0.22),
+    inset 0 0 0 1px rgb(var(--umber-rgb) / 0.1);
+  pointer-events: none;
+}
+
+/* ---- The hour's light ---------------------------------------------------- */
+
+/* One wash per light, crossfaded by the frame's `data-light`: gradients
+ * cannot be eased from one to another, opacities can, so a light that changes
+ * while the page is open passes across the card over a few seconds. */
+.wash {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 2.4s var(--ease-scene);
+}
+
+/* First light off the bay, from the east: pale, low and from the left. */
+.wash[data-for="morning"] {
+  background: linear-gradient(
+    100deg,
+    rgb(var(--ivory-rgb) / 0.38),
+    rgb(var(--ivory-rgb) / 0) 62%
+  );
+}
+
+/* The sun high: an even lift from above. */
+.wash[data-for="daylight"] {
+  background: radial-gradient(
+    130% 110% at 30% 0%,
+    rgb(var(--ivory-rgb) / 0.26),
+    rgb(var(--ivory-rgb) / 0) 70%
+  );
+}
+
+/* The low sun before dusk, from the west. */
+.wash[data-for="golden"] {
+  background: linear-gradient(
+    250deg,
+    rgb(var(--dusk-amber-rgb) / 0.44),
+    rgb(var(--dusk-amber-rgb) / 0.14) 50%,
+    rgb(var(--dusk-amber-rgb) / 0.04) 100%
+  );
+}
+
+/* After dark: the stone a shade down, and a lamp low on its left. Held at
+   0.22 so the carving still clears its contrast — see `carving.module.css`. */
+.wash[data-for="lamplight"] {
+  background:
+    radial-gradient(
+      90% 90% at 8% 100%,
+      rgb(var(--dusk-amber-rgb) / 0.42),
+      rgb(var(--dusk-amber-rgb) / 0) 72%
+    ),
+    linear-gradient(rgb(var(--night-rgb) / 0.22), rgb(var(--night-rgb) / 0.22));
+}
+
+[data-light="morning"] .wash[data-for="morning"],
+[data-light="daylight"] .wash[data-for="daylight"],
+[data-light="golden"] .wash[data-for="golden"],
+[data-light="lamplight"] .wash[data-for="lamplight"] {
+  opacity: 1;
+}
+
+/* ---- The shadow of the leaves -------------------------------------------- */
+
+/* The arrival's gobo as one image: foliage entering from a top corner, its
+ * white no change at all under `multiply` and its greys darkening whatever
+ * they fall on — the stone and the letters cut in it. The rig carries the
+ * hour (where the sun is) and the image inside it the breeze, on different
+ * properties so the two compose. */
+/* The rig is the card's own width, its top a fifth of the way down: the
+ * branch enters across the card's edge under the line the mark and the
+ * standing are engraved on, and reaches in toward the middle — so the light
+ * plays over the stone and the name without ever lying across the small caps,
+ * which are too fine to stay legible under the shadow's densest core. */
+.rig {
+  position: absolute;
+  top: 19%;
+  z-index: 3;
+  width: 100%;
+  aspect-ratio: 3 / 2;
+  opacity: 0;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  transition:
+    opacity 2.4s var(--ease-scene),
+    translate 2.4s var(--ease-scene),
+    rotate 2.4s var(--ease-scene),
+    scale 2.4s var(--ease-scene);
+}
+
+/* From the west: the branch enters at the right edge and reaches across. */
+.rig[data-from="west"] {
+  right: -4%;
+  transform-origin: 100% 0%;
+}
+
+/* From the east: the same branch, mirrored, entering at the left edge. */
+.rig[data-from="east"] {
+  --pivot: 6% 2%;
+
+  left: -4%;
+  transform-origin: 0% 0%;
+}
+
+[data-light="morning"] .rig[data-from="east"] {
+  opacity: 0.32;
+  rotate: -4deg;
+  scale: 1.04;
+}
+
+/* Midday: the sun high and the shadow short, gathered up toward the edge. */
+[data-light="daylight"] .rig[data-from="west"] {
+  opacity: 0.4;
+  translate: 4% -4%;
+  scale: 0.86;
+}
+
+/* The low sun throws it long and tilts it across the card. */
+[data-light="golden"] .rig[data-from="west"] {
+  opacity: 0.36;
+  rotate: 6deg;
+  scale: 1.12;
+}
+
+/* Lamplight casts no foliage. The rig keeps the golden hour's geometry so the
+   last of the sun fades where it was rather than swinging away. */
+[data-light="lamplight"] .rig[data-from="west"] {
+  rotate: 6deg;
+  scale: 1.12;
+}
+
+.leaves {
+  width: 100%;
+  height: auto;
+  user-select: none;
+  transform-origin: var(--pivot, 94% 2%);
+  animation: breeze 13s var(--ease-wipe) 2.4s infinite alternate;
+}
+
+/* ---- What is cut into it ------------------------------------------------- */
+
+/* The mark at the head, the standing opposite it, the name at the foot.
+   `position` without `z-index`, so the cuts inside take their places among
+   the washes and the light rather than in a context of their own. */
+.face {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  padding: 7.5cqi 8cqi 7cqi;
+}
+
+/* The house's name, cut: a lip of light a pixel under, and the groove. */
+.mark {
+  position: relative;
+  z-index: 2;
+  align-self: center;
+  width: 31cqi;
+  height: 5cqi;
+}
+
+.markLip,
+.markCut {
+  position: absolute;
+  inset: 0;
+  mask: url("/brand/mariva-wordmark.svg") left center / contain no-repeat;
+  -webkit-mask:
+    url("/brand/mariva-wordmark.svg") left center / contain no-repeat;
+}
+
+.markLip {
+  translate: 0 1px;
+  background: rgb(var(--ivory-rgb) / 0.6);
+}
+
+.markCut {
+  background: rgb(var(--umber-rgb) / 0.88);
+}
+
+/* The standing, engraved shallow: caps too small to take a deep cut keep the
+ * cut's lip and nothing else. The tracking runs after the last letter too, so
+ * the margin hands it back and the word ends on the card's edge rather than a
+ * letter's width short of it. It stays umber at every standing: the accent on
+ * this stone measures about 3:1, too faint for caps this small. */
+.tier {
+  position: relative;
+  z-index: 2;
+  align-self: center;
+  margin-right: -0.3em;
+  font-family: var(--font-ui), ui-monospace, monospace;
+  font-size: max(0.6875rem, 3.1cqi);
+  font-weight: 500;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: rgb(var(--umber-rgb) / 0.92);
+  text-shadow: 0 1px 0 rgb(var(--ivory-rgb) / 0.55);
+}
+
+/* Gold is told by its mark instead: the house's name gilded in the cut. A
+   mark carries no contrast requirement and the standing beside it is still
+   spelled out, so the gilding is the one place the accent can sit on stone. */
+.card[data-tier="GOLD"] .markCut {
+  background: var(--dusk-amber-ink);
+}
+
+.card[data-tier="GOLD"] .markLip {
+  background: rgb(var(--dusk-amber-rgb) / 0.55);
+}
+
+/* The guest's name, cut at the foot — one step over the house's Light, the
+   least a carving this small needs to hold its strokes through the cut. */
+.face .name {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  align-self: end;
+  font-size: 9.6cqi;
+  font-weight: 400;
+  line-height: 1.04;
+  letter-spacing: -0.005em;
+}
+
+.face .medium {
+  font-size: 8cqi;
+}
+
+.face .long {
+  font-size: 6.6cqi;
+}
+
+/* Under the lamps the mark's lip is lit warm from below. */
+[data-light="lamplight"] .markLip {
+  background: rgb(var(--dusk-amber-rgb) / 0.5);
+}
+
+/* What the card says, for everyone not reading the stone. */
+.caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ---- Motion -------------------------------------------------------------- */
+
+@keyframes breeze {
+  from {
+    transform: rotate(-0.9deg) scale(1.01);
+  }
+
+  to {
+    transform: rotate(1.1deg) scale(1.035);
+  }
+}
+
+/* Set down on the page: a centimetre's drop and a degree of turn, settling. */
+@keyframes settle {
+  from {
+    opacity: 0;
+    translate: 0 1rem;
+    rotate: -1.5deg;
+  }
+
+  to {
+    opacity: 1;
+    translate: 0 0;
+    rotate: 0deg;
+  }
+}
+
+/* Reduced motion is a composition, not a frozen frame: the light is where the
+   hour puts it, and the card is simply there. */
+@media (prefers-reduced-motion: reduce) {
+  .card,
+  .wash,
+  .rig,
+  .leaves {
+    animation: none;
+    transition: none;
+  }
+}

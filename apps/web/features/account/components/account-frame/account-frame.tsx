@@ -1,59 +1,60 @@
 "use client";
 
-// The frame both account screens stand in: the stone and the book.
+// The frame both account screens stand in: a centred page, its head, and the
+// panels under it.
 //
-// **Two materials side by side, not one laid over the other.** The guest's
-// account holds two kinds of thing — what the house knows them by, which is
-// set, and what they keep, which they edit and read. So the frame is a
-// limestone pillar for the first and an ivory book for the second, meeting at
-// a shadow gap: the name cut in stone beside the details written in a book.
-// The pillar holds the window's height while the book scrolls past it, the
-// way a wall stays put while you turn pages in front of it.
+// **Balanced, not leaning.** The frame this replaces stood the page on a
+// full-height limestone pillar beside an ivory column, and the pillar took
+// two-fifths of the window to hold one name while the column beside it ran
+// long and loose. So the page is centred now, at a measure a wide window
+// cannot stretch: the screen's heading and its few facts on the left of the
+// head, the member card opposite them on the right, and every part of the
+// screen below it in a panel of its own, on the warmer ground of the page.
 //
-// The composition the profile used to borrow — a photograph-band with a plate
-// ridden up over its foot — is the dates step's, and the dates step keeps it.
-// Nothing in this frame overlaps anything else: the bar stands at the head of
-// the book (above the stone, on a phone), and the stone holds only what is cut
-// into it — the house's mark and one line of the guest's, and on the stays
-// page the arch. Everything else is the book's to say.
-//
-// **The light is read once, here.** The pillar is lit by it and the book warms
-// under lamplight, so the frame reads the house's clock for both and writes the
-// light to `data-light`, which every stylesheet below keys on. It is read in an
-// effect and never during render: these pages are prerendered, and an hour
-// rendered at build time would be the build's.
+// **The light is read once, here.** The card is lit by the house's hour, so
+// the frame reads the property's clock and writes the light to `data-light`,
+// which the card's stylesheet keys on. It is read in an effect and never
+// during render: these pages are prerendered, and an hour rendered at build
+// time would be the build's.
 
 import { type ReactNode, useEffect, useState } from "react";
 import { type HouseLight, houseLight } from "@/features/account/lib/house-hour";
 import { AccountBar, type AccountPlace } from "./account-bar";
 import styles from "./account-frame.module.css";
-import { StonePillar } from "./stone-pillar";
+import { MemberCard, type MemberCardFacts } from "./member-card";
 
 export function AccountFrame({
   here,
-  stone,
+  heading,
+  card,
   children,
 }: {
   readonly here: AccountPlace;
-  /** What is cut into the stone's field for this screen. */
-  readonly stone: ReactNode;
-  /** The book: everything the guest reads and works on. */
+  /** The screen's `AccountHeading`, on the left of the head. */
+  readonly heading: ReactNode;
+  /** What the member card carries; uncut until the account is read. */
+  readonly card: MemberCardFacts | undefined;
+  /** The screen's panels. */
   readonly children: ReactNode;
 }) {
   const light = useHouseLight();
 
   return (
     <div className={styles.frame} data-light={light}>
-      <div className={styles.barSlot}>
+      <div className={styles.page}>
         <AccountBar here={here} />
-      </div>
 
-      <main className={styles.main}>
-        <StonePillar>{stone}</StonePillar>
-        <div className={styles.book}>
-          <div className={styles.page}>{children}</div>
-        </div>
-      </main>
+        <main className={styles.main}>
+          <header className={styles.head}>
+            <div className={styles.headText}>{heading}</div>
+            <div className={styles.headCard}>
+              <MemberCard facts={card} />
+            </div>
+          </header>
+
+          <div className={styles.body}>{children}</div>
+        </main>
+      </div>
     </div>
   );
 }

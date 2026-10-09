@@ -1,4 +1,5 @@
-// One stay, as a line of the register — and a link to the surface that owns it.
+// One past stay, as a line of the register — and a link to the surface that
+// owns it.
 //
 // **The whole line is the link and nothing else.** `screens.md` §Account:
 // cancelling and post-stay feedback happen on `/bookings/<reference>`, the one
@@ -7,30 +8,23 @@
 // it — a guest reaching for one stay on a phone should not have to find four
 // underlined characters.
 //
-// **The room, then when, then the rest** — the order the profile's next stay
-// is set in, so a stay reads the same wherever the account shows it. The
-// dates are a sentence ("13 to 16 October 2026", `longDateRange`) rather than
-// a block of large numerals: the list sits beside the heaviest thing on the
-// page, and a column of big figures down its left edge was a second weight
-// set against the stone. Then the plan and the party, which the payload has
-// always carried, and the total the API sent — never a breakdown of it, which
-// would be arithmetic the API did not do. A stay that did not happen keeps its
-// line, quieter, because a history that dropped it would answer "where did my
-// booking go?" with nothing.
+// **What, when, how much, and what became of it — nothing more.** The room in
+// the house's arch and its name, the dates as a sentence ("13 to 16 October
+// 2026", `longDateRange`), the total the API sent and the stay's state. The
+// party, the plan and the reference are the stay's own page's to show; a
+// history line that carried them all would be a form, not a line. A stay that
+// did not happen keeps its line, quieter, because a history that dropped it
+// would answer "where did my booking go?" with nothing.
 //
 // The reference is encoded because it is composed into an address — it is the
 // property's own string and not a credential.
 
 import { parseDate } from "@internationalized/date";
-import { nightCount, roundVndForDisplay } from "@mariva/shared";
-import {
-  longDateRange,
-  occupancySpecs,
-} from "@/features/account/lib/stay-display";
+import { roundVndForDisplay } from "@mariva/shared";
+import { longDateRange } from "@/features/account/lib/stay-display";
 import { standingOf } from "@/features/account/lib/stay-history";
 import type { OwnStay } from "@/features/account/lib/stays";
 import { Money } from "@/features/booking/components/money";
-import { planName } from "@/features/booking/lib/rate-plans";
 import {
   roomLead,
   tierSrc,
@@ -39,26 +33,9 @@ import {
 import { roomType } from "@/features/booking/lib/room-types";
 import styles from "./stays-list.module.css";
 
-export function StayRow({
-  stay,
-  onShow,
-}: {
-  readonly stay: OwnStay;
-  /** Points the stone's arch at this stay. */
-  readonly onShow: (id: OwnStay["id"]) => void;
-}) {
-  const checkIn = parseDate(stay.checkIn);
-  const checkOut = parseDate(stay.checkOut);
+export function StayRow({ stay }: { readonly stay: OwnStay }) {
   const standing = standingOf(stay.state);
   const frame = roomLead(stay.roomType);
-  const specs = [
-    planName(stay.plan),
-    ...occupancySpecs(
-      nightCount({ checkIn, checkOut }),
-      stay.adults,
-      stay.childAges.length,
-    ),
-  ];
 
   return (
     <li className={styles.item}>
@@ -66,11 +43,8 @@ export function StayRow({
         className={styles.row}
         data-tone={standing.tone}
         href={`/bookings/${encodeURIComponent(stay.reference)}`}
-        onFocus={() => onShow(stay.id)}
-        onPointerEnter={() => onShow(stay.id)}
       >
-        {/* The room in a small arch, on a phone only — where there is no
-            stone beside the list to show it in. */}
+        {/* Decorative: the line names the room in words beside it. */}
         <span aria-hidden="true" className={styles.thumb}>
           <img
             alt=""
@@ -84,21 +58,16 @@ export function StayRow({
           />
         </span>
 
-        <span className={styles.what}>
+        <span className={styles.names}>
           <span className={`${styles.room} font-display`}>
             {roomType(stay.roomType).name}
           </span>
           <span className={`${styles.dates} font-display`}>
-            {longDateRange(checkIn, checkOut)}
-          </span>
-          <span className={styles.specs}>{specs.join(" · ")}</span>
-          <span className={`${styles.reference} caps-label`}>
-            {stay.reference}
+            {longDateRange(parseDate(stay.checkIn), parseDate(stay.checkOut))}
           </span>
         </span>
 
         <span className={styles.end}>
-          {/* `lining-nums` travels with `.font-display` — see `.price`. */}
           <span className={`${styles.price} font-display`}>
             <Money amount={roundVndForDisplay(stay.stayTotalGross)} />
           </span>

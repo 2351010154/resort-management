@@ -2,9 +2,9 @@
 //
 // **This is how the stone holds words without anything laid on top of it.**
 // The account's limestone is a material, and a material only takes type one way
-// that does not turn it into a backdrop: cut in. So every word on the stone —
-// the guest's name, the house's — is set as a groove in the wall, and the
-// wall's own light falls into it.
+// that does not turn it into a backdrop: cut in. So the guest's name on the
+// member card is set as a groove in the stone, and the stone's own light falls
+// into it.
 //
 // **Three copies of the text make one cut.** Stacked the way
 // `embossed-monogram.tsx` stacks the footer's mark: the cut's upper wall in its
@@ -13,8 +13,8 @@
 // two decorative copies are hidden from assistive technology, so the words are
 // read once.
 //
-// Display type only: small type cannot take three copies and stay sharp, and
-// the stone is kept to one line so that it never has to.
+// Display type only: small type cannot take three copies and stay sharp, so
+// the card's small caps are engraved shallow instead (`member-card.module.css`).
 
 import styles from "./carving.module.css";
 

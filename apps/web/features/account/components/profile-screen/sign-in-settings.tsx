@@ -2,25 +2,20 @@
 
 // How a guest signs in, managed in place — `screens.md` §Account.
 //
-// The work of the register's "Signing in" chapter; the chapter draws the mark,
-// the sentence and the small print, and this file draws the rows. A sibling of
-// the screen rather than a folder of its own, sharing its stylesheet the way
-// `stay-panel/party-rows.tsx` shares its panel's.
+// The work of the profile's "Signing in" panel; the panel draws the heading,
+// and this file draws the rows. A sibling of the screen rather than a folder of
+// its own, sharing its stylesheet the way `stay-panel/party-rows.tsx` shares
+// its panel's.
 //
 // **The two forms are disclosures, not two open forms.** Each credential is a
 // row that states what the account currently holds — the address it answers
-// to, and a password as dots — and opens the form that changes it. A guest
-// reaches this screen to correct a phone number far more often than to take a
-// password apart, and two full credential forms standing open under the profile
-// put the rare errand in front of the common one. Native `<details>`, so the
-// open state is the browser's — no state to hold, no script to load, and the
-// rows still open if the bundle never arrives.
+// to, and a password as dots — and opens the form that changes it. Native
+// `<details>`, so the open state is the browser's — no state to hold, no
+// script to load, and the rows still open if the bundle never arrives.
 //
-// **A row states only what the account can be asked for.** There is no
-// verification tick beside the address, no date beside the password and no
-// second-factor row. `guestProfileSchema` carries none of the three and Better
-// Auth is not asked for them here, so each would be a mark printed from
-// nothing.
+// **The words are the ones a guest acts on.** A label over each box, the one
+// rule a new password has to meet, and a short answer once the request comes
+// back — nothing that restates what the row already says.
 //
 // **The current password is required and cannot be made optional.** Anyone who
 // reaches an unlocked browser, or a session cookie, would otherwise take the
@@ -30,7 +25,7 @@
 //
 // **The new address is not the identifier until its link is followed.** The
 // account keeps answering to the address it holds while the change is unproven,
-// so the sentence below promises a link and not a change — naming an address
+// so the answer below promises a link and not a change — naming an address
 // must not be enough to make it a credential.
 //
 // **A Google-only account is offered neither disclosure.** Google keeps its
@@ -63,13 +58,16 @@ export function SignInSettings({
 
   if (!hasPassword) {
     return (
-      <>
-        <AddressRow email={email} />
-        <p className={styles.notice}>
-          This account signs in with Google. Your address and your password are
-          Google&rsquo;s to change, and you can do it from your Google account.
-        </p>
-      </>
+      <div className={styles.credentials}>
+        <dl className={styles.pair}>
+          <dt className={`${styles.label} caps-label`}>Email</dt>
+          <dd className={`${styles.value} font-display`}>{email}</dd>
+        </dl>
+        <dl className={styles.pair}>
+          <dt className={`${styles.label} caps-label`}>Signs in with</dt>
+          <dd className={`${styles.value} font-display`}>Google</dd>
+        </dl>
+      </div>
     );
   }
 
@@ -140,10 +138,7 @@ export function SignInSettings({
           onSubmit={onEmail}
         >
           <div className={styles.field}>
-            <label
-              className={`${styles.fieldLabel} caps-label`}
-              htmlFor="newEmail"
-            >
+            <label className={`${styles.label} caps-label`} htmlFor="newEmail">
               New email address
             </label>
             <input
@@ -158,18 +153,13 @@ export function SignInSettings({
             />
           </div>
 
-          <p className={styles.hint}>
-            You sign in with {email} until the new address is confirmed by the
-            link we send to it.
-          </p>
-
           {address ? (
             <p
               className={address.ok ? styles.notice : styles.error}
               role={address.ok ? "status" : "alert"}
             >
               {address.ok
-                ? `A confirmation link is on its way to ${sentTo}. Follow it and that address becomes the one you sign in with. Until then, nothing has changed.`
+                ? `Confirmation link sent to ${sentTo}.`
                 : address.message}
             </p>
           ) : null}
@@ -212,7 +202,7 @@ export function SignInSettings({
         >
           <div className={styles.field}>
             <label
-              className={`${styles.fieldLabel} caps-label`}
+              className={`${styles.label} caps-label`}
               htmlFor="currentPassword"
             >
               Current password
@@ -230,12 +220,13 @@ export function SignInSettings({
 
           <div className={styles.field}>
             <label
-              className={`${styles.fieldLabel} caps-label`}
+              className={`${styles.label} caps-label`}
               htmlFor="newPassword"
             >
               New password
             </label>
             <input
+              aria-describedby="newPasswordRule"
               autoComplete="new-password"
               className={`${styles.input} ${styles.secret}`}
               disabled={pending !== undefined}
@@ -245,12 +236,10 @@ export function SignInSettings({
               required
               type="password"
             />
+            <p className={styles.rule} id="newPasswordRule">
+              At least {MIN_PASSWORD_LENGTH} characters
+            </p>
           </div>
-
-          <p className={styles.hint}>
-            At least {MIN_PASSWORD_LENGTH} characters. Changing it signs you out
-            everywhere else.
-          </p>
 
           {password ? (
             <p
@@ -258,7 +247,7 @@ export function SignInSettings({
               role={password.ok ? "status" : "alert"}
             >
               {password.ok
-                ? "Your password is changed. Any other browser signed in to this account has been signed out."
+                ? "Password changed. Other browsers are signed out."
                 : password.message}
             </p>
           ) : null}
@@ -279,8 +268,8 @@ export function SignInSettings({
 }
 
 /**
- * A credential row: its label, what the account holds, and the word for what
- * pressing it does.
+ * A credential row: its label over what the account holds, and the word for
+ * what pressing it does at the far end.
  *
  * Both words are in the markup and the stylesheet shows the one that matches
  * `<details>`'s own state, so the row is right before any script has run and
@@ -305,24 +294,5 @@ function Summary({
         <span className={styles.chevron} />
       </span>
     </summary>
-  );
-}
-
-/**
- * The address the account answers to, as a label/value row.
- *
- * The Google-only case only. An account that holds a password states its
- * address on the disclosure that changes it, where the current one is readable
- * without opening anything; an account that cannot change it here has no
- * disclosure to state it on, so it gets a plain row on the same tracks.
- */
-function AddressRow({ email }: { readonly email: string }) {
-  return (
-    <dl className={styles.rows}>
-      <div className={styles.row}>
-        <dt className={`${styles.rowLabel} caps-label`}>Email</dt>
-        <dd className={`${styles.rowValue} font-display`}>{email}</dd>
-      </div>
-    </dl>
   );
 }

@@ -1,9 +1,10 @@
-// The light the house is in right now, for the account's stone to be lit by.
+// The light the house is in right now, for the account's member card to be
+// lit by.
 //
-// The account's limestone is lit the way the property's own walls are lit at
+// The card's limestone is lit the way the property's own walls are lit at
 // this moment: the guest reading their profile at midnight in Lisbon sees the
 // afternoon sun on the stone in Nha Trang. Nothing on the page says so in
-// words — the wall simply is in that light, the way a window is.
+// words — the stone simply is in that light, the way a window is.
 //
 // **The property's clock, never the browser's.** The same rule
 // `stay-history.ts` keeps for dates: a guest abroad must see the house's hour,

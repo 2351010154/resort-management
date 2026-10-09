@@ -1,93 +1,70 @@
-/* The stone and the book.
+/* The account's page: a centred measure on a warm linen ground.
  *
- * On a wide screen: the pillar is the first column, the book the second, and
- * the bar stands at the head of the book, placed over the top of its column so
- * the pillar can run the full height of the window beside it. On a phone or a
- * tablet: the bar, then the stone as a band, then the book below the seam.
+ * The ground is `--ivory-warm`, the wall tone of the arrival's second act, and
+ * the panels are ivory on it — paper on linen — so each part of a screen is
+ * told from the next by the sheet it is written on rather than by space alone.
  *
- * The bar is never on the stone. It is the product's own type, not something
- * cut into the house, and the stone holds only what is cut into it.
+ * The measure is held at 72rem: on a wide window the margins take the width,
+ * evenly on both sides, and nothing on the page leans toward one edge. The bar
+ * stands inside the same measure, so the house's name above the page starts
+ * on the vertical the heading and every panel start on.
  */
 
 .frame {
-  --stone-width: clamp(24rem, 42vw, 64rem);
-  --bar-height: 4.5rem;
-  --book-gutter: clamp(var(--space-3), 5.4vw, 7rem);
+  --page-max: 72rem;
+  --page-gutter: clamp(1.25rem, 4vw, 3rem);
 
-  position: relative;
   min-height: 100svh;
-  background: var(--ivory);
+  background: var(--ivory-warm);
   color: var(--ink);
 }
 
-.barSlot {
-  position: absolute;
-  top: 0;
-  right: 0;
-  left: var(--stone-width);
-  z-index: 6;
-  padding-inline: var(--book-gutter) clamp(var(--space-2), 3vw, 3.25rem);
-}
-
-.main {
-  display: grid;
-  grid-template-columns: var(--stone-width) minmax(0, 1fr);
-  align-items: start;
-}
-
-/* The book's paper warms a shade under lamplight, the way a page does when
-   the lamps are on — the one place the hour reaches past the stone. */
-.book {
-  min-width: 0;
-  min-height: 100svh;
-  padding: calc(var(--bar-height) + clamp(var(--space-3), 9svh, 6.5rem))
-    var(--book-gutter) var(--space-5);
-  background: var(--ivory);
-  /* The stone stands a hair proud: its edge throws the faintest shade onto
-     the paper beside it. */
-  box-shadow: inset 1.25rem 0 1.5rem -1.5rem rgb(var(--umber-rgb) / 0.22);
-  transition: background-color 2.4s var(--ease-scene);
-}
-
-[data-light="lamplight"] .book {
-  background: var(--ivory-warm);
-}
-
-/* The measure everything in the book is set to. Centred in its column, so a
-   very wide window gives its width to the margins and not to the lines. */
 .page {
-  width: min(100%, 52rem);
+  width: min(100%, calc(var(--page-max) + 2 * var(--page-gutter)));
   margin-inline: auto;
-  container: book / inline-size;
+  padding: 0 var(--page-gutter) clamp(var(--space-4), 12svh, var(--space-5));
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .book {
-    transition: none;
-  }
+/* The heading and its facts opposite the card, centred on each other's
+   heights so neither side of the head is the heavy one. */
+.head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(14rem, 23rem);
+  align-items: center;
+  gap: var(--space-3) clamp(var(--space-3), 6vw, 6rem);
+  padding-block: clamp(var(--space-3), 7svh, 4.5rem)
+    clamp(var(--space-3), 6svh, 3.75rem);
+}
+
+.headText {
+  min-width: 0;
+}
+
+.headCard {
+  min-width: 0;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1rem, 1.8vw, 1.5rem);
+  min-width: 0;
 }
 
 /* ---- Narrow -------------------------------------------------------------- */
 
-@media (width < 64rem) {
-  .frame {
-    --book-gutter: clamp(1.25rem, 5vw, 2.5rem);
-  }
-
-  .barSlot {
-    position: relative;
-    left: 0;
-    padding-inline: var(--book-gutter);
-  }
-
-  .main {
+/* The card shrinks with the window and keeps its place opposite the heading
+   down to a tablet held upright; only on a phone, where the two would squeeze
+   each other, does it go under the heading, at the width a card is held at in
+   the hand. */
+@media (width < 40rem) {
+  .head {
     grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    padding-block: var(--space-3);
   }
 
-  .book {
-    min-height: 0;
-    padding-top: clamp(var(--space-3), 9vw, var(--space-4));
-    padding-bottom: var(--space-4);
-    box-shadow: none;
+  .headCard {
+    width: min(100%, 22rem);
   }
 }

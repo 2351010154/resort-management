@@ -1,15 +1,21 @@
 "use client";
 
-// The four facts a guest can change about themselves — the book's details
-// chapter, read as a record and opened as a form.
+// What the house holds about the guest — the profile's details panel, read as
+// a record and opened as a form.
 //
-// **A record first, a form when asked.** The register's old answer was "the
-// boxes are the display": four open fields, always editable, a save button
-// always under them. That makes the common visit — checking what the house
-// holds — look like an errand, and it puts a blinking caret on a page a guest
-// came to read. So the chapter is typeset rows by default, and "Edit" turns
-// those same rows into fields in place: the values do not move, they become
-// writable. Save or cancel, and the rows are a record again.
+// **A record first, a form when asked.** Four open fields, always editable,
+// make the common visit — checking what the house holds — look like an errand,
+// and put a blinking caret on a page a guest came to read. So the panel is
+// typeset pairs by default, and "Edit details" turns the same pairs into
+// fields in place: each label stays where it was and its value becomes
+// writable under it. Save or cancel, and the pairs are a record again.
+//
+// **The identity document stands with the rest, and stays a fact.** It is the
+// one pair that never becomes a field: the desk records it from the physical
+// document at check-in, so it is masked, read-only, and offered no add, edit,
+// upload or reveal control — `guestProfileSchema` carries no field an unmasked
+// number could travel in, and `FR-GST-03` makes unmasking an audited staff
+// capability. That it does not open for editing is what says so.
 //
 // **What is sent is `profile-edits.ts`'s business.** The contract is
 // three-valued — absent leaves a field alone, `null` clears it — and the form
@@ -19,8 +25,9 @@
 // which would read back as a change that happened.
 //
 // **The saved profile is handed up.** The contract answers a `PATCH` with the
-// whole record, and the stone reads the name from it: a guest who corrects the
-// spelling of their own name watches it cut again in the wall.
+// whole record, and the page's heading and the member card read the name from
+// it: a guest who corrects the spelling of their own name watches it cut again
+// in the stone.
 
 import { parseDate } from "@internationalized/date";
 import {
@@ -30,7 +37,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { Chapter } from "@/features/account/components/account-frame/chapter";
+import { Panel } from "@/features/account/components/account-frame/panel";
 import { type Profile, saveProfile } from "@/features/account/lib/profile";
 import {
   hasEdits,
@@ -40,12 +47,10 @@ import {
 import { longDate } from "@/features/account/lib/stay-display";
 import styles from "./profile-screen.module.css";
 
-export function DetailsChapter({
-  number,
+export function DetailsPanel({
   profile,
   onSaved,
 }: {
-  readonly number: string;
   readonly profile: Profile;
   readonly onSaved: (profile: Profile) => void;
 }) {
@@ -121,8 +126,18 @@ export function DetailsChapter({
     }
   }
 
+  // Read-only in both modes, and in the same place in both.
+  const identityDocument = (
+    <Stated
+      figures
+      label="Identity document"
+      value={profile.cccdMasked}
+      whenEmpty="None recorded"
+    />
+  );
+
   return (
-    <Chapter
+    <Panel
       action={
         editing ? null : (
           <button
@@ -135,15 +150,17 @@ export function DetailsChapter({
           </button>
         )
       }
-      lede="These prefill your next booking and your next arrival. A stay you have already taken keeps the details it was taken with, and the desk still checks them against your document when you arrive."
-      line="The name on the register."
-      name="Your details"
-      number={number}
+      title="Your details"
     >
       {editing ? (
         <form aria-busy={pending} className={styles.form} onSubmit={onSubmit}>
-          <div className={styles.rows}>
-            <Field edited={"fullName" in edits} id="fullName" label="Full name">
+          <div className={styles.pairs}>
+            <Field
+              edited={"fullName" in edits}
+              id="fullName"
+              label="Full name"
+              wide
+            >
               <input
                 autoComplete="name"
                 className={`${styles.input} font-display`}
@@ -209,6 +226,8 @@ export function DetailsChapter({
                 value={fields.nationality}
               />
             </Field>
+
+            {identityDocument}
           </div>
 
           {refusal ? (
@@ -233,79 +252,94 @@ export function DetailsChapter({
             >
               Cancel
             </button>
-
-            {dirty && !pending ? (
-              <span className={styles.pending}>Changes not yet saved</span>
-            ) : null}
           </div>
         </form>
       ) : (
         <>
-          <dl className={styles.rows}>
-            <Stated label="Full name" value={profile.fullName} />
+          <div className={styles.pairs}>
+            <Stated label="Full name" value={profile.fullName} wide />
             <Stated label="Phone" value={profile.phone} />
             <Stated
               label="Date of birth"
               value={birthday(profile.dateOfBirth)}
             />
             <Stated label="Nationality" value={profile.nationality} />
-          </dl>
+            {identityDocument}
+          </div>
 
           {/* Announced when it arrives, because it arrives after a round
               trip. */}
           {saved ? (
             <p className={styles.notice} role="status">
-              Saved. Your next booking and your next arrival will use these.
+              Saved.
             </p>
           ) : null}
         </>
       )}
-    </Chapter>
+    </Panel>
   );
 }
 
 /**
  * A fact as the house holds it. Nothing on file is said in words — "Not
  * given" — rather than left as a gap that reads like a fault in the page.
+ *
+ * Each pair is a list of its own, so the same pair stands in the record and,
+ * for the document that never becomes a field, inside the opened form.
  */
 function Stated({
   label,
   value,
+  whenEmpty = "Not given",
+  wide = false,
+  figures = false,
 }: {
   readonly label: string;
   readonly value: string | null | undefined;
+  readonly whenEmpty?: string;
+  /** The name takes two columns: it is the one value that runs long. */
+  readonly wide?: boolean;
+  /** Set in lining tabular figures — a masked number. */
+  readonly figures?: boolean;
 }) {
   return (
-    <div className={styles.row}>
-      <dt className={`${styles.rowLabel} caps-label`}>{label}</dt>
+    <dl className={styles.pair} data-wide={wide ? "" : undefined}>
+      <dt className={`${styles.label} caps-label`}>{label}</dt>
       <dd
-        className={`${styles.rowValue} font-display`}
+        className={`${styles.value} font-display`}
         data-empty={value ? undefined : ""}
+        data-figures={figures ? "" : undefined}
       >
-        {value || "Not given"}
+        {value || whenEmpty}
       </dd>
-    </div>
+    </dl>
   );
 }
 
 /**
- * A label beside its box, on the same tracks as the stated row it replaced,
- * and marked while the box holds something the property does not.
+ * A label over its box, in the place of the stated pair it replaced, and
+ * marked while the box holds something the property does not.
  */
 function Field({
   id,
   label,
   edited,
+  wide = false,
   children,
 }: {
   readonly id: string;
   readonly label: string;
   readonly edited: boolean;
+  readonly wide?: boolean;
   readonly children: ReactNode;
 }) {
   return (
-    <div className={styles.editRow} data-edited={edited ? "" : undefined}>
-      <label className={`${styles.rowLabel} caps-label`} htmlFor={id}>
+    <div
+      className={styles.pair}
+      data-edited={edited ? "" : undefined}
+      data-wide={wide ? "" : undefined}
+    >
+      <label className={`${styles.label} caps-label`} htmlFor={id}>
         {label}
       </label>
       <div className={styles.fieldBox}>{children}</div>

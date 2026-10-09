@@ -1,16 +1,15 @@
 /* How the stone takes a word: a cut, for display type only.
  *
- * Measured against the generated pillar: the honed field averages
+ * Measured against the generated limestone: the honed field averages
  * rgb(202 182 158). Umber on it is 6.3:1 in daylight and 3.9:1 under the
  * densest core of the leaf shadow — enough for display type (3:1), which is
- * all the stone carries. Small type is the book's.
+ * all that is cut. Small type on the card is engraved shallow instead.
  */
 
 /* ---- The deep cut -------------------------------------------------------- */
 
-/* Positioned with a stacking order of its own, so the light the pillar lays
- * over its carvings falls into them, and the arch the stays page cuts can sit
- * above that light.
+/* Positioned with a stacking order of its own, so the light the card lays
+ * over its carvings falls into them.
  *
  * The shadow and the lip are absolutely placed over the face's own box, so all
  * three wrap on exactly the same lines. The cut is revealed left to right, the
