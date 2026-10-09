@@ -1,361 +1,241 @@
-/* `/account/stays` — two groups of plates, and nothing that acts on a stay.
+/* `/account/stays`: the register of past stays, its years, and the page's
+ * messages. The stays ahead are `stay-feature.module.css`'s.
  *
- * **The card is a plate now, and this file used to argue it should not be.**
- * The old comment here said a raised card would be the first element in the
- * guest realm that did not draw its structure with hairlines. That was true when
- * it was written and is no longer: `details-screen.module.css` sets the funnel's
- * review screen as ivory plates on a warm ground, cut at `--plate-radius` and
- * lifted a millimetre off the page, and the account area adopts that system
- * rather than inventing a third one. A card language one press away from the
- * funnel's would read as two products.
- *
- * The plate variables are not declared here. `account-shell.module.css` puts
- * `--plate-*`, `--row-radius`, `--rail-pad` and `--plate-seam` on `.screen`,
- * which every rule below descends from, so this file reads them out of the
- * cascade and owns no copy of them to drift.
- *
- * A card holds four rows and each is a different kind of statement: what the
- * room is and how the stay stands, when it runs, which rate it was taken on,
- * and who it was for beside what it cost. Nothing in the list acts on a stay —
- * `stays-list.tsx` says why.
- *
- * Everything reads from @mariva/tokens — design-foundations.md §2. Motion is CSS
- * only, on the permitted properties, at 0.4s on --ease-ui: §5.
+ * The house's own setting: the display face at its Light from
+ * `.font-display`, the states from `.caps-label`. Only sizes, colours and
+ * places are set here. Everything reads from @mariva/tokens; motion is CSS,
+ * on the house eases.
  */
 
-.group {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
+/* ---- Years --------------------------------------------------------------- */
+
+.year + .year {
   margin-top: var(--space-3);
 }
 
-.groupTitle {
+/* The year over its stays, the way a register opens a new year on a fresh
+   page — quieter than a stay. */
+.yearMark {
+  margin-bottom: 0.5rem;
+  font-size: 1.625rem;
+  line-height: 1.2;
   color: var(--stone-deep);
 }
 
+/* ---- The register -------------------------------------------------------- */
+
 .list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  list-style: none;
-  padding: 0;
   margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-.item {
+/* One hairline between two stays, the full width of the panel. */
+.item + .item {
+  border-top: 1px solid rgb(var(--umber-rgb) / 0.1);
+}
+
+/* The room's arch, its name and dates, the total and the state, the way in.
+ * The line reaches to the panel's edges so its wash on hover is the whole
+ * entry, and keeps its words on the panel's padding (`--panel-pad`, published
+ * by `panel.module.css`). */
+.row {
+  display: grid;
+  grid-template-columns: 4rem minmax(0, 1fr) auto 2.75rem;
+  align-items: center;
+  gap: var(--space-2) clamp(var(--space-2), 2.4vw, 2rem);
+  margin-inline: calc(var(--panel-pad, 0rem) * -1);
+  padding: 1.25rem var(--panel-pad, 0rem);
+  color: var(--ink);
+  transition: background-color 0.4s var(--ease-ui);
+}
+
+.row:hover {
+  background: rgb(var(--ivory-warm-rgb) / 0.75);
+}
+
+.row:focus-visible {
+  outline: 2px solid var(--dusk-amber-ink);
+  outline-offset: -2px;
+}
+
+.row:active {
+  transform: translateY(1px);
+}
+
+/* The house's arch, small: a semicircle over straight jambs on a 3:4 frame,
+   its head 37.5% of the height. */
+.thumb {
   display: block;
+  width: 4rem;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  border-radius: 50% 50% 0 0 / 37.5% 37.5% 0 0;
+  background: var(--sand);
 }
 
-/* The whole card is the link. A word inside it would be a target a guest has to
-   find on a phone, when what they are reaching for is the stay. */
-.card {
+.thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.names {
   display: flex;
   flex-direction: column;
-  gap: 0.625rem;
-  padding: var(--plate-pad);
-  color: inherit;
-  background: var(--ivory);
-  border: var(--plate-edge);
-  border-radius: var(--plate-radius);
-  box-shadow: var(--plate-lift);
-  transition:
-    border-color 0.4s var(--ease-ui),
-    transform 0.1s var(--ease-ui);
-}
-
-/* The one place this screen spends motion: a millimetre further off the page
-   under the pointer, which is the plate answering rather than a new colour
-   arriving. `transform`, so nothing below it is laid out again. */
-.card:hover {
-  border-color: rgb(var(--umber-rgb) / 0.24);
-  transform: translateY(-1px);
-}
-
-.card:focus-visible {
-  outline: 2px solid var(--dusk-amber-ink);
-  outline-offset: 4px;
-}
-
-.card:active {
-  transform: translateY(2px);
-}
-
-.head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-2);
+  gap: 0.25rem;
+  min-width: 0;
 }
 
 .room {
-  font-size: var(--text-lg);
-  font-weight: 400;
-  line-height: 1.2;
-}
-
-/* What the stay is, in one word. The tone is set from the state rather than
-   from the group, so a cancelled stay reads the same wherever it is filed.
- *
- * A wash rather than the 1px box the three live tones used to be: an outlined
- * chip beside a plate edge and a card border is a third hairline in the same
- * corner, and the tone has to be read off a line one pixel wide. Tinted, the
- * colour is the size of the chip. Every wash is a `-rgb` triplet at low alpha,
- * which `--stone` and `--sand` do not carry.
- *
- * The transparent border is what keeps the four the same size: `off` below is
- * the one tone still drawn as an outline, and a chip that grew by a pixel when
- * a stay was called off would shift the row it sits in. */
-.badge {
-  flex: 0 0 auto;
-  padding: 0.25rem 0.5rem;
-  font-family: var(--font-ui), ui-monospace, monospace;
-  font-size: var(--text-xs);
-  letter-spacing: var(--tracking-caps);
-  text-transform: uppercase;
-  white-space: nowrap;
-  border: 1px solid transparent;
-  border-radius: var(--row-radius);
-}
-
-.badge[data-tone="ahead"] {
-  color: var(--umber);
-  background: rgb(var(--umber-rgb) / 0.08);
-}
-
-/* The wash carries the tone and `--umber` carries the words. `--dusk-amber` on
-   its own wash measures about 2.35:1, well under the 4.5:1 a 0.75rem caps label
-   needs, and the amber is doing its work as the ground rather than as the text
-   — the same trade `profile-form.module.css` makes for the Gold tier chip. */
-.badge[data-tone="present"] {
-  color: var(--umber);
-  background: rgb(var(--dusk-amber-rgb) / 0.16);
-}
-
-.badge[data-tone="done"] {
-  color: var(--stone-deep);
-  background: rgb(var(--stone-deep-rgb) / 0.1);
-}
-
-/* The one outlined chip, and the only place this file still draws a hairline.
-   A called-off stay is the odd one out and reads as it: filled at the alpha the
-   others use it would have been `done` in a slightly cooler grey, since --stone
-   has no triplet to wash with and --stone-deep is already spent above. An
-   outline separates the two by structure instead of asking a reader to tell two
-   greys apart, and it lifts the text off the plate rather than off a wash —
-   `--stone` at this size measured 3.1:1 and `--stone-deep` on the plate is
-   about 5.7:1. */
-.badge[data-tone="off"] {
-  color: var(--stone-deep);
-  background: none;
-  border: 1px solid rgb(var(--ink-rgb) / 0.18);
-}
-
-.dates {
-  font-size: var(--text-sm);
+  font-size: clamp(1.625rem, 2.2vw, 2rem);
+  line-height: 1.1;
   color: var(--ink);
 }
 
-/* The rate the stay was taken on, as one tag. A row rather than a single
-   element, because a tag row is what it is and the day a second true tag exists
-   it goes here instead of beside the price. */
-.tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.375rem;
+.dates {
+  font-size: 1.3125rem;
+  line-height: 1.25;
+  color: var(--umber);
 }
 
-.tag {
-  padding: 0.1875rem 0.5rem;
-  font-family: var(--font-ui), ui-monospace, monospace;
-  font-size: var(--text-xs);
-  line-height: 1.4;
-  color: var(--stone-deep);
-  border: 1px solid rgb(var(--umber-rgb) / 0.15);
-  border-radius: var(--row-radius);
-}
-
-/* Who the stay was for on the left, what it cost on the right. They share a
-   line because they are the two halves of one question — a guest scanning a
-   history is looking for the week with the children, or the expensive one. */
-.foot {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-2);
-  flex-wrap: wrap;
-  margin-top: 0.125rem;
-}
-
-.specs {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.5rem;
-  min-width: 0;
-  font-size: var(--text-xs);
-  color: var(--stone-deep);
-}
-
-/* The reference grid of the product card, set typographically: `apps/web` ships
-   no icon set and the arrival is deliberately typographic, so the separator is
-   the icon's whole job. Drawn in CSS rather than written into the markup, so it
-   never lands at the start of a wrapped line. */
-.spec + .spec::before {
-  content: "–";
-  margin-inline-end: 0.5rem;
-  color: var(--stone);
-}
-
-.reference {
-  font-family: var(--font-ui), ui-monospace, monospace;
-  letter-spacing: 0.08em;
-}
-
-/* One gross figure and no breakdown: `listOwn` answers a total and no line
-   items, and components of it would be arithmetic the API never sent.
- *
- * `lining-nums` is repeated rather than inherited from `.font-display`:
- * `font-variant-numeric` is one property, so naming `tabular-nums` alone would
- * drop the lining correction and hand Cormorant's oldstyle figures back — a
- * price whose 3s and 7s hang below the line. */
-.price {
-  flex: 0 0 auto;
-  margin-inline-start: auto;
-  font-size: var(--text-lg);
-  font-weight: 400;
-  line-height: 1.2;
-  font-variant-numeric: lining-nums tabular-nums;
-}
-
-/* ---- The rail ------------------------------------------------------------ */
-
-/* What the list adds up to, and the way back into the funnel. It occupies the
-   shell's leading ledger track so both account screens keep the same left-side
-   orientation. */
-.rail {
-  position: sticky;
-  top: var(--space-2);
-  max-height: calc(100dvh - 2 * var(--space-2));
-  overflow-y: auto;
-  padding: var(--rail-pad);
-  background: var(--ivory);
-  border: var(--plate-edge);
-  border-radius: var(--plate-radius);
-  box-shadow: var(--plate-lift);
-}
-
-/* A sentence, not a pair of counters. Both figures are the two groups beside it,
-   counted, and the guest voice states them whole — design-foundations.md §6. */
-.railSummary {
-  font-size: var(--text-sm);
-  line-height: 1.6;
-  color: var(--stone-deep);
-  font-variant-numeric: tabular-nums;
-}
-
-/* The seam between what is true and what can be done about it. */
-.railFoot {
-  display: flex;
-  margin-top: var(--space-2);
-  padding-top: var(--space-2);
-  border-top: var(--plate-seam);
-}
-
-.empty {
+.end {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-2);
-  margin-top: var(--space-2);
+  align-items: flex-end;
+  gap: 0.5rem;
+  text-align: right;
 }
 
-.book {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 2.75rem; /* 44px — the tap floor the funnel is set to. */
-  padding: 0.9rem var(--space-3);
-  color: var(--ivory);
-  background: var(--umber);
-  border: 1px solid var(--umber);
-  border-radius: var(--row-radius);
-  transition:
-    background-color 0.4s var(--ease-ui),
-    color 0.4s var(--ease-ui),
-    transform 0.1s var(--ease-ui);
+/* `lining-nums tabular-nums`: one property, so naming the second alone hands
+   Cormorant's oldstyle figures back. */
+.price {
+  font-size: 1.5rem;
+  line-height: 1.1;
+  font-variant-numeric: lining-nums tabular-nums;
+  white-space: nowrap;
 }
 
-.book:hover {
-  color: var(--umber);
-  background: transparent;
-}
-
-.book:focus-visible {
-  outline: 2px solid var(--dusk-amber-ink);
-  outline-offset: 4px;
-}
-
-.book:active {
-  transform: translateY(2px);
-}
-
-/* Announced when it arrives, because it arrives after a round trip. */
-.notice {
-  font-size: var(--text-sm);
-  line-height: 1.6;
-  padding-left: var(--space-1);
-  border-left: 2px solid var(--dusk-amber);
-  color: var(--stone-deep);
-  max-width: 34rem;
-}
-
-.error {
-  composes: notice;
-  border-left-color: var(--umber);
-  color: var(--umber);
-}
-
-.footnote {
-  margin-top: var(--space-2);
-  font-size: var(--text-sm);
+/* The state in words, its colour by what the guest can still do about it:
+   the accent for a stay still ahead, quiet for the rest. */
+.status {
   color: var(--stone-deep);
 }
 
-.footnoteLink {
-  color: var(--umber);
-  border-bottom: 1px solid rgb(var(--umber-rgb) / 0.3);
-  transition: border-color 0.4s var(--ease-ui);
-}
-
-.footnoteLink:hover {
-  border-bottom-color: var(--umber);
-}
-
-.footnoteLink:focus-visible {
-  outline: 2px solid var(--dusk-amber-ink);
-  outline-offset: 4px;
-}
-
-.footnoteLink:active {
+.row[data-tone="ahead"] .status {
   color: var(--dusk-amber-ink);
 }
 
-/* The rail folds under the list at the shell's own breakpoint, and a sticky
-   panel that is no longer beside anything has nothing to stick to. */
-@media (max-width: 68rem) {
-  .rail {
-    position: static;
-    max-height: none;
-    overflow-y: visible;
+.row[data-tone="present"] .status {
+  color: var(--ink);
+}
+
+/* A stay that did not happen keeps its line, a step quieter: its room and
+   its total in umber rather than ink, its room drained of colour, and its
+   state saying what became of it. */
+.row[data-tone="off"] .room,
+.row[data-tone="off"] .price {
+  color: var(--umber);
+}
+
+.row[data-tone="off"] .thumb img {
+  filter: grayscale(0.75);
+}
+
+/* The arrival's ring, filling as the line is approached. */
+.go {
+  display: grid;
+  place-items: center;
+  justify-self: end;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 1px solid rgb(var(--umber-rgb) / 0.35);
+  border-radius: 50%;
+  color: var(--ink);
+  transition:
+    background-color 0.5s var(--ease-ui),
+    border-color 0.5s var(--ease-ui),
+    color 0.5s var(--ease-ui);
+}
+
+.go svg {
+  width: 0.875rem;
+  height: 0.875rem;
+  transition: translate 0.5s var(--ease-ui);
+}
+
+.row:hover .go,
+.row:focus-visible .go {
+  color: var(--ivory);
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+.row:hover .go svg,
+.row:focus-visible .go svg {
+  translate: 0.1875rem 0;
+}
+
+/* ---- Messages ------------------------------------------------------------ */
+
+/* While the list is read: one quiet line where the panels will stand. */
+.waiting {
+  padding-block: var(--space-3);
+  font-size: var(--text-sm);
+  line-height: 1.6;
+  color: var(--stone-deep);
+}
+
+/* The panel when the house could not read the list: the API's own sentence
+   in the display face, and the way back in. */
+.awayLine {
+  max-width: 34rem;
+  font-size: clamp(1.5rem, 2.2vw, 1.875rem);
+  line-height: 1.2;
+  color: var(--ink);
+}
+
+/* ---- Narrow panels ------------------------------------------------------- */
+
+/* The ring goes — the whole line is the link, and a finger has no hover for
+   it to fill on — and the total and the state move under the dates. */
+@container panel (width < 34rem) {
+  .row {
+    grid-template-columns: 3.5rem minmax(0, 1fr);
+    grid-template-areas:
+      "thumb names"
+      "thumb end";
+    align-items: start;
+    row-gap: 0.75rem;
+  }
+
+  .thumb {
+    grid-area: thumb;
+    width: 3.5rem;
+  }
+
+  .names {
+    grid-area: names;
+  }
+
+  .end {
+    grid-area: end;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.25rem 1rem;
+    text-align: left;
+  }
+
+  .go {
+    display: none;
   }
 }
 
-/* At a phone's measure the price and the spec row do not share a line without
-   one of them being squeezed to a column of single words. They wrap already;
-   this is the price landing under the specs rather than tight against them. */
-@media (max-width: 30rem) {
-  .price {
-    margin-inline-start: 0;
+@media (prefers-reduced-motion: reduce) {
+  .row,
+  .go,
+  .go svg {
+    transition: none;
   }
 }

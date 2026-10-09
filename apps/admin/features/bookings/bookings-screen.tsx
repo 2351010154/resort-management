@@ -367,7 +367,7 @@ export function BookingsScreen() {
         // The wrapper carries the ref rather than the group: the group spreads
         // the props it does not name onto its own container, and a `ref` passed
         // through would replace the one its arrow handling reads the list from.
-        <DataTableFrame className="mt-6 overflow-x-auto">
+        <DataTableFrame className="mt-6 scrollbar-visible overflow-x-auto">
           <RovingFocusGroup
             // The table already says what it is, so the group claims nothing
             // over it — `roving-focus.tsx`'s own note about a queue of rows.

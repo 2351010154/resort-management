@@ -1,0 +1,328 @@
+/* The account area's bar: the house's name, the two destinations, the way
+ * back into the funnel, and the guest's chip.
+ *
+ * **It is type on the ground, never a band.** No fill and no foot: it stands
+ * at the head of the page's measure, the house's name on the vertical every
+ * panel below starts on. A hairline drawn under it would be a ruled edge on a
+ * page that separates its parts by the sheets they are written on.
+ *
+ * The panel is the dark object `funnel-nav.module.css` opens from the funnel's
+ * own bar, so a guest crossing between the two meets one account menu.
+ */
+
+.bar {
+  --bar-gap: clamp(0.25rem, 1.4vw, 1.25rem);
+  --bar-chip-gap: clamp(var(--space-2), 2.8vw, 3rem);
+}
+
+.barInner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 5rem;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  flex: 0 0 auto;
+  color: var(--umber);
+  transition:
+    color 0.25s var(--ease-ui),
+    transform 0.1s var(--ease-ui);
+}
+
+.wordmark {
+  display: block;
+  width: 124px;
+  height: 20px;
+  background: currentcolor;
+  mask: url("/brand/mariva-wordmark.svg") left center / contain no-repeat;
+  -webkit-mask:
+    url("/brand/mariva-wordmark.svg") left center / contain no-repeat;
+}
+
+.brand:hover {
+  color: var(--ink);
+}
+
+.brand:focus-visible {
+  outline: 2px solid var(--dusk-amber-ink);
+  outline-offset: 6px;
+}
+
+.brand:active {
+  transform: translateY(2px);
+}
+
+/* The destinations and the guest, kept together at the far end so the bar
+   reads as one object rather than three things spread across a column. */
+.barEnd {
+  display: flex;
+  align-items: center;
+  gap: var(--bar-chip-gap);
+  margin-left: auto;
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: var(--bar-gap);
+}
+
+/* `nowrap` at every width: "BOOK A / STAY" broken over two lines is two
+   labels, and the honest answer to a narrow window is a row of their own.
+   The pill's padding is drawn on every link, so ringing one moves nothing. */
+.navLink {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-height: 2.75rem; /* 44px — the tap floor the funnel is set to. */
+  padding: 0 1em;
+  color: var(--stone-deep);
+  white-space: nowrap;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  transition:
+    color 0.4s var(--ease-ui),
+    border-color 0.4s var(--ease-ui);
+}
+
+.navLink:hover {
+  color: var(--ink);
+}
+
+/* The page the guest is on: named to a screen reader by `aria-current`, and
+   to everyone else by its ink and the ring the landing draws round its act. */
+.navLink[aria-current="page"] {
+  color: var(--ink);
+  border-color: rgb(var(--ink-rgb) / 0.7);
+}
+
+.navLink:focus-visible {
+  outline: 2px solid var(--dusk-amber-ink);
+  outline-offset: 2px;
+}
+
+.navLink:active {
+  color: var(--dusk-amber-ink);
+}
+
+/* ---- The guest chip ------------------------------------------------------ */
+
+.chip {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0;
+  color: var(--stone-deep);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  transition:
+    color 0.25s var(--ease-ui),
+    transform 0.1s var(--ease-ui);
+}
+
+/* `letter-spacing: 0` undoes the caps tracking: tracking is space after every
+   character including the last, so a lone letter in a ring sits off-centre. */
+.chipMark {
+  display: grid;
+  place-items: center;
+  width: 1.875rem;
+  height: 1.875rem;
+  letter-spacing: 0;
+  color: var(--umber);
+  border: 1px solid rgb(var(--umber-rgb) / 0.32);
+  border-radius: 50%;
+  transition:
+    color 0.25s var(--ease-ui),
+    background-color 0.25s var(--ease-ui),
+    border-color 0.25s var(--ease-ui);
+}
+
+/* Two borders of a turned square: the guest realm ships no icon set, and a
+   corner this small is cheaper as a border than as a file. */
+.chipCaret {
+  width: 0.4rem;
+  height: 0.4rem;
+  flex: 0 0 auto;
+  border-right: 1px solid currentcolor;
+  border-bottom: 1px solid currentcolor;
+  transform: translateY(-2px) rotate(45deg);
+  transition: transform 0.4s var(--ease-ui);
+}
+
+.chip[aria-expanded="true"] .chipCaret {
+  transform: translateY(1px) rotate(-135deg);
+}
+
+.chip:hover,
+.chip[aria-expanded="true"] {
+  color: var(--ink);
+}
+
+.chip:hover .chipMark,
+.chip[aria-expanded="true"] .chipMark {
+  color: var(--ink);
+  background: rgb(var(--umber-rgb) / 0.05);
+  border-color: rgb(var(--umber-rgb) / 0.55);
+}
+
+.chip:focus-visible {
+  outline: 2px solid var(--dusk-amber-ink);
+  outline-offset: 4px;
+}
+
+.chip:active {
+  transform: translateY(1px);
+}
+
+/* The chip's footprint, held while the session is read, so the links beside
+   it do not slide when the answer lands. */
+.chipPlaceholder {
+  width: 2.75rem;
+  height: 1.875rem;
+}
+
+/* ---- The chip's panel ---------------------------------------------------- */
+
+.panel {
+  position: fixed;
+  z-index: 20;
+  inset: auto;
+  top: var(--account-panel-top, var(--space-4));
+  right: var(--account-panel-right, var(--space-2));
+  width: min(16rem, calc(100vw - 2rem));
+  margin: 0;
+  padding: var(--space-2);
+  color: var(--ivory);
+  background: var(--ink);
+  border: 1px solid rgb(var(--ivory-rgb) / 0.16);
+  border-radius: 0.75rem;
+}
+
+.panel::backdrop {
+  background: transparent;
+}
+
+.panelTerm {
+  color: var(--sand);
+}
+
+.panelName {
+  margin-top: var(--space-1);
+  overflow-wrap: anywhere;
+  font-size: var(--text-lg);
+  line-height: 1.1;
+}
+
+.panelEmail {
+  margin-top: var(--space-1);
+  overflow-wrap: anywhere;
+  color: var(--sand);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+.panelLinks {
+  display: grid;
+  gap: var(--space-1);
+  margin-top: var(--space-2);
+  padding-top: var(--space-1);
+  border-top: 1px solid rgb(var(--ivory-rgb) / 0.16);
+}
+
+.panelLinks a,
+.panelOut {
+  display: flex;
+  align-items: center;
+  min-height: 2.75rem;
+  color: var(--ivory);
+  text-align: left;
+  transition:
+    color 0.25s var(--ease-ui),
+    transform 0.1s var(--ease-ui);
+}
+
+.panelLinks a:hover,
+.panelLinks a:focus-visible,
+.panelOut:hover,
+.panelOut:focus-visible {
+  color: var(--dusk-amber);
+}
+
+.panelLinks a:active,
+.panelOut:active {
+  transform: translateY(2px);
+}
+
+.panelLinks a:focus-visible,
+.panelOut:focus-visible {
+  outline: 2px solid var(--dusk-amber);
+  outline-offset: 2px;
+}
+
+.panelOut {
+  width: 100%;
+  margin-top: var(--space-1);
+  padding: var(--space-1) 0 0;
+  border-top: 1px solid rgb(var(--ivory-rgb) / 0.16);
+}
+
+.panelOut:disabled {
+  cursor: wait;
+  opacity: 0.55;
+}
+
+.panelError {
+  margin-top: var(--space-1);
+  color: var(--sand);
+  font-size: var(--text-xs);
+  line-height: 1.5;
+}
+
+/* ---- Narrow: two rows ---------------------------------------------------- */
+
+/* The mark and the chip on the first row, the three destinations on a row of
+ * their own under both. `display: contents` hands `.barEnd`'s two children up
+ * to the bar's own flex line, so the chip can sit beside the mark and the
+ * links can take the second row, without a second element in the markup. */
+@media (width < 40rem) {
+  .barInner {
+    flex-wrap: wrap;
+    row-gap: 0.25rem;
+    padding-top: 0.5rem;
+  }
+
+  .barEnd {
+    display: contents;
+  }
+
+  .chip {
+    margin-left: auto;
+  }
+
+  .nav {
+    order: 1;
+    flex-basis: 100%;
+    gap: 0.25rem;
+  }
+
+  .navLink {
+    min-height: 2.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .navLink,
+  .chip,
+  .chipMark,
+  .chipCaret,
+  .panelLinks a,
+  .panelOut {
+    transition: none;
+  }
+}

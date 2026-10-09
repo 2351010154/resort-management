@@ -66,8 +66,10 @@ import {
  * only from the menu: every booking, folio, invoice and guest record carries a
  * history link that opens the audit view pre-filtered to that record, and the
  * standalone screen with actor, action and date filters remains for sweeps."
- * This is that standalone screen, and its filters are the same ones a record
- * link would arrive carrying — the table and the row are two of the five.
+ * This is both doors and not two screens: the table and the row are two of the
+ * five filters, so a record link is this screen opened with two of its fields
+ * already filled in. `record-history.ts` owns that url in both directions and
+ * the route file hands what it read down as `filters`.
  *
  * ## One list, read twice
  *
@@ -142,11 +144,24 @@ interface Asked {
   readonly offset: number;
 }
 
-export function AuditScreen() {
+export function AuditScreen({
+  /* What the screen opens on — the record a history link named, or the whole
+   * log for anyone who arrived from the menu. It is a prop rather than
+   * something read here because `app/(app)/audit/page.tsx` reads the query
+   * string on the server: `useSearchParams` would put this screen behind a
+   * Suspense boundary to answer a question the route already has the answer to,
+   * and `app/(auth)/login/page.tsx` makes the same argument about the
+   * destination it was interrupted with.
+   *
+   * `recordHistoryFilters` has already thrown away anything a url could carry
+   * that is not a record, so what arrives here is filters the form could have
+   * held — never a row without its table, and never a day. */
+  filters = DEFAULT_AUDIT_FILTERS,
+}: {
+  filters?: AuditFilterFields;
+}) {
   const session = useStaffSession();
-  const [fields, setFields] = useState<AuditFilterFields>(
-    DEFAULT_AUDIT_FILTERS,
-  );
+  const [fields, setFields] = useState<AuditFilterFields>(filters);
   // Null until the first question is submitted. The opening one is derived from
   // the property's day below rather than held here, because a day typed as
   // "today" has no answer until the API has said what today is.
@@ -202,13 +217,15 @@ export function AuditScreen() {
       return null;
     }
 
-    const attempt = auditFilters(DEFAULT_AUDIT_FILTERS, businessDate, 0);
+    const attempt = auditFilters(filters, businessDate, 0);
 
-    // The defaults name no day, no record and no actor, so the attempt cannot
-    // fail — this is the narrowing rather than a fallback, and a `problem` here
-    // would be a bug in the defaults rather than something to report.
+    // The opening filters name no day, and their record — if a link brought one
+    // — is a table with a row id already checked against the same predicate the
+    // form applies. So the attempt cannot fail: this is the narrowing rather
+    // than a fallback, and a `problem` here would be a bug in the defaults or in
+    // `recordHistoryFilters` rather than something to report at the reader.
     return "problem" in attempt ? null : attempt.question;
-  }, [offered, businessDate]);
+  }, [offered, businessDate, filters]);
 
   const question = asked?.question ?? opening;
   const offset = asked?.offset ?? 0;
@@ -411,7 +428,7 @@ function ChangeTable({
   }
 
   return (
-    <DataTableFrame className="overflow-x-auto p-4">
+    <DataTableFrame className="scrollbar-visible overflow-x-auto p-4">
       <p className="text-muted-foreground mb-2 text-sm">
         {SCOPE_NOTES[page.scope]}
       </p>

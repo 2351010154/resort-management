@@ -1,0 +1,70 @@
+/* The account's page: a centred measure on a warm linen ground.
+ *
+ * The ground is `--ivory-warm`, the wall tone of the arrival's second act, and
+ * the panels are ivory on it — paper on linen — so each part of a screen is
+ * told from the next by the sheet it is written on rather than by space alone.
+ *
+ * The measure is held at 72rem: on a wide window the margins take the width,
+ * evenly on both sides, and nothing on the page leans toward one edge. The bar
+ * stands inside the same measure, so the house's name above the page starts
+ * on the vertical the heading and every panel start on.
+ */
+
+.frame {
+  --page-max: 72rem;
+  --page-gutter: clamp(1.25rem, 4vw, 3rem);
+
+  min-height: 100svh;
+  background: var(--ivory-warm);
+  color: var(--ink);
+}
+
+.page {
+  width: min(100%, calc(var(--page-max) + 2 * var(--page-gutter)));
+  margin-inline: auto;
+  padding: 0 var(--page-gutter) clamp(var(--space-4), 12svh, var(--space-5));
+}
+
+/* The heading and its facts opposite the card, centred on each other's
+   heights so neither side of the head is the heavy one. */
+.head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(14rem, 23rem);
+  align-items: center;
+  gap: var(--space-3) clamp(var(--space-3), 6vw, 6rem);
+  padding-block: clamp(var(--space-3), 7svh, 4.5rem)
+    clamp(var(--space-3), 6svh, 3.75rem);
+}
+
+.headText {
+  min-width: 0;
+}
+
+.headCard {
+  min-width: 0;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(1rem, 1.8vw, 1.5rem);
+  min-width: 0;
+}
+
+/* ---- Narrow -------------------------------------------------------------- */
+
+/* The card shrinks with the window and keeps its place opposite the heading
+   down to a tablet held upright; only on a phone, where the two would squeeze
+   each other, does it go under the heading, at the width a card is held at in
+   the hand. */
+@media (width < 40rem) {
+  .head {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: start;
+    padding-block: var(--space-3);
+  }
+
+  .headCard {
+    width: min(100%, 22rem);
+  }
+}

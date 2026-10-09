@@ -1,0 +1,64 @@
+/* The arch: a semicircle over straight jambs, standing on its sill.
+ *
+ * The head's radius is half the frame's width across and the same distance
+ * down — on a 4:5 frame that is 40% of its height — so the head stays a true
+ * semicircle at every size the frame is drawn at.
+ */
+
+.arch {
+  --arch-head: 40%;
+
+  position: relative;
+  aspect-ratio: 4 / 5;
+  margin: 0;
+}
+
+.opening {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  border-radius: 50% 50% 0 0 / var(--arch-head) var(--arch-head) 0 0;
+  background: var(--sand);
+}
+
+.picture {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation: develop 1.4s var(--ease-scene) 0.2s both;
+}
+
+/* The inset keyline, in ivory inside the photograph: the frame's own edge,
+   drawn the way the landing draws the ring inside its framed pictures. */
+.opening::after {
+  content: "";
+  position: absolute;
+  inset: 0.75rem 0.75rem 0;
+  z-index: 1;
+  border: 1px solid rgb(var(--ivory-rgb) / 0.62);
+  border-bottom: none;
+  border-radius: 50% 50% 0 0 / var(--arch-head) var(--arch-head) 0 0;
+  pointer-events: none;
+}
+
+/* The room comes up in the frame the way the arrival's pictures do: from a
+   hair larger, settling as it clears. */
+@keyframes develop {
+  from {
+    opacity: 0;
+    scale: 1.04;
+  }
+
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .picture {
+    animation: none;
+  }
+}

@@ -1,0 +1,56 @@
+/* The arrival's "EXPLORE (→)": a caps label and a ring, the ring filling as
+   the link is approached and the arrow inside it stepping on. */
+.circleLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.125rem;
+  min-height: 3.25rem;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.circle {
+  display: grid;
+  place-items: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  flex: 0 0 auto;
+  border: 1px solid rgb(var(--umber-rgb) / 0.4);
+  border-radius: 50%;
+  transition:
+    background-color 0.5s var(--ease-ui),
+    border-color 0.5s var(--ease-ui),
+    color 0.5s var(--ease-ui);
+}
+
+.circle svg {
+  width: 1rem;
+  height: 1rem;
+  transition: translate 0.5s var(--ease-ui);
+}
+
+.circleLink:hover .circle {
+  color: var(--ivory);
+  background: var(--ink);
+  border-color: var(--ink);
+}
+
+.circleLink:hover .circle svg {
+  translate: 0.1875rem 0;
+}
+
+.circleLink:focus-visible {
+  outline: 2px solid var(--dusk-amber-ink);
+  outline-offset: 4px;
+}
+
+.circleLink:active {
+  transform: translateY(2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .circle,
+  .circle svg {
+    transition: none;
+  }
+}

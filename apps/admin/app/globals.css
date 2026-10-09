@@ -192,3 +192,18 @@
   --chart-scale-05: var(--console-primary);
   --chart-scale-pattern-color: var(--console-surface);
 }
+
+/* The console scrolls without drawing a scrollbar: the page, the nav rail, every
+   inner overflow container. Scrolling itself is untouched — only the platform's
+   rendering of the bar is suppressed. The exception carries `scrollbar-visible`:
+   a scrollport wider than its frame, where the bar is the only thing announcing
+   there is more to the side, keeps the platform's own. */
+*:not(.scrollbar-visible) {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+*:not(.scrollbar-visible)::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}

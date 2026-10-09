@@ -1,0 +1,85 @@
+/* The screen's heading and its facts, on the left of the frame's head.
+ *
+ * The house's own setting throughout — the display face at its Light from
+ * `.font-display`, the labels from `.caps-label` — so the account reads in the
+ * same hand as the landing and the funnel. Only sizes and colours are set here.
+ */
+
+.heading {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(var(--space-3), 4.5svh, 2.75rem);
+  min-width: 0;
+}
+
+.names {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+/* The drawn italic: a greeting is said, not stated. */
+.greeting {
+  font-size: clamp(1.5rem, 2vw, 1.875rem);
+  font-style: italic;
+  line-height: 1.2;
+  color: var(--umber);
+}
+
+.title {
+  font-size: clamp(3rem, 5.4vw, 5rem);
+  line-height: 1;
+  letter-spacing: -0.005em;
+  color: var(--ink);
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+.title[data-length="medium"] {
+  font-size: clamp(2.625rem, 4.4vw, 4rem);
+}
+
+.title[data-length="long"] {
+  font-size: clamp(2.25rem, 3.6vw, 3.25rem);
+}
+
+/* The facts as a row of pairs, each a label over its value, wrapping as a
+   whole pair rather than splitting one across lines. */
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) clamp(var(--space-3), 4vw, 3.5rem);
+}
+
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.factLabel {
+  color: var(--stone-deep);
+}
+
+/* `lining-nums` beside `tabular-nums`: one property, so naming the second
+   alone hands Cormorant's oldstyle figures back. */
+.factValue {
+  font-size: clamp(1.625rem, 2.2vw, 2rem);
+  line-height: 1.05;
+  font-variant-numeric: lining-nums tabular-nums;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+/* The heading while nothing has been read: present for assistive
+   technology, absent from the page. */
+.hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

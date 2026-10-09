@@ -15,6 +15,12 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { RECORD_TABLES } from "@/features/audit/record-history";
+/* The history link, from the module that owns it rather than written out here:
+ * it carries the matrix's own gate, so a record cannot offer the log to a role
+ * that holds no grant for it. Imported by its own path and not through the
+ * family's barrel, which would pull the whole audit screen into this bundle. */
+import { RecordHistoryLink } from "@/features/audit/record-history-link";
 import type { SearchCriteria } from "@/features/bookings/booking-search";
 import { useStaffSession } from "@/lib/auth";
 import {
@@ -353,14 +359,30 @@ function GuestDetail({ guest, role }: { guest: GuestHit; role: StaffRole }) {
 
           <IdentityNumber record={record.data} role={role} />
 
-          <p className="mt-6 max-w-4xl border-border border-t pt-4 text-sm leading-6 text-muted-foreground">
-            {/* Said rather than implied: an operator looking for a stay list or
-                a scan on this screen is owed the reason there is none. */}
-            This record is the person, not their stays. A guest's bookings are
-            found on Bookings (g b). No document image is kept anywhere. The
-            document is checked at the desk and its particulars go on the
-            registration.
-          </p>
+          <div className="mt-6 max-w-4xl border-border border-t pt-4">
+            <p className="text-sm leading-6 text-muted-foreground">
+              {/* Said rather than implied: an operator looking for a stay list
+                  or a scan on this screen is owed the reason there is none. */}
+              This record is the person, not their stays. A guest's bookings are
+              found on Bookings (g b). No document image is kept anywhere. The
+              document is checked at the desk and its particulars go on the
+              registration.
+            </p>
+            {/* The person's door into the change log, which `screens.md` asks
+                every guest record to carry. It is the same log the reveal above
+                writes to: every reading of the identity number is an entry
+                against this row, so the question "who has looked at this
+                number" is answered through this link and nowhere else on the
+                screen. Drawn for the roles the matrix grants the log to, which
+                are not the roles it grants the reveal to. */}
+            <RecordHistoryLink
+              role={role}
+              tableName={RECORD_TABLES.guest}
+              rowId={guest.id}
+              label="Read this guest's history"
+              className="mt-3 inline-block"
+            />
+          </div>
         </div>
       )}
     </Card>

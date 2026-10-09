@@ -231,7 +231,9 @@ never been built — the script executes from `dist/`, and a fresh checkout has 
 pnpm dev
 ```
 
-Turborepo fans the task out across every workspace that defines one: the web app on
+It first starts the `mariva-pg` container (creating it if missing) and waits until
+Postgres accepts connections, because the API exits at boot without a database.
+Turborepo then fans the task out across every workspace that defines one: the web app on
 <http://localhost:3000>, the API on <http://localhost:3001>. To drive a single one:
 
 ```bash

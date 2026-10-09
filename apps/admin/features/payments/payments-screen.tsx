@@ -518,7 +518,7 @@ function PaymentTable({
   }
 
   return (
-    <DataTableFrame className="overflow-x-auto p-4">
+    <DataTableFrame className="scrollbar-visible overflow-x-auto p-4">
       <table className="w-full min-w-[680px] border-collapse text-sm">
         <caption className="text-muted-foreground mb-2 text-left text-sm">
           Every payment the filters matched, with the ones a night disagreed
@@ -618,7 +618,7 @@ function RefundCandidateTable({
   }
 
   return (
-    <DataTableFrame className="overflow-x-auto p-4">
+    <DataTableFrame className="scrollbar-visible overflow-x-auto p-4">
       <table className="w-full min-w-[680px] border-collapse text-sm">
         <caption className="text-muted-foreground mb-2 text-left text-sm">
           Successful payments that can still anchor a policy refund. The refund

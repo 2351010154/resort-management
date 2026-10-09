@@ -1,0 +1,103 @@
+/* How the stone takes a word: a cut, for display type only.
+ *
+ * Measured against the generated limestone: the honed field averages
+ * rgb(202 182 158). Umber on it is 6.3:1 in daylight and 3.9:1 under the
+ * densest core of the leaf shadow — enough for display type (3:1), which is
+ * all that is cut. Small type on the card is engraved shallow instead.
+ */
+
+/* ---- The deep cut -------------------------------------------------------- */
+
+/* Positioned with a stacking order of its own, so the light the card lays
+ * over its carvings falls into them.
+ *
+ * The shadow and the lip are absolutely placed over the face's own box, so all
+ * three wrap on exactly the same lines. The cut is revealed left to right, the
+ * way a line of letters is cut; the negative insets keep the marks above a
+ * Vietnamese vowel and Cormorant's descenders inside the reveal. */
+.carved {
+  position: relative;
+  z-index: 2;
+  font-family: var(--font-display), serif;
+  font-weight: 300;
+  font-variant-numeric: lining-nums;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+  animation: carve 1.6s var(--ease-scene) 0.15s both;
+}
+
+.cutShadow,
+.cutLight,
+.cutFace {
+  display: block;
+}
+
+.cutShadow,
+.cutLight {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* The upper wall of the cut, in its own shadow: the light is from the upper
+   left, so the stone above each stroke throws a hair of dark into it. */
+.cutShadow {
+  color: rgb(var(--ink-rgb) / 0.36);
+  translate: -0.012em -0.024em;
+  filter: blur(0.5px);
+}
+
+/* The lower lip of the cut, catching the same light. */
+.cutLight {
+  color: rgb(var(--ivory-rgb) / 0.72);
+  translate: 0.008em 0.028em;
+}
+
+/* The floor of the cut: the stone's own grain under an umber wash that is
+   darker at the top of each line than at its foot — the light reaching into
+   a groove from above. Plain umber where the grain cannot be drawn in. */
+.cutFace {
+  position: relative;
+  color: rgb(var(--umber-rgb) / 0.94);
+}
+
+@supports (background-clip: text) or (-webkit-background-clip: text) {
+  .cutFace {
+    color: transparent;
+    background:
+      linear-gradient(
+        to bottom,
+        rgb(var(--umber-rgb) / 0.96),
+        rgb(var(--umber-rgb) / 0.84)
+      ),
+      url("/images/account/limestone-pillar-640.webp") 0 0 / 30rem auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+  }
+}
+
+/* Under the lamps the lip is lit warm from below rather than by the sky. */
+[data-light="lamplight"] .cutLight {
+  color: rgb(var(--dusk-amber-rgb) / 0.5);
+}
+
+/* ---- Motion -------------------------------------------------------------- */
+
+@keyframes carve {
+  from {
+    clip-path: inset(-0.3em 100% -0.35em -0.15em);
+  }
+
+  to {
+    clip-path: inset(-0.3em -0.15em -0.35em -0.15em);
+  }
+}
+
+/* The global kill-switch would still hold the cut at its first keyframe for
+   the length of its delay — a blank wall, then a name — so it is removed. */
+@media (prefers-reduced-motion: reduce) {
+  .carved {
+    animation: none;
+  }
+}
